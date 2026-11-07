@@ -104,6 +104,11 @@
 - 结论文档：`docs/spikes/02-react-idle.md`。
 
 ### S3 Android 触摸注入
+- ✅ `MotionEvent.obtain(多指针版, TOOL_TYPE_FINGER, SOURCE_TOUCHSCREEN)` → `appContext.currentActivity.dispatchTouchEvent`，主线程执行（`runOnQueue(Queues.MAIN)`），坐标 dp × density。
+- Pressable onPress ✅、按下态 ✅、RNGH RectButton ✅、连续 10 次 ✅（668–1060ms）、点空白处无反应 ✅；单次往返 83–138ms。
+- **Pressability 的 `minPressDuration`（130ms，setTimeout）**：抬起且 React 空闲后，pressed 样式还要再保持约 117ms ⇒ timer tracker 是必需的。
+- 未验证的风险：RN `Modal`（独立 Dialog 窗口）无法通过 Activity 的 dispatchTouchEvent 送达 → Phase 2 处理。
+- 结论文档：`docs/spikes/03-android-touch.md`。
 ### S4 iOS 触摸注入
 ### S5 连接参数传递
 ### S6 生产剔除

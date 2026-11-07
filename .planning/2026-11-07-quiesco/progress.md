@@ -36,6 +36,10 @@
   - Fast Refresh 会保留状态、污染测量 → 每次测量前都强制结束 App 再启动。
 - **S2 完成**，结论写入 `docs/spikes/02-react-idle.md`。
 
+- S3：Kotlin 实现 `tap` / `touchDown` / `touchUp`（MotionEvent → Activity.dispatchTouchEvent），`gradlew assembleDebug` 27s。
+  - 第 1 次：按下态检查失败（样式三个时刻都是 pressed）→ 原因是 Pressability 的 minPressDuration 定时器，改为等待样式变化并记录耗时 → 确认按下态正常，抬起后 117ms 恢复。
+- **S3 完成**，结论写入 `docs/spikes/03-android-touch.md`。
+
 ## Test Results
 | 测试 | 结果 | 备注 |
 |------|------|------|
@@ -48,3 +52,4 @@
 | S2 Android debug：6 场景，A&&B 两次确认 | ✅ | 误判 0 |
 | S2 Android release：6 场景 | ✅ | 误判 0 |
 | S2 iOS debug：6 场景 | ✅（两次确认） | 单次检查误判 1（Suspense），两次确认 0 |
+| S3 Android：Pressable onPress / 按下态 / RNGH / 10 连击 / 空白处 | ✅ | 往返 83–138ms |
