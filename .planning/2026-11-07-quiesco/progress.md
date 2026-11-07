@@ -111,6 +111,15 @@
   - dev client APK 构建成功（prebuild + assembleDebug）。
   - 真机首次运行：4 场景 22 步全部通过；反向验证（期望不存在的待办）按预期失败，信息含 expected / actual，HTML 报告含截图与 JSON 附件。
 
+- 提交 1.7（c183a31）。
+- 1.8 验收（Android Emulator API 37，dev client，js 档位）：
+  1. 第 9 节场景 + 登录：默认设置连续 3 次全部通过（约 12.3s/次）。
+  2. `MOCK_DELAY_MS=2000` + `EXPO_PUBLIC_TRANSITION_MS=1000`（重启 Metro，确认 bundle 中 env 为 "1000"），测试不改，连续 3 次全部通过（约 39s/次，耗时增加说明确实在等待）。
+  3. 同步超时诊断：`MOCK_STALL="POST /login"` → `SYNC_TIMEOUT … network: POST http://localhost:3001/login (9903ms)`；临时 backdoor 启动 1s 循环定时器 → `timer: setTimeout(ticker, 1000ms), fires in 265ms`（临时代码已撤回）。
+  - 顺带确认：未注册 backdoor 的错误在真机上列出已注册名称。
+  - 注意：Metro 以 `CI=1` 启动时不监听文件变化，改代码后需要重启 Metro。
+- 撤回临时代码后用提交状态再跑一次：4 场景 22 步通过。**Phase 1 完成。**
+
 ## Test Results
 | 测试 | 结果 | 备注 |
 |------|------|------|
@@ -154,3 +163,8 @@
 | 1.7 Android Emulator 真机 e2e | ✅ | 4 场景 22 步通过（12.6s，含安装与启动） |
 | 1.7 反向验证 | ✅ | 故意失败的场景报 ASSERTION_FAILED（expected "不存在的待办"，actual "写周报"），报告含 PNG + JSON |
 | 1.7 `pnpm run check` | ✅ | 包检查 180 个测试 + 示例 App 类型检查 |
+| 1.8-1 第 9 节场景（默认设置）×3 | ✅ | 每次 4 场景 22 步通过，约 12.3s |
+| 1.8-2 2s 网络延迟 + 1s 页面切换 ×3（测试不改） | ✅ | 每次 4 场景 22 步通过，约 39s |
+| 1.8-3 同步超时：未完成请求 | ✅ | `network: POST http://localhost:3001/login (9903ms)` |
+| 1.8-3 同步超时：未触发定时器 | ✅ | `timer: setTimeout(ticker, 1000ms), fires in 265ms` |
+| 1.8 最终运行（提交状态） | ✅ | 4 场景 22 步通过；`pnpm run check` 180 测试 + 示例类型检查通过 |

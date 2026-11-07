@@ -4,10 +4,10 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-1.8 验收：(1) 重新运行第 9 节场景并展示结果；(2) `MOCK_DELAY_MS=2000` + `EXPO_PUBLIC_TRANSITION_MS=1000`（重启 Metro）下不改测试仍稳定通过（多次运行）；(3) 人为制造同步超时（例如 App 中加一个 ≤1.5s 循环定时器或永不返回的请求，用临时场景/后门触发），确认错误信息指出具体请求 / 定时器。Metro 仍在后台（8082，e2e 模式）。
+Phase 2（真实触摸与速度，Android）：先读 requirements.md §10 第 2 阶段，输出实施计划，**经 HU 确认后再写代码**（§12）。需带入的已知问题：native 档位需要变换后的坐标（UI 线程 / transform 动画与 frame-stable）；Android `Modal` 独立窗口的注入；滑动 / 滚动的注入；后门 / 软重置的完善。
 
 ## Current Phase
-Phase 1
+Phase 2（待确认实施计划）
 
 ## 工作约定（摘自 requirements.md §12，每个阶段都要遵守）
 - 按阶段推进，不跳阶段；每阶段开始前先输出实施计划，经确认后再写代码。
@@ -55,7 +55,7 @@ Phase 1
 - [x] 1.5 `@quiesco/core`：WS Server（多连接、session 校验、协议版本检查）、会话 API（运行器无关：createSession / beforeScenario / collectEvidence / dispose）、Driver（6.3〜6.6 的 async API）、DeviceProvider 接口 + Android 实现（boot：唤醒/stayon；install；launch：pm grant、adb reverse、am start 带 extras 与 dev client URL；terminate；screenshot；shutdown）、`defineConfig` 与配置加载、连接等待超时与排查提示
 - [x] 1.6 `@quiesco/cucumber`：World（`this.app`）、hooks（BeforeAll / Before / After / AfterAll）、`register` 入口
 - [x] 1.7 `examples/todo-app`：Expo SDK 58 + Expo Router（登录页、待办列表、新建待办表单、带动画的页面切换）、本地 mock server（可配置延迟）、`features/` 第 9 节 feature + step definitions、`quiesco.config.ts`
-- [ ] 1.8 验收：
+- [x] 1.8 验收：
   - Android Emulator + dev client 上第 9 节场景全部通过
   - 给 mock server 加 2 秒延迟、给页面切换加 1 秒动画后，不改测试仍稳定通过
   - 人为制造同步超时，错误信息能指出未完成的请求 / 定时器
@@ -78,7 +78,7 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 ```
 
 **验收**：Android Emulator + dev client 第 9 节场景通过；注入 2s 网络延迟与 1s 动画后无需改测试仍稳定通过；同步超时错误能指出具体请求/定时器
-- **Status:** in_progress
+- **Status:** complete
 
 ### Phase 2: 真实触摸与速度（Android）
 - [ ] `@quiesco/native` Android 实现 + native 动作档位
@@ -178,6 +178,7 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | 示例 App：Metro 用 8082 端口（`devClient.metroUrl`）；配置文件用 `quiesco.config.mts`；`features/package.json` 设 `"type": "module"` | 8081 被 Phase 0 的 spike Metro 占用（未关闭它）；避免 Node 的 MODULE_TYPELESS 警告，又不影响 CJS 的 metro.config.js |
 | 删除 create-expo-app 模板自带的 `LICENSE`（Expo MIT）与 `.claude/settings.json`（自动启用插件） | 项目许可证待 HU 决定（§11-1），模板许可证容易被误认为项目许可证；插件设置会影响打开目录的人 |
 | `pnpm run check` 与 CI 增加示例 App 类型检查（`typecheck:examples`） | 包 API 变化时示例 App 及 step 定义能被及时发现 |
+| mock server 增加 `MOCK_STALL="<METHOD> <path>"`（该接口永不返回） | 验收「同步超时能指出请求」：全局延迟会先卡住 onReset / backdoor，只能得到 AGENT_TIMEOUT |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

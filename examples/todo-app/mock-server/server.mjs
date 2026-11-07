@@ -1,13 +1,15 @@
-// Local mock backend for the example app. MOCK_DELAY_MS delays every response (acceptance test:
-// "add a 2 s network delay, the tests still pass unchanged").
+// Local mock backend for the example app.
+// - MOCK_DELAY_MS delays every response (acceptance: "add a 2 s network delay, the tests still pass unchanged").
+// - MOCK_STALL="POST /login" never answers that route (acceptance: a sync timeout names the pending request).
 import { randomUUID } from 'node:crypto';
 import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 
-/** @param {{ port?: number; delayMs?: number }} [options] */
+/** @param {{ port?: number; delayMs?: number; stall?: string }} [options] */
 export function startMockServer(options = {}) {
   const port = options.port ?? Number(process.env.MOCK_PORT ?? 3001);
   const delayMs = options.delayMs ?? Number(process.env.MOCK_DELAY_MS ?? 0);
+  const stall = options.stall ?? process.env.MOCK_STALL ?? '';
   /** @type {{ id: string; title: string }[]} */
   let todos = [];
 
@@ -28,6 +30,7 @@ export function startMockServer(options = {}) {
       };
       const json = body === '' ? {} : JSON.parse(body);
       const route = `${req.method} ${req.url}`;
+      if (route === stall) return; // never answer
       switch (route) {
         case 'OPTIONS /login':
         case 'OPTIONS /todos':
@@ -52,7 +55,17 @@ export function startMockServer(options = {}) {
 
   return new Promise((resolve, reject) => {
     server.once('error', reject);
-    server.listen(port, () => resolve({ port, delayMs, close: () => new Promise((r) => server.close(() => r(undefined))) }));
+    server.listen(port, () =>
+      resolve({
+        port,
+        delayMs,
+        close: () =>
+          new Promise((r) => {
+            server.closeAllConnections();
+            server.close(() => r(undefined));
+          }),
+      }),
+    );
   });
 }
 

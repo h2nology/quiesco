@@ -21,6 +21,7 @@ The mock backend is started by `features/support/mock-server.ts`. Knobs for robu
 | Variable | Effect |
 |---|---|
 | `MOCK_DELAY_MS=2000` | every backend response takes 2 s |
+| `MOCK_STALL="POST /login"` | that route never answers (to see a sync-timeout report) |
 | `EXPO_PUBLIC_TRANSITION_MS=1000` | screen transitions take 1 s (set when starting Metro) |
 | `QUIESCO_AVD=<name>` | AVD to use / boot |
 
