@@ -105,6 +105,12 @@
 - 1.6 cucumber 完成：core 新增 `tags.ts`（runsOnPlatform / tagNames）与 `config.tags`；cucumber 包：`lifecycle.ts`、`world.ts`（QuiescoWorld，`this.app` / `this.session`）、`register-hooks.ts`（registerQuiesco）、`register.ts`、exports `./register`；`@cucumber/cucumber` 13.3.0 为 dev + peer 依赖。
   - 集成测试用 cucumber 编程式 API 真实运行 4 个场景：软 / 硬重置顺序、`@web` 在 android 上被跳过、失败场景附加 PNG + JSON、AfterAll dispose。
 
+- 提交 1.6（cb736d6）。
+- 1.7 示例 App 完成：create-expo-app（blank-typescript@sdk-58）→ `expo install` expo-router / dev-client / async-storage 2.2.0 等（expo-doctor 20/20）；`src/app`（登录 / 待办列表 / 新建）、`store.ts`、`api.ts`、`e2e.ts`（loginAs / seedTodos / onReset，仅 e2e 构建加载）、`ScreenTransition`、mock server（MOCK_DELAY_MS）、features（§9 新建待办 + 登录）、steps、support、`quiesco.config.mts`、`metro.config.js`、README。
+  - Metro 打包验证：e2e 包含 agent 特征字符串，生产包为 0。
+  - dev client APK 构建成功（prebuild + assembleDebug）。
+  - 真机首次运行：4 场景 22 步全部通过；反向验证（期望不存在的待办）按预期失败，信息含 expected / actual，HTML 报告含截图与 JSON 附件。
+
 ## Test Results
 | 测试 | 结果 | 备注 |
 |------|------|------|
@@ -144,3 +150,7 @@
 | 1.5 `pnpm run check` | ✅ | build / lint / depcruise（90 模块无违规）/ test 172 个，类型检查无错误 |
 | 1.6 cucumber 测试 | ✅ | lifecycle 6 个 + 真实 cucumber-js 运行 1 个 |
 | 1.6 `pnpm run check` | ✅ | build / lint / depcruise（96 模块无违规）/ test 180 个，类型检查无错误 |
+| 1.7 Metro 打包（e2e / 生产） | ✅ | 生产包 agent 特征字符串 0，e2e 包存在 |
+| 1.7 Android Emulator 真机 e2e | ✅ | 4 场景 22 步通过（12.6s，含安装与启动） |
+| 1.7 反向验证 | ✅ | 故意失败的场景报 ASSERTION_FAILED（expected "不存在的待办"，actual "写周报"），报告含 PNG + JSON |
+| 1.7 `pnpm run check` | ✅ | 包检查 180 个测试 + 示例 App 类型检查 |

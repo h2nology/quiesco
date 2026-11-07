@@ -84,13 +84,14 @@ describe('AndroidProvider', () => {
   });
 
   it('launches a dev client with reverse ports, local-network grant, quoted URL and intent extras', async () => {
-    const { p, calls } = provider(BOOTED, { app: { package: 'com.example.todo', devClient: { scheme: 'todo' } } });
+    const { p, calls } = provider(BOOTED, { app: { package: 'com.example.todo', devClient: { scheme: 'todo' }, reversePorts: [3001] } });
     await p.boot();
     calls.length = 0;
     await p.launch({ port: 7357, sessionId: 'abc-123' });
     expect(calls).toEqual([
       'adb -s emulator-5554 reverse tcp:7357 tcp:7357',
       'adb -s emulator-5554 reverse tcp:8081 tcp:8081',
+      'adb -s emulator-5554 reverse tcp:3001 tcp:3001',
       "adb -s emulator-5554 shell pm grant 'com.example.todo' android.permission.ACCESS_LOCAL_NETWORK",
       "adb -s emulator-5554 shell am start -W -a android.intent.action.VIEW -d 'todo://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081&__expo_disable_onboarding=1&__expo_disable_fab=1' --es quiescoPort 7357 --es quiescoSession 'abc-123' 'com.example.todo'",
     ]);

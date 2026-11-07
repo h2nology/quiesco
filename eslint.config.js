@@ -3,7 +3,7 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['**/dist/**', '**/node_modules/**', 'spikes/**', 'examples/**/android/**', 'examples/**/ios/**', '.planning/**'] },
+  { ignores: ['**/dist/**', '**/node_modules/**', 'spikes/**', 'examples/**/android/**', 'examples/**/ios/**', 'examples/**/.expo/**', 'examples/**/reports/**', '.planning/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -15,7 +15,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['**/*.cjs'],
+    files: ['**/*.cjs', '**/metro.config.js'],
     languageOptions: { sourceType: 'commonjs' },
     rules: { '@typescript-eslint/no-require-imports': 'off' },
   },

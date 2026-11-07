@@ -12,7 +12,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "depcruise": "depcruise packages --config .dependency-cruiser.cjs",
-    "check": "pnpm build && pnpm lint && pnpm depcruise && pnpm test"
+    "check": "pnpm build && pnpm lint && pnpm depcruise && pnpm test && pnpm typecheck:examples",
+    "typecheck:examples": "pnpm --filter @quiesco/example-todo-app exec tsc --noEmit"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

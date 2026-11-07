@@ -184,6 +184,7 @@ export class AndroidProvider implements DeviceProvider {
     await this.adbRun(['reverse', `tcp:${params.port}`, `tcp:${params.port}`]);
     const metro = this.metroPort();
     if (metro !== null) await this.adbRun(['reverse', `tcp:${metro}`, `tcp:${metro}`]);
+    for (const p of this.options.app.reversePorts ?? []) await this.adbRun(['reverse', `tcp:${p}`, `tcp:${p}`]);
     await this.shell(`pm grant ${shq(this.pkg)} android.permission.ACCESS_LOCAL_NETWORK`).catch(() => undefined);
     const extras = `--es ${LAUNCH_PARAM_PORT} ${params.port} --es ${LAUNCH_PARAM_SESSION} ${shq(params.sessionId)}`;
     const dc = this.options.app.devClient;

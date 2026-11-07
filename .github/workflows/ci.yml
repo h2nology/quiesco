@@ -24,3 +24,5 @@ jobs:
         run: pnpm depcruise
       - name: unit tests
         run: pnpm test
+      - name: type-check the example app
+        run: pnpm typecheck:examples

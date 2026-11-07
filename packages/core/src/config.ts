@@ -23,6 +23,8 @@ export interface AndroidAppConfig {
   activity?: string;
   /** Launch through an Expo dev client that loads JS from Metro. */
   devClient?: { scheme: string; metroUrl?: string };
+  /** Extra host ports the app talks to on `localhost` (e.g. a local mock backend), forwarded with `adb reverse`. */
+  reversePorts?: number[];
 }
 
 export interface AndroidDeviceConfig {
