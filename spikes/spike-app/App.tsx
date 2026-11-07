@@ -8,6 +8,7 @@ import { runS1Report } from './spike/s1-report';
 import { S2Lab } from './spike/S2Lab';
 import { runS2 } from './spike/s2-run';
 import { runS3 } from './spike/s3-run';
+import { runS5 } from './spike/s5-connect';
 
 // Phase 0 spike test screen. Each spike adds what it needs here; keep testIDs stable.
 export default function App() {
@@ -19,7 +20,8 @@ export default function App() {
     runS1Report();
     // S2 is done (docs/spikes/02-react-idle.md); run S3 only to keep logs focused.
     void runS2;
-    runS3();
+    void runS3; // S3/S4 done (docs/spikes/03, 04)
+    runS5();
   }, []);
 
   let nativePing: string;

@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-S5：连接参数传递。三端分别验证：iOS `simctl launch` 进程参数（已知 `--initialUrl` 可用）、Android `am start --es` extras / 深链接、Web URL query；在 App 内读取端口与 session id，连上 Host 的 WS 并握手；同时确认 Android ACCESS_LOCAL_NETWORK 对 WS 的影响。
+S6：生产剔除。验证：`EXPO_PUBLIC_QUIESCO` 未设置时，agent 代码在 Android/iOS release bundle 和 `expo export --platform web` 产物中被完全剔除（grep 特征字符串）；原生模块通过 config plugin / autolinking 条件排除的方案（结论为主，可附验证）。
 
 ## Current Phase
 Phase 0
@@ -32,7 +32,7 @@ Phase 0
 - [x] S2 React 空闲检测：找到判断「无待提交渲染」的可靠方法（调度器状态 / commit hook 等，对照 React 源码）→ `docs/spikes/02-react-idle.md`
 - [x] S3 Android 触摸注入：MotionEvent + `Activity.dispatchTouchEvent`，验证 onPress、Pressable 按下态、RNGH 点击 → `docs/spikes/03-android-touch.md`
 - [x] S4 iOS 触摸注入：合成 UITouch/UIEvent（参考 KIF）点击 RN 按钮；失败则记录原因 + 替代方案，**交 HU 决定**（§11-3）→ `docs/spikes/04-ios-touch.md`
-- [ ] S5 连接参数传递：比较启动参数 / 深链接 / 构建期注入，三端各自验证 → `docs/spikes/05-connection-params.md`
+- [x] S5 连接参数传递：比较启动参数 / 深链接 / 构建期注入，三端各自验证 → `docs/spikes/05-connection-params.md`
 - [ ] S6 生产剔除：原生与 Web 生产构建中 agent 与原生模块完全剔除的方案（环境变量 + tree-shake + config plugin 条件注入）→ `docs/spikes/06-prod-strip.md`（只需结论，可附验证）
 - [ ] S7 Web 端 Fiber 查询：react-dom + react-native-web 下同一 fiber-adapter 接口按 testID 找宿主 DOM 节点并取坐标，确认 testID 映射 → `docs/spikes/07-web-fiber-query.md`
 - [ ] 0.9 汇总：给出最低支持 Expo SDK 版本建议（§11-2，交 HU 决定）、Expo Go / JS-only 可行性结论、对第 1 阶段设计的影响
@@ -102,6 +102,7 @@ Phase 0
 | React 空闲 = root 字段（A）&& scheduler 挂起任务（B，替换 scheduler 导出函数）；所有 tracker 统一「跨宏任务两次确认」 | S2 实测：A、B 互补；单次检查在定时器批量执行时会误判 |
 | Android 触摸注入：MotionEvent → Activity.dispatchTouchEvent（公开 API），坐标 dp×density | S3 实测 Pressable / RNGH 均正常 |
 | iOS 触摸注入：合成 UITouch + UIEvent + IOHIDEvent（私有 API，仅 e2e 构建），`UIApplication.sendEvent:`，坐标 pt 直接使用 | S4 实测 Pressable / RNGH 均正常，§11-3 替代方案不需要 |
+| 连接参数：iOS 进程参数（UserDefaults）/ Android Intent extras / Web addInitScript；构建期 env 只作兜底；不用深链接 | S5 三端实测握手成功；深链接在 iOS 上有系统确认框 |
 | §6.2-4 改为 `idle-callback` tracker：跟踪挂起的 requestIdleCallback，旧版本兼容 InteractionManager；requirements.md 已同步 | RN 0.88 移除 InteractionManager；HU 2026-11-07 确认 |
 
 ## Errors Encountered

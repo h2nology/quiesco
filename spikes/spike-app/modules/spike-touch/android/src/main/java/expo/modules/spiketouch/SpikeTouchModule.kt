@@ -30,6 +30,16 @@ class SpikeTouchModule : Module() {
       "android"
     }
 
+    // S5: connection params passed as intent extras (am start --es quiescoPort 7777 --es quiescoSession abc)
+    Function("getLaunchParams") {
+      val intent = appContext.currentActivity?.intent
+      mapOf(
+        "port" to intent?.getStringExtra("quiescoPort"),
+        "session" to intent?.getStringExtra("quiescoSession"),
+        "action" to intent?.action,
+      )
+    }
+
     AsyncFunction("tap") { xDp: Double, yDp: Double, holdMs: Int, promise: Promise ->
       val (x, y) = toPx(xDp, yDp)
       val down = SystemClock.uptimeMillis()

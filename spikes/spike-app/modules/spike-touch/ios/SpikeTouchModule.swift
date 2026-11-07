@@ -10,6 +10,18 @@ public class SpikeTouchModule: Module {
       return "ios"
     }
 
+    // S5: connection params passed as process launch arguments
+    // (xcrun simctl launch <udid> <bundleId> -quiescoPort 7777 -quiescoSession abc).
+    // "-key value" pairs are also exposed through UserDefaults' NSArgumentDomain.
+    Function("getLaunchParams") { () -> [String: Any?] in
+      let d = UserDefaults.standard
+      return [
+        "port": d.string(forKey: "quiescoPort"),
+        "session": d.string(forKey: "quiescoSession"),
+        "args": ProcessInfo.processInfo.arguments.joined(separator: " "),
+      ]
+    }
+
     AsyncFunction("tap") { (x: Double, y: Double, holdMs: Int, promise: Promise) in
       guard let hit = QSTouchInjector.touchDown(at: CGPoint(x: x, y: y)) else {
         promise.reject("E_NO_WINDOW", "no key window")

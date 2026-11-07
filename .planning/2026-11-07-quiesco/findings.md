@@ -119,6 +119,13 @@ KIF（kif-framework/KIF master，Apache-2.0）的做法（gh api 读取原文）
 - 用 `--initialUrl` 启动时 dev client 的齿轮浮动按钮仍会显示（右上角），这次没有影响。
 - 结论文档：`docs/spikes/04-ios-touch.md`。§11-3（替代方案）不需要启用。
 ### S5 连接参数传递
+- ✅ iOS：`simctl launch … -quiescoPort P -quiescoSession S` → `UserDefaults.standard.string(forKey:)`（NSArgumentDomain），可与 `--initialUrl` 并用；3.7s 连上，ping 1ms。
+- ✅ Android：`am start … --es quiescoPort P --es quiescoSession S`（附在 dev client 的 VIEW Intent 上也可以）→ `currentActivity.intent.getStringExtra`；debug 3.9s / release 2.4s，ping 4–10ms。
+- ✅ Web：`page.addInitScript` 注入 `window.__QUIESCO__`（整页刷新后仍有效）；URL query 也可以但不推荐。
+- 不采用深链接（iOS 系统确认框、与路由冲突）。构建期 env 只作兜底（不支持并行时每个 worker 独立端口）。
+- Android release：merged manifest 中没有 usesCleartextTraffic / networkSecurityConfig（targetSdk 36），但 `ws://localhost` 没有被拦截；官方说法是默认禁止 ⇒ config plugin 仍要显式放行 localhost。
+- `ACCESS_LOCAL_NETWORK`：官方文档称只对 targetSdk ≥ 37 强制；targetSdk 36 下 `pm revoke` 无效。loopback 是否豁免没有官方说明 ⇒ DeviceProvider 执行 `pm grant`，失败时忽略。
+- 结论文档：`docs/spikes/05-connection-params.md`。
 ### S6 生产剔除
 ### S7 Web 端 Fiber 查询
 - 0.1 实测（Chromium headless shell 158 / playwright 1.65.0，Metro dev server `localhost:8081`）：react-native-web 0.21.4 把 `testID` 映射为 DOM 属性 **`data-testid`**（7 个 testID 全部出现）。查询仍以 React props 为准（需求 §6.1），DOM 属性只做交叉验证。

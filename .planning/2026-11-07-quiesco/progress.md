@@ -44,6 +44,12 @@
   - 第 1 次运行报 `undefined is not a function`：是旧版 App 被 Fast Refresh 重新加载（原生模块还没有 tap），重新安装后正常。
 - **S4 完成**，结论写入 `docs/spikes/04-ios-touch.md`。
 
+- S5：原生 `getLaunchParams()`（Android Intent extras / iOS UserDefaults），`spike/s5-connect.ts`，Host `spikes/host/ws-host.mjs`（ws@8）。
+  - Web（initScript / query）、Android debug、iOS debug、Android release 全部握手成功。
+  - 一开始的 `no params` 是 iOS App 被 Fast Refresh 重载打出的（那次没有带参数），Android 侧其实读到了；第一次连接失败是因为 Host 已经超时退出。
+  - Android release：明文 WS 没有被拦截（与官方文档不一致）；`pm revoke ACCESS_LOCAL_NETWORK` 无效（targetSdk 36）。
+- **S5 完成**，结论写入 `docs/spikes/05-connection-params.md`。
+
 ## Test Results
 | 测试 | 结果 | 备注 |
 |------|------|------|
@@ -58,3 +64,7 @@
 | S2 iOS debug：6 场景 | ✅（两次确认） | 单次检查误判 1（Suspense），两次确认 0 |
 | S3 Android：Pressable onPress / 按下态 / RNGH / 10 连击 / 空白处 | ✅ | 往返 83–138ms |
 | S4 iOS：Pressable onPress / 按下态 / RNGH / 10 连击 / 空白处 | ✅ | 往返 83ms，截图一致 |
+| S5 Web initScript / query 握手 | ✅ | ping 0–1ms |
+| S5 Android debug（VIEW Intent + extras） | ✅ | 3.9s 连上，ping 4ms |
+| S5 iOS debug（进程参数） | ✅ | 3.7s 连上，ping 1ms |
+| S5 Android release（extras，无 Metro） | ✅ | 2.4s 连上，ping 10ms |

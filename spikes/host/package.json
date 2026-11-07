@@ -1,0 +1,9 @@
+{
+  "name": "quiesco-spike-host",
+  "private": true,
+  "type": "module",
+  "description": "Phase 0 spike: minimal host-side WebSocket server (S5)",
+  "dependencies": {
+    "ws": "^8.22.1"
+  }
+}

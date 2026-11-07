@@ -5,6 +5,10 @@ export default {
   ping(): string {
     return 'web';
   },
+  // Web reads params in JS (window.__QUIESCO__ / URL query), not from a native module.
+  getLaunchParams(): { port?: string | null; session?: string | null } {
+    return {};
+  },
   tap: unsupported,
   touchDown: unsupported,
   touchUp: unsupported,
