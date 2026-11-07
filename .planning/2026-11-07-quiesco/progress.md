@@ -95,6 +95,11 @@
   - 确认 Metro `allowOptionalDependencies` 默认开启，`try` 块内的 require 视为可选依赖；AsyncStorage 3.1.1 默认导出为带 `clear()` 的旧版存储。
   - 反向测试发现类型测试一直没有生效（见 Errors），已修复。
 
+- 提交 1.4b（80326df）。
+- 1.5 core 完成：`errors.ts`（QuiescoError，保留 agent 错误码与 data）、`config.ts`（defineConfig / loadConfig / resolvePlatform / toAgentConfig / serverPort）、`matcher.ts`、`json.ts`、`logger.ts`、`server/ws-server.ts`（QuiescoServer + AgentConnection）、`driver.ts`、`session.ts`（Session / createSession / createProvider）、`devices/{provider,exec,permissions,android}.ts`。依赖 `ws` 8.22.1。
+  - 真机冒烟（emulator-5554，API 37）：attach 1.2s、install 检查、截图（PNG 106KB）、diagnose 正确；发现并修复 AVD 名称识别问题（见 Errors）。
+  - Node 原生加载 `.ts` 配置（dist + 临时目录）成功。
+
 ## Test Results
 | 测试 | 结果 | 备注 |
 |------|------|------|
@@ -129,3 +134,6 @@
 | 1.4b agent 单元测试 | ✅ | 新增 backdoor-reset（findNonJson / 注册表 / ResetManager / web 存储 / stub）、runtime 的 backdoor 与 reset、stub 导出一致性类型测试 |
 | 1.4b 类型测试反向测试 | ✅ | protocol 中故意写错类型、agent index 多一个导出，均被 vitest typecheck 报出 |
 | 1.4b `pnpm run check` | ✅ | build / lint / depcruise（71 模块无违规）/ test 139 个，类型检查无错误 |
+| 1.5 core 单元测试 | ✅ | 6 文件 34 测试（server 8 / driver 7 / android 10 / session 4 / config 5），WS 用真实 socket + 假 agent |
+| 1.5 Android provider 真机冒烟 | ✅ | boot(attach) / install 检查 / screenshot / diagnose |
+| 1.5 `pnpm run check` | ✅ | build / lint / depcruise（90 模块无违规）/ test 172 个，类型检查无错误 |

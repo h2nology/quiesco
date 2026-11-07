@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-1.5 `@quiesco/core`：WS Server（多连接、session 校验、协议版本检查、hello 下发 AgentConfig）→ 会话 API → Driver（action 返回 hostInput 时交给 DeviceProvider：back / navigate）→ DeviceProvider 接口 + Android 实现 → `defineConfig` 与配置加载 → 连接等待超时与排查提示。
+1.6 `@quiesco/cucumber`：World（`this.app` = Driver）、hooks（BeforeAll: loadConfig + resolvePlatform + createSession；Before: beforeScenario(tags)；After: 失败时 attach 截图与元素树 JSON；AfterAll: dispose）、`register` 入口、平台 tag 跳过（`@ios` / `@android` / `@web` / `@native`）。
 
 ## Current Phase
 Phase 1
@@ -52,7 +52,7 @@ Phase 1
   - 单元测试：所有 tracker、Matcher、waitForIdle（fake timers / fake root / fake scheduler）
 - [x] 1.4 `@quiesco/agent` 上层：WS 连接（hello、重连）、JS 档位动作（tap / longPress / doubleTap → onPress 等；type / clear → onChangeText；scroll / scrollTo / swipe 的 JS 实现；dismissKeyboard）、断言（expectVisible / NotVisible / Exists / NotExists / Text / Prop / Count，在 agent 端反复检查直到超时）、`QuiescoRoot`（安装 tracker、根 key）、`withQuiesco`（Metro：非 e2e 替换为桩；注入构建期兜底端口的虚拟模块）、`stub` 入口
 - [x] 1.4b 后门与软重置的**最小实现**（HU 2026-11-07 决定提前）：`quiesco.backdoor()` 注册与调用（JSON 可序列化校验、未注册时列出已注册名称、执行后等待空闲）、`quiesco.onReset()`、软重置（清 AsyncStorage → onReset 钩子 → 根 key 更换 → 等待空闲）
-- [ ] 1.5 `@quiesco/core`：WS Server（多连接、session 校验、协议版本检查）、会话 API（运行器无关：createSession / beforeScenario / collectEvidence / dispose）、Driver（6.3〜6.6 的 async API）、DeviceProvider 接口 + Android 实现（boot：唤醒/stayon；install；launch：pm grant、adb reverse、am start 带 extras 与 dev client URL；terminate；screenshot；shutdown）、`defineConfig` 与配置加载、连接等待超时与排查提示
+- [x] 1.5 `@quiesco/core`：WS Server（多连接、session 校验、协议版本检查）、会话 API（运行器无关：createSession / beforeScenario / collectEvidence / dispose）、Driver（6.3〜6.6 的 async API）、DeviceProvider 接口 + Android 实现（boot：唤醒/stayon；install；launch：pm grant、adb reverse、am start 带 extras 与 dev client URL；terminate；screenshot；shutdown）、`defineConfig` 与配置加载、连接等待超时与排查提示
 - [ ] 1.6 `@quiesco/cucumber`：World（`this.app`）、hooks（BeforeAll / Before / After / AfterAll）、`register` 入口
 - [ ] 1.7 `examples/todo-app`：Expo SDK 58 + Expo Router（登录页、待办列表、新建待办表单、带动画的页面切换）、本地 mock server（可配置延迟）、`features/` 第 9 节 feature + step definitions、`quiesco.config.ts`
 - [ ] 1.8 验收：
@@ -161,6 +161,14 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | 后门：参数和返回值都做严格 JSON 检查（Date / Map / undefined / NaN / 循环引用都报 NOT_SERIALIZABLE 并给出路径）；返回 undefined 视为 null | §6.6「报清晰的错误」 |
 | 软重置失败时报 RESET_FAILED，`step` 为 `storage:<名称>` / `onReset#<序号>` / `remount`；QuiescoRoot 未挂载时在 remount 步骤失败 | §6.5 的 4 个步骤可逐一定位 |
 | 类型测试使用各包的 `tsconfig.test.json`（include src + test）；agent 用类型测试保证 stub 与正式入口的导出完全一致 | 原先 vitest typecheck 用的 tsconfig 只包含 src，类型测试从未真正执行（反向测试确认） |
+| Host 接受 `sessionId: null` 的 agent，映射到唯一允许匿名的 session（每个 worker 一个 server） | Phase 1 是 JS-only 档位，agent 读不到 Intent extras；extras 照传，为 Phase 2 准备 |
+| WS Server 默认监听所有网卡（`server.host` 可配置） | 与 spike S5 验证过的行为一致；adb reverse 走 127.0.0.1，浏览器可能先解析 ::1 |
+| 动作档位默认「自动」：未配置 `actions.mode` 时，hello 中 `nativeModule: true` 用 native，否则用 js（并提示一次） | 规格默认 native，但 Phase 1 没有原生模块，开箱即可运行 |
+| Driver 的 matcher：裸字符串 = testID，`text` / `label` 可用 RegExp | step 中写起来简洁；转换为协议的 RegexPattern |
+| Host 侧请求超时 = agent 超时 + 5 秒（墙上时间），超时报 AGENT_TIMEOUT 并提示「JS 线程可能被长任务阻塞」 | docs/spikes/02 §6 |
+| App 的 `error` 事件让正在执行的调用立即失败（APP_ERROR）；两次调用之间发生的错误在下一次调用时抛出 | §7「当前步骤立即失败」 |
+| 配置文件直接用 `import()` 加载，`.ts` 依赖 Node 原生类型擦除（只允许可擦除语法），不引入 jiti 等 | Node 24；dist 实测加载 `.ts` 配置成功 |
+| Android 判定 AVD 名称优先用 `getprop ro.boot.qemu.avd_name`，再退回 `adb emu avd name` | 实测 API 37 上 `emu avd name` 因 console 认证返回空，导致误判为未启动而重复启动 emulator |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -176,3 +184,4 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | 轮询脚本超时卡住 | 2 | `uiautomator dump` 不返回、macOS 无 `timeout`；改为截图确认 |
 | pnpm 自动安装 peer：react 19.3.1 + react-native 0.88.1 被嵌套装进 packages/agent | 1 | `.npmrc` 的 `auto-install-peers=false` 无效（pnpm 12）→ 改写在 pnpm-workspace.yaml 的 `autoInstallPeers: false`，从干净 lockfile 重装 |
 | vitest 类型测试从 1.2 起没有生效（tsconfig 的 include 只有 src，test 文件不被 tsc 检查，却显示通过） | 1 | 增加 tsconfig.test.json 并在 vitest typecheck.tsconfig 中指定；protocol / agent 各做一次反向测试确认能报错；顺带修掉暴露出来的测试代码类型错误 |
+| 真机冒烟：AndroidProvider 没认出正在运行的 AVD，又 spawn 了一个同名 emulator（boot 挂起） | 1 | `adb emu avd name` 返回空 → 改用 `getprop ro.boot.qemu.avd_name` 优先；确认多余的 emulator 已自行退出（只剩原进程） |

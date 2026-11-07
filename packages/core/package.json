@@ -12,10 +12,19 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist", "src"],
+  "files": [
+    "dist",
+    "src"
+  ],
   "scripts": {
     "build": "tsc -b",
     "test": "vitest run"
   },
-  "dependencies": { "@quiesco/protocol": "workspace:*" }
+  "dependencies": {
+    "@quiesco/protocol": "workspace:*",
+    "ws": "8.22.1"
+  },
+  "devDependencies": {
+    "@types/ws": "8.18.2"
+  }
 }
