@@ -49,3 +49,21 @@ describe('config', () => {
     await expect(loadConfig({ cwd: dir, file: 'bad.mjs' })).rejects.toThrow(/must default-export/);
   });
 });
+
+describe('tags', async () => {
+  const { runsOnPlatform, tagNames } = await import('../src/tags');
+  it('untagged scenarios run everywhere; platform tags restrict; @native = ios + android', () => {
+    expect(runsOnPlatform(['@smoke'], 'web')).toBe(true);
+    expect(runsOnPlatform(['@android'], 'android')).toBe(true);
+    expect(runsOnPlatform(['@android'], 'web')).toBe(false);
+    expect(runsOnPlatform(['@native'], 'ios')).toBe(true);
+    expect(runsOnPlatform(['@native'], 'web')).toBe(false);
+    expect(runsOnPlatform(['@web', '@ios'], 'ios')).toBe(true);
+  });
+  it('tag names are configurable', () => {
+    const names = tagNames({ web: '@browser' });
+    expect(runsOnPlatform(['@browser'], 'web', names)).toBe(true);
+    expect(runsOnPlatform(['@web'], 'android', names)).toBe(true); // no longer a platform tag
+    expect(names.hardReset).toBe('@hard-reset');
+  });
+});

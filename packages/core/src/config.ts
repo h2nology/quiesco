@@ -12,6 +12,7 @@ import type { ActionMode, AgentConfig, LogLevel, Platform, TrackerName } from '@
 import { QuiescoError } from './errors.js';
 import { toTextMatch } from './matcher.js';
 import type { Permission } from './devices/permissions.js';
+import type { TagNames } from './tags.js';
 
 export interface AndroidAppConfig {
   /** Application id, e.g. `com.example.myapp`. */
@@ -69,6 +70,8 @@ export interface QuiescoConfig {
   connectTimeoutMs?: number;
   /** Minimum app console level forwarded to the host log. Default `warn`. */
   logLevel?: LogLevel | 'off';
+  /** Rename the scenario tags Quiesco reacts to (defaults: @ios @android @web @native @hard-reset). */
+  tags?: Partial<TagNames>;
 }
 
 export function defineConfig(config: QuiescoConfig): QuiescoConfig {

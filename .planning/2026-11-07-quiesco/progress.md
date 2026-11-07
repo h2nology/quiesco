@@ -100,6 +100,11 @@
   - 真机冒烟（emulator-5554，API 37）：attach 1.2s、install 检查、截图（PNG 106KB）、diagnose 正确；发现并修复 AVD 名称识别问题（见 Errors）。
   - Node 原生加载 `.ts` 配置（dist + 临时目录）成功。
 
+- 提交 1.5（1e01fbe）。
+- 发现 1.1 的 `node-linker=hoisted` 实际没有生效（pnpm 12 忽略 .npmrc 中的 pnpm 设置），改到 pnpm-workspace.yaml；**更正**：1.1 记录的「hoisted 布局」在 1.6 之前并未生效。
+- 1.6 cucumber 完成：core 新增 `tags.ts`（runsOnPlatform / tagNames）与 `config.tags`；cucumber 包：`lifecycle.ts`、`world.ts`（QuiescoWorld，`this.app` / `this.session`）、`register-hooks.ts`（registerQuiesco）、`register.ts`、exports `./register`；`@cucumber/cucumber` 13.3.0 为 dev + peer 依赖。
+  - 集成测试用 cucumber 编程式 API 真实运行 4 个场景：软 / 硬重置顺序、`@web` 在 android 上被跳过、失败场景附加 PNG + JSON、AfterAll dispose。
+
 ## Test Results
 | 测试 | 结果 | 备注 |
 |------|------|------|
@@ -137,3 +142,5 @@
 | 1.5 core 单元测试 | ✅ | 6 文件 34 测试（server 8 / driver 7 / android 10 / session 4 / config 5），WS 用真实 socket + 假 agent |
 | 1.5 Android provider 真机冒烟 | ✅ | boot(attach) / install 检查 / screenshot / diagnose |
 | 1.5 `pnpm run check` | ✅ | build / lint / depcruise（90 模块无违规）/ test 172 个，类型检查无错误 |
+| 1.6 cucumber 测试 | ✅ | lifecycle 6 个 + 真实 cucumber-js 运行 1 个 |
+| 1.6 `pnpm run check` | ✅ | build / lint / depcruise（96 模块无违规）/ test 180 个，类型检查无错误 |

@@ -17,6 +17,7 @@ import type { Logger } from './logger.js';
 import { consoleLogger } from './logger.js';
 import type { AgentConnection } from './server/ws-server.js';
 import { QuiescoServer } from './server/ws-server.js';
+import { tagNames } from './tags.js';
 
 export interface SessionOptions {
   config: QuiescoConfig;
@@ -39,8 +40,6 @@ export interface Evidence {
 export interface ScenarioInfo {
   tags?: readonly string[];
 }
-
-export const HARD_RESET_TAG = '@hard-reset';
 
 export function createProvider(platform: Platform, config: QuiescoConfig, logger: Logger): DeviceProvider {
   switch (platform) {
@@ -110,7 +109,7 @@ export class Session {
 
   /** Before each scenario: soft reset, or terminate + relaunch for `@hard-reset` (or `reset.default: 'hard'`). */
   async beforeScenario(info: ScenarioInfo = {}): Promise<void> {
-    const hard = info.tags?.includes(HARD_RESET_TAG) === true || this.config.reset?.default === 'hard';
+    const hard = info.tags?.includes(tagNames(this.config.tags).hardReset) === true || this.config.reset?.default === 'hard';
     if (hard) {
       await this.provider.terminate();
       await this.launch();

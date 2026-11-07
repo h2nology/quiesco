@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-1.6 `@quiesco/cucumber`：World（`this.app` = Driver）、hooks（BeforeAll: loadConfig + resolvePlatform + createSession；Before: beforeScenario(tags)；After: 失败时 attach 截图与元素树 JSON；AfterAll: dispose）、`register` 入口、平台 tag 跳过（`@ios` / `@android` / `@web` / `@native`）。
+1.7 `examples/todo-app`：Expo SDK 58 + Expo Router（登录页、待办列表、新建待办表单、带动画的页面切换）、本地 mock server（可配置延迟）、`features/` 第 9 节 feature + step definitions、`quiesco.config.ts`、`metro.config.js`（withQuiesco）、入口首行 import agent。先读 requirements.md §9。
 
 ## Current Phase
 Phase 1
@@ -53,7 +53,7 @@ Phase 1
 - [x] 1.4 `@quiesco/agent` 上层：WS 连接（hello、重连）、JS 档位动作（tap / longPress / doubleTap → onPress 等；type / clear → onChangeText；scroll / scrollTo / swipe 的 JS 实现；dismissKeyboard）、断言（expectVisible / NotVisible / Exists / NotExists / Text / Prop / Count，在 agent 端反复检查直到超时）、`QuiescoRoot`（安装 tracker、根 key）、`withQuiesco`（Metro：非 e2e 替换为桩；注入构建期兜底端口的虚拟模块）、`stub` 入口
 - [x] 1.4b 后门与软重置的**最小实现**（HU 2026-11-07 决定提前）：`quiesco.backdoor()` 注册与调用（JSON 可序列化校验、未注册时列出已注册名称、执行后等待空闲）、`quiesco.onReset()`、软重置（清 AsyncStorage → onReset 钩子 → 根 key 更换 → 等待空闲）
 - [x] 1.5 `@quiesco/core`：WS Server（多连接、session 校验、协议版本检查）、会话 API（运行器无关：createSession / beforeScenario / collectEvidence / dispose）、Driver（6.3〜6.6 的 async API）、DeviceProvider 接口 + Android 实现（boot：唤醒/stayon；install；launch：pm grant、adb reverse、am start 带 extras 与 dev client URL；terminate；screenshot；shutdown）、`defineConfig` 与配置加载、连接等待超时与排查提示
-- [ ] 1.6 `@quiesco/cucumber`：World（`this.app`）、hooks（BeforeAll / Before / After / AfterAll）、`register` 入口
+- [x] 1.6 `@quiesco/cucumber`：World（`this.app`）、hooks（BeforeAll / Before / After / AfterAll）、`register` 入口
 - [ ] 1.7 `examples/todo-app`：Expo SDK 58 + Expo Router（登录页、待办列表、新建待办表单、带动画的页面切换）、本地 mock server（可配置延迟）、`features/` 第 9 节 feature + step definitions、`quiesco.config.ts`
 - [ ] 1.8 验收：
   - Android Emulator + dev client 上第 9 节场景全部通过
@@ -169,6 +169,10 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | App 的 `error` 事件让正在执行的调用立即失败（APP_ERROR）；两次调用之间发生的错误在下一次调用时抛出 | §7「当前步骤立即失败」 |
 | 配置文件直接用 `import()` 加载，`.ts` 依赖 Node 原生类型擦除（只允许可擦除语法），不引入 jiti 等 | Node 24；dist 实测加载 `.ts` 配置成功 |
 | Android 判定 AVD 名称优先用 `getprop ro.boot.qemu.avd_name`，再退回 `adb emu avd name` | 实测 API 37 上 `emu avd name` 因 console 认证返回空，导致误判为未启动而重复启动 emulator |
+| `@quiesco/cucumber` 把 `@cucumber/cucumber` 设为 peer 依赖（>=12） | 包内自带一份 cucumber 时，hooks 会注册到另一个实例上，用户的运行器看不到 |
+| 平台 tag 判定（`runsOnPlatform`）与可配置 tag 名（`config.tags`）放在 core | 与运行器无关，将来的 Jest / Vitest 适配器复用 |
+| cucumber 适配：lifecycle 与 cucumber 解耦（可单测）；默认步骤超时 60s、BeforeAll 10 分钟；通过的场景若之后收到 App 错误也判失败；失败时附加截图 / 元素树 JSON / tracker 状态 | §6.10 |
+| pnpm 设置统一写在 `pnpm-workspace.yaml`（`nodeLinker: hoisted`、`autoInstallPeers: false`），删除 `.npmrc` | pnpm 12 忽略 `.npmrc` 中的 pnpm 专用设置；1.1 的 hoisted 实际从未生效（一直是 isolated） |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -185,3 +189,4 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | pnpm 自动安装 peer：react 19.3.1 + react-native 0.88.1 被嵌套装进 packages/agent | 1 | `.npmrc` 的 `auto-install-peers=false` 无效（pnpm 12）→ 改写在 pnpm-workspace.yaml 的 `autoInstallPeers: false`，从干净 lockfile 重装 |
 | vitest 类型测试从 1.2 起没有生效（tsconfig 的 include 只有 src，test 文件不被 tsc 检查，却显示通过） | 1 | 增加 tsconfig.test.json 并在 vitest typecheck.tsconfig 中指定；protocol / agent 各做一次反向测试确认能报错；顺带修掉暴露出来的测试代码类型错误 |
 | 真机冒烟：AndroidProvider 没认出正在运行的 AVD，又 spawn 了一个同名 emulator（boot 挂起） | 1 | `adb emu avd name` 返回空 → 改用 `getprop ro.boot.qemu.avd_name` 优先；确认多余的 emulator 已自行退出（只剩原进程） |
+| `.npmrc` 的 `node-linker=hoisted` 从 1.1 起没有生效（`.modules.yaml` 显示 isolated） | 1 | 改写到 pnpm-workspace.yaml 的 `nodeLinker: hoisted` 并删除 .npmrc；重装后确认 hoisted，全部检查仍通过 |

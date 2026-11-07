@@ -4,3 +4,7 @@ packages:
 
 # Never auto-install react / react-native peers: the app provides them (a nested copy breaks hooks).
 autoInstallPeers: false
+
+# Metro and Expo autolinking work most reliably with a flat node_modules layout.
+# (pnpm 12 reads its settings here; pnpm-specific keys in .npmrc are ignored.)
+nodeLinker: hoisted
