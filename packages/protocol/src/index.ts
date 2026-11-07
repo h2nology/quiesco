@@ -1,2 +1,10 @@
-/** Protocol version shared by host and agent. Bumped on any incompatible change. */
-export const PROTOCOL_VERSION = 1;
+export * from './actions.js';
+export * from './assertions.js';
+export * from './constants.js';
+export * from './element.js';
+export * from './errors.js';
+export * from './events.js';
+export * from './json.js';
+export * from './matcher.js';
+export * from './messages.js';
+export * from './methods.js';

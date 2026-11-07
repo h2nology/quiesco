@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-1.2 `@quiesco/protocol`：JSON-RPC 消息 / 方法 / 事件 / 错误码 / Matcher 类型 + 单元测试。
+1.3 `@quiesco/agent` 底层：fiber-adapter（hook / 遍历 / 宿主判定 / 文本 / 坐标）→ query（Matcher / 可见性 / getTree）→ sync（5 个 tracker + waitForIdle 两次确认），配单元测试。
 
 ## Current Phase
 Phase 1
@@ -44,7 +44,7 @@ Phase 1
 
 **任务拆分（按顺序）**
 - [x] 1.1 骨架：pnpm workspaces（`.npmrc` 用 `node-linker=hoisted`，兼容 Metro / autolinking）、TS strict 共用 tsconfig + project references、ESLint、Vitest、dependency-cruiser 规则（core 不得依赖 cucumber / playwright / web；只有 fiber-adapter 可以 import 渲染器私有路径）、GitHub Actions（lint / typecheck / test / depcruise）
-- [ ] 1.2 `@quiesco/protocol`：JSON-RPC 2.0 消息类型、方法与参数类型（hello / query / action / assert / waitForIdle / getTree / reset / backdoor / getIdleState）、事件（log / error）、错误码枚举、`PROTOCOL_VERSION`、Matcher 类型
+- [x] 1.2 `@quiesco/protocol`：JSON-RPC 2.0 消息类型、方法与参数类型（hello / query / action / assert / waitForIdle / getTree / reset / backdoor / getIdleState）、事件（log / error）、错误码枚举、`PROTOCOL_VERSION`、Matcher 类型
 - [ ] 1.3 `@quiesco/agent` 底层：
   - `fiber-adapter/`：hook 安装/包装、渲染器校验、遍历、宿主判定（testID / data-testid）、文本、props、取坐标（Fabric 实现；Web 实现留到 Phase 3）、「装得太晚」检测
   - `query/`：Matcher（id / text / label / role / within / index）、可见性判定、getTree 精简 JSON
@@ -138,6 +138,7 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | fiber-adapter 的平台差异只有 3 点：宿主 testID prop 名（testID / data-testid）、文本位置（HostText / props.children）、取坐标对象（public instance / DOM 元素） | S7 实测；查询规则统一为宿主 props 匹配 |
 | TS 使用 6.0.3（不用 7.x） | typescript-eslint peer `<6.1.0`，Expo SDK 58 捆绑 ~6.0.3 |
 | Node 侧包用 `tsc -b` 编译 ESM；agent 通过 `react-native` 字段让 Metro 直接读 TS 源码；`.npmrc` 用 `node-linker=hoisted` | 开发时 App 端不需要构建步骤，Metro / autolinking 兼容 |
+| protocol 只放类型和常量；正则在协议上表示为 `{ regex: { source, flags } }`，转换由两端各自完成；Quiesco 错误码从 1001 起，`error.data` 按错误名定型 | 需求 §5「只包含类型和常量」；避开 JSON-RPC 保留区间 |
 | 后门 / onReset / 软重置的最小实现提前到 Phase 1，完善留在 Phase 2 | 第 9 节验收用例需要；HU 2026-11-07 确认 |
 | 最低支持 Expo SDK 58 | HU 决定（§11-2）；55–57 静态检查通过，Phase 4 冒烟后再考虑下调 |
 | CI 使用 GitHub Actions | HU 决定（§11-4） |

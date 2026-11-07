@@ -73,6 +73,9 @@
   - `pnpm run check`（build → lint → depcruise → test）本地通过：4 个测试文件 4 个测试通过。
   - 依赖规则的反向测试：故意制造 4 处违规，全部被拦住。
   - GitHub Actions 尚未在远端实际运行（还没有 push）。
+- 1.2 protocol 完成：json / constants（协议版本、启动参数键、默认端口 7357、WS 关闭码、同步默认值）/ matcher / element / actions（含 HostInput）/ assertions / errors（JSON-RPC 标准码 + Quiesco 1001–1013，按错误名定型的 data）/ events / methods（AgentMethods、HostMethods、TrackerState）/ messages（JSON-RPC 封装与按方法区分的请求联合类型）。
+  - 第 1 次构建失败：interface 不满足 `Record<string, …>` 约束 → 改为映射类型约束。
+  - 测试：常量完整性 4 个 + 类型测试 7 个（vitest typecheck 模式，`@ts-expect-error` 实际生效）。
 
 ## Test Results
 | 测试 | 结果 | 备注 |
@@ -99,3 +102,4 @@
 | S7 回归：Android 文本收集没有重复 | ✅ | |
 | 1.1 `pnpm run check` | ✅ | build / lint / depcruise / test（4/4） |
 | 1.1 依赖规则反向测试 | ✅ | 4 处故意违规全部被拦住 |
+| 1.2 `pnpm run check` | ✅ | 7 文件 25 测试，类型测试无错误 |
