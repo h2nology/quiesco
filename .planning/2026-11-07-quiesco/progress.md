@@ -76,6 +76,11 @@
 - 1.2 protocol 完成：json / constants（协议版本、启动参数键、默认端口 7357、WS 关闭码、同步默认值）/ matcher / element / actions（含 HostInput）/ assertions / errors（JSON-RPC 标准码 + Quiesco 1001–1013，按错误名定型的 data）/ events / methods（AgentMethods、HostMethods、TrackerState）/ messages（JSON-RPC 封装与按方法区分的请求联合类型）。
   - 第 1 次构建失败：interface 不满足 `Record<string, …>` 约束 → 改为映射类型约束。
   - 测试：常量完整性 4 个 + 类型测试 7 个（vitest typecheck 模式，`@ts-expect-error` 实际生效）。
+- 1.3 agent 底层完成（从 spike 代码整理）：
+  - `fiber-adapter/`：hook（包装/自装、幂等、渲染器校验、装得太晚检测 lateRenderers + checkRendererSeen）、scheduler 补丁（检测 B）、FiberRoot 字段（检测 A）、traverse（HostNode 树、文本/ownText、Singleton 透明、Hoistable 跳过、scope）、host（native / web 平台差异、样式隐藏、取坐标、视口）、default-deps(.native).ts。
+  - `query/`：Matcher（id/text/label/role/within/index，text 取最深匹配）、resolveOne（ELEMENT_NOT_FOUND / MULTIPLE_MATCHES）、可见性规则、summarize / getTree / structureHash。
+  - `sync/`：network、timer、react、idle-callback（含旧版 InteractionManager）、frame-stable、SyncEngine（两次确认、超时列出 describeBusy）。`errors.ts`：QuiescoError。
+  - 修正：首次测试 2 处失败都是测试代码问题（spy 引用被包装覆盖、fake setTimeout 丢参数）；lint 的 no-this-alias 配置为允许 `self`。
 
 ## Test Results
 | 测试 | 结果 | 备注 |
@@ -103,3 +108,6 @@
 | 1.1 `pnpm run check` | ✅ | build / lint / depcruise / test（4/4） |
 | 1.1 依赖规则反向测试 | ✅ | 4 处故意违规全部被拦住 |
 | 1.2 `pnpm run check` | ✅ | 7 文件 25 测试，类型测试无错误 |
+| 1.3 agent 单元测试 | ✅ | 7 文件 54 测试（fiber-adapter 18 / query 13 / sync 23） |
+| 1.3 `pnpm run check` | ✅ | build / lint / depcruise（45 模块无违规）/ test 13 文件 78 测试 |
+| 1.3 新依赖规则反向测试 | ✅ | query 直接 import `fiber-adapter/fiber` 被拦住 |

@@ -10,6 +10,8 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.node } },
     rules: {
       '@typescript-eslint/consistent-type-imports': 'error',
+      // Monkey-patching wrappers need both the caller's `this` and the tracker; `self` names the latter.
+      '@typescript-eslint/no-this-alias': ['error', { allowedNames: ['self'] }],
     },
   },
 );

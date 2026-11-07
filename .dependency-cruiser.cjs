@@ -33,6 +33,13 @@ module.exports = {
       to: { path: 'react-native/Libraries/Renderer' },
     },
     {
+      name: 'fiber-adapter-public-api-only',
+      comment: 'Outside fiber-adapter, use only its index (HostNode etc.); Fiber shapes stay private (§3-3).',
+      severity: 'error',
+      from: { path: '^packages/agent/src/', pathNot: '^packages/agent/src/fiber-adapter/' },
+      to: { path: '^packages/agent/src/fiber-adapter/(?!index\\.ts$)' },
+    },
+    {
       name: 'protocol-is-leaf',
       comment: '@quiesco/protocol contains only types and constants and depends on nothing in the repo.',
       severity: 'error',

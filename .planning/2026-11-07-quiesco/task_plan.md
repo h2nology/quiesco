@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-1.3 `@quiesco/agent` 底层：fiber-adapter（hook / 遍历 / 宿主判定 / 文本 / 坐标）→ query（Matcher / 可见性 / getTree）→ sync（5 个 tracker + waitForIdle 两次确认），配单元测试。
+1.4 `@quiesco/agent` 上层：WS 连接（hello / 重连）→ JS 档位动作 → 断言（agent 端重试到超时）→ `QuiescoRoot`（install 顺序、setScope、checkRendererSeen、组装 trackers）→ `withQuiesco` / `stub`。
 
 ## Current Phase
 Phase 1
@@ -45,7 +45,7 @@ Phase 1
 **任务拆分（按顺序）**
 - [x] 1.1 骨架：pnpm workspaces（`.npmrc` 用 `node-linker=hoisted`，兼容 Metro / autolinking）、TS strict 共用 tsconfig + project references、ESLint、Vitest、dependency-cruiser 规则（core 不得依赖 cucumber / playwright / web；只有 fiber-adapter 可以 import 渲染器私有路径）、GitHub Actions（lint / typecheck / test / depcruise）
 - [x] 1.2 `@quiesco/protocol`：JSON-RPC 2.0 消息类型、方法与参数类型（hello / query / action / assert / waitForIdle / getTree / reset / backdoor / getIdleState）、事件（log / error）、错误码枚举、`PROTOCOL_VERSION`、Matcher 类型
-- [ ] 1.3 `@quiesco/agent` 底层：
+- [x] 1.3 `@quiesco/agent` 底层：
   - `fiber-adapter/`：hook 安装/包装、渲染器校验、遍历、宿主判定（testID / data-testid）、文本、props、取坐标（Fabric 实现；Web 实现留到 Phase 3）、「装得太晚」检测
   - `query/`：Matcher（id / text / label / role / within / index）、可见性判定、getTree 精简 JSON
   - `sync/`：IdleTracker 接口 + network（fetch / XHR，ignoreUrls）、timer（≤ 阈值）、react（A&&B，scheduler 替换）、idle-callback（rIC + 旧版 InteractionManager 兼容）、frame-stable（结构哈希 N 帧）；`waitForIdle` 跨宏任务两次确认、超时时列出 describeBusy
@@ -143,6 +143,11 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | 最低支持 Expo SDK 58 | HU 决定（§11-2）；55–57 静态检查通过，Phase 4 冒烟后再考虑下调 |
 | CI 使用 GitHub Actions | HU 决定（§11-4） |
 | §6.2-4 改为 `idle-callback` tracker：跟踪挂起的 requestIdleCallback，旧版本兼容 InteractionManager；requirements.md 已同步 | RN 0.88 移除 InteractionManager；HU 2026-11-07 确认 |
+| `text` 匹配只返回「最深」的匹配节点（若某后代也满足整个 Matcher，则丢弃祖先） | 容器的文本包含子节点文本，否则 `{ text: 'Login' }` 会同时命中按钮 View 和 RCTText，动作必然报多个匹配 |
+| agent 源码内相对 import 不带扩展名；平台差异用 `default-deps.native.ts` / `default-deps.ts`（Metro 平台扩展名解析） | Metro 直接读 TS 源码；Web bundle 中不能出现 `react-native/Libraries/Renderer` 的 require（否则会把 Fabric 渲染器打进 Web 包） |
+| frame-stable 只在 waitForIdle 期间采样（tracker 接口增加可选 `beginWait` / `endWait`） | 空闲时不每帧计算整棵树的哈希 |
+| network tracker：在被跟踪的 `fetch()` 同步执行期间发出的 XHR 不重复计数 | RN 的 fetch 基于 XHR（whatwg-fetch），否则同一请求显示两次 |
+| 新增依赖规则 `fiber-adapter-public-api-only`：fiber-adapter 外只能 import 其 `index.ts` | 让「Fiber 结构不出 fiber-adapter」由 CI 保证，反向测试已拦住 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
