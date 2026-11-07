@@ -168,6 +168,12 @@ describe('host tree (native)', () => {
     expect(adapter.getHostRoots().map((n) => n.hiddenByStyle)).toEqual([true, true, false]);
   });
 
+  it('reads the native view tag from the public instance', () => {
+    const { adapter, target } = setup({}, { platformDeps: { getPublicInstance: () => (f) => ({ __nativeTag: (f.memoizedProps as { tag?: number }).tag }) } });
+    renderWith(target, makeRoot(host('RCTView', { tag: 42 }), host('RCTView')));
+    expect(adapter.getHostRoots().map((n) => n.nativeTag())).toEqual([42, null]);
+  });
+
   it('measures through the public instance and returns null on failure', () => {
     const { adapter, target } = setup();
     renderWith(target, makeRoot(host('RCTView', { __rect: { x: 1, y: 2, width: 3, height: 4 } }), host('RCTView')));

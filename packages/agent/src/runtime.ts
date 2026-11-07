@@ -17,6 +17,10 @@ import type {
 } from '@quiesco/protocol';
 
 import * as js from './actions/js';
+import { nativePerformer } from './actions/native';
+import type { NativeBridge } from './actions/native';
+import { jsPerformer } from './actions/performer';
+import type { ActionPerformer } from './actions/performer';
 import type { StorageAdapter } from './api-types';
 import { assertionMessage, evaluate } from './assertions';
 import { BackdoorRegistry } from './backdoor';
@@ -76,6 +80,7 @@ export class AgentRuntime {
   private idleCallbacks: IdleCallbackTracker | null = null;
   private mounted = 0;
   private remount: (() => void) | null = null;
+  private native: ReturnType<AppDeps['nativeModule']> | undefined;
   /** Original console methods, captured before the event forwarder wraps them. */
   private readonly log: (message: string) => void;
 
@@ -110,10 +115,16 @@ export class AgentRuntime {
     const im = this.deps.interactionManager();
     if (im !== null) this.idleCallbacks?.attachInteractionManager(im);
     if (this.client === null) {
-      const params = resolveParams({ native: this.deps.nativeLaunchParams(), global: this.global, build: buildConfig });
+      const native = this.nativeModule();
+      const launch = native?.getLaunchParams() ?? null;
+      const params = resolveParams({
+        native: launch === null ? null : { ...(launch.port !== null ? { port: launch.port } : {}), ...(launch.session !== null ? { session: launch.session } : {}) },
+        global: this.global,
+        build: buildConfig,
+      });
       this.client = new AgentClient({
         params,
-        hello: { platform: this.deps.platform(), agentVersion: AGENT_VERSION, nativeModule: this.deps.hasNativeModule() },
+        hello: { platform: this.deps.platform(), agentVersion: AGENT_VERSION, nativeModule: native !== null },
         createSocket: (url) => this.deps.createSocket(url),
         handle: (method, p) => this.handle(method, p),
         onReady: (config) => this.configure(config),
@@ -122,6 +133,11 @@ export class AgentRuntime {
       });
     }
     this.client.start();
+  }
+
+  private nativeModule(): ReturnType<AppDeps['nativeModule']> {
+    if (this.native === undefined) this.native = this.deps.nativeModule();
+    return this.native;
   }
 
   /** Registered by QuiescoRoot; changes its key so the whole app remounts (soft reset). */
@@ -182,7 +198,7 @@ export class AgentRuntime {
   }
 
   private async syncIfNeeded(opts: SyncOption, timeoutMs = this.timeout(opts)): Promise<void> {
-    if (opts.sync !== false) await this.engine.waitForIdle({ timeoutMs });
+    if (opts.sync !== false) await this.engine.waitForIdle({ timeoutMs, reportedTimeoutMs: this.timeout(opts) });
   }
 
   private sleep(ms: number): Promise<void> {
@@ -224,18 +240,10 @@ export class AgentRuntime {
     if (spec.type === 'pressBack') return { hostInput: { kind: 'back' } };
     if (spec.type === 'openUrl') return { hostInput: { kind: 'navigate', url: spec.url } };
 
-    if (mode === 'native') {
-      throw new QuiescoError('ACTION_NOT_SUPPORTED', `native mode for ${spec.type} needs @quiesco/native (Phase 2); set actions.mode to 'js'`, {
-        action: spec.type,
-        platform: this.deps.platform(),
-        hint: "set actions: { mode: 'js' } in quiesco.config.ts",
-      });
-    }
-
     const timeoutMs = this.timeout(opts);
     const deadline = this.clock.now() + timeoutMs;
-    const ctx = { platform: this.deps.platform() };
     let node: HostNode | undefined;
+    const perform = (matcher: Matcher): ActionPerformer => this.performer(mode, spec.type, matcher, deadline);
 
     switch (spec.type) {
       case 'dismissKeyboard':
@@ -243,30 +251,35 @@ export class AgentRuntime {
         this.deps.dismissKeyboard();
         break;
       case 'tap':
-        js.tap((node = await this.resolveTarget(spec.matcher, opts, deadline)), ctx);
+        node = await this.resolveTarget(spec.matcher, opts, deadline);
+        await perform(spec.matcher).tap(node);
         break;
       case 'longPress':
-        js.longPress((node = await this.resolveTarget(spec.matcher, opts, deadline)), ctx);
+        node = await this.resolveTarget(spec.matcher, opts, deadline);
+        await perform(spec.matcher).longPress(node, spec.durationMs);
         break;
       case 'doubleTap':
-        js.doubleTap((node = await this.resolveTarget(spec.matcher, opts, deadline)), ctx);
+        node = await this.resolveTarget(spec.matcher, opts, deadline);
+        await perform(spec.matcher).doubleTap(node);
         break;
       case 'type':
-        js.typeText((node = await this.resolveTarget(spec.matcher, opts, deadline)), spec.text, ctx);
+        node = await this.resolveTarget(spec.matcher, opts, deadline);
+        await perform(spec.matcher).type(node, spec.text);
         break;
       case 'clear':
-        js.clearText((node = await this.resolveTarget(spec.matcher, opts, deadline)), ctx);
+        node = await this.resolveTarget(spec.matcher, opts, deadline);
+        await perform(spec.matcher).clear(node);
         break;
       case 'scroll':
         node = await this.resolveTarget(spec.matcher, opts, deadline);
-        js.scrollBy(js.requireScrollable(node, 'scroll', ctx), spec.direction, spec.distance);
+        await perform(spec.matcher).scroll(node, spec.direction, spec.distance);
         break;
       case 'swipe':
         node = await this.resolveTarget(spec.matcher, opts, deadline);
-        js.scrollBy(js.requireScrollable(node, 'swipe', ctx), js.swipeToScrollDirection(spec.direction));
+        await perform(spec.matcher).swipe(node, spec.direction, spec.speed);
         break;
       case 'scrollTo':
-        node = await this.scrollTo(spec.container, spec.target, opts, deadline, ctx);
+        node = await this.scrollTo(spec.container, spec.target, opts, deadline, perform(spec.container));
         break;
     }
 
@@ -274,27 +287,42 @@ export class AgentRuntime {
     return node === undefined ? {} : { element: this.summarize(node) };
   }
 
+  private performer(mode: ParamsOf<AgentMethods['action']>['mode'], action: ActionSpec['type'], matcher: Matcher, deadline: number): ActionPerformer {
+    if (mode === 'js') return jsPerformer({ platform: this.deps.platform() });
+    const bridge: NativeBridge | null = this.nativeModule();
+    if (bridge === null) {
+      throw new QuiescoError('ACTION_NOT_SUPPORTED', `native mode for ${action} needs @quiesco/native in the app (e2e build with its config plugin)`, {
+        action,
+        platform: this.deps.platform(),
+        hint: "install @quiesco/native and rebuild the app, or set actions: { mode: 'js' }",
+      });
+    }
+    return nativePerformer({ bridge, clock: this.clock, roots: () => this.adapter.getHostRoots(), viewport: () => this.adapter.viewport(), matcher, deadline });
+  }
+
   /**
    * Scroll `container` until `target` is visible: down until the offset stops changing, then up.
    * Each step waits for idle so lists can render more items.
    */
-  private async scrollTo(container: Matcher, target: Matcher, opts: SyncOption, deadline: number, ctx: js.JsActionContext): Promise<HostNode> {
+  private async scrollTo(container: Matcher, target: Matcher, opts: SyncOption, deadline: number, performer: ActionPerformer): Promise<HostNode> {
     const containerNode = await this.resolveTarget(container, opts, deadline);
-    const scrollable = js.requireScrollable(containerNode, 'scrollTo', ctx);
-    const directions = ['down', 'up'] as const;
-    for (const direction of directions) {
-      for (;;) {
+    // Offset readout (layout-based, works in both modes) to notice the end of the content.
+    const scrollable = js.findScrollable(containerNode);
+    const MAX_STEPS_WITHOUT_OFFSET = 10;
+    for (const direction of ['down', 'up'] as const) {
+      for (let step = 0; ; step++) {
         const visible = findAll(this.adapter.getHostRoots(), target).filter((n) => isVisible(n, this.adapter.viewport()));
         if (visible.length === 1) return visible[0] as HostNode;
         if (visible.length > 1) {
           throw new QuiescoError('MULTIPLE_MATCHES', `${visible.length} elements match ${describeMatcher(target)}`, { matcher: target, matches: visible.map((n) => this.summarize(n)) });
         }
-        if (this.clock.now() >= deadline) break;
-        const before = scrollable.offset();
-        js.scrollBy(scrollable, direction);
+        if (this.clock.now() >= deadline || (scrollable === null && step >= MAX_STEPS_WITHOUT_OFFSET)) break;
+        const before = scrollable?.offset();
+        const current = findAll(this.adapter.getHostRoots(), container)[0] ?? containerNode;
+        await performer.scroll(current, direction);
         await this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now()));
-        const after = scrollable.offset();
-        if (Math.abs(after.x - before.x) < 1 && Math.abs(after.y - before.y) < 1) break; // reached the end
+        const after = scrollable?.offset();
+        if (before !== undefined && after !== undefined && Math.abs(after.x - before.x) < 1 && Math.abs(after.y - before.y) < 1) break; // reached the end
       }
     }
     throw new QuiescoError('ELEMENT_NOT_FOUND', `Scrolled ${describeMatcher(container)} to both ends without finding a visible ${describeMatcher(target)}`, { matcher: target });

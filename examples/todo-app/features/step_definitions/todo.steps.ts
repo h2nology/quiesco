@@ -51,3 +51,17 @@ Then('看到 {string} 的待办列表', async function (this: QuiescoWorld, emai
   await this.app.expectText({ id: 'greeting' }, email);
   await this.app.expectVisible({ id: 'todo-list' });
 });
+
+When('清空全部待办并确认', async function (this: QuiescoWorld) {
+  await this.app.tap({ id: 'clear-todos' });
+  await this.app.tap({ id: 'confirm-clear' });
+});
+
+When('清空全部待办但取消', async function (this: QuiescoWorld) {
+  await this.app.tap({ id: 'clear-todos' });
+  await this.app.tap({ id: 'cancel-clear' });
+});
+
+Then('列表中有 {int} 条待办', async function (this: QuiescoWorld, count: number) {
+  await this.app.expectCount({ id: 'todo-item' }, count);
+});

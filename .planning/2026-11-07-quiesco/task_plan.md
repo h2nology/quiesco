@@ -4,10 +4,10 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-Phase 2（真实触摸与速度，Android）：先读 requirements.md §10 第 2 阶段，输出实施计划，**经 HU 确认后再写代码**（§12）。需带入的已知问题：native 档位需要变换后的坐标（UI 线程 / transform 动画与 frame-stable）；Android `Modal` 独立窗口的注入；滑动 / 滚动的注入；后门 / 软重置的完善。
+Phase 3（Web）：先读 requirements.md §10 第 3 阶段，输出实施计划，经 HU 确认后再写代码。开始前需要 HU 决定 §11-6（是否首版验收 Firefox / WebKit）与 §11-7（Web 视口默认值）。
 
 ## Current Phase
-Phase 2（待确认实施计划）
+Phase 3（待确认实施计划）
 
 ## 工作约定（摘自 requirements.md §12，每个阶段都要遵守）
 - 按阶段推进，不跳阶段；每阶段开始前先输出实施计划，经确认后再写代码。
@@ -81,12 +81,20 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 - **Status:** complete
 
 ### Phase 2: 真实触摸与速度（Android）
-- [ ] `@quiesco/native` Android 实现 + native 动作档位
-- [ ] 软重置、后门、onReset 钩子的完善（Phase 1 已有最小实现）：存储适配器（MMKV / SecureStore，可由用户注册）、性能调优（目标 < 500ms）
-- [ ] 失败时附加截图与元素树
-- [ ] 性能基准脚本 → `docs/benchmarks.md`
+**范围**（requirements.md §10 第 2 阶段）：`@quiesco/native` Android 实现 + `native` 动作档位、性能基准。已在 Phase 1 提前完成：软重置 / 后门 / onReset（1.4b）、失败时截图与元素树（1.6）。iOS 实现、完整 expo-plugin、并行留给 Phase 4。
+
+**任务拆分（按顺序，计划待 HU 确认）**
+- [x] 2.0 小型验证（结论写入 findings）：① JS 传 `__nativeTag`，原生 `resolveView(tag)` + `getLocationInWindow` 取真实坐标（含 native driver 动画）；② RN `Modal`（独立 Dialog 窗口）：在目标 View 的 `rootView` 上 dispatch；③ `InputConnection.commitText` 向 TextInput 输入中文，`onChangeText` 是否触发；④ `WindowInspector.getGlobalWindowViews()`（API 29+）判断目标窗口是否被更上层窗口遮挡
+- [x] 2.1 `packages/native`（`@quiesco/native`，Expo Module，Android）：`getLaunchParams`；`tap(tag|point, holdMs, count)`、`longPress`、`swipe(from, to, durationMs)`（DOWN→MOVE×n→UP，用于 scroll / swipe）、`typeText(tag, text)` / `clearText(tag)`（先点击聚焦，再通过 InputConnection）；在目标 View 所在窗口注入；dp↔px 换算；iOS 侧只放会报「未实现」的桩
+- [x] 2.2 `@quiesco/native` 自带 `app.plugin.js`：非 e2e prebuild 时从 autolinking 排除（S6 方案）；e2e 时加入只放行 localhost / 127.0.0.1 的 network security config（S5 建议）。完整 expo-plugin（iOS、eas profile、CI 生产检查）仍在 Phase 4
+- [x] 2.3 agent：经可选依赖（`try` 内 require）检测 `@quiesco/native`，hello 报 `nativeModule: true`、优先读原生启动参数（native 构建不再走匿名 session）；`actions/native.ts`：注入前要求元素可见且连续 2 帧位置不变、命中检查（该点最上层宿主元素是目标或其后代，否则报「被 X 遮挡」）、tap / longPress / doubleTap / type / clear / scroll / swipe / scrollTo；fiber-adapter 暴露 `HostNode.nativeHandle()`（= `__nativeTag`）
+- [x] 2.4 core / cucumber：`actions.mode` 未配置时按 hello 自动选 native；无需其他协议变更
+- [x] 2.5 示例 App：加入 `@quiesco/native` 与 plugin，重建 APK；配置去掉 `mode: 'js'`（自动选择）；新增一个用 RN `Modal` 的场景（删除确认等）验证弹窗内注入；第 9 节场景在 native 档位通过，js 档位也保留可运行
+- [x] 2.6 性能基准脚本（`examples/todo-app/bench/`）：软重置耗时、单次 tap（含同步）往返、全量测试耗时；native / js 两档；结果与设备信息写入 `docs/benchmarks.md`
+- [x] 2.7 验收：native 档位第 9 节场景通过；连续 20 次无随机失败（记录每次结果与耗时）；基准在案；`pnpm run check` 通过
+- **顺带处理（Phase 1 遗留）**：同步超时信息里显示的是剩余时间（如 9881ms）→ 改为同时显示动作的总超时；AVD 名称识别不出时会重复启动 emulator → 改为先检查同名 AVD 是否已有 qemu 进程
 - **验收：** native 档位通过；连续 20 次无随机失败；基准记录在案
-- **Status:** pending
+- **Status:** complete（2026-11-07）
 
 ### Phase 3: Web
 - [ ] `@quiesco/web`：Web DeviceProvider、Playwright 输入注入、静态文件服务器（SPA 回退）
@@ -179,6 +187,14 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | 删除 create-expo-app 模板自带的 `LICENSE`（Expo MIT）与 `.claude/settings.json`（自动启用插件） | 项目许可证待 HU 决定（§11-1），模板许可证容易被误认为项目许可证；插件设置会影响打开目录的人 |
 | `pnpm run check` 与 CI 增加示例 App 类型检查（`typecheck:examples`） | 包 API 变化时示例 App 及 step 定义能被及时发现 |
 | mock server 增加 `MOCK_STALL="<METHOD> <path>"`（该接口永不返回） | 验收「同步超时能指出请求」：全局延迟会先卡住 onReset / backdoor，只能得到 AGENT_TIMEOUT |
+| native 档位按原生 view tag 定位：JS 传 `__nativeTag`，原生取 View 的实际窗口坐标，并在目标 View 所在窗口注入 | HU 2026-11-07（Phase 2 决定 1）：能正确点击 native driver 动画中的元素与 Modal 内元素 |
+| native 档位文本输入走 `InputConnection.commitText`（先点击聚焦） | HU 2026-11-07（决定 2）：支持中文；限制是整段写入而非逐键 |
+| Phase 2 在 `@quiesco/native` 内置只管 Android 的 config plugin（非 e2e 排除 autolinking + e2e 放行 localhost 明文）；完整 expo-plugin 仍在 Phase 4 | HU 2026-11-07（决定 3）：从一开始保证生产包不含注入模块 |
+| 动作执行抽象为 `ActionPerformer`（js / native 两个实现），runtime 的目标解析、同步、scrollTo 循环共用 | 两种档位行为一致，只在「怎么执行」上不同 |
+| native 档位注入前检查：原生 View 位置连续两次不变、所在窗口有输入焦点、该点最上层元素是目标或其后代（pointerEvents none / box-none 视为透明）；否则报新增的 `ELEMENT_OBSCURED`（1014） | 真实触摸到不了的元素要明确报错，而不是点到别处 |
+| 同一元素的判断用原生 view tag（HostNode 每次遍历都会重建） | 单元测试发现按对象比较会误报「被自己遮挡」 |
+| `@quiesco/native` 的 Android 包名 `dev.quiesco.nativemodule`；package.json 不设 `"type": "module"`（app.plugin.js 为 CJS） | `native` 是 Java 关键字；Expo 以 require 加载 config plugin |
+| ESLint：`_` 开头的参数允许不使用 | 测试替身需要与真实签名一致 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

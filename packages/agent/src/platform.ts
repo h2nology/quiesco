@@ -5,6 +5,7 @@
  */
 import type { Platform } from '@quiesco/protocol';
 
+import type { NativeBridge } from './actions/native';
 import type { InteractionManagerLike } from './sync';
 
 declare const require: (id: string) => unknown;
@@ -21,10 +22,8 @@ export interface SocketLike {
 export interface AppDeps {
   platform(): Platform;
   dismissKeyboard(): void;
-  /** Launch parameters read by @quiesco/native (Phase 2). `null` when the native module is absent. */
-  nativeLaunchParams(): { port?: string; session?: string } | null;
-  /** Whether @quiesco/native is linked. */
-  hasNativeModule(): boolean;
+  /** @quiesco/native when it is installed and its native code is linked, else null. */
+  nativeModule(): (NativeBridge & { getLaunchParams(): { port: string | null; session: string | null } }) | null;
   createSocket(url: string): SocketLike;
   /** Legacy InteractionManager (RN < 0.88), or null. */
   interactionManager(): InteractionManagerLike | null;
@@ -46,8 +45,16 @@ export const defaultAppDeps: AppDeps = {
   dismissKeyboard() {
     rn().Keyboard.dismiss();
   },
-  nativeLaunchParams: () => null,
-  hasNativeModule: () => false,
+  nativeModule() {
+    // Optional dependency: Metro bundles apps without @quiesco/native when the require sits directly
+    // in a try block (transformer.allowOptionalDependencies, on by default).
+    try {
+      const mod = require('@quiesco/native') as { QuiescoNative?: ReturnType<AppDeps['nativeModule']> };
+      return mod.QuiescoNative ?? null;
+    } catch {
+      return null;
+    }
+  },
   createSocket(url) {
     const WS = (globalThis as unknown as { WebSocket: new (url: string) => SocketLike }).WebSocket;
     return new WS(url);

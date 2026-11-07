@@ -1,0 +1,28 @@
+{
+  "name": "@quiesco/native",
+  "version": "0.0.0",
+  "description": "Quiesco native touch injection (Expo Module). e2e builds only.",
+  "license": "UNLICENSED",
+  "main": "./src/index.ts",
+  "react-native": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./app.plugin.js": "./app.plugin.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "android/build.gradle",
+    "android/src",
+    "expo-module.config.json",
+    "app.plugin.js"
+  ],
+  "scripts": {
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "expo-modules-core": "*",
+    "@expo/config-plugins": "*"
+  }
+}

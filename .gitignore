@@ -3,3 +3,7 @@ dist/
 *.tsbuildinfo
 coverage/
 .DS_Store
+
+# Gradle output of Expo module packages (built as part of an app)
+packages/*/android/build/
+packages/*/android/.cxx/

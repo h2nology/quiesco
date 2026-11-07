@@ -87,12 +87,21 @@ describe('SyncEngine.waitForIdle', () => {
       expect(err).toBeInstanceOf(QuiescoError);
       expect(err.toJSON().code).toBe(1003);
       expect(err.data.busy.map((b) => b.name)).toEqual(['network', 'timer']);
+      expect(err.message).toMatch(/^App did not become idle within the 1000ms timeout\. Busy:/);
       expect(err.message).toContain('network: GET https://api.test/todos (1200ms)');
       expect(err.message).toContain('timer: setTimeout(anonymous, 1000ms), fires in 400ms');
       return true;
     });
     await vi.advanceTimersByTimeAsync(1100);
     await assertion;
+  });
+
+  it('reports the whole call timeout when waiting with what is left of it', async () => {
+    const engine = new SyncEngine([tracker('timer', () => false, () => ['setTimeout(t, 500ms)'])], clock);
+    const p = engine.waitForIdle({ timeoutMs: 300, reportedTimeoutMs: 10_000 });
+    const a = expect(p).rejects.toThrow(/within the 10000ms timeout \(waited 30\dms for idle after the action\)/);
+    await vi.advanceTimersByTimeAsync(400);
+    await a;
   });
 
   it('treats a throwing tracker as busy and still calls endWait', async () => {

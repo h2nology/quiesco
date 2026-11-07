@@ -28,6 +28,7 @@ export const ErrorCode = {
   AGENT_NOT_READY: 1011,
   APP_ERROR: 1012,
   RESET_FAILED: 1013,
+  ELEMENT_OBSCURED: 1014,
 } as const;
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
 export type ErrorName = keyof typeof ErrorCode;
@@ -47,6 +48,8 @@ export interface ErrorDataMap {
   AGENT_NOT_READY: { reason: string };
   APP_ERROR: { message: string; stack?: string };
   RESET_FAILED: { step: string; message: string };
+  /** A real touch would not reach the element: another element or window is on top of it. */
+  ELEMENT_OBSCURED: { matcher: Matcher; element: ElementSummary; obscuredBy: string };
 }
 
 export interface QuiescoErrorObject<N extends ErrorName = ErrorName> {

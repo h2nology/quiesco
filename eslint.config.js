@@ -12,10 +12,12 @@ export default tseslint.config(
       '@typescript-eslint/consistent-type-imports': 'error',
       // Monkey-patching wrappers need both the caller's `this` and the tracker; `self` names the latter.
       '@typescript-eslint/no-this-alias': ['error', { allowedNames: ['self'] }],
+      // `_name` marks a deliberately unused parameter (test doubles mirroring a real signature).
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
   {
-    files: ['**/*.cjs', '**/metro.config.js'],
+    files: ['**/*.cjs', '**/metro.config.js', '**/app.plugin.js'],
     languageOptions: { sourceType: 'commonjs' },
     rules: { '@typescript-eslint/no-require-imports': 'off' },
   },

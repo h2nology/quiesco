@@ -171,3 +171,11 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 |------|------|------|------|
 | §6.2-4 交互空闲（InteractionManager 在 RN 0.88 已移除） | A. 改为跟踪挂起的 `requestIdleCallback`；B. 仅在 `InteractionManager` 存在时安装（兼容旧 SDK），否则跳过；C. 删除该 tracker | ✅ 已决定 A+B（HU 2026-11-07） | 官方替代即 requestIdleCallback；Web 端浏览器原生也有，三端一致 |
 | spike 目标 SDK | SDK 58（latest） | SDK 58 | 需求要求支持开发时最新稳定 SDK |
+
+## Phase 2.0 验证（2026-11-07，Android Emulator API 37，示例 App + `@quiesco/native` 初版）
+验证方式：临时 backdoor `probe` 在 App 内按 testID 找 HostNode → `nativeTag()` → 调用原生函数；Host 脚本（scratchpad/probe.mjs）用 core Session 驱动。临时代码已撤回。
+- ① **view tag → 原生坐标**：`UIManagerHelper.getUIManagerForReactTag(ctx, tag).resolveView(tag)`（UI 线程）可取到 View；`getLocationInWindow` 的 dp 值与 JS `getBoundingClientRect()` 完全一致（例：add-todo 16, 850.67, 183.6×47.6）。`getBoundingClientRect` 默认 `includeTransform: true`（ReadOnlyElement.js:190）；native driver 动画未实测（示例 App 无此动画），`getLocationInWindow` 按 Android 语义包含 View 及父级变换。
+- ② **RN Modal**：是独立窗口（WindowInspector 窗口数 1 → 2，Modal 在 index 1）；Modal 内元素的 JS 坐标与原生窗口坐标一致（全屏 Modal）；在目标 View 的 `rootView` 上 dispatch 可点中 Modal 内按钮（清空成功）。
+- ③ **中文输入**：先 tap 聚焦，再 `onCreateInputConnection(EditorInfo()).commitText("买牛奶", 1)`，受控 TextInput 的 `value` 变为 "买牛奶"（onChangeText 已触发），`mostRecentEventCount` 递增。
+- ④ **遮挡判断**：Modal 打开时，下层元素所在窗口 `rootView.hasWindowFocus() == false`，上层 Modal 窗口为 true ⇒ 可用于「被其他窗口遮挡」的报错。`WindowInspector.getGlobalWindowViews()`（API 29+）可列出窗口，作为诊断信息。
+- 构建注意：Kotlin/Java 包名不能含关键字 `native`（改为 `dev.quiesco.nativemodule`）；模块需 `implementation 'com.facebook.react:react-android'` 才能用 UIManagerHelper；`expo-modules-autolinking search` 默认不显示仅 android 平台的模块，需 `-p android`。

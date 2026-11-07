@@ -5,20 +5,19 @@ import type { AppDeps } from '../src/platform';
 import { AgentRuntime } from '../src/runtime';
 import type { Clock, IdleTracker } from '../src/sync';
 import { fakeScheduler, host, makeRoot, renderWith, text } from './helpers/fake-fiber';
-import { CONFIG, FakeSocket, acceptHello } from './helpers/fake-socket';
+import { CONFIG, FakeSocket } from './helpers/fake-socket';
 import type { Spec } from './helpers/fake-fiber';
 
 const clock: Clock = { setTimeout: (cb, ms) => setTimeout(cb, ms), clearTimeout: (id) => clearTimeout(id as number), now: () => Date.now() };
 const R = (y: number) => ({ __rect: { x: 0, y, width: 100, height: 40 } });
 
-function setup(opts: { busy?: () => boolean } = {}) {
+function setup(opts: { busy?: () => boolean; native?: ReturnType<AppDeps['nativeModule']> } = {}) {
   const target: Record<string, unknown> = {};
   const sockets: FakeSocket[] = [];
   const deps: AppDeps = {
     platform: () => 'android',
     dismissKeyboard: vi.fn(),
-    nativeLaunchParams: () => ({ port: '7401', session: 'sess' }),
-    hasNativeModule: () => false,
+    nativeModule: () => opts.native ?? null,
     createSocket: (url) => {
       const s = new FakeSocket(url);
       sockets.push(s);
@@ -61,11 +60,14 @@ describe('AgentRuntime', () => {
   beforeEach(() => vi.useFakeTimers({ now: 0, toFake: ['setTimeout', 'clearTimeout', 'Date'] }));
   afterEach(() => vi.useRealTimers());
 
-  it('connects on mount with launch params and applies the config from hello', () => {
-    const { rt, sockets } = setup();
+  it('connects on mount with launch params from @quiesco/native and applies the config from hello', () => {
+    const native = { getLaunchParams: () => ({ port: '7401', session: 'sess' }), locate: vi.fn(), tap: vi.fn(), swipe: vi.fn(), typeText: vi.fn() };
+    const { rt, sockets } = setup({ native });
     rt.mount(null);
     expect(sockets[0]?.url).toBe('ws://localhost:7401');
-    acceptHello(sockets[0]!, { ...CONFIG, sync: { ...CONFIG.sync, timeoutMs: 1234 } });
+    sockets[0]!.open();
+    expect(sockets[0]!.sent[0]).toMatchObject({ params: { sessionId: 'sess', nativeModule: true } });
+    sockets[0]!.receive({ jsonrpc: '2.0', id: 'hello', result: { accepted: true, sessionId: 'sess', config: { ...CONFIG, sync: { ...CONFIG.sync, timeoutMs: 1234 } } } });
     expect(rt.config.sync.timeoutMs).toBe(1234);
   });
 
@@ -103,9 +105,13 @@ describe('AgentRuntime', () => {
     );
   });
 
-  it('native mode is not available yet; device actions are delegated to the host', async () => {
-    const { call, deps } = setup();
-    await expect(call('action', { action: { type: 'tap', matcher: { id: 'x' } }, mode: 'native' })).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED' });
+  it('native mode needs @quiesco/native; device actions are delegated to the host', async () => {
+    const { call, deps, target } = setup();
+    sameRoot(target)(host('RCTView', { testID: 'x', ...R(0) }));
+    await expect(drive(call('action', { action: { type: 'tap', matcher: { id: 'x' } }, mode: 'native' }))).rejects.toMatchObject({
+      errorName: 'ACTION_NOT_SUPPORTED',
+      message: expect.stringContaining('@quiesco/native'),
+    });
     await expect(call('action', { action: { type: 'pressBack' }, mode: 'js' })).resolves.toEqual({ hostInput: { kind: 'back' } });
     await expect(call('action', { action: { type: 'openUrl', url: 'app://x' }, mode: 'js' })).resolves.toEqual({ hostInput: { kind: 'navigate', url: 'app://x' } });
     await expect(drive(call('action', { action: { type: 'dismissKeyboard' }, mode: 'js' }))).resolves.toEqual({});
@@ -181,5 +187,19 @@ describe('AgentRuntime', () => {
     expect(order).toEqual(['hook', 'remount']);
     off();
     await expect(drive(call('reset', {}))).rejects.toMatchObject({ errorName: 'RESET_FAILED', data: { step: 'remount' } });
+  });
+
+  it('native mode taps through @quiesco/native using the native view tag', async () => {
+    const native = {
+      getLaunchParams: () => ({ port: null, session: null }),
+      locate: vi.fn(async () => ({ found: true, x: 0, y: 10, width: 100, height: 40, windowHasFocus: true })),
+      tap: vi.fn(async () => ({ handled: true })),
+      swipe: vi.fn(),
+      typeText: vi.fn(),
+    };
+    const { call, target } = setup({ native });
+    sameRoot(target)(host('RCTView', { testID: 'go', ...R(10) }));
+    await expect(drive(call('action', { action: { type: 'tap', matcher: { id: 'go' } }, mode: 'native' }))).resolves.toMatchObject({ element: { testID: 'go' } });
+    expect(native.tap).toHaveBeenCalledWith(expect.any(Number), 0, 0, 50, 1);
   });
 });

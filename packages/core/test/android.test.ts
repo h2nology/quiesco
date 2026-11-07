@@ -75,7 +75,22 @@ describe('AndroidProvider', () => {
     const p = new AndroidProvider({ app: { package: 'x' }, device: { avd: 'New_AVD' }, adbPath: 'adb', emulatorPath: 'emulator', exec, spawn: (f, a) => spawned.push(`${f} ${a.join(' ')}`), pollMs: 1 });
     await p.boot();
     expect(spawned).toEqual(['emulator -avd New_AVD -no-boot-anim -no-snapshot-save']);
-    expect(adb.calls[0]).toBe('adb -s emulator-5560 shell getprop sys.boot_completed');
+    expect(adb.calls[0]).toBe('ps -ax -o command'); // checked that the AVD is not already running
+    expect(adb.calls[1]).toBe('adb -s emulator-5560 shell getprop sys.boot_completed');
+  });
+
+  it('does not start a second emulator when the AVD process already runs but adb cannot name it', async () => {
+    const spawned: string[] = [];
+    const { p } = provider(
+      [
+        [/adb devices$/, 'List of devices attached\nemulator-5554\tdevice\n'],
+        [/getprop ro.boot.qemu.avd_name|emu avd name/, ''],
+        [/^ps /, '/sdk/emulator/qemu/darwin-aarch64/qemu-system-aarch64 -avd Pixel_API_37 -no-boot-anim\n'],
+      ],
+      { device: { avd: 'Pixel_API_37' }, spawn: (f, a) => spawned.push(`${f} ${a.join(' ')}`) },
+    );
+    await expect(p.boot()).rejects.toThrow(/already running.*devices\.android\.serial/);
+    expect(spawned).toEqual([]);
   });
 
   it('fails clearly when the configured serial is missing or nothing runs', async () => {

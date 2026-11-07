@@ -43,6 +43,10 @@ class Node implements HostNode {
     return this.platform.measure(this.fiber);
   }
 
+  nativeTag(): number | null {
+    return this.platform.nativeTag(this.fiber);
+  }
+
   ownerProps(): Readonly<Record<string, unknown>> {
     const out: Record<string, unknown> = {};
     for (let f = this.fiber.return; f !== null && !isHostBoundary(f); f = f.return) {

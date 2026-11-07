@@ -12,11 +12,13 @@ export interface Spec {
   children: Spec[];
 }
 
+let nextNativeTag = 2;
 export const host = (type: string, props: Record<string, unknown> = {}, ...children: Spec[]): Spec => ({
   tag: WorkTag.HostComponent,
   type,
   props,
-  stateNode: props['__rect'] ? { getBoundingClientRect: () => props['__rect'] } : {},
+  // Shaped like Fabric's public instance (ReactNativeElement): view tag + getBoundingClientRect.
+  stateNode: { __nativeTag: nextNativeTag++, ...(props['__rect'] ? { getBoundingClientRect: () => props['__rect'] } : {}) },
   children,
 });
 export const text = (s: string | number): Spec => ({ tag: WorkTag.HostText, type: null, props: s, children: [] });

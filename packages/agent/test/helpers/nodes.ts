@@ -18,6 +18,7 @@ export interface NodeSpec {
   ancestorHandlers?: Record<string, unknown>;
   /** findInstance(method) result. */
   instance?: InstanceRef | null;
+  tag?: number | null;
   children?: NodeSpec[];
 }
 
@@ -53,6 +54,7 @@ export function node(spec: NodeSpec, parent: MutableNode | null = null): Mutable
       return null;
     },
     findInstance: () => spec.instance ?? null,
+    nativeTag: () => spec.tag ?? null,
   };
   n.children = (spec.children ?? []).map((c) => node(c, n));
   n.text = n.ownText + n.children.map((c) => c.text).join('');

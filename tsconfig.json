@@ -1,9 +1,20 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/protocol" },
-    { "path": "packages/agent" },
-    { "path": "packages/core" },
-    { "path": "packages/cucumber" }
+    {
+      "path": "packages/protocol"
+    },
+    {
+      "path": "packages/native"
+    },
+    {
+      "path": "packages/agent"
+    },
+    {
+      "path": "packages/core"
+    },
+    {
+      "path": "packages/cucumber"
+    }
   ]
 }

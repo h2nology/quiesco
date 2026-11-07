@@ -14,6 +14,11 @@ export interface WaitForIdleOptions {
   timeoutMs?: number;
   /** Delay between checks while busy. The confirmation check always runs in the very next macrotask. */
   pollIntervalMs?: number;
+  /**
+   * Timeout of the whole call this wait belongs to (an action waits with what is left of it), used in
+   * the SYNC_TIMEOUT message. Default: `timeoutMs`.
+   */
+  reportedTimeoutMs?: number;
 }
 
 const DEFAULT_POLL_MS = 16;
@@ -68,7 +73,7 @@ export class SyncEngine {
           if (this.allIdle()) return { waitedMs: this.clock.now() - start };
         }
         const elapsed = this.clock.now() - start;
-        if (elapsed >= timeoutMs) throw this.timeoutError(timeoutMs);
+        if (elapsed >= timeoutMs) throw this.timeoutError(options.reportedTimeoutMs ?? timeoutMs, elapsed);
         await this.sleep(Math.min(pollMs, timeoutMs - elapsed));
       }
     } finally {
@@ -80,10 +85,11 @@ export class SyncEngine {
     return this.active().every((t) => safe(() => t.isIdle(), false));
   }
 
-  private timeoutError(timeoutMs: number): QuiescoError<'SYNC_TIMEOUT'> {
+  private timeoutError(timeoutMs: number, waitedMs: number): QuiescoError<'SYNC_TIMEOUT'> {
     const busy = this.getIdleState().filter((s) => !s.idle);
     const lines = busy.map((s) => `  - ${s.name}: ${s.busy.length > 0 ? s.busy.join('; ') : 'busy'}`);
-    return new QuiescoError('SYNC_TIMEOUT', `App did not become idle within ${timeoutMs}ms. Busy:\n${lines.join('\n')}`, {
+    const waited = waitedMs < timeoutMs ? ` (waited ${waitedMs}ms for idle after the action)` : '';
+    return new QuiescoError('SYNC_TIMEOUT', `App did not become idle within the ${timeoutMs}ms timeout${waited}. Busy:\n${lines.join('\n')}`, {
       timeoutMs,
       busy,
     });

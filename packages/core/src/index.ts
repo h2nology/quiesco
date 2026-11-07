@@ -1,5 +1,5 @@
 export { PROTOCOL_VERSION } from '@quiesco/protocol';
-export type { ElementSummary, JsonValue, Platform, TrackerState, TreeNode } from '@quiesco/protocol';
+export type { ActionMode, ElementSummary, JsonValue, Platform, TrackerState, TreeNode } from '@quiesco/protocol';
 
 export { defineConfig, loadConfig, resolvePlatform, serverPort, toAgentConfig, DEFAULT_CONNECT_TIMEOUT_MS } from './config.js';
 export type { AndroidAppConfig, AndroidDeviceConfig, QuiescoConfig } from './config.js';

@@ -16,6 +16,7 @@ export default defineConfig({
     // Which emulator to use comes from the environment, never from this file.
     android: process.env['QUIESCO_AVD'] !== undefined ? { avd: process.env['QUIESCO_AVD'] } : {},
   },
-  // Phase 1: no @quiesco/native yet, so actions call the components' callbacks.
-  actions: { mode: 'js' },
+  // actions.mode is not set: `native` (real touches) when the app has @quiesco/native, else `js`.
+  // Run with QUIESCO_ACTION_MODE=js to force callback mode.
+  ...(process.env['QUIESCO_ACTION_MODE'] === 'js' ? { actions: { mode: 'js' as const } } : {}),
 });

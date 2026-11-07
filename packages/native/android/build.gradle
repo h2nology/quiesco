@@ -1,0 +1,23 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'dev.quiesco.nativemodule'
+version = '0.0.0'
+
+android {
+  namespace "dev.quiesco.nativemodule"
+  defaultConfig {
+    versionCode 1
+    versionName "0.0.0"
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  // UIManagerHelper / ReactContext: resolve React view tags to Android views.
+  implementation 'com.facebook.react:react-android'
+}

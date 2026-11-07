@@ -16,6 +16,8 @@ export interface HostPlatform {
   role(props: Record<string, unknown>): string | undefined;
   hiddenByStyle(fiber: Fiber, props: Record<string, unknown>): boolean;
   measure(fiber: Fiber): Rect | null;
+  /** React view tag of the native view (Fabric), for native touch injection. Null on web. */
+  nativeTag(fiber: Fiber): number | null;
   viewport(): Viewport | null;
 }
 
@@ -78,22 +80,31 @@ export function nativePlatform(deps: PlatformDeps): HostPlatform {
       return hiddenStyle(s['display'], s['opacity']);
     },
     measure(fiber) {
-      if (getPublic === undefined) {
-        try {
-          getPublic = deps.getPublicInstance?.() ?? null;
-        } catch {
-          getPublic = null;
-        }
-      }
-      if (getPublic === null) return null;
-      try {
-        return callRect(getPublic(fiber));
-      } catch {
-        return null;
-      }
+      return callRect(publicInstance(fiber));
+    },
+    nativeTag(fiber) {
+      const el = publicInstance(fiber);
+      const tag = isObject(el) ? el['__nativeTag'] : undefined;
+      return typeof tag === 'number' ? tag : null;
     },
     viewport: () => deps.viewport?.() ?? null,
   };
+
+  function publicInstance(fiber: Fiber): unknown {
+    if (getPublic === undefined) {
+      try {
+        getPublic = deps.getPublicInstance?.() ?? null;
+      } catch {
+        getPublic = null;
+      }
+    }
+    if (getPublic === null) return null;
+    try {
+      return getPublic(fiber);
+    } catch {
+      return null;
+    }
+  }
 }
 
 export function webPlatform(deps: PlatformDeps): HostPlatform {
@@ -111,6 +122,7 @@ export function webPlatform(deps: PlatformDeps): HostPlatform {
       return hiddenStyle(s['display'], s['opacity']);
     },
     measure: (fiber) => callRect(fiber.stateNode),
+    nativeTag: () => null,
     viewport: () => deps.viewport?.() ?? null,
   };
 }

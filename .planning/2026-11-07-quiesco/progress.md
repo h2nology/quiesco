@@ -120,6 +120,14 @@
   - 注意：Metro 以 `CI=1` 启动时不监听文件变化，改代码后需要重启 Metro。
 - 撤回临时代码后用提交状态再跑一次：4 场景 22 步通过。**Phase 1 完成。**
 
+- 提交 1.8（790d2cc）。HU 确认 Phase 2 计划（三项决定均按推荐）。
+- 2.0：搭 `packages/native` 初版 + 临时 probe backdoor，4 项验证全部成立（findings「Phase 2.0 验证」）。构建踩坑：包名不能含 `native`、需 react-android 依赖、autolinking search 需 `-p android`。
+- 2.1–2.5：native 模块（getLaunchParams / locate / tap / swipe / typeText）；config plugin（两种模式 prebuild 验证）；agent native 档位（performer、ready 检查、hitTest、ELEMENT_OBSCURED、原生启动参数）；示例 App 自动档位 + Modal「清空待办」feature。
+  - 单元测试发现：命中检测按对象比较误报「被自己遮挡」→ 改为按 view tag 比较。
+  - Phase 1 遗留修复：SYNC_TIMEOUT 显示总超时；识别不出的 AVD 不再重复启动 emulator（先查 ps）。
+- 2.6 基准脚本 `examples/todo-app/bench/run.mts`；结果写入 `docs/benchmarks.md`。
+- 2.7 验收全部完成。**Phase 2 完成。**
+
 ## Test Results
 | 测试 | 结果 | 备注 |
 |------|------|------|
@@ -168,3 +176,10 @@
 | 1.8-3 同步超时：未完成请求 | ✅ | `network: POST http://localhost:3001/login (9903ms)` |
 | 1.8-3 同步超时：未触发定时器 | ✅ | `timer: setTimeout(ticker, 1000ms), fires in 265ms` |
 | 1.8 最终运行（提交状态） | ✅ | 4 场景 22 步通过；`pnpm run check` 180 测试 + 示例类型检查通过 |
+| 2.0 原生验证 4 项 | ✅ | view tag 坐标与 JS 一致；Modal 内点击生效；中文 commitText 触发 onChangeText；被 Modal 遮挡的窗口 hasWindowFocus=false |
+| 2.2 config plugin prebuild（生产 / e2e） | ✅ | 生产：settings.gradle 排除模块；e2e：manifest + main/debug 两份网络配置 |
+| 2.5 native 档位全部 feature | ✅ | 6 场景 34 步（19.3s）；js 档位同样通过（16.0s） |
+| 2.5 遮挡反向验证（真机） | ✅ | Modal 打开时点下层按钮 → ELEMENT_OBSCURED |
+| 2.7 连续 20 次（native） | ✅ | 20/20，每次 6 场景 34 步，16.9–19.8s（中位数 17.8s） |
+| 2.7 性能基准 | ✅ | 软重置中位数 195ms（native / js 相同，目标 <500ms）；tap 含同步 native 416ms / js 266ms；全量 18.8s / 16.0s |
+| 2.7 `pnpm run check` | ✅ | 196 测试 + 示例类型检查，depcruise 103 模块无违规 |

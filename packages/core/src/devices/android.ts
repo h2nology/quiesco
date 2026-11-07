@@ -138,7 +138,27 @@ export class AndroidProvider implements DeviceProvider {
     await this.shell('wm dismiss-keyguard').catch(() => undefined);
   }
 
+  /** Whether an emulator process for `avd` is already running (adb may not have attached it yet). */
+  private async avdProcessRunning(avd: string): Promise<boolean> {
+    try {
+      const { stdout } = await this.exec('ps', ['-ax', '-o', 'command']);
+      return stdout
+        .toString()
+        .split('\n')
+        .some((l) => /emulator|qemu-system/.test(l) && new RegExp(`(^|\\s)-avd\\s+${avd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`).test(l));
+    } catch {
+      return false;
+    }
+  }
+
   private async bootAvd(avd: string, before: string[], timeoutMs: number): Promise<string> {
+    if (await this.avdProcessRunning(avd)) {
+      throw new QuiescoError(
+        'DEVICE_ERROR',
+        `An emulator for AVD ${avd} is already running, but none of the adb devices (${before.join(', ') || 'none'}) reports that AVD name. ` +
+          'Set devices.android.serial to use it, or restart adb (`adb kill-server`).',
+      );
+    }
     this.logger.info(`booting Android emulator ${avd}`);
     this.spawn(this.emulator, ['-avd', avd, '-no-boot-anim', '-no-snapshot-save']);
     this.bootedByUs = true;

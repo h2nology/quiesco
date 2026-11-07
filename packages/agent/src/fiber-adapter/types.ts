@@ -25,6 +25,8 @@ export interface HostNode {
   readonly children: readonly HostNode[];
   /** Window coordinates in logical units (dp / pt / CSS px), or null if the node cannot be measured. */
   measure(): Rect | null;
+  /** React view tag of the underlying native view (Fabric), or null (web, unmounted). */
+  nativeTag(): number | null;
   /**
    * Merged props of the composite components that render this host directly (between it and the
    * nearest ancestor host), nearest first. E.g. a Pressable's `disabled`, a TextInput's `value`.
