@@ -37,10 +37,10 @@ const text = (id: string) => findHostByTestID(id)[0]?.text;
 const bg = (id: string) => StyleSheet.flatten(findHostByTestID(id)[0]?.fiber.memoizedProps.style)?.backgroundColor;
 
 export async function runS3(): Promise<void> {
-  if (Platform.OS !== 'android') return;
+  if (Platform.OS === 'web') return;
   for (let i = 0; i < 30; i++) await tick();
   await waitReactIdle();
-  const out: string[] = [`[S3] platform=${Platform.OS}`];
+  const out: string[] = [`[S3] platform=${Platform.OS} (S4 on iOS)`];
   try {
     // 1. Pressable tap
     const before = text('pressable-count');
@@ -48,7 +48,7 @@ export async function runS3(): Promise<void> {
     const t0 = Date.now();
     const r = await SpikeTouch.tap(c.x, c.y, 50);
     const idleMs = await waitReactIdle();
-    out.push(`[S3] tap pressable at dp(${c.x.toFixed(1)},${c.y.toFixed(1)}) -> px(${r.x},${r.y}) down=${r.down} up=${r.up} | ${before} -> ${text('pressable-count')} | roundtrip=${Date.now() - t0}ms idleAfter=${idleMs}ms`);
+    out.push(`[S3] tap pressable at dp(${c.x.toFixed(1)},${c.y.toFixed(1)}) -> px(${r.x},${r.y}) down=${r.down} up=${r.up} hit=${(r as any).hit ?? '-'} | ${before} -> ${text('pressable-count')} | roundtrip=${Date.now() - t0}ms idleAfter=${idleMs}ms`);
 
     // 2. Pressed state while finger is down.
     // Pressability keeps `pressed` for minPressDuration (setTimeout) -> React-idle alone is not enough,

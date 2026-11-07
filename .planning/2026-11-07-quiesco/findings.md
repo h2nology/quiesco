@@ -110,6 +110,14 @@
 - 未验证的风险：RN `Modal`（独立 Dialog 窗口）无法通过 Activity 的 dispatchTouchEvent 送达 → Phase 2 处理。
 - 结论文档：`docs/spikes/03-android-touch.md`。
 ### S4 iOS 触摸注入
+KIF（kif-framework/KIF master，Apache-2.0）的做法（gh api 读取原文）：
+- UITouch：`setWindow:`（最先调用，会重置其他字段）→ `setTapCount:1` → `_setLocationInWindow:resetPrevious:YES` → `setView:`（命中测试得到的视图）→ `setPhase:` → `setTimestamp:` → `setGestureView:`（如果有）→ `_setIsFirstTouchForView:YES`（没有就退回 `_setIsTapToClick:` + 改 `_touchFlags` ivar）→ `_setHidEvent:`。
+- iOS 18 起命中测试要考虑 `_UIHitTestContext contextWithPoint:radius:` + `-[UIView _hitTestWithContext:]`（SwiftUI）；RN 视图用普通 `hitTest:withEvent:` 即可。
+- UIEvent：`[UIApplication _touchesEvent]` → `_clearTouches` → `_setHIDEvent:`（IOHIDEvent）→ `_addTouch:forDelayedDelivery:NO` → `[UIApplication sendEvent:]`。tap = 同一个 UITouch 先 Began 发送，再 Ended 发送。
+- IOHIDEvent（IOKit 私有 C 函数，extern 声明并链接 IOKit）：hand 事件 `IOHIDEventCreateDigitizerEvent(alloc, ts, transducer=Hand(3), 0, 0, mask=Touch(0x2), 0, 0,0,0, 0,0, range=0, touch=1, 0)`；每个手指 `IOHIDEventCreateDigitizerFingerEventWithQuality(alloc, ts, index=i+1, identity=2, mask=Moved?Position(0x4):Range|Touch(0x3), x, y, 0, 0, 0, 5, 5, 1, 1, 1, range=touching, touch=touching, 0)`，两者都设置 `kIOHIDEventFieldDigitizerIsDisplayIntegrated`（= (11<<16)+25 = 0xB0019）为 1，再 `IOHIDEventAppendEvent(hand, finger)`。ts = mach_absolute_time()。IOHIDFloat 在 64 位下是 double。
+- **运行时验证（iPhone 17 / iOS 27.0，debug）✅**：Pressable onPress 0→1（命中 `RCTParagraphComponentView`）、按下态 ✅（抬起后 84ms 恢复）、RNGH 0→1、10 连击 +10（533ms）、点空白处无反应；往返 83ms；截图核对一致。窗口取自前台激活的 UIWindowScene 的 keyWindow；坐标就是 pt，不需要换算。
+- 用 `--initialUrl` 启动时 dev client 的齿轮浮动按钮仍会显示（右上角），这次没有影响。
+- 结论文档：`docs/spikes/04-ios-touch.md`。§11-3（替代方案）不需要启用。
 ### S5 连接参数传递
 ### S6 生产剔除
 ### S7 Web 端 Fiber 查询

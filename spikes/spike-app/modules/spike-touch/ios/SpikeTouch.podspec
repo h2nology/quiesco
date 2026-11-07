@@ -13,6 +13,8 @@ Pod::Spec.new do |s|
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'
+  # IOHIDEvent* (private C API) lives in IOKit; e2e builds only.
+  s.frameworks = 'IOKit'
 
   # Swift/Objective-C compatibility
   s.pod_target_xcconfig = {

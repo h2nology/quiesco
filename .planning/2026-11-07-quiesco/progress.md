@@ -40,6 +40,10 @@
   - 第 1 次：按下态检查失败（样式三个时刻都是 pressed）→ 原因是 Pressability 的 minPressDuration 定时器，改为等待样式变化并记录耗时 → 确认按下态正常，抬起后 117ms 恢复。
 - **S3 完成**，结论写入 `docs/spikes/03-android-touch.md`。
 
+- S4：读 KIF 源码（gh api）整理出 UITouch / UIEvent / IOHIDEvent 的合成步骤（写入 findings）。写 `modules/spike-touch/ios/QSTouchInjector.{h,m}`（ObjC，私有 API）+ Swift 模块 `tap` / `touchDown` / `touchUp`；podspec 加 `s.frameworks = 'IOKit'`；`s3-run.ts` 改为 iOS 也执行。pod install + xcodebuild 成功。
+  - 第 1 次运行报 `undefined is not a function`：是旧版 App 被 Fast Refresh 重新加载（原生模块还没有 tap），重新安装后正常。
+- **S4 完成**，结论写入 `docs/spikes/04-ios-touch.md`。
+
 ## Test Results
 | 测试 | 结果 | 备注 |
 |------|------|------|
@@ -53,3 +57,4 @@
 | S2 Android release：6 场景 | ✅ | 误判 0 |
 | S2 iOS debug：6 场景 | ✅（两次确认） | 单次检查误判 1（Suspense），两次确认 0 |
 | S3 Android：Pressable onPress / 按下态 / RNGH / 10 连击 / 空白处 | ✅ | 往返 83–138ms |
+| S4 iOS：Pressable onPress / 按下态 / RNGH / 10 连击 / 空白处 | ✅ | 往返 83ms，截图一致 |

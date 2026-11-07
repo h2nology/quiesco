@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-S4：iOS 触摸注入。在 `modules/spike-touch` 的 iOS 实现中参考 KIF 合成 UITouch/UIEvent（私有 API），点击 Pressable / RNGH；注意 iOS 27 的 UIWindowScene / SceneDelegate。失败则记录原因与替代方案，交 HU 决定（§11-3）。
+S5：连接参数传递。三端分别验证：iOS `simctl launch` 进程参数（已知 `--initialUrl` 可用）、Android `am start --es` extras / 深链接、Web URL query；在 App 内读取端口与 session id，连上 Host 的 WS 并握手；同时确认 Android ACCESS_LOCAL_NETWORK 对 WS 的影响。
 
 ## Current Phase
 Phase 0
@@ -31,7 +31,7 @@ Phase 0
 - [x] S1 Fiber 查询（原生）：DevTools hook 取 renderer/根 Fiber → 按 testID 找宿主组件 → 取屏幕坐标（Fabric 下的 measure 等价 API）→ `docs/spikes/01-fiber-query.md`
 - [x] S2 React 空闲检测：找到判断「无待提交渲染」的可靠方法（调度器状态 / commit hook 等，对照 React 源码）→ `docs/spikes/02-react-idle.md`
 - [x] S3 Android 触摸注入：MotionEvent + `Activity.dispatchTouchEvent`，验证 onPress、Pressable 按下态、RNGH 点击 → `docs/spikes/03-android-touch.md`
-- [ ] S4 iOS 触摸注入：合成 UITouch/UIEvent（参考 KIF）点击 RN 按钮；失败则记录原因 + 替代方案，**交 HU 决定**（§11-3）→ `docs/spikes/04-ios-touch.md`
+- [x] S4 iOS 触摸注入：合成 UITouch/UIEvent（参考 KIF）点击 RN 按钮；失败则记录原因 + 替代方案，**交 HU 决定**（§11-3）→ `docs/spikes/04-ios-touch.md`
 - [ ] S5 连接参数传递：比较启动参数 / 深链接 / 构建期注入，三端各自验证 → `docs/spikes/05-connection-params.md`
 - [ ] S6 生产剔除：原生与 Web 生产构建中 agent 与原生模块完全剔除的方案（环境变量 + tree-shake + config plugin 条件注入）→ `docs/spikes/06-prod-strip.md`（只需结论，可附验证）
 - [ ] S7 Web 端 Fiber 查询：react-dom + react-native-web 下同一 fiber-adapter 接口按 testID 找宿主 DOM 节点并取坐标，确认 testID 映射 → `docs/spikes/07-web-fiber-query.md`
@@ -85,7 +85,7 @@ Phase 0
 |---|------|---------|------|
 | 1 | 开源许可证 | 发布前（Phase 5 前即可） | 未决 |
 | 2 | 最低支持 Expo SDK | Phase 0 结束时给建议 | 未决 |
-| 3 | iOS 注入替代方案（若 S4 失败） | S4 结论后 | 未决 |
+| 3 | iOS 注入替代方案（若 S4 失败） | S4 结论后 | 不需要（S4 成功） |
 | 4 | CI：GitHub Actions / EAS Workflows | Phase 1 搭骨架时（依赖检查要进 CI） | 未决 |
 | 5 | npm `@quiesco` 组织与发布流程 | 发布前 | 未决 |
 | 6 | Web 是否首版验收 Firefox/WebKit | Phase 3 前 | 未决 |
@@ -101,6 +101,7 @@ Phase 0
 | 原生取坐标统一用 `getPublicInstanceFromInternalInstanceHandle(fiber).getBoundingClientRect()`（同步）；debug 包装已有 hook，release/Web 自装 hook | S1 实测，三端接口形态一致 |
 | React 空闲 = root 字段（A）&& scheduler 挂起任务（B，替换 scheduler 导出函数）；所有 tracker 统一「跨宏任务两次确认」 | S2 实测：A、B 互补；单次检查在定时器批量执行时会误判 |
 | Android 触摸注入：MotionEvent → Activity.dispatchTouchEvent（公开 API），坐标 dp×density | S3 实测 Pressable / RNGH 均正常 |
+| iOS 触摸注入：合成 UITouch + UIEvent + IOHIDEvent（私有 API，仅 e2e 构建），`UIApplication.sendEvent:`，坐标 pt 直接使用 | S4 实测 Pressable / RNGH 均正常，§11-3 替代方案不需要 |
 | §6.2-4 改为 `idle-callback` tracker：跟踪挂起的 requestIdleCallback，旧版本兼容 InteractionManager；requirements.md 已同步 | RN 0.88 移除 InteractionManager；HU 2026-11-07 确认 |
 
 ## Errors Encountered
