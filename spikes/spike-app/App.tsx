@@ -5,6 +5,8 @@ import { GestureHandlerRootView, RectButton } from 'react-native-gesture-handler
 
 import SpikeTouch from './modules/spike-touch/src/SpikeTouchModule';
 import { runS1Report } from './spike/s1-report';
+import { S2Lab } from './spike/S2Lab';
+import { runS2 } from './spike/s2-run';
 
 // Phase 0 spike test screen. Each spike adds what it needs here; keep testIDs stable.
 export default function App() {
@@ -14,6 +16,7 @@ export default function App() {
   // S1: run the fiber query once after the first commit (passive effect).
   useEffect(() => {
     runS1Report();
+    runS2();
   }, []);
 
   let nativePing: string;
@@ -44,6 +47,7 @@ export default function App() {
         </RectButton>
         <Text testID="rngh-count">RNGH count: {rnghCount}</Text>
 
+        <S2Lab />
         <StatusBar style="auto" />
       </View>
     </GestureHandlerRootView>

@@ -29,6 +29,13 @@
 - S1：Android release（`gradlew assembleRelease`，1m23s）安装后 `hookSource=installed`、`bundleType=0`，4/4 命中、坐标与 debug 相同。
 - **S1 完成**，结论写入 `docs/spikes/01-fiber-query.md`。
 
+- S2：确认 `onPostCommitFiberRoot` 不可靠（只有存在被动 effect 时才调用）→ 改为 A（root 字段）+ B（替换 scheduler 导出函数跟踪挂起任务）。
+  - 6 个场景（basic / effect 链 / transition / Suspense / deferred / Activity），Android debug、Android release、iOS debug 都运行过。
+  - 发现 iOS 单次检查误判（定时器批量执行 + microtask 未清空）→ 两次确认后误判为 0。
+  - 排查「定时器延迟」：是测试代码的长渲染造成的。
+  - Fast Refresh 会保留状态、污染测量 → 每次测量前都强制结束 App 再启动。
+- **S2 完成**，结论写入 `docs/spikes/02-react-idle.md`。
+
 ## Test Results
 | 测试 | 结果 | 备注 |
 |------|------|------|
@@ -38,3 +45,6 @@
 | S1 Android debug：按 testID 查询 + 坐标 | ✅ | 4/4 命中，坐标与截图误差 ≤1px |
 | S1 iOS debug：按 testID 查询 + 坐标 | ✅ | 4/4 命中，坐标与截图吻合 |
 | S1 Android release：自装 hook | ✅ | hookSource=installed，4/4 命中 |
+| S2 Android debug：6 场景，A&&B 两次确认 | ✅ | 误判 0 |
+| S2 Android release：6 场景 | ✅ | 误判 0 |
+| S2 iOS debug：6 场景 | ✅（两次确认） | 单次检查误判 1（Suspense），两次确认 0 |

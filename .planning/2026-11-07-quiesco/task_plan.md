@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-S2：基于已有 hook，在 spike-app 中验证 React 空闲判定（pendingLanes / callbackNode / cancelPendingCommit + commit→postCommit 窗口），覆盖 setState、useEffect 链式更新、Suspense、startTransition 等场景，Android 上运行。
+S3：在 `modules/spike-touch` 的 Android 实现中用 MotionEvent + `Activity.dispatchTouchEvent` 点击，验证 Pressable onPress / 按下态 / RNGH RectButton；坐标来自 S1（dp × density）。
 
 ## Current Phase
 Phase 0
@@ -29,7 +29,7 @@ Phase 0
 - [x] 0.0 环境盘点：Node LTS、pnpm、Xcode/simctl、Android SDK/adb/AVD、当前最新稳定 Expo SDK 版本与默认架构（查官方文档），记录到 findings.md
 - [x] 0.1 搭建 spike 用 Expo App（`spikes/spike-app/`，New Architecture，dev client，含本地 Expo Module 骨架）
 - [x] S1 Fiber 查询（原生）：DevTools hook 取 renderer/根 Fiber → 按 testID 找宿主组件 → 取屏幕坐标（Fabric 下的 measure 等价 API）→ `docs/spikes/01-fiber-query.md`
-- [ ] S2 React 空闲检测：找到判断「无待提交渲染」的可靠方法（调度器状态 / commit hook 等，对照 React 源码）→ `docs/spikes/02-react-idle.md`
+- [x] S2 React 空闲检测：找到判断「无待提交渲染」的可靠方法（调度器状态 / commit hook 等，对照 React 源码）→ `docs/spikes/02-react-idle.md`
 - [ ] S3 Android 触摸注入：MotionEvent + `Activity.dispatchTouchEvent`，验证 onPress、Pressable 按下态、RNGH 点击 → `docs/spikes/03-android-touch.md`
 - [ ] S4 iOS 触摸注入：合成 UITouch/UIEvent（参考 KIF）点击 RN 按钮；失败则记录原因 + 替代方案，**交 HU 决定**（§11-3）→ `docs/spikes/04-ios-touch.md`
 - [ ] S5 连接参数传递：比较启动参数 / 深链接 / 构建期注入，三端各自验证 → `docs/spikes/05-connection-params.md`
@@ -99,6 +99,7 @@ Phase 0
 | spike 目标 Expo SDK 58（RN 0.88.1 / React 19.3.0） | 当前 latest；SDK ≥55 强制 New Architecture，与需求一致 |
 | `.planning/` 纳入 git | HU 已提交（aafb589） |
 | 原生取坐标统一用 `getPublicInstanceFromInternalInstanceHandle(fiber).getBoundingClientRect()`（同步）；debug 包装已有 hook，release/Web 自装 hook | S1 实测，三端接口形态一致 |
+| React 空闲 = root 字段（A）&& scheduler 挂起任务（B，替换 scheduler 导出函数）；所有 tracker 统一「跨宏任务两次确认」 | S2 实测：A、B 互补；单次检查在定时器批量执行时会误判 |
 | §6.2-4 改为 `idle-callback` tracker：跟踪挂起的 requestIdleCallback，旧版本兼容 InteractionManager；requirements.md 已同步 | RN 0.88 移除 InteractionManager；HU 2026-11-07 确认 |
 
 ## Errors Encountered
@@ -107,4 +108,5 @@ Phase 0
 | Android 截图全黑，App 不渲染 | 1 | 屏幕休眠 + ACCESS_LOCAL_NETWORK 授权弹窗挡住；唤醒 + `pm grant` 解决 |
 | `adb shell am start -d` 的 URL 参数丢失 | 1 | `&` 被设备端 shell 解析；需要再加一层引号（待在 DeviceProvider 中处理） |
 | `expo run:ios -d <udid>` 失败：`connect ENOENT /var/run/usbmuxd` | 1 | Expo CLI 解析设备时会枚举物理设备，本机没有 usbmuxd；改用 `xcodebuild -sdk iphonesimulator` + `simctl install`（也是 iOS DeviceProvider 的路线）。注意：后台命令用了 `| tail`，退出码被吞掉，以后加 `set -o pipefail` |
+| S2 测量出「定时器延迟 500ms」 | 1 | 加 scheduler 运行日志定位：测试代码 `Slow` 组件未 memo 导致长渲染，非 RN 问题 |
 | 轮询脚本超时卡住 | 2 | `uiautomator dump` 不返回、macOS 无 `timeout`；改为截图确认 |

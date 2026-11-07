@@ -82,7 +82,27 @@
 - `FiberRootNode` 上可用的「有待处理工作」字段：`pendingLanes`（未完成的更新 lane 位图，0 表示无）、`callbackNode`（已向 Scheduler 排队的渲染任务，null 表示无）、`cancelPendingCommit`（挂起的提交，例如等待 Suspense 资源）、`timeoutHandle`（Suspense 节流超时）、`suspendedLanes`/`pingedLanes`。
 - 被动 effect（useEffect）在提交后异步执行：`flushPassiveEffects` 末尾调用 `injectedHook.onPostCommitFiberRoot(rendererID, root)`（dev 源码里变量名叫 `priority`，实际传的是 root）。⇒ 可以用「onCommitFiberRoot 之后、onPostCommitFiberRoot 之前」判定 passive effects 尚未执行。注意：没有 passive effects 的提交是否也会调用 onPostCommitFiberRoot，需要运行时验证。
 - Scheduler：渲染器通过 `Scheduler.unstable_scheduleCallback` 排任务（18068/18201 行）。
+- ⚠️ 源码确认（`flushSpawnedWork`，ReactFabric-dev.js:15855）：只有存在被动 effect（或 dev profiler 的 `actualDuration !== 0`）时才进入 `PENDING_PASSIVE_PHASE`，否则不会调用 `onPostCommitFiberRoot` ⇒ **「commit 后、postCommit 之前算忙」的判定不可靠**，dev 与 prod 的行为也不一致。
+- 新候选：渲染器通过 `require("scheduler")` 在模块初始化时读取 `unstable_scheduleCallback` / `unstable_cancelCallback`（18068、18201 行）。RN 下 scheduler 由原生的 `nativeRuntimeScheduler` 实现。agent 比渲染器先加载 ⇒ 可以**替换 scheduler 导出对象上的函数，跟踪挂起的任务**（渲染任务和 flushPassiveEffects 都通过它排队）。注意 continuation：回调返回函数表示任务还没结束。
 - **候选判定（待运行时验证）**：对 hook 收集到的每个 root，`pendingLanes === 0 && callbackNode === null && cancelPendingCommit === null` 且没有「已提交未 post-commit」的 root。风险：Offscreen/Activity 隐藏子树的 lane 可能长期挂起 → 需要实测。
+**运行时验证（Android API 37，debug）**，代码 `spike/scheduler-tracker.ts`、`react-idle.ts`、`S2Lab.tsx`、`s2-run.ts`：
+- A = root 字段（pendingLanes / callbackNode / cancelPendingCommit / timeoutHandle≠-1）；B = scheduler 挂起任务（替换 `require('scheduler')` 的导出函数，`schedulerPatched=true`）。
+- 每帧轮询 5 个场景，空闲时刻的最终状态全部正确，误判空闲 0 次：
+  | 场景 | 触发后同步检查 | A 首次空闲 | B 首次空闲 | 最终状态 |
+  |---|---|---|---|---|
+  | basic | A 忙(lane 0b100000)，B=0 | 17ms | 17ms | 17ms |
+  | effect 链×5 | A 忙，B=0 | 18 | 18 | 18 |
+  | startTransition（150×2ms） | A 忙(lane 0b100000000)，B=0 | 373 | 408 | 373 |
+  | Suspense（300ms promise） | A 忙 | 403 | 403 | 403 |
+  | useDeferredValue | A 忙 | 878 | 893 | 878 |
+- ⇒ **A 与 B 互补，必须组合**：组件外 setState 后的瞬间 scheduler 还没排任务（React 用 microtask 排），只有 A 能察觉；transition / deferred 提交后被动 effect 还挂在 scheduler 里，只有 B 能察觉（A 比 B 早 15–35ms 报空闲）。Suspense 等待期间挂起的 lane 留在 pendingLanes，A 持续报忙。
+- release（Android）✅：A 与 B 同时报空闲，结果全部正确。
+- `<Activity mode="hidden">` ✅：预渲染期间 A 报忙，完成后 pendingLanes 清零，不会永久忙碌。
+- ⚠️ iOS Suspense 单次检查误判空闲 1 次：长渲染阻塞 JS 线程后，过期的定时器在同一批中执行，批内回调之间不清空 microtask → promise 的 then 还没运行。**对策：跨宏任务两次确认**，实测误判降为 0。⇒ Phase 1 的 waitForIdle 对所有 tracker 统一使用此规则。
+- 「定时器延迟 500ms」的真相：测试代码 `Slow` 组件没有 memo，状态变化时同步重新渲染 330 个子组件（scheduler 运行日志：单个 p3 任务 517–527ms）。是测试代码的问题，不是 RN 的问题。
+- RN 0.88 对 `react-native/Libraries/Renderer/shims/ReactFabric` 发出深层 import 弃用警告 → Phase 1 要处理。
+- 结论文档：`docs/spikes/02-react-idle.md`。
+
 ### S3 Android 触摸注入
 ### S4 iOS 触摸注入
 ### S5 连接参数传递
