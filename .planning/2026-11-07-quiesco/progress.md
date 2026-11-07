@@ -56,6 +56,11 @@
   - 主项目已用 e2e 模式 `prebuild --clean` 恢复（ios/build/dd 被清空）。
 - **S6 完成**，结论写入 `docs/spikes/06-prod-strip.md`。
 
+- S7：Web 端运行 S1/S2（dev server + 静态导出）。Host 侧脚本 `spikes/host/s7-web.mjs`（在 host 包中安装 playwright@1.65.0 作为 devDependency）。
+  - 第 1 次：按宿主 props 的 testID 查询全部找不到（符合预期）；通用算法能找到但 RNGH 多命中一个包装 div；按钮文本为空 → 改为 `testID ?? data-testid` 规则，并修正文本收集。
+  - 修正文本收集后，确认 Android 上没有重复计数。
+- **S7 完成**，结论写入 `docs/spikes/07-web-fiber-query.md`。
+
 ## Test Results
 | 测试 | 结果 | 备注 |
 |------|------|------|
@@ -76,3 +81,6 @@
 | S5 Android release（extras，无 Metro） | ✅ | 2.4s 连上，ping 10ms |
 | S6 JS：export 三端，e2e 关闭时没有 agent 特征字符串 | ✅ | 方案 A/B 都有效，A′ 无效 |
 | S6 原生：生产模式下 iOS Podfile.lock / Android release APK 中没有模块 | ✅ | e2e 对照组存在 |
+| S7 Web dev：查询 / 文本 / 坐标 / S2 | ✅ | 坐标与 Playwright 完全一致，S2 误判 0 |
+| S7 Web 静态导出（prod）：同上 | ✅ | hook 自装，data-testid 在 prod 下仍存在 |
+| S7 回归：Android 文本收集没有重复 | ✅ | |

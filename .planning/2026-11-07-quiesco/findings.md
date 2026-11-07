@@ -143,7 +143,14 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 ### S7 Web 端 Fiber 查询
 - 0.1 实测（Chromium headless shell 158 / playwright 1.65.0，Metro dev server `localhost:8081`）：react-native-web 0.21.4 把 `testID` 映射为 DOM 属性 **`data-testid`**（7 个 testID 全部出现）。查询仍以 React props 为准（需求 §6.1），DOM 属性只做交叉验证。
 - Web 端没有原生模块，`modules/spike-touch/src/SpikeTouchModule.web.ts` 用纯 JS 桩替代（ping 返回 "web"）。
-- Web 页面在 dev 模式下没有安装 React DevTools hook（控制台提示 "Download the React DevTools"），⇒ agent 必须在 react-dom 加载前自行安装 hook（与原生 release 构建情况相同）。
+- ~~Web 页面在 dev 模式下没有安装 React DevTools hook~~ → **S7 实测更正**：Expo Web dev 环境中 hook 已存在（`hookSource=existing`，推测来自 Fast Refresh 运行时）；静态导出（prod）中不存在（`installed`）。两种情况都能拿到 react-dom 渲染器。
+- S7 ✅（dev server 与静态导出两种）：
+  - 宿主 Fiber 上的 prop 名称是 `data-testid`（RNW 转换后的结果），**没有 `testID`**（`testID` 只留在 RNW 的复合组件上）→ 匹配规则：宿主 props 中的 `testID ?? data-testid`。
+  - 「在复合组件上找 testID 再取第一个宿主后代」的算法会让 RNGH RectButton 在 Web 上多命中一个尺寸为 0 的包装 div → 不采用。
+  - react-dom 在 children 是单个字符串时不生成 HostText，文本在 `memoizedProps.children` 中 → 文本收集要同时读取（只在没有子 Fiber 时读取，以免 Fabric 上重复计数，已在 Android 上确认）。
+  - 坐标：`stateNode.getBoundingClientRect()` 与 Playwright `boundingBox()` 完全一致。
+  - S2 的 scheduler 替换在 react-dom 上有效；6 个场景 A&&B + 两次确认误判 0。
+  - 结论文档：`docs/spikes/07-web-fiber-query.md`。
 
 ## 技术决策候选
 | 问题 | 候选 | 倾向 | 依据 |

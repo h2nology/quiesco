@@ -2,7 +2,7 @@
 import { Dimensions, PixelRatio, Platform } from 'react-native';
 
 import { spikeState } from './devtools-hook';
-import { findHostByTestID, hostSummary } from './fiber-query';
+import { findByTestIDUnified, findHostByTestID, hostSummary } from './fiber-query';
 import { measureFiber } from './measure';
 
 export function runS1Report(): void {
@@ -19,7 +19,12 @@ export function runS1Report(): void {
       const meas = measureFiber(m.fiber);
       lines.push(`[S1] testID=${id} type=${m.type} text=${JSON.stringify(m.text)} role=${m.role} measure=${JSON.stringify(meas)}`);
     }
-    if (ms.length === 0) lines.push(`[S1] testID=${id} NOT FOUND`);
+    if (ms.length === 0) lines.push(`[S1] testID=${id} NOT FOUND (host-props lookup)`);
+    for (const m of findByTestIDUnified(id)) {
+      const meas = measureFiber(m.fiber);
+      const dom = (m.fiber.stateNode as any)?.getAttribute?.('data-testid');
+      lines.push(`[S1-unified] testID=${id} type=${m.type} text=${JSON.stringify(m.text)} role=${m.role} domTestId=${dom ?? '-'} hostPropsKeys=${Object.keys(m.fiber.memoizedProps ?? {}).slice(0, 8).join(',')} rect=${JSON.stringify(meas.rect)}`);
+    }
   }
   lines.push(`[S1] hostCount=${hostSummary().length}`);
   console.log(lines.join('\n'));

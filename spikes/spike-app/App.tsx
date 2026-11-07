@@ -19,7 +19,9 @@ export default function App() {
   useEffect(() => {
     runS1Report();
     // S2 is done (docs/spikes/02-react-idle.md); run S3 only to keep logs focused.
-    void runS2;
+    // S7: on web also run the S2 idle scenarios (react-dom + scheduler patch)
+    if (Platform.OS === 'web') runS2();
+    else void runS2;
     void runS3; // S3/S4 done (docs/spikes/03, 04)
     runS5();
   }, []);

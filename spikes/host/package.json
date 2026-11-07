@@ -5,5 +5,8 @@
   "description": "Phase 0 spike: minimal host-side WebSocket server (S5)",
   "dependencies": {
     "ws": "^8.22.1"
+  },
+  "devDependencies": {
+    "playwright": "^1.65.0"
   }
 }

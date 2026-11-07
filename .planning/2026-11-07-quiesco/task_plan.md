@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-S7：Web 端 Fiber 查询。在 Chromium 上运行 spike（Metro dev server + 静态导出两种），验证 hook 自装（react-dom）、按 testID（React props）找宿主 DOM 节点、getBoundingClientRect 坐标与 Playwright 实测一致，以及 S2 的 scheduler 替换在 react-dom 上是否有效。
+0.9 汇总：写 `docs/spikes/00-summary.md`（7 个 spike 的结论一览、对 Phase 1 设计的影响），给出最低支持 Expo SDK 版本建议与 Expo Go / JS-only 可行性结论，然后交 HU 决定 §11-2（最低 SDK）并确认 Phase 1 实施计划。
 
 ## Current Phase
 Phase 0
@@ -34,7 +34,7 @@ Phase 0
 - [x] S4 iOS 触摸注入：合成 UITouch/UIEvent（参考 KIF）点击 RN 按钮；失败则记录原因 + 替代方案，**交 HU 决定**（§11-3）→ `docs/spikes/04-ios-touch.md`
 - [x] S5 连接参数传递：比较启动参数 / 深链接 / 构建期注入，三端各自验证 → `docs/spikes/05-connection-params.md`
 - [x] S6 生产剔除：原生与 Web 生产构建中 agent 与原生模块完全剔除的方案（环境变量 + tree-shake + config plugin 条件注入）→ `docs/spikes/06-prod-strip.md`（只需结论，可附验证）
-- [ ] S7 Web 端 Fiber 查询：react-dom + react-native-web 下同一 fiber-adapter 接口按 testID 找宿主 DOM 节点并取坐标，确认 testID 映射 → `docs/spikes/07-web-fiber-query.md`
+- [x] S7 Web 端 Fiber 查询：react-dom + react-native-web 下同一 fiber-adapter 接口按 testID 找宿主 DOM 节点并取坐标，确认 testID 映射 → `docs/spikes/07-web-fiber-query.md`
 - [ ] 0.9 汇总：给出最低支持 Expo SDK 版本建议（§11-2，交 HU 决定）、Expo Go / JS-only 可行性结论、对第 1 阶段设计的影响
 - **验收：** 7 份结论文档；1〜5、7 的验证代码可运行
 - **Status:** in_progress
@@ -104,6 +104,7 @@ Phase 0
 | iOS 触摸注入：合成 UITouch + UIEvent + IOHIDEvent（私有 API，仅 e2e 构建），`UIApplication.sendEvent:`，坐标 pt 直接使用 | S4 实测 Pressable / RNGH 均正常，§11-3 替代方案不需要 |
 | 连接参数：iOS 进程参数（UserDefaults）/ Android Intent extras / Web addInitScript；构建期 env 只作兜底；不用深链接 | S5 三端实测握手成功；深链接在 iOS 上有系统确认框 |
 | 生产剔除：JS 用 Metro resolver 替换为桩（`withQuiesco`）；原生用 config plugin 在非 e2e prebuild 时注入 autolinking exclude；e2e 判定统一用 `EXPO_PUBLIC_QUIESCO=1` | S6 实测三端；node_modules 内的环境变量守卫无效 |
+| fiber-adapter 的平台差异只有 3 点：宿主 testID prop 名（testID / data-testid）、文本位置（HostText / props.children）、取坐标对象（public instance / DOM 元素） | S7 实测；查询规则统一为宿主 props 匹配 |
 | §6.2-4 改为 `idle-callback` tracker：跟踪挂起的 requestIdleCallback，旧版本兼容 InteractionManager；requirements.md 已同步 | RN 0.88 移除 InteractionManager；HU 2026-11-07 确认 |
 
 ## Errors Encountered
