@@ -61,6 +61,16 @@
   - 修正文本收集后，确认 Android 上没有重复计数。
 - **S7 完成**，结论写入 `docs/spikes/07-web-fiber-query.md`。
 
+- 0.9：静态检查 SDK 55–58 捆绑的 RN 0.83.10 / 0.85.3 / 0.86.3 / 0.88.1，关键 API 均存在。写 `docs/spikes/00-summary.md`（结论一览、对 Phase 1 的影响、最低 SDK 建议 58、Expo Go 未验证）。
+- **Phase 0 完成。**
+- HU 决定：最低 SDK 58（§11-2），CI 用 GitHub Actions（§11-4）。
+- 输出 Phase 1 实施计划（写入 task_plan.md）。
+- HU 确认 Phase 1 计划，并决定把后门 / 软重置的最小实现提前到 Phase 1（任务 1.4b）。
+
+
+## Session 2 — Phase 1
+- 开始 1.1 骨架。
+
 ## Test Results
 | 测试 | 结果 | 备注 |
 |------|------|------|

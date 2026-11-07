@@ -152,6 +152,16 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
   - S2 的 scheduler 替换在 react-dom 上有效；6 个场景 A&&B + 两次确认误判 0。
   - 结论文档：`docs/spikes/07-web-fiber-query.md`。
 
+## 0.9 SDK 兼容性（静态检查：npm 包源码 grep）
+| SDK | expo | RN | React | getBoundingClientRect | getPublicInstanceFromInternalInstanceHandle | DevTools 注入 | 初始化时读取 scheduler | InteractionManager | Paper 渲染器文件 |
+|---|---|---|---|---|---|---|---|---|---|
+| 55 | 55.0.32 | 0.83.10 | 19.2.0 | ✅ | ✅ | ✅ | ✅ | 有 | 有（但 New Arch 强制） |
+| 56 | 56.0.24 | 0.85.3 | 19.2.3 | ✅ | ✅ | ✅ | ✅ | 有 | 有 |
+| 57 | 57.0.32 | 0.86.3 | 19.2.3 | ✅ | ✅ | ✅ | ✅ | 有 | 无 |
+| 58 | 58.0.23 | 0.88.1 | 19.3.0 | ✅ | ✅ | ✅ | ✅ | **无** | 无 |
+- 运行时验证只做了 SDK 58。
+- 另外：agent 在 node_modules 中**读不到** `process.env.EXPO_PUBLIC_*`（S6：不会被内联）⇒ JS-only 模式下的构建期兜底参数，需要由 `withQuiesco` 生成虚拟模块等方式注入。
+
 ## 技术决策候选
 | 问题 | 候选 | 倾向 | 依据 |
 |------|------|------|------|
