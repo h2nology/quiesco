@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TimerTracker } from '../../src/sync';
-import type { TimerTrackerOptions } from '../../src/sync';
+import type { TimerGlobals } from '../../src/sync';
 
-type Target = NonNullable<TimerTrackerOptions['target']>;
+type Target = Required<TimerGlobals>;
 
-function setup(opts: Omit<TimerTrackerOptions, 'target'> = {}) {
+function setup(opts: { thresholdMs?: number; countIntervals?: boolean } = {}) {
   const target: Target = {
     setTimeout: ((cb: () => void, ms?: number, ...args: unknown[]) => setTimeout(cb, ms, ...args)) as Target['setTimeout'],
     clearTimeout: ((id: unknown) => clearTimeout(id as number)) as Target['clearTimeout'],
@@ -55,20 +55,20 @@ describe('TimerTracker', () => {
 
   it('ignores setInterval by default and counts it with countIntervals until cleared', () => {
     const a = setup();
-    a.target.setInterval!(() => {}, 100);
+    a.target.setInterval(() => {}, 100);
     expect(a.t.isIdle()).toBe(true);
     a.t.uninstall();
 
     const b = setup({ countIntervals: true });
-    const id = b.target.setInterval!(function poll() {}, 100);
+    const id = b.target.setInterval(function poll() {}, 100);
     vi.advanceTimersByTime(250);
     expect(b.t.describeBusy()).toEqual(['setInterval(poll, 100ms)']);
-    b.target.clearInterval!(id);
+    b.target.clearInterval(id);
     expect(b.t.isIdle()).toBe(true);
   });
 
   it('restores the original functions on uninstall', () => {
-    const target: Target = { setTimeout: vi.fn() as unknown as Target['setTimeout'], clearTimeout: vi.fn() as unknown as Target['clearTimeout'] };
+    const target: TimerGlobals = { setTimeout: vi.fn() as unknown as Target['setTimeout'], clearTimeout: vi.fn() as unknown as Target['clearTimeout'] };
     const original = target.setTimeout;
     const t = new TimerTracker({ target });
     t.install();

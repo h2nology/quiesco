@@ -15,7 +15,7 @@ function deferred<T = unknown>() {
 class FakeXHR {
   static sent: FakeXHR[] = [];
   private listeners: (() => void)[] = [];
-  open(...args: [method: string, url: string]): void {
+  open(...args: [method: string, url: string | URL]): void {
     void args;
   }
   send(): void {

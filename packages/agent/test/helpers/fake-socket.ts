@@ -2,7 +2,7 @@ import type { SocketLike } from '../../src/platform';
 
 export class FakeSocket implements SocketLike {
   sent: Record<string, unknown>[] = [];
-  closed: { code?: number; reason?: string } | null = null;
+  closed: { code: number | undefined; reason: string | undefined } | null = null;
   onopen: (() => void) | null = null;
   onmessage: ((ev: { data: unknown }) => void) | null = null;
   onclose: ((ev: { code: number; reason: string }) => void) | null = null;

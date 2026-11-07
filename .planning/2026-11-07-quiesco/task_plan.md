@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-1.4b 后门与软重置的最小实现：`quiesco.backdoor()` / `quiesco.onReset()`（index 与 stub 同步导出）、`backdoor` / `reset` 两个 handler（JSON 可序列化校验、未注册时列出名称、执行后等待空闲；软重置 = 清 AsyncStorage → onReset 钩子 → `runtime.remount` → 等待空闲）。
+1.5 `@quiesco/core`：WS Server（多连接、session 校验、协议版本检查、hello 下发 AgentConfig）→ 会话 API → Driver（action 返回 hostInput 时交给 DeviceProvider：back / navigate）→ DeviceProvider 接口 + Android 实现 → `defineConfig` 与配置加载 → 连接等待超时与排查提示。
 
 ## Current Phase
 Phase 1
@@ -51,7 +51,7 @@ Phase 1
   - `sync/`：IdleTracker 接口 + network（fetch / XHR，ignoreUrls）、timer（≤ 阈值）、react（A&&B，scheduler 替换）、idle-callback（rIC + 旧版 InteractionManager 兼容）、frame-stable（结构哈希 N 帧）；`waitForIdle` 跨宏任务两次确认、超时时列出 describeBusy
   - 单元测试：所有 tracker、Matcher、waitForIdle（fake timers / fake root / fake scheduler）
 - [x] 1.4 `@quiesco/agent` 上层：WS 连接（hello、重连）、JS 档位动作（tap / longPress / doubleTap → onPress 等；type / clear → onChangeText；scroll / scrollTo / swipe 的 JS 实现；dismissKeyboard）、断言（expectVisible / NotVisible / Exists / NotExists / Text / Prop / Count，在 agent 端反复检查直到超时）、`QuiescoRoot`（安装 tracker、根 key）、`withQuiesco`（Metro：非 e2e 替换为桩；注入构建期兜底端口的虚拟模块）、`stub` 入口
-- [ ] 1.4b 后门与软重置的**最小实现**（HU 2026-11-07 决定提前）：`quiesco.backdoor()` 注册与调用（JSON 可序列化校验、未注册时列出已注册名称、执行后等待空闲）、`quiesco.onReset()`、软重置（清 AsyncStorage → onReset 钩子 → 根 key 更换 → 等待空闲）
+- [x] 1.4b 后门与软重置的**最小实现**（HU 2026-11-07 决定提前）：`quiesco.backdoor()` 注册与调用（JSON 可序列化校验、未注册时列出已注册名称、执行后等待空闲）、`quiesco.onReset()`、软重置（清 AsyncStorage → onReset 钩子 → 根 key 更换 → 等待空闲）
 - [ ] 1.5 `@quiesco/core`：WS Server（多连接、session 校验、协议版本检查）、会话 API（运行器无关：createSession / beforeScenario / collectEvidence / dispose）、Driver（6.3〜6.6 的 async API）、DeviceProvider 接口 + Android 实现（boot：唤醒/stayon；install；launch：pm grant、adb reverse、am start 带 extras 与 dev client URL；terminate；screenshot；shutdown）、`defineConfig` 与配置加载、连接等待超时与排查提示
 - [ ] 1.6 `@quiesco/cucumber`：World（`this.app`）、hooks（BeforeAll / Before / After / AfterAll）、`register` 入口
 - [ ] 1.7 `examples/todo-app`：Expo SDK 58 + Expo Router（登录页、待办列表、新建待办表单、带动画的页面切换）、本地 mock server（可配置延迟）、`features/` 第 9 节 feature + step definitions、`quiesco.config.ts`
@@ -157,6 +157,10 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | 断言多匹配语义：visible = 任一可见；notVisible = 无一可见；text / prop 要求恰好 1 个；prop 先读宿主 props，再读拥有它的复合组件 props（如 Pressable 的 `disabled`、TextInput 的 `value`） | §6.4「断言类操作按断言语义处理」 |
 | `withQuiesco` 用纯 CJS 的 `metro.cjs`；构建期兜底参数生成到 `<project>/.expo/quiesco/build-config.js`，只替换 agent `src/` 内的 `./build-config` | Node 不能在 node_modules 中执行 TS；`.expo` 不在 Expo 默认 blockList 内且默认被 gitignore |
 | `autoInstallPeers: false`（pnpm-workspace.yaml） | pnpm 自动把 react 19.3.1 / react-native 嵌套装进 agent，会造成两份 React（hooks 失效） |
+| 新增 `quiesco.registerStorage(adapter)`；内置存储适配器按平台分文件：native 清 AsyncStorage 默认存储（`try` 块内 `require`，Metro 视为可选依赖，未安装时也能打包），web 清 localStorage / sessionStorage / 所有 IndexedDB | §6.5「存储适配器可由用户注册」「按平台选择实现」；AsyncStorage v3 的 `createAsyncStorage(name)` 命名存储需用户自行注册 |
+| 后门：参数和返回值都做严格 JSON 检查（Date / Map / undefined / NaN / 循环引用都报 NOT_SERIALIZABLE 并给出路径）；返回 undefined 视为 null | §6.6「报清晰的错误」 |
+| 软重置失败时报 RESET_FAILED，`step` 为 `storage:<名称>` / `onReset#<序号>` / `remount`；QuiescoRoot 未挂载时在 remount 步骤失败 | §6.5 的 4 个步骤可逐一定位 |
+| 类型测试使用各包的 `tsconfig.test.json`（include src + test）；agent 用类型测试保证 stub 与正式入口的导出完全一致 | 原先 vitest typecheck 用的 tsconfig 只包含 src，类型测试从未真正执行（反向测试确认） |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -171,3 +175,4 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | dependency-cruiser 把 core 的 vitest.config.ts 报为违规 | 1 | 规则的 from 限定为 `packages/*/src/`；同时把未安装的裸包名也纳入匹配，并用故意制造的违规确认 4 条规则都能拦住 |
 | 轮询脚本超时卡住 | 2 | `uiautomator dump` 不返回、macOS 无 `timeout`；改为截图确认 |
 | pnpm 自动安装 peer：react 19.3.1 + react-native 0.88.1 被嵌套装进 packages/agent | 1 | `.npmrc` 的 `auto-install-peers=false` 无效（pnpm 12）→ 改写在 pnpm-workspace.yaml 的 `autoInstallPeers: false`，从干净 lockfile 重装 |
+| vitest 类型测试从 1.2 起没有生效（tsconfig 的 include 只有 src，test 文件不被 tsc 检查，却显示通过） | 1 | 增加 tsconfig.test.json 并在 vitest typecheck.tsconfig 中指定；protocol / agent 各做一次反向测试确认能报错；顺带修掉暴露出来的测试代码类型错误 |

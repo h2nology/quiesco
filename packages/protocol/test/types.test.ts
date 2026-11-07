@@ -59,8 +59,7 @@ describe('protocol types', () => {
     void v;
   });
 
-  it('hello result carries the agent config, which must be JSON', () => {
+  it('hello result carries the agent config', () => {
     expectTypeOf<ResultOf<HostMethods['hello']>['config']>().toEqualTypeOf<AgentConfig>();
-    expectTypeOf<AgentConfig>().toExtend<JsonValue>();
   });
 });

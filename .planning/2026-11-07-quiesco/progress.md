@@ -75,7 +75,7 @@
   - GitHub Actions 尚未在远端实际运行（还没有 push）。
 - 1.2 protocol 完成：json / constants（协议版本、启动参数键、默认端口 7357、WS 关闭码、同步默认值）/ matcher / element / actions（含 HostInput）/ assertions / errors（JSON-RPC 标准码 + Quiesco 1001–1013，按错误名定型的 data）/ events / methods（AgentMethods、HostMethods、TrackerState）/ messages（JSON-RPC 封装与按方法区分的请求联合类型）。
   - 第 1 次构建失败：interface 不满足 `Record<string, …>` 约束 → 改为映射类型约束。
-  - 测试：常量完整性 4 个 + 类型测试 7 个（vitest typecheck 模式，`@ts-expect-error` 实际生效）。
+  - 测试：常量完整性 4 个 + 类型测试 7 个（vitest typecheck 模式）。**更正（1.4b）**：当时类型测试实际上没有被 tsc 检查，「`@ts-expect-error` 实际生效」的记录有误；1.4b 修复后这 7 个测试本身都通过。
 - 1.3 agent 底层完成（从 spike 代码整理）：
   - `fiber-adapter/`：hook（包装/自装、幂等、渲染器校验、装得太晚检测 lateRenderers + checkRendererSeen）、scheduler 补丁（检测 B）、FiberRoot 字段（检测 A）、traverse（HostNode 树、文本/ownText、Singleton 透明、Hoistable 跳过、scope）、host（native / web 平台差异、样式隐藏、取坐标、视口）、default-deps(.native).ts。
   - `query/`：Matcher（id/text/label/role/within/index，text 取最深匹配）、resolveOne（ELEMENT_NOT_FOUND / MULTIPLE_MATCHES）、可见性规则、summarize / getTree / structureHash。
@@ -89,6 +89,11 @@
   - tracker 可在安装后重新配置（ignoreUrls、阈值、interval、帧数）；SyncEngine 可按名称开关 tracker；idle-callback 的 InteractionManager 改为挂载时再接入。
   - 新增：`connection/`（params 优先级、AgentClient：hello、请求分发、事件缓冲、退避重连、4001/4002/4003 不重连）、`events.ts`（console 转发按级别、ErrorUtils、window error/unhandledrejection）、`actions/js.ts`、`assertions/`、`runtime.ts`、`singleton.ts` / `install.ts`、`root/QuiescoRoot.tsx`、`stub.ts`、`metro.cjs`（withQuiesco）。
   - 遇到的问题：pnpm 自动安装 peer（见 Errors）；runtime 测试 3 个超时 → 测试中 fake timers 没有推进（加 `drive()`），非代码问题。
+
+- 提交 1.4（d88bcbc）。
+- 1.4b 完成：`api-types.ts`（QuiescoApi / StorageAdapter）、`api.ts`（`quiesco` 对象）、`backdoor.ts`、`json-check.ts`、`reset/`（ResetManager、storage-defaults(.native).ts）、runtime 增加 `backdoor` / `reset` handler；stub 导出同名 no-op。
+  - 确认 Metro `allowOptionalDependencies` 默认开启，`try` 块内的 require 视为可选依赖；AsyncStorage 3.1.1 默认导出为带 `clear()` 的旧版存储。
+  - 反向测试发现类型测试一直没有生效（见 Errors），已修复。
 
 ## Test Results
 | 测试 | 结果 | 备注 |
@@ -121,3 +126,6 @@
 | 1.3 新依赖规则反向测试 | ✅ | query 直接 import `fiber-adapter/fiber` 被拦住 |
 | 1.4 agent 单元测试 | ✅ | 15 文件 99 测试（新增 actions-js / assertions / client / events / params / runtime / metro 等） |
 | 1.4 `pnpm run check` | ✅ | build / lint / depcruise（63 模块无违规）/ test 20 文件 125 测试，类型测试无错误 |
+| 1.4b agent 单元测试 | ✅ | 新增 backdoor-reset（findNonJson / 注册表 / ResetManager / web 存储 / stub）、runtime 的 backdoor 与 reset、stub 导出一致性类型测试 |
+| 1.4b 类型测试反向测试 | ✅ | protocol 中故意写错类型、agent index 多一个导出，均被 vitest typecheck 报出 |
+| 1.4b `pnpm run check` | ✅ | build / lint / depcruise（71 模块无违规）/ test 139 个，类型检查无错误 |

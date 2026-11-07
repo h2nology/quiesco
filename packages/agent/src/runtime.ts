@@ -17,7 +17,9 @@ import type {
 } from '@quiesco/protocol';
 
 import * as js from './actions/js';
+import type { StorageAdapter } from './api-types';
 import { assertionMessage, evaluate } from './assertions';
+import { BackdoorRegistry } from './backdoor';
 import { buildConfig } from './build-config';
 import { AgentClient, MethodNotFound } from './connection/client';
 import { resolveParams } from './connection/params';
@@ -27,6 +29,8 @@ import { FiberAdapter } from './fiber-adapter';
 import type { FiberAdapterOptions, HostNode } from './fiber-adapter';
 import type { AppDeps } from './platform';
 import { defaultAppDeps } from './platform';
+import { ResetManager } from './reset';
+import { defaultStorageAdapters } from './reset/storage-defaults';
 import { describeMatcher, findAll, getTree, isVisible, structureHash, summarize, toRegExp } from './query';
 import type { Clock, IdleTracker, TimerGlobals } from './sync';
 import { FrameStableTracker, IdleCallbackTracker, NetworkTracker, ReactTracker, SyncEngine, TimerTracker, realClock } from './sync';
@@ -39,6 +43,8 @@ export interface RuntimeOptions {
   globalObject?: Record<string, unknown>;
   /** Trackers to use instead of the default set (tests). */
   trackers?: (runtime: AgentRuntime) => IdleTracker[];
+  /** Built-in storage adapters (default: AsyncStorage on native, web storage on web). */
+  storage?: () => StorageAdapter[];
 }
 
 type Handlers = { [M in keyof AgentMethods]: (params: ParamsOf<AgentMethods[M]>) => Promise<ResultOf<AgentMethods[M]>> };
@@ -47,6 +53,8 @@ export class AgentRuntime {
   readonly adapter: FiberAdapter;
   readonly engine: SyncEngine;
   readonly events: EventForwarder;
+  readonly backdoors = new BackdoorRegistry();
+  readonly resets: ResetManager;
   client: AgentClient | null = null;
   config: AgentConfig = {
     sync: {
@@ -80,6 +88,7 @@ export class AgentRuntime {
     const warn = c?.warn;
     this.log = (m) => warn?.call(c, `[quiesco] ${m}`);
     this.engine = new SyncEngine(options.trackers?.(this) ?? this.defaultTrackers(), this.clock);
+    this.resets = new ResetManager(options.storage ?? (() => defaultStorageAdapters()));
     this.events = new EventForwarder({ notify: (e, p) => this.client?.notify(e, p), target: this.global });
   }
 
@@ -155,6 +164,17 @@ export class AgentRuntime {
     getTree: async () => ({ root: getTree(this.adapter.getHostRoots()) }),
     action: async (p) => this.action(p.action, p.mode, p),
     assert: async (p) => this.assert(p.assertion, p),
+    backdoor: async (p) => {
+      const value = await this.backdoors.call(p.name, p.args ?? []);
+      await this.engine.waitForIdle({ timeoutMs: this.config.sync.timeoutMs });
+      return { value };
+    },
+    reset: async () => {
+      const start = this.clock.now();
+      await this.resets.run(this.remount);
+      await this.engine.waitForIdle({ timeoutMs: this.config.sync.timeoutMs });
+      return { durationMs: this.clock.now() - start };
+    },
   };
 
   private timeout(opts: SyncOption): number {

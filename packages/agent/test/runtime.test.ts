@@ -26,6 +26,7 @@ function setup(opts: { busy?: () => boolean } = {}) {
     },
     interactionManager: () => null,
   };
+  const storageCleared: number[] = [];
   const tracker: IdleTracker = { name: 'fake', isIdle: () => !(opts.busy?.() ?? false), describeBusy: () => ['fake busy'], install() {}, uninstall() {} };
   const rt = new AgentRuntime({
     globalObject: target,
@@ -33,9 +34,10 @@ function setup(opts: { busy?: () => boolean } = {}) {
     clock,
     adapter: { loadScheduler: () => fakeScheduler().mod, platformDeps: { getPublicInstance: () => (f) => f.stateNode, viewport: () => ({ width: 400, height: 800 }) } },
     trackers: () => [tracker],
+    storage: () => [{ name: 'mem', clear: () => void storageCleared.push(Date.now()) }],
   });
   rt.installEarly();
-  return { rt, deps, sockets, target, call: (m: string, p: unknown) => rt.handle(m, p) };
+  return { rt, deps, sockets, target, storageCleared, call: (m: string, p: unknown) => rt.handle(m, p) };
 }
 
 /** Advance fake time so waitForIdle's macrotask confirmation and retries can run. */
@@ -151,5 +153,33 @@ describe('AgentRuntime', () => {
     await expect(call('getTree', {})).resolves.toMatchObject({ root: { type: 'RCTView', testID: 'a' } });
     await expect(call('getIdleState', {})).resolves.toEqual({ trackers: [{ name: 'fake', idle: true, busy: [] }] });
     await expect(call('nope', {})).rejects.toThrow('unknown method nope');
+  });
+
+  it('backdoor runs the registered function and waits for idle afterwards', async () => {
+    let busy = false;
+    const { rt, call } = setup({ busy: () => busy });
+    rt.backdoors.register('loginAs', (email: string) => {
+      busy = true;
+      setTimeout(() => (busy = false), 300);
+      return { email };
+    });
+    let done = false;
+    const p = call('backdoor', { name: 'loginAs', args: ['a@example.com'] }).then((r) => ((done = true), r));
+    await vi.advanceTimersByTimeAsync(200);
+    expect(done).toBe(false); // still waiting for the app to settle
+    await vi.advanceTimersByTimeAsync(200);
+    await expect(p).resolves.toEqual({ value: { email: 'a@example.com' } });
+  });
+
+  it('reset clears storage, runs hooks, remounts via QuiescoRoot and reports the duration', async () => {
+    const { rt, call, storageCleared } = setup();
+    const order: string[] = [];
+    rt.resets.onReset(() => void order.push('hook'));
+    const off = rt.setRemount(() => order.push('remount'));
+    await expect(drive(call('reset', {}))).resolves.toEqual({ durationMs: expect.any(Number) });
+    expect(storageCleared).toHaveLength(1);
+    expect(order).toEqual(['hook', 'remount']);
+    off();
+    await expect(drive(call('reset', {}))).rejects.toMatchObject({ errorName: 'RESET_FAILED', data: { step: 'remount' } });
   });
 });
