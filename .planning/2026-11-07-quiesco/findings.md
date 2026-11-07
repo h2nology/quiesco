@@ -162,6 +162,10 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - 运行时验证只做了 SDK 58。
 - 另外：agent 在 node_modules 中**读不到** `process.env.EXPO_PUBLIC_*`（S6：不会被内联）⇒ JS-only 模式下的构建期兜底参数，需要由 `withQuiesco` 生成虚拟模块等方式注入。
 
+## Phase 1 工具链版本（npm registry，2026-11-07）
+- typescript latest = 7.0.2（原生移植版），但 typescript-eslint 8.72.1 的 peer 是 `typescript >=4.8.4 <6.1.0`，Expo SDK 58 捆绑 `~6.0.3` ⇒ **使用 TS 6.0.3**。
+- vitest 5.1.0（peer vite ^6.4 || ^7 || ^8，Node ^22.12 || ^24 || >=26）、eslint 10.14.0、typescript-eslint 8.72.1、@eslint/js 10.0.1、dependency-cruiser 18.7.2（Node ^22||^24||>=26）、ws 8.22.1、@cucumber/cucumber 13.3.0、jiti 2.7.0、@types/node 26.6.6（运行时是 Node 24 → 使用 @types/node 24.x 更合适）。
+
 ## 技术决策候选
 | 问题 | 候选 | 倾向 | 依据 |
 |------|------|------|------|

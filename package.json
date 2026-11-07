@@ -1,0 +1,28 @@
+{
+  "name": "quiesco-monorepo",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.14.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit false && echo typecheck ok",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "depcruise": "depcruise packages --config .dependency-cruiser.cjs",
+    "check": "pnpm build && pnpm lint && pnpm depcruise && pnpm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.19.2",
+    "dependency-cruiser": "18.7.2",
+    "eslint": "10.14.0",
+    "globals": "17.14.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.1",
+    "vite": "8.3.6",
+    "vitest": "5.1.0"
+  }
+}

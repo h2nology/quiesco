@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-1.1 骨架：pnpm workspaces、TS strict、ESLint、Vitest、dependency-cruiser、GitHub Actions CI。
+1.2 `@quiesco/protocol`：JSON-RPC 消息 / 方法 / 事件 / 错误码 / Matcher 类型 + 单元测试。
 
 ## Current Phase
 Phase 1
@@ -43,7 +43,7 @@ Phase 1
 **范围**：monorepo 骨架、`protocol`、`agent`（Query、全部 tracker、JS 档位动作、断言）、`core`（WS Server、Driver、会话 API、Android DeviceProvider）、`cucumber` 接线、示例 App 与第 9 节 feature。目标 SDK 58。
 
 **任务拆分（按顺序）**
-- [ ] 1.1 骨架：pnpm workspaces（`.npmrc` 用 `node-linker=hoisted`，兼容 Metro / autolinking）、TS strict 共用 tsconfig + project references、ESLint、Vitest、dependency-cruiser 规则（core 不得依赖 cucumber / playwright / web；只有 fiber-adapter 可以 import 渲染器私有路径）、GitHub Actions（lint / typecheck / test / depcruise）
+- [x] 1.1 骨架：pnpm workspaces（`.npmrc` 用 `node-linker=hoisted`，兼容 Metro / autolinking）、TS strict 共用 tsconfig + project references、ESLint、Vitest、dependency-cruiser 规则（core 不得依赖 cucumber / playwright / web；只有 fiber-adapter 可以 import 渲染器私有路径）、GitHub Actions（lint / typecheck / test / depcruise）
 - [ ] 1.2 `@quiesco/protocol`：JSON-RPC 2.0 消息类型、方法与参数类型（hello / query / action / assert / waitForIdle / getTree / reset / backdoor / getIdleState）、事件（log / error）、错误码枚举、`PROTOCOL_VERSION`、Matcher 类型
 - [ ] 1.3 `@quiesco/agent` 底层：
   - `fiber-adapter/`：hook 安装/包装、渲染器校验、遍历、宿主判定（testID / data-testid）、文本、props、取坐标（Fabric 实现；Web 实现留到 Phase 3）、「装得太晚」检测
@@ -136,6 +136,8 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | 连接参数：iOS 进程参数（UserDefaults）/ Android Intent extras / Web addInitScript；构建期 env 只作兜底；不用深链接 | S5 三端实测握手成功；深链接在 iOS 上有系统确认框 |
 | 生产剔除：JS 用 Metro resolver 替换为桩（`withQuiesco`）；原生用 config plugin 在非 e2e prebuild 时注入 autolinking exclude；e2e 判定统一用 `EXPO_PUBLIC_QUIESCO=1` | S6 实测三端；node_modules 内的环境变量守卫无效 |
 | fiber-adapter 的平台差异只有 3 点：宿主 testID prop 名（testID / data-testid）、文本位置（HostText / props.children）、取坐标对象（public instance / DOM 元素） | S7 实测；查询规则统一为宿主 props 匹配 |
+| TS 使用 6.0.3（不用 7.x） | typescript-eslint peer `<6.1.0`，Expo SDK 58 捆绑 ~6.0.3 |
+| Node 侧包用 `tsc -b` 编译 ESM；agent 通过 `react-native` 字段让 Metro 直接读 TS 源码；`.npmrc` 用 `node-linker=hoisted` | 开发时 App 端不需要构建步骤，Metro / autolinking 兼容 |
 | 后门 / onReset / 软重置的最小实现提前到 Phase 1，完善留在 Phase 2 | 第 9 节验收用例需要；HU 2026-11-07 确认 |
 | 最低支持 Expo SDK 58 | HU 决定（§11-2）；55–57 静态检查通过，Phase 4 冒烟后再考虑下调 |
 | CI 使用 GitHub Actions | HU 决定（§11-4） |
@@ -150,4 +152,6 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | S2 测量出「定时器延迟 500ms」 | 1 | 加 scheduler 运行日志定位：测试代码 `Slow` 组件未 memo 导致长渲染，非 RN 问题 |
 | S6 用副本验证原生剔除：两种模式都没有模块 | 1 | 副本的 node_modules 是符号链接，autolinking resolve 过滤掉了本地模块 → 改在主项目上 prebuild --clean |
 | S6 用 dexdump 按类名检查，对照组也是 0 | 1 | R8 混淆了包名 → 改为检查 Module 名称字符串 |
+| `pnpm ci` 没有执行自定义脚本，而是做了干净安装 | 1 | pnpm 12 中 `ci` 是内置命令 → 脚本改名为 `check`（`pnpm run check`） |
+| dependency-cruiser 把 core 的 vitest.config.ts 报为违规 | 1 | 规则的 from 限定为 `packages/*/src/`；同时把未安装的裸包名也纳入匹配，并用故意制造的违规确认 4 条规则都能拦住 |
 | 轮询脚本超时卡住 | 2 | `uiautomator dump` 不返回、macOS 无 `timeout`；改为截图确认 |

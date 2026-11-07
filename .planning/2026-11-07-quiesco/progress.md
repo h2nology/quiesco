@@ -69,7 +69,10 @@
 
 
 ## Session 2 — Phase 1
-- 开始 1.1 骨架。
+- 1.1 骨架完成：根配置（package.json / pnpm-workspace / .npmrc / tsconfig.base / eslint / vitest projects / dependency-cruiser）、4 个包（protocol / agent / core / cucumber）的骨架与冒烟测试、`.github/workflows/ci.yml`。
+  - `pnpm run check`（build → lint → depcruise → test）本地通过：4 个测试文件 4 个测试通过。
+  - 依赖规则的反向测试：故意制造 4 处违规，全部被拦住。
+  - GitHub Actions 尚未在远端实际运行（还没有 push）。
 
 ## Test Results
 | 测试 | 结果 | 备注 |
@@ -94,3 +97,5 @@
 | S7 Web dev：查询 / 文本 / 坐标 / S2 | ✅ | 坐标与 Playwright 完全一致，S2 误判 0 |
 | S7 Web 静态导出（prod）：同上 | ✅ | hook 自装，data-testid 在 prod 下仍存在 |
 | S7 回归：Android 文本收集没有重复 | ✅ | |
+| 1.1 `pnpm run check` | ✅ | build / lint / depcruise / test（4/4） |
+| 1.1 依赖规则反向测试 | ✅ | 4 处故意违规全部被拦住 |
