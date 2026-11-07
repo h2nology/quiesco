@@ -50,6 +50,12 @@
   - Android release：明文 WS 没有被拦截（与官方文档不一致）；`pm revoke ACCESS_LOCAL_NETWORK` 无效（targetSdk 36）。
 - **S5 完成**，结论写入 `docs/spikes/05-connection-params.md`。
 
+- S6：JS 方案 A（App 代码中的环境变量守卫）和 B（Metro resolver 桩）都能剔除；A′（node_modules 内部的守卫）无效 → 采用 B。原生：config plugin `plugins/with-quiesco-native.js` 注入 autolinking exclude。
+  - 用副本验证无效（node_modules 符号链接）→ 改在主项目上 `prebuild --clean`。
+  - dexdump 按类名检查无效（R8）→ 改为检查 Module 名称字符串。
+  - 主项目已用 e2e 模式 `prebuild --clean` 恢复（ios/build/dd 被清空）。
+- **S6 完成**，结论写入 `docs/spikes/06-prod-strip.md`。
+
 ## Test Results
 | 测试 | 结果 | 备注 |
 |------|------|------|
@@ -68,3 +74,5 @@
 | S5 Android debug（VIEW Intent + extras） | ✅ | 3.9s 连上，ping 4ms |
 | S5 iOS debug（进程参数） | ✅ | 3.7s 连上，ping 1ms |
 | S5 Android release（extras，无 Metro） | ✅ | 2.4s 连上，ping 10ms |
+| S6 JS：export 三端，e2e 关闭时没有 agent 特征字符串 | ✅ | 方案 A/B 都有效，A′ 无效 |
+| S6 原生：生产模式下 iOS Podfile.lock / Android release APK 中没有模块 | ✅ | e2e 对照组存在 |

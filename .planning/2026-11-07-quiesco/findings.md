@@ -127,6 +127,19 @@ KIF（kif-framework/KIF master，Apache-2.0）的做法（gh api 读取原文）
 - `ACCESS_LOCAL_NETWORK`：官方文档称只对 targetSdk ≥ 37 强制；targetSdk 36 下 `pm revoke` 无效。loopback 是否豁免没有官方说明 ⇒ DeviceProvider 执行 `pm grant`，失败时忽略。
 - 结论文档：`docs/spikes/05-connection-params.md`。
 ### S6 生产剔除
+JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节码中 grep 特征字符串）：
+- 方案 A（App 代码中 `if (process.env.EXPO_PUBLIC_QUIESCO === '1') require(...)`）：关闭时三端都**完全剔除**（Web 模块数 469 vs 470），开启时存在。
+- ⚠️ 同样的守卫写在 **node_modules 包内部时无效**：babel-preset-expo 不会在 node_modules 中内联 `EXPO_PUBLIC_*`（产物里保留着 `process.env.EXPO_PUBLIC_QUIESCO` 的引用），模块在两种模式下都被打包。
+- 方案 B（metro.config.js 的 `resolver.resolveRequest` 在非 e2e 时把模块替换成桩）：关闭时三端完全剔除，开启时存在。⇒ **@quiesco/agent 的剔除采用方案 B**（提供 `withQuiesco(metroConfig)`）。
+原生（autolinking）：
+- autolinking 的 exclude 来源只有 package.json 的 `expo.autolinking.exclude`（静态）和 CLI 的 `--exclude`。iOS：`use_expo_modules!(exclude: [...])`（autolinking_manager.rb:215）；Android：在 settings.gradle 中先设置 `expoAutolinking.exclude = [...]` 再调用 `useExpoModules()`。
+- `expo-modules-autolinking resolve -p android --exclude spike-touch` → 结果中没有 spike-touch ✅。
+- config plugin `plugins/with-quiesco-native.js`（withPodfile + withSettingsGradle）在非 e2e 的 prebuild 时注入 exclude；e2e 时保持原样（在 scratchpad 副本中 prebuild 两种模式确认）✅。
+- ⚠️ 用 scratchpad 副本（node_modules 是符号链接）做最终产物验证**无效**：副本中 `search` 能找到本地模块，`resolve` 却把它过滤掉了（推测是项目根目录被解析成了符号链接的目标），两种模式都没有 SpikeTouch → 改为在主项目上执行 `prebuild --clean` 验证。
+- ⚠️ SDK 58 的 release 构建默认开启 R8（`android.enableMinifyInReleaseBuilds=true`），包名会被混淆 → 按类名（dexdump `Lexpo/modules/spiketouch/`）检查，连对照组都是 0，**这种方法无效**。改为检查 dex 中的 Module 名称字符串 `"SpikeTouch"`（来自 `Name("SpikeTouch")`，不会被混淆），对照组 = 1 ✅。⇒ CI 的生产剔除检查要用「不会被混淆的字符串」作为特征。
+- **主项目实测** ✅：生产模式下 iOS Podfile.lock 中 SpikeTouch=0、Android R8 release APK 中含 "SpikeTouch" 的 dex=0；e2e 模式下分别为 4 和 1。
+- 结论文档：`docs/spikes/06-prod-strip.md`。
+- 注意：`prebuild --clean` 清空了 `ios/build/dd`，之后需要在 iOS 上验证时要重新执行 xcodebuild。
 ### S7 Web 端 Fiber 查询
 - 0.1 实测（Chromium headless shell 158 / playwright 1.65.0，Metro dev server `localhost:8081`）：react-native-web 0.21.4 把 `testID` 映射为 DOM 属性 **`data-testid`**（7 个 testID 全部出现）。查询仍以 React props 为准（需求 §6.1），DOM 属性只做交叉验证。
 - Web 端没有原生模块，`modules/spike-touch/src/SpikeTouchModule.web.ts` 用纯 JS 桩替代（ping 返回 "web"）。

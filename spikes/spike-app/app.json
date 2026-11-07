@@ -25,7 +25,8 @@
     },
     "scheme": "quiescospike",
     "plugins": [
-      "expo-dev-client"
+      "expo-dev-client",
+      "./plugins/with-quiesco-native"
     ]
   }
 }
