@@ -1,0 +1,102 @@
+# Task Plan: Quiesco —— Expo 用 E2E 灰盒测试工具（iOS / Android / Web，Cucumber 驱动）
+
+## Goal
+按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
+
+## Next Step
+等待 HU 确认第 0 阶段实施计划（见下方 Phase 0 的任务拆分与文件清单），确认后先做环境盘点（0.0）。
+
+## Current Phase
+Phase 0
+
+## 工作约定（摘自 requirements.md §12，每个阶段都要遵守）
+- 按阶段推进，不跳阶段；每阶段开始前先输出实施计划，经确认后再写代码。
+- 对 React / RN / Expo 内部 API 不确定时，先查当前官方文档或源码，不凭记忆实现。
+- Fiber 字段访问只能在 `packages/agent/src/fiber-adapter/`。
+- 平台分支只允许在 fiber-adapter、存储适配器、各 DeviceProvider 中。
+- `core` 不依赖 `@cucumber/cucumber`、`playwright` 或任何运行器（CI 用 dependency-cruiser 检查）。
+- Web 端只用 `playwright` 库，禁止 `@playwright/test`。
+- 测试与示例 step 中禁止 sleep / 固定时长等待。
+- 每个包有单元测试；tracker 逻辑必须有单元测试。
+- 宣称阶段完成前，实际运行验收测试并展示结果。
+- §11 的待确认事项一律暂停询问 HU，不自行假设。
+
+## Phases
+
+### Phase 0: 技术验证（spike）
+产出：`docs/spikes/` 下 7 份结论文档；1〜5、7 附带可运行验证代码（放在 `spikes/` 下，不进入正式 packages）。
+
+- [ ] 0.0 环境盘点：Node LTS、pnpm、Xcode/simctl、Android SDK/adb/AVD、当前最新稳定 Expo SDK 版本与默认架构（查官方文档），记录到 findings.md
+- [ ] 0.1 搭建 spike 用 Expo App（`spikes/spike-app/`，New Architecture，dev client，含本地 Expo Module 骨架）
+- [ ] S1 Fiber 查询（原生）：DevTools hook 取 renderer/根 Fiber → 按 testID 找宿主组件 → 取屏幕坐标（Fabric 下的 measure 等价 API）→ `docs/spikes/01-fiber-query.md`
+- [ ] S2 React 空闲检测：找到判断「无待提交渲染」的可靠方法（调度器状态 / commit hook 等，对照 React 源码）→ `docs/spikes/02-react-idle.md`
+- [ ] S3 Android 触摸注入：MotionEvent + `Activity.dispatchTouchEvent`，验证 onPress、Pressable 按下态、RNGH 点击 → `docs/spikes/03-android-touch.md`
+- [ ] S4 iOS 触摸注入：合成 UITouch/UIEvent（参考 KIF）点击 RN 按钮；失败则记录原因 + 替代方案，**交 HU 决定**（§11-3）→ `docs/spikes/04-ios-touch.md`
+- [ ] S5 连接参数传递：比较启动参数 / 深链接 / 构建期注入，三端各自验证 → `docs/spikes/05-connection-params.md`
+- [ ] S6 生产剔除：原生与 Web 生产构建中 agent 与原生模块完全剔除的方案（环境变量 + tree-shake + config plugin 条件注入）→ `docs/spikes/06-prod-strip.md`（只需结论，可附验证）
+- [ ] S7 Web 端 Fiber 查询：react-dom + react-native-web 下同一 fiber-adapter 接口按 testID 找宿主 DOM 节点并取坐标，确认 testID 映射 → `docs/spikes/07-web-fiber-query.md`
+- [ ] 0.9 汇总：给出最低支持 Expo SDK 版本建议（§11-2，交 HU 决定）、Expo Go / JS-only 可行性结论、对第 1 阶段设计的影响
+- **验收：** 7 份结论文档；1〜5、7 的验证代码可运行
+- **Status:** in_progress
+
+### Phase 1: 核心闭环（Android + JS 档位）
+- [ ] monorepo 骨架（pnpm workspaces、TS strict、lint、单测框架、dependency-cruiser 规则）
+- [ ] `@quiesco/protocol`：JSON-RPC 类型、方法、错误码、协议版本
+- [ ] `@quiesco/agent`：fiber-adapter（RN）、Query/Matcher、全部 IdleTracker（network/timer/react/interaction/frame-stable）、JS 档位动作、断言、QuiescoRoot
+- [ ] `@quiesco/core`：WS Server、Driver、会话 API（运行器无关）、Android DeviceProvider、defineConfig
+- [ ] `@quiesco/cucumber`：World + hooks（register）
+- [ ] `examples/todo-app` + 第 9 节 feature 与 step definitions + 本地 mock server
+- **验收：** Android Emulator + dev client 第 9 节场景通过；注入 2s 网络延迟与 1s 动画后无需改测试仍稳定通过；同步超时错误能指出具体请求/定时器
+- **Status:** pending
+
+### Phase 2: 真实触摸与速度（Android）
+- [ ] `@quiesco/native` Android 实现 + native 动作档位
+- [ ] 软重置、后门、onReset 钩子
+- [ ] 失败时附加截图与元素树
+- [ ] 性能基准脚本 → `docs/benchmarks.md`
+- **验收：** native 档位通过；连续 20 次无随机失败；基准记录在案
+- **Status:** pending
+
+### Phase 3: Web
+- [ ] `@quiesco/web`：Web DeviceProvider、Playwright 输入注入、静态文件服务器（SPA 回退）
+- [ ] fiber-adapter 的 react-dom 实现、Web 存储适配器、hydration 等待、整页刷新透明重连
+- [ ] 平台 tag 过滤与 `--platform` 切换
+- **验收：** Android 与 Chromium 用完全相同的 feature/steps 通过；Web 连续 20 次无随机失败；不装 Playwright 时原生端正常
+- **Status:** pending
+
+### Phase 4: iOS 与 Expo 集成
+- [ ] `@quiesco/native` iOS 实现、iOS DeviceProvider
+- [ ] `@quiesco/expo-plugin`、`eas.json` e2e profile 示例
+- [ ] 生产剔除 CI 检查（需 HU 决定 CI 环境，§11-4）
+- [ ] cucumber `--parallel` 支持
+- **验收：** 三端通过；生产构建检查通过；2 worker 并行明显快于串行（记录数据）
+- **Status:** pending
+
+### Phase 5: 易用性与周边
+- [ ] CLI：init / test / doctor / tree
+- [ ] 权限预授权、键盘处理
+- [ ] `@quiesco/steps` 可选通用步骤
+- [ ] 文档：README、API 参考、同步机制、三端差异、故障排查、Driver 模式
+- **验收：** 全新 create-expo-app 项目按 README 10 分钟内在任一平台跑通首个场景
+- **Status:** pending
+
+## 待 HU 决定（requirements.md §11，遇到时暂停询问）
+| # | 事项 | 何时需要 | 状态 |
+|---|------|---------|------|
+| 1 | 开源许可证 | 发布前（Phase 5 前即可） | 未决 |
+| 2 | 最低支持 Expo SDK | Phase 0 结束时给建议 | 未决 |
+| 3 | iOS 注入替代方案（若 S4 失败） | S4 结论后 | 未决 |
+| 4 | CI：GitHub Actions / EAS Workflows | Phase 1 搭骨架时（依赖检查要进 CI） | 未决 |
+| 5 | npm `@quiesco` 组织与发布流程 | 发布前 | 未决 |
+| 6 | Web 是否首版验收 Firefox/WebKit | Phase 3 前 | 未决 |
+| 7 | Web 视口默认值（手机/桌面/两者） | Phase 3 前 | 未决 |
+
+## Decisions Made
+| Decision | Rationale |
+|----------|-----------|
+| 规划文件放在 `.planning/2026-11-07-quiesco/`，不放项目根目录 | HU 要求 plan 文件不放根目录 |
+| spike 代码放 `spikes/`，与正式 `packages/` 隔离 | spike 是一次性验证，避免污染正式包结构 |
+
+## Errors Encountered
+| Error | Attempt | Resolution |
+|-------|---------|------------|
