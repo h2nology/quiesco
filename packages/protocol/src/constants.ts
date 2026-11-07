@@ -33,4 +33,6 @@ export const SyncDefaults = {
   timerThresholdMs: 1_500,
   stableFrames: 2,
   countIntervals: false,
+  /** Interval between re-checks while an assertion fails or an action target is not ready yet. */
+  retryIntervalMs: 50,
 } as const;

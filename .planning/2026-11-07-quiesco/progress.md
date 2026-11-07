@@ -82,6 +82,14 @@
   - `sync/`：network、timer、react、idle-callback（含旧版 InteractionManager）、frame-stable、SyncEngine（两次确认、超时列出 describeBusy）。`errors.ts`：QuiescoError。
   - 修正：首次测试 2 处失败都是测试代码问题（spy 引用被包装覆盖、fake setTimeout 丢参数）；lint 的 no-this-alias 配置为允许 `self`。
 
+- 提交 1.3（f22198d）。
+- 1.4 agent 上层完成：
+  - protocol：`AgentConfig`（hello 返回值）、`SyncDefaults.retryIntervalMs`。
+  - fiber-adapter：HostNode 增加 `ownerProps()` / `findHandler()` / `findInstance()`（ClassComponent）。
+  - tracker 可在安装后重新配置（ignoreUrls、阈值、interval、帧数）；SyncEngine 可按名称开关 tracker；idle-callback 的 InteractionManager 改为挂载时再接入。
+  - 新增：`connection/`（params 优先级、AgentClient：hello、请求分发、事件缓冲、退避重连、4001/4002/4003 不重连）、`events.ts`（console 转发按级别、ErrorUtils、window error/unhandledrejection）、`actions/js.ts`、`assertions/`、`runtime.ts`、`singleton.ts` / `install.ts`、`root/QuiescoRoot.tsx`、`stub.ts`、`metro.cjs`（withQuiesco）。
+  - 遇到的问题：pnpm 自动安装 peer（见 Errors）；runtime 测试 3 个超时 → 测试中 fake timers 没有推进（加 `drive()`），非代码问题。
+
 ## Test Results
 | 测试 | 结果 | 备注 |
 |------|------|------|
@@ -111,3 +119,5 @@
 | 1.3 agent 单元测试 | ✅ | 7 文件 54 测试（fiber-adapter 18 / query 13 / sync 23） |
 | 1.3 `pnpm run check` | ✅ | build / lint / depcruise（45 模块无违规）/ test 13 文件 78 测试 |
 | 1.3 新依赖规则反向测试 | ✅ | query 直接 import `fiber-adapter/fiber` 被拦住 |
+| 1.4 agent 单元测试 | ✅ | 15 文件 99 测试（新增 actions-js / assertions / client / events / params / runtime / metro 等） |
+| 1.4 `pnpm run check` | ✅ | build / lint / depcruise（63 模块无违规）/ test 20 文件 125 测试，类型测试无错误 |

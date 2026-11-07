@@ -37,13 +37,24 @@ export class TimerTracker implements IdleTracker {
   private readonly pending = new Map<unknown, PendingTimer>();
   private readonly restores: (() => void)[] = [];
   private readonly target: TimerGlobals;
-  private readonly threshold: number;
+  private threshold: number;
+  private countIntervals: boolean;
   private readonly now: () => number;
 
-  constructor(private readonly options: TimerTrackerOptions = {}) {
+  constructor(options: TimerTrackerOptions = {}) {
     this.target = options.target ?? (globalThis as unknown as TimerGlobals);
     this.threshold = options.thresholdMs ?? SyncDefaults.timerThresholdMs;
+    this.countIntervals = options.countIntervals ?? SyncDefaults.countIntervals;
     this.now = options.now ?? Date.now;
+  }
+
+  /** Applies to timers created from now on. */
+  configure(options: { thresholdMs?: number; countIntervals?: boolean }): void {
+    if (options.thresholdMs !== undefined) this.threshold = options.thresholdMs;
+    if (options.countIntervals !== undefined) {
+      this.countIntervals = options.countIntervals;
+      if (!this.countIntervals) for (const [id, p] of this.pending) if (p.kind === 'setInterval') this.pending.delete(id);
+    }
   }
 
   isIdle(): boolean {
@@ -83,14 +94,14 @@ export class TimerTracker implements IdleTracker {
         },
       ),
     );
-    if (this.options.countIntervals === true && isFunction(t.setInterval) && isFunction(t.clearInterval)) {
+    if (isFunction(t.setInterval) && isFunction(t.clearInterval)) {
       const it = t as Required<TimerGlobals>;
       this.restores.push(
         patch(it, 'setInterval', (original) =>
           function (this: unknown, cb: unknown, ms?: number, ...args: unknown[]) {
             const delay = Number(ms ?? 0) || 0;
             const id = original.call(this, cb, ms, ...args);
-            if (isFunction(cb) && delay <= self.threshold) {
+            if (self.countIntervals && isFunction(cb) && delay <= self.threshold) {
               self.pending.set(id, { kind: 'setInterval', delay, since: self.now(), name: cb.name || 'anonymous' });
             }
             return id;

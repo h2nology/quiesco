@@ -6,6 +6,7 @@
 
 /** WorkTag values from ReactWorkTags.js. */
 export const WorkTag = {
+  ClassComponent: 1,
   HostRoot: 3,
   HostPortal: 4,
   HostComponent: 5,

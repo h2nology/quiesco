@@ -38,6 +38,7 @@ export class IdleCallbackTracker implements IdleTracker {
   private readonly target: IdleCallbackGlobals;
   private readonly now: () => number;
   private nextTask = 1;
+  private readonly attached = new Set<InteractionManagerLike>();
 
   constructor(private readonly options: IdleCallbackTrackerOptions = {}) {
     this.target = options.target ?? (globalThis as unknown as IdleCallbackGlobals);
@@ -83,48 +84,57 @@ export class IdleCallbackTracker implements IdleTracker {
         ),
       );
     }
-    const im = this.options.interactionManager;
-    if (im != null) {
-      this.restores.push(
-        patch(im, 'createInteractionHandle', (original) =>
-          function (this: unknown) {
-            const h = original.call(this);
-            self.handles.add(h);
-            return h;
-          },
-        ),
-        patch(im, 'clearInteractionHandle', (original) =>
-          function (this: unknown, h: unknown) {
-            self.handles.delete(h);
-            return original.call(this, h);
-          },
-        ),
-        patch(im, 'runAfterInteractions', (original) =>
-          function (this: unknown, task?: unknown) {
-            const result = original.call(this, task);
-            const id = self.nextTask++;
-            self.tasks.set(id, self.now());
-            const done = (): void => {
-              self.tasks.delete(id);
+    if (this.options.interactionManager != null) this.attachInteractionManager(this.options.interactionManager);
+  }
+
+  /**
+   * Track a legacy InteractionManager. Separate from install() so the runtime can look it up after the
+   * app has started (requiring react-native at agent import time would be too early).
+   */
+  attachInteractionManager(im: InteractionManagerLike): void {
+    if (this.attached.has(im)) return;
+    this.attached.add(im);
+    const self = this;
+    this.restores.push(
+      patch(im, 'createInteractionHandle', (original) =>
+        function (this: unknown) {
+          const h = original.call(this);
+          self.handles.add(h);
+          return h;
+        },
+      ),
+      patch(im, 'clearInteractionHandle', (original) =>
+        function (this: unknown, h: unknown) {
+          self.handles.delete(h);
+          return original.call(this, h);
+        },
+      ),
+      patch(im, 'runAfterInteractions', (original) =>
+        function (this: unknown, task?: unknown) {
+          const result = original.call(this, task);
+          const id = self.nextTask++;
+          self.tasks.set(id, self.now());
+          const done = (): void => {
+            self.tasks.delete(id);
+          };
+          if (result != null && isFunction(result.then)) (result.then as (a: () => void, b: () => void) => unknown).call(result, done, done);
+          else done();
+          if (result != null && isFunction(result.cancel)) {
+            const cancel = result.cancel;
+            result.cancel = function (this: unknown, ...a: never[]) {
+              done();
+              return cancel.apply(this, a);
             };
-            if (result != null && isFunction(result.then)) (result.then as (a: () => void, b: () => void) => unknown).call(result, done, done);
-            else done();
-            if (result != null && isFunction(result.cancel)) {
-              const cancel = result.cancel;
-              result.cancel = function (this: unknown, ...a: never[]) {
-                done();
-                return cancel.apply(this, a);
-              };
-            }
-            return result;
-          },
-        ),
-      );
-    }
+          }
+          return result;
+        },
+      ),
+    );
   }
 
   uninstall(): void {
     while (this.restores.length > 0) this.restores.pop()?.();
+    this.attached.clear();
     this.callbacks.clear();
     this.handles.clear();
     this.tasks.clear();

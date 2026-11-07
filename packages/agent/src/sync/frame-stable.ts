@@ -21,7 +21,7 @@ export interface FrameStableTrackerOptions {
 
 export class FrameStableTracker implements IdleTracker {
   readonly name = 'frame-stable';
-  private readonly frames: number;
+  private frames: number;
   private waiting = 0;
   private frameId: unknown = null;
   private last: string | null = null;
@@ -31,6 +31,10 @@ export class FrameStableTracker implements IdleTracker {
 
   constructor(private readonly options: FrameStableTrackerOptions) {
     this.frames = Math.max(1, options.frames ?? SyncDefaults.stableFrames);
+  }
+
+  setFrames(frames: number): void {
+    this.frames = Math.max(1, frames);
   }
 
   isIdle(): boolean {

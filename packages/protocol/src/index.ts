@@ -1,5 +1,6 @@
 export * from './actions.js';
 export * from './assertions.js';
+export * from './config.js';
 export * from './constants.js';
 export * from './element.js';
 export * from './errors.js';

@@ -1,5 +1,6 @@
 import type { ActionMode, ActionSpec, HostInput } from './actions.js';
 import type { AssertionSpec } from './assertions.js';
+import type { AgentConfig } from './config.js';
 import type { ElementSummary, TreeNode } from './element.js';
 import type { JsonValue } from './json.js';
 import type { Matcher } from './matcher.js';
@@ -47,7 +48,7 @@ export interface HostMethods {
       /** Whether @quiesco/native is linked (enables the `native` action mode). */
       nativeModule: boolean;
     };
-    result: { accepted: true; sessionId: string };
+    result: { accepted: true; sessionId: string; config: AgentConfig };
   };
 }
 

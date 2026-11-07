@@ -60,10 +60,17 @@ export class NetworkTracker implements IdleTracker {
   private insideFetch = 0;
   private readonly target: NetworkGlobals;
   private readonly now: () => number;
+  private ignoreUrls: readonly UrlPattern[];
 
-  constructor(private readonly options: NetworkTrackerOptions = {}) {
+  constructor(options: NetworkTrackerOptions = {}) {
     this.target = options.target ?? (globalThis as unknown as NetworkGlobals);
     this.now = options.now ?? Date.now;
+    this.ignoreUrls = options.ignoreUrls ?? [];
+  }
+
+  /** Applies to requests started from now on. */
+  setIgnoreUrls(patterns: readonly UrlPattern[]): void {
+    this.ignoreUrls = patterns;
   }
 
   isIdle(): boolean {
@@ -135,7 +142,7 @@ export class NetworkTracker implements IdleTracker {
   }
 
   private ignored(url: string): boolean {
-    for (const p of this.options.ignoreUrls ?? []) {
+    for (const p of this.ignoreUrls) {
       if (typeof p === 'string' ? url.includes(p) : ((p.lastIndex = 0), p.test(url))) return true;
     }
     return false;

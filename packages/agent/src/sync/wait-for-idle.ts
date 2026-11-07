@@ -20,6 +20,7 @@ const DEFAULT_POLL_MS = 16;
 
 export class SyncEngine {
   private installed = false;
+  private disabled = new Set<string>();
 
   constructor(
     readonly trackers: readonly IdleTracker[],
@@ -38,8 +39,17 @@ export class SyncEngine {
     this.installed = false;
   }
 
+  /** Trackers listed as `false` are ignored by waitForIdle / getIdleState (they stay installed). */
+  setEnabled(enabled: Readonly<Record<string, boolean | undefined>>): void {
+    this.disabled = new Set(Object.entries(enabled).filter(([, on]) => on === false).map(([name]) => name));
+  }
+
+  private active(): IdleTracker[] {
+    return this.trackers.filter((t) => !this.disabled.has(t.name));
+  }
+
   getIdleState(): TrackerState[] {
-    return this.trackers.map((t) => {
+    return this.active().map((t) => {
       const idle = safe(() => t.isIdle(), false);
       return { name: t.name, idle, busy: idle ? [] : safe(() => t.describeBusy(), ['describeBusy() threw']) };
     });
@@ -49,7 +59,8 @@ export class SyncEngine {
     const timeoutMs = options.timeoutMs ?? SyncDefaults.timeoutMs;
     const pollMs = options.pollIntervalMs ?? DEFAULT_POLL_MS;
     const start = this.clock.now();
-    for (const t of this.trackers) t.beginWait?.();
+    const trackers = this.active();
+    for (const t of trackers) t.beginWait?.();
     try {
       for (;;) {
         if (this.allIdle()) {
@@ -61,12 +72,12 @@ export class SyncEngine {
         await this.sleep(Math.min(pollMs, timeoutMs - elapsed));
       }
     } finally {
-      for (const t of this.trackers) t.endWait?.();
+      for (const t of trackers) t.endWait?.();
     }
   }
 
   private allIdle(): boolean {
-    return this.trackers.every((t) => safe(() => t.isIdle(), false));
+    return this.active().every((t) => safe(() => t.isIdle(), false));
   }
 
   private timeoutError(timeoutMs: number): QuiescoError<'SYNC_TIMEOUT'> {

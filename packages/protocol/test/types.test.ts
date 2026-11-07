@@ -2,10 +2,12 @@ import { describe, expectTypeOf, it } from 'vitest';
 
 import type {
   ActionSpec,
+  AgentConfig,
   AgentEvent,
   AgentMethods,
   AgentRequest,
   AssertionSpec,
+  HostMethods,
   JsonValue,
   Matcher,
   QuiescoErrorObject,
@@ -55,5 +57,10 @@ describe('protocol types', () => {
     // @ts-expect-error functions are not JSON
     const v: JsonValue = () => 1;
     void v;
+  });
+
+  it('hello result carries the agent config, which must be JSON', () => {
+    expectTypeOf<ResultOf<HostMethods['hello']>['config']>().toEqualTypeOf<AgentConfig>();
+    expectTypeOf<AgentConfig>().toExtend<JsonValue>();
   });
 });

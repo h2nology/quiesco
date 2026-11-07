@@ -14,4 +14,9 @@ export default tseslint.config(
       '@typescript-eslint/no-this-alias': ['error', { allowedNames: ['self'] }],
     },
   },
+  {
+    files: ['**/*.cjs'],
+    languageOptions: { sourceType: 'commonjs' },
+    rules: { '@typescript-eslint/no-require-imports': 'off' },
+  },
 );

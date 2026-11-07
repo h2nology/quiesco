@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-1.4 `@quiesco/agent` 上层：WS 连接（hello / 重连）→ JS 档位动作 → 断言（agent 端重试到超时）→ `QuiescoRoot`（install 顺序、setScope、checkRendererSeen、组装 trackers）→ `withQuiesco` / `stub`。
+1.4b 后门与软重置的最小实现：`quiesco.backdoor()` / `quiesco.onReset()`（index 与 stub 同步导出）、`backdoor` / `reset` 两个 handler（JSON 可序列化校验、未注册时列出名称、执行后等待空闲；软重置 = 清 AsyncStorage → onReset 钩子 → `runtime.remount` → 等待空闲）。
 
 ## Current Phase
 Phase 1
@@ -50,7 +50,7 @@ Phase 1
   - `query/`：Matcher（id / text / label / role / within / index）、可见性判定、getTree 精简 JSON
   - `sync/`：IdleTracker 接口 + network（fetch / XHR，ignoreUrls）、timer（≤ 阈值）、react（A&&B，scheduler 替换）、idle-callback（rIC + 旧版 InteractionManager 兼容）、frame-stable（结构哈希 N 帧）；`waitForIdle` 跨宏任务两次确认、超时时列出 describeBusy
   - 单元测试：所有 tracker、Matcher、waitForIdle（fake timers / fake root / fake scheduler）
-- [ ] 1.4 `@quiesco/agent` 上层：WS 连接（hello、重连）、JS 档位动作（tap / longPress / doubleTap → onPress 等；type / clear → onChangeText；scroll / scrollTo / swipe 的 JS 实现；dismissKeyboard）、断言（expectVisible / NotVisible / Exists / NotExists / Text / Prop / Count，在 agent 端反复检查直到超时）、`QuiescoRoot`（安装 tracker、根 key）、`withQuiesco`（Metro：非 e2e 替换为桩；注入构建期兜底端口的虚拟模块）、`stub` 入口
+- [x] 1.4 `@quiesco/agent` 上层：WS 连接（hello、重连）、JS 档位动作（tap / longPress / doubleTap → onPress 等；type / clear → onChangeText；scroll / scrollTo / swipe 的 JS 实现；dismissKeyboard）、断言（expectVisible / NotVisible / Exists / NotExists / Text / Prop / Count，在 agent 端反复检查直到超时）、`QuiescoRoot`（安装 tracker、根 key）、`withQuiesco`（Metro：非 e2e 替换为桩；注入构建期兜底端口的虚拟模块）、`stub` 入口
 - [ ] 1.4b 后门与软重置的**最小实现**（HU 2026-11-07 决定提前）：`quiesco.backdoor()` 注册与调用（JSON 可序列化校验、未注册时列出已注册名称、执行后等待空闲）、`quiesco.onReset()`、软重置（清 AsyncStorage → onReset 钩子 → 根 key 更换 → 等待空闲）
 - [ ] 1.5 `@quiesco/core`：WS Server（多连接、session 校验、协议版本检查）、会话 API（运行器无关：createSession / beforeScenario / collectEvidence / dispose）、Driver（6.3〜6.6 的 async API）、DeviceProvider 接口 + Android 实现（boot：唤醒/stayon；install；launch：pm grant、adb reverse、am start 带 extras 与 dev client URL；terminate；screenshot；shutdown）、`defineConfig` 与配置加载、连接等待超时与排查提示
 - [ ] 1.6 `@quiesco/cucumber`：World（`this.app`）、hooks（BeforeAll / Before / After / AfterAll）、`register` 入口
@@ -148,6 +148,15 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | frame-stable 只在 waitForIdle 期间采样（tracker 接口增加可选 `beginWait` / `endWait`） | 空闲时不每帧计算整棵树的哈希 |
 | network tracker：在被跟踪的 `fetch()` 同步执行期间发出的 XHR 不重复计数 | RN 的 fetch 基于 XHR（whatwg-fetch），否则同一请求显示两次 |
 | 新增依赖规则 `fiber-adapter-public-api-only`：fiber-adapter 外只能 import 其 `index.ts` | 让「Fiber 结构不出 fiber-adapter」由 CI 保证，反向测试已拦住 |
+| hello 的返回值增加 `config: AgentConfig`（sync 各项、ignoreUrls、tracker 开关、logLevel）；协议版本仍为 1（未发布） | tracker 必须在 import 时安装，配置在 quiesco.config.ts（Host 侧），只能连上后再下发；tracker 改为可在安装后重新配置 |
+| tracker、DevTools hook、console/错误转发在 agent import 时安装；QuiescoRoot 挂载时只做 setScope、报告安装问题、建立连接 | 子组件的 effect 先于 QuiescoRoot 的 effect 执行，挂载时才安装会漏掉 App 挂载时发出的请求（与 §6.7「QuiescoRoot 安装 trackers」的字面不同，效果更稳） |
+| `pressBack` / `openUrl` 由 agent 返回 `hostInput`，交给 Host 的 DeviceProvider 执行（adb keyevent / am start、Playwright） | agent 不需要按平台分支；Android 用 adb 最可靠 |
+| Phase 1 的 `native` 档位直接报 ACTION_NOT_SUPPORTED（提示改 `actions.mode: 'js'`） | 原生注入是 Phase 2 的范围 |
+| JS 档位：tap 向上找最近的 `onPress`（连同同一组件的 onPressIn/Out，`disabled` 时不触发）；type 一次性调用 `onChangeText(当前 value + 文本)`；scroll 调最近 ScrollView 实例的 `scrollTo`，偏移量由内容容器与滚动视图的坐标差算出 | 与 Pressability 行为一致；限制写在 `actions/js.ts` 注释里 |
+| 动作目标：等待到「唯一且可见」或超时（ELEMENT_NOT_FOUND 区分不存在 / 不可见），多个匹配立即报 MULTIPLE_MATCHES | 加载中的元素不需要测试侧重试 |
+| 断言多匹配语义：visible = 任一可见；notVisible = 无一可见；text / prop 要求恰好 1 个；prop 先读宿主 props，再读拥有它的复合组件 props（如 Pressable 的 `disabled`、TextInput 的 `value`） | §6.4「断言类操作按断言语义处理」 |
+| `withQuiesco` 用纯 CJS 的 `metro.cjs`；构建期兜底参数生成到 `<project>/.expo/quiesco/build-config.js`，只替换 agent `src/` 内的 `./build-config` | Node 不能在 node_modules 中执行 TS；`.expo` 不在 Expo 默认 blockList 内且默认被 gitignore |
+| `autoInstallPeers: false`（pnpm-workspace.yaml） | pnpm 自动把 react 19.3.1 / react-native 嵌套装进 agent，会造成两份 React（hooks 失效） |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -161,3 +170,4 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | `pnpm ci` 没有执行自定义脚本，而是做了干净安装 | 1 | pnpm 12 中 `ci` 是内置命令 → 脚本改名为 `check`（`pnpm run check`） |
 | dependency-cruiser 把 core 的 vitest.config.ts 报为违规 | 1 | 规则的 from 限定为 `packages/*/src/`；同时把未安装的裸包名也纳入匹配，并用故意制造的违规确认 4 条规则都能拦住 |
 | 轮询脚本超时卡住 | 2 | `uiautomator dump` 不返回、macOS 无 `timeout`；改为截图确认 |
+| pnpm 自动安装 peer：react 19.3.1 + react-native 0.88.1 被嵌套装进 packages/agent | 1 | `.npmrc` 的 `auto-install-peers=false` 无效（pnpm 12）→ 改写在 pnpm-workspace.yaml 的 `autoInstallPeers: false`，从干净 lockfile 重装 |

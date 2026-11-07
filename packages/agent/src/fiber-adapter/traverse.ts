@@ -12,7 +12,7 @@ import type { Rect } from '@quiesco/protocol';
 import type { Fiber } from './fiber';
 import { WorkTag, isObject, walkSiblings } from './fiber';
 import type { HostPlatform } from './host';
-import type { HostNode } from './types';
+import type { HandlerRef, HostNode, InstanceRef } from './types';
 
 class Node implements HostNode {
   readonly type: string;
@@ -42,6 +42,41 @@ class Node implements HostNode {
   measure(): Rect | null {
     return this.platform.measure(this.fiber);
   }
+
+  ownerProps(): Readonly<Record<string, unknown>> {
+    const out: Record<string, unknown> = {};
+    for (let f = this.fiber.return; f !== null && !isHostBoundary(f); f = f.return) {
+      if (f.tag === WorkTag.HostText || !isObject(f.memoizedProps)) continue;
+      for (const [k, v] of Object.entries(f.memoizedProps)) if (!(k in out)) out[k] = v;
+    }
+    return out;
+  }
+
+  findHandler(name: string): HandlerRef | null {
+    for (let f: Fiber | null = this.fiber; f !== null && f.tag !== WorkTag.HostRoot; f = f.return) {
+      const p = f.memoizedProps;
+      if (isObject(p) && typeof p[name] === 'function') return { fn: p[name] as HandlerRef['fn'], props: p };
+    }
+    return null;
+  }
+
+  findInstance(method: string): InstanceRef | null {
+    for (let f = this.fiber.return; f !== null && f.tag !== WorkTag.HostRoot; f = f.return) {
+      const inst = f.stateNode;
+      if (f.tag !== WorkTag.ClassComponent || !isObject(inst) || typeof inst[method] !== 'function') continue;
+      const owner = f;
+      const platform = this.platform;
+      return {
+        call: (...args) => (inst[method] as (...a: unknown[]) => unknown).apply(inst, args),
+        hostNodes: () => buildHostTree(owner, platform),
+      };
+    }
+    return null;
+  }
+}
+
+function isHostBoundary(f: Fiber): boolean {
+  return f.tag === WorkTag.HostComponent || f.tag === WorkTag.HostRoot || f.tag === WorkTag.HostPortal;
 }
 
 function stringChildren(fiber: Fiber): string {

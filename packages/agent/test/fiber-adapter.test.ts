@@ -224,3 +224,50 @@ describe('host tree (web: react-dom + react-native-web)', () => {
     expect(div?.measure()).toEqual({ x: 0, y: 0, width: 10, height: 10 });
   });
 });
+
+describe('HostNode lookups used by js actions', () => {
+  class FakeScrollView {
+    calls: unknown[] = [];
+    scrollTo(arg: unknown) {
+      this.calls.push(arg);
+    }
+  }
+
+  it('ownerProps() merges composites between the host and the parent host, nearest first', () => {
+    const { adapter, target } = setup();
+    const outer = { tag: 0, type: 'Outer', props: { value: 'outer', testID: 'outer' }, children: [] as never[] };
+    renderWith(target, makeRoot(
+      { ...outer, children: [host('RCTView', {}, { tag: 0, type: 'TextInput', props: { value: 'abc', editable: false }, children: [{ tag: 0, type: 'Inner', props: { value: 'inner' }, children: [host('AndroidTextInput', { text: 'abc' })] }] })] },
+    ));
+    const input = adapter.getHostRoots()[0]!.children[0]!;
+    expect(input.ownerProps()).toMatchObject({ value: 'inner', editable: false });
+    expect(input.ownerProps()).not.toHaveProperty('testID'); // stops at the parent host
+  });
+
+  it('findHandler() walks up across hosts to the nearest function prop', () => {
+    const { adapter, target } = setup();
+    const onPress = vi.fn();
+    renderWith(target, makeRoot(
+      { tag: 0, type: 'Pressable', props: { onPress, disabled: false }, children: [host('RCTView', {}, composite('Text', host('RCTText', {}, text('Go'))))] },
+    ));
+    const label = adapter.getHostRoots()[0]!.children[0]!;
+    const h = label.findHandler('onPress');
+    expect(h?.fn).toBe(onPress);
+    expect(h?.props).toMatchObject({ disabled: false });
+    expect(label.findHandler('onLongPress')).toBeNull();
+  });
+
+  it('findInstance() finds the nearest class instance with the method and its host nodes', () => {
+    const { adapter, target } = setup();
+    const sv = new FakeScrollView();
+    renderWith(target, makeRoot(
+      { tag: WorkTag.ClassComponent, type: 'ScrollView', props: {}, stateNode: sv, children: [host('RCTScrollView', { testID: 'list' }, host('RCTScrollContentView', {}, host('RCTView', { testID: 'row' })))] },
+    ));
+    const row = adapter.getHostRoots()[0]!.children[0]!.children[0]!;
+    const inst = row.findInstance('scrollTo');
+    inst?.call({ y: 10 });
+    expect(sv.calls).toEqual([{ y: 10 }]);
+    expect(inst?.hostNodes().map((n) => n.testID)).toEqual(['list']);
+    expect(row.findInstance('nope')).toBeNull();
+  });
+});

@@ -1,7 +1,7 @@
 /** Build HostNode trees directly (query-layer tests do not need fibers). */
 import type { Rect } from '@quiesco/protocol';
 
-import type { HostNode } from '../../src/fiber-adapter';
+import type { HandlerRef, HostNode, InstanceRef } from '../../src/fiber-adapter';
 
 export interface NodeSpec {
   type?: string;
@@ -12,6 +12,12 @@ export interface NodeSpec {
   hidden?: boolean;
   rect?: Rect | null;
   props?: Record<string, unknown>;
+  /** Props of the composite components that render this host (ownerProps / findHandler). */
+  owner?: Record<string, unknown>;
+  /** Handlers found on ancestors (findHandler falls back to these). */
+  ancestorHandlers?: Record<string, unknown>;
+  /** findInstance(method) result. */
+  instance?: InstanceRef | null;
   children?: NodeSpec[];
 }
 
@@ -39,6 +45,14 @@ export function node(spec: NodeSpec, parent: MutableNode | null = null): Mutable
     measure() {
       return this.rect;
     },
+    ownerProps: () => spec.owner ?? {},
+    findHandler(name: string): HandlerRef | null {
+      for (const p of [spec.props ?? {}, spec.owner ?? {}, spec.ancestorHandlers ?? {}]) {
+        if (typeof p[name] === 'function') return { fn: p[name] as HandlerRef['fn'], props: p };
+      }
+      return null;
+    },
+    findInstance: () => spec.instance ?? null,
   };
   n.children = (spec.children ?? []).map((c) => node(c, n));
   n.text = n.ownText + n.children.map((c) => c.text).join('');

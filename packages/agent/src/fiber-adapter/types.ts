@@ -25,6 +25,28 @@ export interface HostNode {
   readonly children: readonly HostNode[];
   /** Window coordinates in logical units (dp / pt / CSS px), or null if the node cannot be measured. */
   measure(): Rect | null;
+  /**
+   * Merged props of the composite components that render this host directly (between it and the
+   * nearest ancestor host), nearest first. E.g. a Pressable's `disabled`, a TextInput's `value`.
+   */
+  ownerProps(): Readonly<Record<string, unknown>>;
+  /** Nearest component (this host or an ancestor, up to the root) with a function prop `name`. */
+  findHandler(name: string): HandlerRef | null;
+  /** Nearest ancestor class component instance with a method `name` (e.g. ScrollView's `scrollTo`). */
+  findInstance(method: string): InstanceRef | null;
+}
+
+export interface HandlerRef {
+  fn: (...args: unknown[]) => unknown;
+  /** All props of the component that owns the handler (for `disabled`, sibling handlers, ...). */
+  props: Readonly<Record<string, unknown>>;
+}
+
+export interface InstanceRef {
+  /** Call the method on the instance. */
+  call(...args: unknown[]): unknown;
+  /** Top-level host nodes rendered by the component (e.g. the native scroll view). */
+  hostNodes(): HostNode[];
 }
 
 export type RendererKind = 'native' | 'web';

@@ -1,3 +1,6 @@
 packages:
   - packages/*
   - examples/*
+
+# Never auto-install react / react-native peers: the app provides them (a nested copy breaks hooks).
+autoInstallPeers: false

@@ -3,7 +3,7 @@ export { realClock } from './tracker';
 export { NetworkTracker } from './network';
 export type { NetworkTrackerOptions, UrlPattern } from './network';
 export { TimerTracker } from './timer';
-export type { TimerTrackerOptions } from './timer';
+export type { TimerGlobals, TimerTrackerOptions } from './timer';
 export { ReactTracker } from './react';
 export type { ReactWorkSource } from './react';
 export { IdleCallbackTracker } from './idle-callback';
