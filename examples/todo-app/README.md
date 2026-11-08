@@ -50,10 +50,14 @@ with `adb reverse`; the app picks the backend port from `quiesco.workerIndex()` 
   and runtime), created with `simctl create` on first use and kept for later runs. Remove them with
   `xcrun simctl delete "iPhone 17 (Quiesco 1)"`. `devices.ios.udids` assigns simulators explicitly.
 - **Android**: with `QUIESCO_AVD`, worker N uses that AVD's emulator on console port 5554 + 2N
-  (`emulator-5554`, `emulator-5556`, ...) and boots it if needed. Instances after the first run with
-  `-read-only`: one AVD can then run several times, but nothing they change is kept after they exit
-  (the app is installed again on every run anyway). Without `QUIESCO_AVD`, worker N uses the N-th
-  connected device; `devices.android.serials` assigns devices explicitly.
+  (`emulator-5554`, `emulator-5556`, ...) and boots it if needed. The emulator runs one AVD several
+  times only when **every** instance is `-read-only`, so all worker instances start that way: nothing
+  they change is kept after they exit (the app is installed again on every run anyway). If a writable
+  instance of the AVD is already running (e.g. started from Android Studio), Quiesco stops with the
+  `adb -s <serial> emu kill` command to close it. Emulators boot cold (`-no-snapshot-load`, about 14 s):
+  a quick-boot snapshot goes stale once the app is reinstalled and makes Android restart after boot.
+  Without `QUIESCO_AVD`, worker N uses the N-th connected device; `devices.android.serials` assigns
+  devices explicitly.
 - **Web**: every worker launches its own browser and static server; nothing to set up.
 
 ## EAS builds for e2e

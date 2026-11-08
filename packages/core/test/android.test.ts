@@ -76,7 +76,7 @@ describe('AndroidProvider', () => {
     };
     const p = new AndroidProvider({ app: { package: 'x' }, device: { avd: 'New_AVD' }, adbPath: 'adb', emulatorPath: 'emulator', exec, spawn: (f, a) => spawned.push(`${f} ${a.join(' ')}`), pollMs: 1 });
     await p.boot();
-    expect(spawned).toEqual(['emulator -avd New_AVD -no-boot-anim -no-snapshot-save']);
+    expect(spawned).toEqual(['emulator -avd New_AVD -no-boot-anim -no-snapshot-load -no-snapshot-save']);
     expect(adb.calls[0]).toBe('ps -ax -o command'); // checked that the AVD is not already running
     expect(adb.calls[1]).toBe('adb -s emulator-5560 shell getprop sys.boot_completed');
   });
@@ -207,10 +207,10 @@ describe('AndroidProvider with parallel workers', () => {
     expect(spawned).toEqual([]);
   });
 
-  it('boots worker 0 writable on 5554 and worker 1 read-only on 5556 beside it', async () => {
+  it('boots every worker read-only on its own port (worker 0 on 5554, worker 1 on 5556)', async () => {
     for (const [index, expected] of [
-      [0, 'emulator -avd Pixel_API_37 -port 5554 -no-boot-anim -no-snapshot-save'],
-      [1, 'emulator -avd Pixel_API_37 -port 5556 -no-boot-anim -no-snapshot-save -read-only'],
+      [0, 'emulator -avd Pixel_API_37 -port 5554 -no-boot-anim -no-snapshot-load -no-snapshot-save -read-only'],
+      [1, 'emulator -avd Pixel_API_37 -port 5556 -no-boot-anim -no-snapshot-load -no-snapshot-save -read-only'],
     ] as const) {
       let n = 0;
       const spawned: string[] = [];
@@ -228,8 +228,29 @@ describe('AndroidProvider with parallel workers', () => {
       const p = new AndroidProvider({ app: { package: 'x' }, device: { avd: 'Pixel_API_37' }, worker: { index, count: 2 }, adbPath: 'adb', emulatorPath: 'emulator', exec, spawn: (f, a) => spawned.push(`${f} ${a.join(' ')}`), pollMs: 1 });
       await p.boot();
       expect(spawned).toEqual([expected]);
-      expect(adb.calls[0]).toBe(`adb -s ${serial} shell getprop sys.boot_completed`);
+      expect(adb.calls[0]).toBe('ps -ax -o command'); // checked for a writable instance first
+      expect(adb.calls[1]).toBe(`adb -s ${serial} shell getprop sys.boot_completed`);
     }
+  });
+
+  it('refuses to boot beside a writable instance of the AVD and says how to stop it', async () => {
+    const spawned: string[] = [];
+    const { p } = provider(
+      [
+        [/adb devices$/, devicesOut('emulator-5554')],
+        [/getprop ro.boot.qemu.avd_name/, 'Pixel_API_37\n'],
+        [/^ps /, '/sdk/emulator/qemu/qemu-system-aarch64 -avd Pixel_API_37 -port 5554 -no-boot-anim\n/sdk/emulator/qemu/qemu-system-aarch64 -avd Pixel_API_37 -port 5558 -read-only\n'],
+      ],
+      { device: { avd: 'Pixel_API_37' }, worker: { index: 1, count: 2 }, spawn: (f, a) => spawned.push(`${f} ${a.join(' ')}`) },
+    );
+    await expect(p.boot()).rejects.toThrow(/writable instance of AVD Pixel_API_37 is running \(emulator-5554\).*adb -s emulator-5554 emu kill/);
+    expect(spawned).toEqual([]);
+    // Booted without -port (e.g. by a serial run): the connected emulator of that AVD is named.
+    const { p: q } = provider(
+      [[/adb devices$/, devicesOut('emulator-5554')], [/getprop ro.boot.qemu.avd_name/, 'Pixel_API_37\n'], [/^ps /, 'qemu-system-aarch64 -avd Pixel_API_37 -no-boot-anim\n']],
+      { device: { avd: 'Pixel_API_37' }, worker: { index: 1, count: 2 } },
+    );
+    await expect(q.boot()).rejects.toThrow(/is running \(emulator-5554\).*adb -s emulator-5554 emu kill/);
   });
 
   it('fails when the worker port runs another AVD', async () => {

@@ -207,3 +207,7 @@
 | 4.6 单元测试 / 类型 / lint | ✅ | core 77 + agent 142 测试通过（新增：Android serials / AVD 端口绑定 + read-only / 设备不足报错；iOS 创建与复用 worker 模拟器 / udids / 不把 worker 模拟器当默认；config 函数；hello 带 workerIndex；quiesco.workerIndex()）；示例类型检查与 eslint 无错误 |
 | 4.6 Web `--parallel 2` | ✅ | 6 场景 34 步通过，4.2s（串行 6.3s）；临时请求计数确认 :3001 / :3002 各收到 11 个请求（隔离生效，临时代码已还原） |
 | 4.6 iOS `--parallel 2` | ⏸ | 第一次 5/6：worker 1 自动创建 "iPhone 17 (Quiesco 1)"、安装、连接成功；失败原因是 8082 上的 Metro（14:35 启动，未装 watchman）漏掉文件变更，App 仍在跑旧 bundle（backdoor 列表里还有已还原的 4.0 探针）⇒ 两台 App 都打到 3001。重启 Metro 被权限拦下，待 HU 重启后重跑 |
+| 4.6 iOS `--parallel 2`（Metro 重启后） | ✅ | 6 场景 34 步通过，11.2s（串行 19.4s）；:3001 13 个 / :3002 11 个请求（隔离生效） |
+| 4.6 Android 修复 ①：全部实例 `-read-only` | ✅ | 模拟器只允许「全部实例都 read-only」时多开同一 AVD；worker 0 也改为 read-only；已有可写实例时 7s 内报错并给出 `adb -s emulator-5554 emu kill`（单元测试覆盖） |
+| 4.6 Android 修复 ②：冷启动 `-no-snapshot-load` | ✅ | quick-boot 快照在 /data 重装 APK 后过期，开机约 30s 后用户空间重启（reverse 与 App 消失）⇒ 串行 / 并行冷启动都失败；改为真冷启动 14s（快照 + 重启 40s）；之后冷启动并行 2/2、串行 1/1 通过 |
+| 4.6 Android 修复 ③：启动参数丢失（native，未验证完） | ⏸ | 第二次起 dev client 以 CLEAR_TASK 重新启动 Activity，intent 没有 extras ⇒ App 退回构建期端口 7357（实测 worker 1 App 连到 7357；串行因端口恰为 7357 未暴露）。加 `QuiescoNativePackage`（ReactActivityLifecycleListener 保存参数）后重建 APK（类已确认在 dex 中）；热启动并行仍 0/3，症状变化（白屏、App 未运行、7357 也超时），机器 load 10–13（2 台 emulator + 2 台 iOS 模拟器）。待与 HU 确认方向 |

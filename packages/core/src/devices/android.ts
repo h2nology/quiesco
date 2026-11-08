@@ -3,8 +3,12 @@
  * - boot: attach to the configured serial / a running emulator of the configured AVD, or boot the AVD;
  *   then wake the screen and keep it on (a sleeping emulator never brings the app to the front).
  * - Parallel workers (worker.count > 1) each get their own device: `serials[N]`; or, with `avd`, the
- *   emulator on console port 5554 + 2N (booted with `-port`, and `-read-only` for N > 0 so one AVD can
- *   run several instances); or else the N-th connected device.
+ *   emulator on console port 5554 + 2N (booted with `-port -read-only`: the emulator runs one AVD several
+ *   times only when every instance is read-only); or else the N-th connected device.
+ * - Emulators Quiesco boots always cold-boot (`-no-snapshot-load -no-snapshot-save`): a quick-boot
+ *   snapshot goes stale once the app is installed into /data after it was taken, and Android then
+ *   restarts its userspace about 30 s after "boot completed" (adb reverse and the app are gone). A
+ *   cold boot took 14 s vs 40 s for snapshot + restart (API 37).
  * - launch: `adb reverse` for the Quiesco port (and Metro for dev clients), pre-grant
  *   ACCESS_LOCAL_NETWORK (Android 17; ignored where unknown), then `am start` with the connection
  *   parameters as intent extras. The whole device command is one quoted string: the device shell would
@@ -182,17 +186,21 @@ export class AndroidProvider implements DeviceProvider {
     await this.shell('wm dismiss-keyguard').catch(() => undefined);
   }
 
-  /** Whether an emulator process for `avd` is already running (adb may not have attached it yet). */
-  private async avdProcessRunning(avd: string): Promise<boolean> {
+  /** Command lines of the running emulator processes for `avd` (adb may not have attached them yet). */
+  private async avdProcesses(avd: string): Promise<string[]> {
     try {
       const { stdout } = await this.exec('ps', ['-ax', '-o', 'command']);
       return stdout
         .toString()
         .split('\n')
-        .some((l) => /emulator|qemu-system/.test(l) && new RegExp(`(^|\\s)-avd\\s+${avd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`).test(l));
+        .filter((l) => /emulator|qemu-system/.test(l) && new RegExp(`(^|\\s)-avd\\s+${avd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`).test(l));
     } catch {
-      return false;
+      return [];
     }
+  }
+
+  private async avdProcessRunning(avd: string): Promise<boolean> {
+    return (await this.avdProcesses(avd)).length > 0;
   }
 
   private async bootAvd(avd: string, before: string[], timeoutMs: number): Promise<string> {
@@ -204,7 +212,7 @@ export class AndroidProvider implements DeviceProvider {
       );
     }
     this.logger.info(`booting Android emulator ${avd}`);
-    this.spawn(this.emulator, ['-avd', avd, '-no-boot-anim', '-no-snapshot-save']);
+    this.spawn(this.emulator, ['-avd', avd, '-no-boot-anim', '-no-snapshot-load', '-no-snapshot-save']);
     this.bootedByUs = true;
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
@@ -217,8 +225,9 @@ export class AndroidProvider implements DeviceProvider {
 
   /**
    * Parallel worker N's emulator of `avd`: the one on console port 5554 + 2N, booted there if not
-   * running. Instances after the first are `-read-only`: the emulator allows one writable instance of
-   * an AVD at a time, read-only ones run beside it (their changes are discarded on exit).
+   * running. Every instance is `-read-only` (changes are discarded on exit; the app is installed on
+   * every run anyway): the emulator refuses a second instance of an AVD while a writable one runs
+   * ("run all emulators with -read-only flag").
    */
   private async workerEmulator(avd: string, online: string[], timeoutMs: number): Promise<string> {
     const index = this.worker.index;
@@ -234,8 +243,22 @@ export class AndroidProvider implements DeviceProvider {
       }
       return serial;
     }
-    const args = ['-avd', avd, '-port', String(port), '-no-boot-anim', '-no-snapshot-save', ...(index > 0 ? ['-read-only'] : [])];
-    this.logger.info(`worker ${index}: booting Android emulator ${avd} on port ${port}${index > 0 ? ' (read-only)' : ''}`);
+    const writable = (await this.avdProcesses(avd)).filter((l) => !/(^|\s)-read-only(\s|$)/.test(l));
+    if (writable.length > 0) {
+      const p = /(?:^|\s)-port\s+(\d+)/.exec(writable[0] as string)?.[1];
+      // Without `-port` on its command line, name the connected emulators of this AVD instead.
+      const candidates = p !== undefined ? [`emulator-${p}`] : [];
+      if (candidates.length === 0) for (const s of online) if ((await this.avdName(s)) === avd) candidates.push(s);
+      const kill = candidates.map((c) => `adb -s ${c} emu kill`).join(' or ');
+      throw new QuiescoError(
+        'DEVICE_ERROR',
+        `A writable instance of AVD ${avd} is running${candidates.length === 1 ? ` (${candidates[0]})` : ''}, so worker ${index} cannot boot another one: ` +
+          'the emulator runs several instances of one AVD only when all are -read-only. ' +
+          `Stop it${kill !== '' ? ` (${kill})` : ''} and rerun; Quiesco boots every worker's instance read-only.`,
+      );
+    }
+    const args = ['-avd', avd, '-port', String(port), '-no-boot-anim', '-no-snapshot-load', '-no-snapshot-save', '-read-only'];
+    this.logger.info(`worker ${index}: booting Android emulator ${avd} on port ${port} (read-only)`);
     this.spawn(this.emulator, args);
     this.bootedByUs = true;
     const deadline = Date.now() + timeoutMs;
@@ -245,8 +268,7 @@ export class AndroidProvider implements DeviceProvider {
     }
     throw new QuiescoError(
       'DEVICE_ERROR',
-      `Emulator ${avd} on port ${port} did not appear in adb devices within ${timeoutMs}ms. ` +
-        (index === 0 ? `If another writable instance of ${avd} runs on a different port, stop it (worker 0 needs port ${port}).` : `Check the emulator output: ${this.emulator} ${args.join(' ')}`),
+      `Emulator ${avd} on port ${port} did not appear in adb devices within ${timeoutMs}ms. Check the emulator output: ${this.emulator} ${args.join(' ')}`,
     );
   }
 

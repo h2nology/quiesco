@@ -216,3 +216,6 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - **cucumber 13 的 `--parallel` 用 worker_threads**（不是子进程）：环境变量 `CUCUMBER_PARALLEL` / `CUCUMBER_TOTAL_WORKERS` / `CUCUMBER_WORKER_ID`（"0" 起）注入每个线程的 `process.env`；每个线程各自加载模块与 config。
 - **`simctl clone` 要求源设备关机**（`Unable to clone device in current state: Booted`，code 405）⇒ 不能在 worker 0 用着 base 时克隆。改用 `simctl create "<name> (Quiesco N)" <deviceTypeIdentifier> <runtime>`（`list devices --json` 有 `deviceTypeIdentifier`），不依赖源设备状态。
 - **Metro 漏掉文件变更**：本机没装 watchman，长时间运行的 Metro（Node fs 监听）在 `git checkout` / 脚本写文件后，App 已有的 graph 仍是旧代码；而新请求的 graph（curl 同一入口）是新代码。症状：backdoor 列表与源码不符。处理：重启 Metro（`pnpm start:e2e`）。
+- **Android 多开同一 AVD**：`Another emulator instance is running. Please close it or run all emulators with -read-only flag.` ⇒ 所有实例都要 `-read-only`（不是只有第 2 台起）。
+- **quick-boot 快照过期导致开机后重启**：Quiesco 一直 `-no-snapshot-save`，快照停在旧状态；之后可写运行往 /data 装 APK ⇒ 加载快照后 `boot_completed=1`（4s），约 30s 后 zygote / system_server 重启、adbd 重启（reverse 清空、App 被杀），40s 才稳定。`-no-snapshot-load` 真冷启动 14s 且不再重启（API 37，本机）。
+- **dev client 重新启动 Activity 丢 intent extras**：dev client 有历史状态时会以 `flg=0x10018000`（NEW_TASK|CLEAR_TASK）再 START 一次 MainActivity，`currentActivity.intent` 不再带 `quiescoPort/quiescoSession`；`pm clear` 后第一次正常。agent 退回构建期端口 7357 + 匿名会话（并行时可能连到 worker 0 的 server）。

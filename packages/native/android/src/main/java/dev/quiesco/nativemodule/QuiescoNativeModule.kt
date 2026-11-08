@@ -29,10 +29,11 @@ class QuiescoNativeModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("QuiescoNative")
 
-    // docs/spikes/05: `am start ... --es quiescoPort <p> --es quiescoSession <id>`
+    // docs/spikes/05: `am start ... --es quiescoPort <p> --es quiescoSession <id>`. The current intent may
+    // have lost the extras (dev client relaunch), so fall back to what QuiescoNativePackage captured.
     Function("getLaunchParams") {
-      val intent = appContext.currentActivity?.intent
-      mapOf("port" to intent?.getStringExtra("quiescoPort"), "session" to intent?.getStringExtra("quiescoSession"))
+      LaunchParamsStore.capture(appContext.currentActivity?.intent)
+      mapOf("port" to LaunchParamsStore.port, "session" to LaunchParamsStore.session)
     }
 
     /** Where a view really is, and whether its window is the one receiving input. */
