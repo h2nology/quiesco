@@ -71,6 +71,22 @@ describe('AgentRuntime', () => {
     expect(rt.config.sync.timeoutMs).toBe(1234);
   });
 
+  it('keeps the connection when QuiescoRoot is unmounted and mounted again in the same commit; stops one tick after the last unmount', async () => {
+    const { rt, sockets } = setup();
+    rt.mount(null);
+    sockets[0]!.open();
+    rt.unmount();
+    rt.mount(null); // e.g. expo-router remounting the root layout after a soft reset
+    await vi.advanceTimersByTimeAsync(10);
+    expect(sockets).toHaveLength(1);
+    expect(sockets[0]!.closed).toBeNull();
+
+    rt.unmount();
+    expect(sockets[0]!.closed).toBeNull();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(sockets[0]!.closed).toMatchObject({ code: 1000 });
+  });
+
   it('query returns element summaries after waiting for idle', async () => {
     const { target, call } = setup();
     const commit = sameRoot(target);

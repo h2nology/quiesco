@@ -35,7 +35,10 @@ export interface LocateResult {
   windowIndex?: number;
   windowCount?: number;
   windowClass?: string;
-  /** iOS: a view controller transition or a Core Animation is running on the view or an ancestor. */
+  /**
+   * iOS: touches may be dropped or land elsewhere right now — a view controller transition, a Core
+   * Animation on the view or an ancestor, or the software keyboard sliding in / out.
+   */
   settling?: boolean;
 }
 
@@ -58,6 +61,11 @@ export interface QuiescoNativeModule {
    * confirmation alert of `simctl openurl`). Android opens deep links from the host (`am start`).
    */
   openUrl?(url: string): Promise<{ opened: boolean }>;
+  /**
+   * iOS only, synchronous: native UI still settling (view controller transition, keyboard moving or
+   * just used), sampled every frame. Used by the agent's `native` idle tracker.
+   */
+  idleState?(): { settling: boolean; reasons: string[] };
 }
 
 export const QuiescoNative: QuiescoNativeModule | null = requireOptionalNativeModule<QuiescoNativeModule>('QuiescoNative');

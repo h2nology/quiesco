@@ -20,6 +20,7 @@ import type {
 
 import * as js from './actions/js';
 import { fromNativeError, nativePerformer } from './actions/native';
+import { NativeSettleTracker } from './sync/native-settle';
 import type { NativeBridge } from './actions/native';
 import { hostPerformer } from './actions/host';
 import { jsPerformer } from './actions/performer';
@@ -84,6 +85,8 @@ export class AgentRuntime {
   private mounted = 0;
   private remount: (() => void) | null = null;
   private native: ReturnType<AppDeps['nativeModule']> | undefined;
+  /** Pending stop after the last QuiescoRoot unmounted (see unmount). */
+  private stopTimer: unknown = null;
   /** Original console methods, captured before the event forwarder wraps them. */
   private readonly log: (message: string) => void;
 
@@ -110,6 +113,11 @@ export class AgentRuntime {
   /** QuiescoRoot mounted: restrict queries to its subtree, report setup problems, connect. */
   mount(scopeComponent: unknown): void {
     this.mounted++;
+    if (this.stopTimer !== null) {
+      // Remounted in the same commit (see unmount): keep the connection.
+      this.clock.clearTimeout(this.stopTimer);
+      this.stopTimer = null;
+    }
     this.adapter.setScope(scopeComponent);
     const problems = [...this.adapter.diagnostics().problems];
     const late = this.adapter.checkRendererSeen();
@@ -151,9 +159,19 @@ export class AgentRuntime {
     };
   }
 
+  /**
+   * The connection stops one tick after the last QuiescoRoot unmounts. A root that is unmounted and
+   * mounted again in the same commit (expo-router remounts the root layout after a soft reset on iOS;
+   * navigation or theme libraries re-keying the tree do the same) keeps its connection, and with it
+   * the in-flight request (e.g. the reset) that caused the remount.
+   */
   unmount(): void {
     if (--this.mounted > 0) return;
-    this.client?.stop();
+    if (this.stopTimer !== null) this.clock.clearTimeout(this.stopTimer);
+    this.stopTimer = this.clock.setTimeout(() => {
+      this.stopTimer = null;
+      if (this.mounted <= 0) this.client?.stop();
+    }, 0);
   }
 
   configure(config: AgentConfig): void {
@@ -404,6 +422,7 @@ export class AgentRuntime {
       new ReactTracker(this.adapter),
       (this.idleCallbacks = new IdleCallbackTracker({ target: this.global })),
       this.frames,
+      new NativeSettleTracker(() => this.nativeModule()),
     ];
   }
 }

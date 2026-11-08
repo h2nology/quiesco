@@ -57,6 +57,11 @@ export interface IosDeviceConfig {
   bootTimeoutMs?: number;
   /** Shut down a simulator Quiesco booted when the session ends. Default false (faster reruns). */
   shutdown?: boolean;
+  /**
+   * Turn off password AutoFill on the simulator, so iOS never covers the app with its "Save Password?"
+   * sheet after a login form is submitted. Default true.
+   */
+  disablePasswordAutoFill?: boolean;
 }
 
 /** What to open in the browser: a static export served by Quiesco, or a running dev server. */

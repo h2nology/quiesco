@@ -116,6 +116,13 @@ describe('nativePerformer', () => {
     await vi.advanceTimersByTimeAsync(100);
     await a;
     expect(b.tap).not.toHaveBeenCalled();
+
+    const ios = bridge([{ windowHasFocus: false, hitClass: 'NavigationBarContentView' }]);
+    const i = setup(ios);
+    const ri = i.p.tap(i.target);
+    const ai = expect(ri).rejects.toMatchObject({ errorName: 'ELEMENT_OBSCURED', message: expect.stringContaining('the touch would reach NavigationBarContentView') });
+    await vi.advanceTimersByTimeAsync(100);
+    await ai;
   });
 
   it('fails with ELEMENT_OBSCURED when another element covers the center', async () => {
@@ -140,6 +147,23 @@ describe('nativePerformer', () => {
     // Taps at the first check that is not settling and has the same position as the previous one.
     expect(b.locate).toHaveBeenCalledTimes(4);
     expect(b.tap).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits while the native view is not in a window yet (e.g. a Modal being presented); fails with ELEMENT_NOT_FOUND at the deadline', async () => {
+    const b = bridge([{ found: false }, { found: false }, {}, {}]);
+    const { p, target } = setup(b);
+    const done = p.tap(target);
+    await vi.advanceTimersByTimeAsync(200);
+    await done;
+    expect(b.tap).toHaveBeenCalledTimes(1);
+
+    const gone = bridge([{ found: false }]);
+    const g = setup(gone);
+    const r = g.p.tap(g.target);
+    const a = expect(r).rejects.toMatchObject({ errorName: 'ELEMENT_NOT_FOUND' });
+    await vi.advanceTimersByTimeAsync(6000);
+    await a;
+    expect(gone.tap).not.toHaveBeenCalled();
   });
 
   it('maps native rejections: E_UNSUPPORTED → ACTION_NOT_SUPPORTED with a js-mode hint, E_NO_VIEW → ELEMENT_NOT_FOUND', async () => {

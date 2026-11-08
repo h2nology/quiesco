@@ -15,6 +15,21 @@ public class QuiescoNativeModule: Module {
   public func definition() -> ModuleDefinition {
     Name("QuiescoNative")
 
+    OnCreate {
+      KeyboardMotion.shared.start()
+      DispatchQueue.main.async { NativeSettleMonitor.shared.start() }
+    }
+
+    /**
+     * Synchronous (JS thread): whether native UI is still settling — a view controller transition in
+     * a window (navigation push / pop, Modal presentation) or the keyboard moving / just used. Sampled
+     * on the main thread every frame; read by the agent's `native` idle tracker.
+     */
+    Function("idleState") { () -> [String: Any] in
+      let s = NativeSettleMonitor.shared.snapshot()
+      return ["settling": !s.isEmpty, "reasons": s]
+    }
+
     // docs/spikes/05: `xcrun simctl launch <udid> <bundle> -quiescoPort <p> -quiescoSession <id>`;
     // "-key value" launch arguments land in UserDefaults' NSArgumentDomain.
     Function("getLaunchParams") { () -> [String: String?] in
@@ -40,6 +55,8 @@ public class QuiescoNativeModule: Module {
       }
       let (window, point) = resolved
       var handled = true
+      // Phase 4.5 experiment: the first touch after the keyboard appears is swallowed; prime with a
+      // cancelled touch (a cancelled touch never completes a tap, even if delivered).
       func one(_ i: Int) {
         handled = (QSTouchInjector.touchDown(at: point, in: window, tapCount: UInt(i + 1)) != nil) && handled
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(holdMs)) {
@@ -101,6 +118,7 @@ public class QuiescoNativeModule: Module {
         field.deleteBackward()
       }
       field.insertText(text)
+      KeyboardMotion.shared.touch()
       let current = field.textRange(from: field.beginningOfDocument, to: field.endOfDocument).flatMap { field.text(in: $0) } ?? ""
       promise.resolve(["text": current, "inputConnection": true, "focused": focused])
     }.runOnQueue(.main)
@@ -168,10 +186,15 @@ public class QuiescoNativeModule: Module {
     let windows = QSTouchInjector.windows()
     let transitioning = isTransitioning(window)
     let animating = hasRunningAnimation(view)
+    let keyboardMoving = KeyboardMotion.shared.moving || KeyboardMotion.shared.recentlyActive
     return [
       // UIKit ignores touches during a view controller transition (e.g. a Modal fading in), and a
       // Core Animation on the view or an ancestor changes what is on screen without a layout change.
-      "settling": transitioning || animating,
+      // The software keyboard slides in / out in its own window, which can cover the view mid-way, and
+      // iOS drops touches right after keyboard activity (KeyboardMotion.quietSeconds).
+      "settling": transitioning || animating || keyboardMoving,
+      "keyboardMoving": keyboardMoving,
+      "animatingLayers": runningAnimations(view),
       "transitioning": transitioning,
       "animating": animating,
       "found": true,
@@ -184,16 +207,31 @@ public class QuiescoNativeModule: Module {
       "windowCount": windows.count,
       "windowClass": String(describing: type(of: window)),
       "hitClass": top.map { String(describing: type(of: $0)) } ?? "",
+      // Diagnostics for ELEMENT_OBSCURED: the hit view up to its window, and the presented controllers.
+      "hitChain": top.map(superviewChain) ?? [],
+      "presented": presentedChain(window),
     ]
   }
 
   /** A view controller of this window is being presented / dismissed, or has a running transition. */
   static func isTransitioning(_ window: UIWindow) -> Bool {
-    var vc = window.rootViewController
-    while let cur = vc {
-      if cur.transitionCoordinator != nil || cur.isBeingPresented || cur.isBeingDismissed { return true }
-      for child in cur.children where child.transitionCoordinator != nil { return true }
-      vc = cur.presentedViewController
+    guard let root = window.rootViewController else { return false }
+    return isTransitioning(root, depth: 0)
+  }
+
+  /**
+   * The whole view controller tree: react-native-screens nests its UINavigationController several
+   * levels below the root, and UIKit refuses to present a Modal while a push / pop is running (the
+   * Modal then never appears), so a tap must wait for those transitions too.
+   */
+  static func isTransitioning(_ vc: UIViewController, depth: Int) -> Bool {
+    if depth > 32 { return false }
+    if vc.transitionCoordinator != nil || vc.isBeingPresented || vc.isBeingDismissed || vc.isMovingToParent || vc.isMovingFromParent {
+      return true
+    }
+    for child in vc.children where isTransitioning(child, depth: depth + 1) { return true }
+    if let presented = vc.presentedViewController, presented.presentingViewController === vc {
+      return isTransitioning(presented, depth: depth + 1)
     }
     return false
   }
@@ -208,6 +246,40 @@ public class QuiescoNativeModule: Module {
     return false
   }
 
+  static func superviewChain(_ view: UIView) -> [String] {
+    var out: [String] = []
+    var v: UIView? = view
+    while let cur = v, out.count < 12 {
+      let f = cur.frame
+      out.append("\(String(describing: type(of: cur)))(\(Int(f.minX)),\(Int(f.minY)),\(Int(f.width))x\(Int(f.height)))")
+      v = cur.superview
+    }
+    return out
+  }
+
+  static func presentedChain(_ window: UIWindow) -> [String] {
+    var out: [String] = []
+    var vc = window.rootViewController
+    while let cur = vc, out.count < 8 {
+      out.append(String(describing: type(of: cur)))
+      vc = cur.presentedViewController
+    }
+    return out
+  }
+
+  /** Diagnostics: "<view class>: <animation keys>" for the view and its ancestors. */
+  static func runningAnimations(_ view: UIView) -> [String] {
+    var out: [String] = []
+    var v: UIView? = view
+    while let cur = v {
+      if let keys = cur.layer.animationKeys(), !keys.isEmpty {
+        out.append("\(String(describing: type(of: cur))): \(keys.joined(separator: ","))")
+      }
+      v = cur.superview
+    }
+    return out
+  }
+
   static func findTextInput(_ view: UIView) -> (UIView & UITextInput)? {
     if let f = view as? UITextField { return f }
     if let t = view as? UITextView { return t }
@@ -215,5 +287,93 @@ public class QuiescoNativeModule: Module {
       if let f = findTextInput(sub) { return f }
     }
     return nil
+  }
+}
+
+/**
+ * Whether the software keyboard is sliding in or out: between UIKeyboardWill{Show,Hide} and the matching
+ * Did notification. Its window covers part of the screen while it moves; afterwards a hit test sees
+ * its final frame.
+ */
+final class KeyboardMotion {
+  static let shared = KeyboardMotion()
+  private(set) var moving = false
+  /** Between UIKeyboardWillShow and UIKeyboardDidHide. */
+  private(set) var visible = false
+  /**
+   * iOS ignores touches outside the keyboard shortly after keyboard activity (typing, the keyboard
+   * appearing or changing): measured on iOS 27, a tap 0 ms after typing is dropped, 300 ms later it
+   * is delivered. Taps wait until the keyboard has been quiet for this long.
+   */
+  static let quietSeconds: CFTimeInterval = 0.4
+  private var lastActivity: CFTimeInterval = 0
+
+  /** Keyboard input happened (typeText) or the keyboard changed. */
+  func touch() {
+    lastActivity = CACurrentMediaTime()
+  }
+
+  /** Within the quiet period after keyboard activity, while the keyboard is shown. */
+  var recentlyActive: Bool {
+    visible && CACurrentMediaTime() - lastActivity < Self.quietSeconds
+  }
+  private var observers: [NSObjectProtocol] = []
+
+  func start() {
+    guard observers.isEmpty else { return }
+    let center = NotificationCenter.default
+    observers.append(center.addObserver(forName: UIResponder.keyboardWillShowNotification, object: nil, queue: .main) { [weak self] _ in
+      self?.moving = true
+      self?.visible = true
+      self?.touch()
+    })
+    observers.append(center.addObserver(forName: UIResponder.keyboardWillHideNotification, object: nil, queue: .main) { [weak self] _ in self?.moving = true; self?.touch() })
+    observers.append(center.addObserver(forName: UIResponder.keyboardDidShowNotification, object: nil, queue: .main) { [weak self] _ in self?.moving = false; self?.touch() })
+    // The keyboard also changes height while shown (e.g. a secure field switches the suggestion bar).
+    observers.append(center.addObserver(forName: UIResponder.keyboardWillChangeFrameNotification, object: nil, queue: .main) { [weak self] _ in self?.moving = true; self?.touch() })
+    observers.append(center.addObserver(forName: UIResponder.keyboardDidChangeFrameNotification, object: nil, queue: .main) { [weak self] _ in self?.moving = false; self?.touch() })
+    observers.append(center.addObserver(forName: UIResponder.keyboardDidHideNotification, object: nil, queue: .main) { [weak self] _ in
+      self?.moving = false
+      self?.visible = false
+      self?.touch()
+    })
+  }
+}
+
+/**
+ * Samples native settling state on the main thread every frame (CADisplayLink) and publishes it for
+ * synchronous reads from the JS thread. UIKit state must not be read off the main thread.
+ */
+final class NativeSettleMonitor: NSObject {
+  static let shared = NativeSettleMonitor()
+  private var link: CADisplayLink?
+  private let lock = NSLock()
+  private var reasons: [String] = []
+
+  /** Main thread. */
+  func start() {
+    guard link == nil else { return }
+    let l = CADisplayLink(target: self, selector: #selector(tick))
+    l.add(to: .main, forMode: .common)
+    link = l
+    tick()
+  }
+
+  @objc private func tick() {
+    var r: [String] = []
+    for w in QSTouchInjector.windows() where QuiescoNativeModule.isTransitioning(w) {
+      r.append("view controller transition in \(String(describing: type(of: w)))")
+    }
+    if KeyboardMotion.shared.moving { r.append("keyboard moving") } else if KeyboardMotion.shared.recentlyActive { r.append("keyboard just used") }
+    lock.lock()
+    reasons = r
+    lock.unlock()
+  }
+
+  /** Any thread. Empty when settled. */
+  func snapshot() -> [String] {
+    lock.lock()
+    defer { lock.unlock() }
+    return reasons
   }
 }

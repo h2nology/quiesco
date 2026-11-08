@@ -1,0 +1,14 @@
+{
+  "build": {
+    "e2e": {
+      "env": { "EXPO_PUBLIC_QUIESCO": "1" },
+      "ios": { "simulator": true },
+      "android": { "buildType": "apk" }
+    },
+    "e2e-dev": {
+      "extends": "e2e",
+      "developmentClient": true,
+      "distribution": "internal"
+    }
+  }
+}

@@ -200,3 +200,14 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 ## Phase 4.4（2026-11-08）
 - **simctl**：`simctl privacy` 在 Xcode 27 没有 `camera` / `notifications` 服务 ⇒ 这两个权限在 iOS 模拟器上只能警告跳过；授权会终止正在运行的 App（Session 先授权后启动，顺序无碍）。`simctl io screenshot -` 不能输出到 stdout ⇒ 写临时文件再读。
 - **断言把 ASSERTION_FAILED 报成 SYNC_TIMEOUT（平台无关的竞态 bug，已修）**：assert 每次重试前用「剩余时间」做同步；最后一轮只剩十几 ms，frame-stable 需要 2 帧（约 33ms）⇒ 同步超时盖掉断言失败。iOS 硬重置后稳定复现（Android 同脚本也能复现时机）。修复：同一次 assert 中已经同步成功过一次后，因截止时间不够导致的 SYNC_TIMEOUT 不再抛出，照常评估并报 ASSERTION_FAILED；从未空闲过仍报 SYNC_TIMEOUT。iOS / Android 复现脚本 A–D 全部变为 ASSERTION_FAILED。
+
+## Phase 4.5 iOS 示例 App 跑通过程中的发现（2026-11-08，进行中）
+- **软重置时 QuiescoRoot 被卸载再挂载（已修 agent）**：登录状态下软重置，expo-router 会重新挂载根 layout，QuiescoRoot 的 effect 清理把挂载计数降到 0 → `client.stop()` 以 1000 关闭连接 → reset 报 AGENT_DISCONNECTED（10/10 复现，JS 上下文不变）。修复：最后一次 unmount 后延迟一个 tick 再 stop，同一次提交内重新 mount 则取消。修复后 10/10 成功、连接不变（约 150ms）。
+- **iOS 26+ 内容画到导航栏下（示例 App 已修）**：SafeAreaView(top) 只得到状态栏高度（62pt），不含导航栏；改为全平台 `headerTransparent: true` + `useHeaderHeight()`（`expo-router/react-navigation` 公开导出）作为 paddingTop。
+- **键盘滑入期间误判遮挡（已修 native）**：KeyboardMotion 监听 keyboardWill/Did{Show,Hide}，期间 settling=true（约 450ms）。
+- **Modal 内容未进入窗口时立即报 ELEMENT_NOT_FOUND（已修 agent）**：`found: false` 改为等到截止时间。
+- **导航转场检测只看第一层子 VC（已修 native）**：改为递归遍历整个 VC 树（含 isMovingTo/FromParent）。
+- **ELEMENT_OBSCURED 带原生诊断（新增）**：data.native = { hitClass, hitChain（命中视图到窗口的父链）, presented（present 链）, settling… }，消息中写出「the touch would reach <class>」。
+- **iOS「保存密码？」系统对话框（已修 provider，HU 选方案：provider 关闭自动填充）**：提交含 secureTextEntry 的表单后，系统在 `UITextEffectsWindow` 弹出 Passwords 保存提示，遮住整个 App，且不受软重置影响 ⇒ 连锁失败。App 侧 `textContentType="none"` / `autoComplete="off"` 无效。IosProvider.boot 用 plutil 把模拟器 3 个配置描述文件的 `restrictedBool.allowPasswordAutoFill.value` 设为 NO（与 MDM 限制相同；来源 Detox issue #3761），无需重启即生效；`devices.ios.disablePasswordAutoFill: false` 可关闭。
+- **键盘活动后的触摸被丢弃（已修 native）**：iOS 27 上，键盘活动（输入文字、键盘出现 / 改变高度）后 0ms 的触摸不会到达 App，300ms 后可以（实测 0ms ×2 失败、300/600/1000ms 全部成功；与按住时长无关，KIF 的 HID 构造与我们相同，sender ID 无效）。修复：KeyboardMotion 记录 typeText 与全部键盘通知（含 WillChangeFrame / DidChangeFrame），之后 400ms 内 settling=true。
+- **原生 UI 转场未纳入同步（已修：新增 `native` tracker）**：软重置后 Stack 重新挂载期间 `loginAs` 触发的导航被 UIKit / react-native-screens 丢掉 ⇒ JS 在待办画面、原生停在空白登录画面。`NativeSettleMonitor` 用 CADisplayLink 每帧在主线程采样（任一窗口 VC 转场、键盘移动 / 刚用过），`Function("idleState")` 同步读取；agent 的 `NativeSettleTracker`（按能力，无此函数即 idle）让所有同步点等待。之后 iOS 全量 3/3 通过。

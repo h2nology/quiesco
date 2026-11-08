@@ -36,6 +36,13 @@ const IOS_PRIVACY: Partial<Record<Permission, string[]>> = {
   calendar: ['calendar'],
 };
 
+/** Configuration-profile files holding the effective restrictions, relative to the simulator data directory. */
+export const IOS_RESTRICTION_FILES: readonly string[] = [
+  'Containers/Shared/SystemGroup/systemgroup.com.apple.configurationprofiles/Library/ConfigurationProfiles/UserSettings.plist',
+  'Library/UserConfigurationProfiles/EffectiveUserSettings.plist',
+  'Library/UserConfigurationProfiles/PublicInfo/PublicEffectiveUserSettings.plist',
+];
+
 /** expo-dev-menu preferences as launch arguments: no menu / onboarding / floating button at launch. */
 export const IOS_DEV_MENU_ARGS: readonly string[] = [
   '-EXDevMenuShowsAtLaunch', 'NO',
@@ -48,6 +55,8 @@ export interface SimDevice {
   udid: string;
   name: string;
   state: string;
+  /** The simulator's data directory (`~/Library/Developer/CoreSimulator/Devices/<udid>/data`). */
+  dataPath?: string;
   /** Runtime identifier, e.g. `com.apple.CoreSimulator.SimRuntime.iOS-27-0`. */
   runtime: string;
 }
@@ -114,9 +123,11 @@ export class IosProvider implements DeviceProvider {
   /** Available simulators from `simctl list devices available --json`. */
   async devices(): Promise<SimDevice[]> {
     const json = JSON.parse(await this.simctl(['list', 'devices', 'available', '--json'])) as {
-      devices: Record<string, { udid: string; name: string; state: string; isAvailable?: boolean }[]>;
+      devices: Record<string, { udid: string; name: string; state: string; dataPath?: string; isAvailable?: boolean }[]>;
     };
-    return Object.entries(json.devices).flatMap(([runtime, ds]) => ds.map((d) => ({ udid: d.udid, name: d.name, state: d.state, runtime })));
+    return Object.entries(json.devices).flatMap(([runtime, ds]) =>
+      ds.map((d) => ({ udid: d.udid, name: d.name, state: d.state, runtime, ...(d.dataPath !== undefined ? { dataPath: d.dataPath } : {}) })),
+    );
   }
 
   async boot(): Promise<void> {
@@ -134,6 +145,27 @@ export class IosProvider implements DeviceProvider {
     await this.simctl(['bootstatus', this.sim.udid, '-b'], timeoutMs).catch((e: unknown) => {
       throw new QuiescoError('DEVICE_ERROR', `iOS simulator ${this.sim?.name} did not finish booting within ${timeoutMs}ms: ${(e as Error).message}`);
     });
+    if (cfg.disablePasswordAutoFill !== false) await this.disablePasswordAutoFill();
+  }
+
+  /**
+   * Turn off password AutoFill on the simulator, as the MDM restriction `allowPasswordAutoFill` does.
+   * Otherwise submitting a form with a secure text field makes iOS show its "Save Password?" sheet in a
+   * system window above the app, which no app reset dismisses: every later touch is obscured. App-side
+   * `textContentType` / `autoComplete` do not prevent it (iOS 27). Takes effect without a reboot.
+   */
+  private async disablePasswordAutoFill(): Promise<void> {
+    const data = this.sim?.dataPath;
+    if (data === undefined) {
+      this.logger.warn('cannot find the simulator data directory; password AutoFill stays on (iOS may show "Save Password?" sheets)');
+      return;
+    }
+    for (const rel of IOS_RESTRICTION_FILES) {
+      const file = path.join(data, rel);
+      await this.exec('plutil', ['-replace', 'restrictedBool.allowPasswordAutoFill.value', '-bool', 'NO', file]).catch((e: unknown) =>
+        this.logger.debug(`password AutoFill: ${rel} not updated (${(e as Error).message})`),
+      );
+    }
   }
 
   async install(): Promise<void> {

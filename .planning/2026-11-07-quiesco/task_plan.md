@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-4.4 完成（未提交），待 HU 确认后进入 4.5（示例 App iOS 配置 / 布局修复 / eas.json）。
+4.5 完成（未提交；示例 App src/e2e.ts 的临时探针不提交），待 HU 确认后进入 4.6（cucumber --parallel）。
 
 ## Current Phase
 Phase 4
@@ -120,7 +120,7 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 - [x] 4.2 agent：坐标无需平台分支（原生侧直接返回窗口坐标 pt / dp）；`openUrl` 在原生模块具备 `openUrl` 能力时于 App 内打开（按能力判断，不按平台）；`pressBack` 仍交给 Host，由 4.4 的 iOS provider 报 `ACTION_NOT_SUPPORTED` 并提示改用业务返回操作（§12：平台分支留在 provider）
 - [x] 4.3 `@quiesco/expo-plugin`：把 `packages/native/app.plugin.js` 迁入并补 iOS ——非 e2e：Podfile 注入 `use_expo_modules!(exclude: ['@quiesco/native'])`；e2e：确认 ATS `NSAllowsLocalNetworking`；dev client 启动参数常量共用。示例 App 改用 `"@quiesco/expo-plugin"`；单元测试覆盖两种模式的 Podfile / settings.gradle / manifest 结果
 - [x] 4.4 core `IosProvider`（`xcrun simctl`）：按名称 / UDID / runtime 选模拟器，`boot` + `bootstatus -b`；`install` .app；`launch` 用进程参数 `-quiescoPort/-quiescoSession`，dev client 用 `--initialUrl`（带 `__expo_disable_onboarding/fab/auto_launch`）；`terminate`、`privacy grant` 权限映射（不支持的给警告）、`io screenshot`、硬重置（terminate + 清 App 容器 / 重装）；连接超时诊断。单元测试用假 exec 校验命令
-- [ ] 4.5 示例 App：`ios` 配置与 `build:ios`（simulator Debug dev client）/ `test:e2e:ios` 脚本；`eas.json` 的 `e2e` profile（iOS simulator build、Android APK、`EXPO_PUBLIC_QUIESCO=1`）
+- [x] 4.5 示例 App：`ios` 配置与 `build:ios`（simulator Debug dev client）/ `test:e2e:ios` 脚本；`eas.json` 的 `e2e` profile（iOS simulator build、Android APK、`EXPO_PUBLIC_QUIESCO=1`）
 - [ ] 4.6 cucumber `--parallel`：worker N 用端口 base+N（已有）＋各自的设备（iOS：`simctl clone` 出 worker 专用模拟器；Android：`devices.android.serials[]` / 多 AVD；Web：独立 browser）；示例 mock 后端每 worker 一个端口（3001+N），App 通过 e2e backdoor `setApiBase` 切换（Android 对应 `adb reverse`）
 - [ ] 4.7 生产剔除检查脚本 `scripts/check-prod-strip.mjs`：生产模式 `expo export --platform all` 后在 JS / Hermes 字节码中 grep agent 特征串；iOS Release simulator 构建后 `nm` 查 `QSTouchInjector`、`IOHIDEventCreateDigitizerEvent`；Android release APK 查 `QuiescoNative`（R8 不混淆的 Module 名）；带 e2e 对照组。接入哪个 CI 由 §11-4 决定
 - [ ] 4.8 验收：iOS / Android / Chromium 三端 6 场景通过；iOS 连续 20 次；生产剔除检查通过（含对照组）；2 worker 并行 vs 串行耗时（iOS、Android、Web 三端实测）记入 `docs/benchmarks.md`；`pnpm run check`

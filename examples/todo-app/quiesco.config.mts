@@ -23,12 +23,24 @@ export default defineConfig({
       // The mock backend (mock-server/server.mjs) on the host's localhost.
       reversePorts: [3001],
     },
+    ios: {
+      bundleId: 'dev.quiesco.todo',
+      // Built by `pnpm build:ios` (simulator, Debug); installed before the run.
+      binaryPath: 'ios/build/Build/Products/Debug-iphonesimulator/QuiescoTodo.app',
+      // The simulator shares the Mac's network: Metro and the mock backend are on localhost as is.
+      devClient: { metroUrl: 'http://localhost:8082' },
+    },
     // Static export (`pnpm build:web`), or a running dev server with QUIESCO_WEB_URL.
     web: process.env['QUIESCO_WEB_URL'] !== undefined ? { url: process.env['QUIESCO_WEB_URL'] } : { distDir: 'dist' },
   },
   devices: {
     // Which emulator to use comes from the environment, never from this file.
     android: process.env['QUIESCO_AVD'] !== undefined ? { avd: process.env['QUIESCO_AVD'] } : {},
+    // Default: the booted simulator. QUIESCO_IOS_DEVICE (e.g. "iPhone 17") and QUIESCO_IOS_OS (e.g. "27.0") pick one.
+    ios: {
+      ...(process.env['QUIESCO_IOS_DEVICE'] !== undefined ? { device: process.env['QUIESCO_IOS_DEVICE'] } : {}),
+      ...(process.env['QUIESCO_IOS_OS'] !== undefined ? { os: process.env['QUIESCO_IOS_OS'] } : {}),
+    },
     web: { browser: 'chromium', viewport },
   },
   // actions.mode is not set: `native` (real touches) when the app has @quiesco/native, else `js`.

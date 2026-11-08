@@ -16,6 +16,35 @@ pnpm start:e2e
 pnpm test:e2e:android
 ```
 
+## Run the e2e tests on iOS (simulator, dev client)
+
+```sh
+# once: prebuild with EXPO_PUBLIC_QUIESCO=1 and build the simulator dev client (.app)
+pnpm build:ios
+
+# terminal 1: Metro in e2e mode
+pnpm start:e2e
+
+# terminal 2: run the features on the booted simulator (or pick one with QUIESCO_IOS_DEVICE / QUIESCO_IOS_OS)
+pnpm test:e2e:ios
+```
+
+The simulator shares the Mac's network, so Metro and the mock backend need no port forwarding. Quiesco
+installs the `.app`, launches it with the expo-dev-menu switched off (no menu, onboarding or floating
+button) and turns off password AutoFill on the simulator (`devices.ios.disablePasswordAutoFill`), so
+iOS's "Save Password?" sheet never covers the app after the login form.
+
+## EAS builds for e2e
+
+`eas.json` has an `e2e` profile (JS bundled in, `EXPO_PUBLIC_QUIESCO=1`, iOS simulator build, Android
+APK) for CI, and `e2e-dev` (the same as a dev client). Point `apps.ios.binaryPath` /
+`apps.android.binaryPath` at the downloaded build; drop `devClient` for the bundled `e2e` build.
+
+```sh
+eas build --profile e2e --platform ios
+eas build --profile e2e --platform android
+```
+
 The mock backend is started by `features/support/mock-server.ts`. Knobs for robustness checks:
 
 | Variable | Effect |
@@ -24,6 +53,7 @@ The mock backend is started by `features/support/mock-server.ts`. Knobs for robu
 | `MOCK_STALL="POST /login"` | that route never answers (to see a sync-timeout report) |
 | `EXPO_PUBLIC_TRANSITION_MS=1000` | screen transitions take 1 s (set when starting Metro) |
 | `QUIESCO_AVD=<name>` | AVD to use / boot |
+| `QUIESCO_IOS_DEVICE="iPhone 17"`, `QUIESCO_IOS_OS=27.0` | simulator to use / boot (default: the booted one) |
 | `QUIESCO_ACTION_MODE=js` | call component callbacks instead of injecting real touches |
 
 Actions use the `native` mode (real touches and IME text through `@quiesco/native`) because the app

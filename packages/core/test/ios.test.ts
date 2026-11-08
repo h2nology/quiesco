@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import type { Exec } from '../src/devices/exec';
-import { IOS_DEV_MENU_ARGS, IosProvider, chooseSimulator, runtimeMatches } from '../src/devices/ios';
+import { IOS_DEV_MENU_ARGS, IOS_RESTRICTION_FILES, IosProvider, chooseSimulator, runtimeMatches } from '../src/devices/ios';
 import type { IosProviderOptions, SimDevice } from '../src/devices/ios';
 
 const R27 = 'com.apple.CoreSimulator.SimRuntime.iOS-27-0';
@@ -91,6 +91,20 @@ describe('IosProvider', () => {
     expect(kept.calls).not.toContain('xcrun simctl shutdown AIR');
   });
 
+  it('turns password AutoFill off in the simulator restriction profiles (unless disabled)', async () => {
+    const withData = JSON.stringify({ devices: { [R27]: [{ udid: 'NEW-17', name: 'iPhone 17', state: 'Booted', dataPath: '/sim/NEW-17/data' }] } });
+    const x = fakeXcrun([[/list devices available --json/, withData]]);
+    const p = new IosProvider({ app: { bundleId: 'com.example.todo' }, exec: x.exec });
+    await p.boot();
+    expect(x.calls.filter((c) => c.startsWith('plutil'))).toEqual(
+      IOS_RESTRICTION_FILES.map((f) => `plutil -replace restrictedBool.allowPasswordAutoFill.value -bool NO /sim/NEW-17/data/${f}`),
+    );
+
+    const off = fakeXcrun([[/list devices available --json/, withData]]);
+    await new IosProvider({ app: { bundleId: 'com.example.todo' }, device: { disablePasswordAutoFill: false }, exec: off.exec }).boot();
+    expect(off.calls.some((c) => c.startsWith('plutil'))).toBe(false);
+  });
+
   it('installs the .app when given, else checks the app is installed', async () => {
     const withApp = provider([], { app: { bundleId: 'com.example.todo', binaryPath: '/abs/Todo.app' } });
     await withApp.p.boot();
@@ -135,7 +149,10 @@ describe('IosProvider', () => {
       'xcrun simctl privacy NEW-17 grant location com.example.todo',
       'xcrun simctl privacy NEW-17 grant photos com.example.todo',
     ]);
-    expect(warnings).toEqual([expect.stringContaining('"camera" cannot be pre-granted'), expect.stringContaining('"notifications" cannot be pre-granted')]);
+    expect(warnings.filter((w) => w.includes('pre-granted'))).toEqual([
+      expect.stringContaining('"camera" cannot be pre-granted'),
+      expect.stringContaining('"notifications" cannot be pre-granted'),
+    ]);
   });
 
   it('takes screenshots through a temporary file', async () => {

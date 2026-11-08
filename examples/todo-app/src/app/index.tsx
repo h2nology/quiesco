@@ -1,4 +1,5 @@
 import { Redirect } from 'expo-router';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -10,6 +11,7 @@ export default function Login() {
   const session = useStore((s) => s.session);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const headerHeight = useHeaderHeight();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -32,7 +34,7 @@ export default function Login() {
   };
 
   return (
-    <View style={styles.container} testID="login-screen">
+    <View style={[styles.container, { paddingTop: headerHeight + 24 }]} testID="login-screen">
       <TextInput testID="email" accessibilityLabel="邮箱" placeholder="邮箱" autoCapitalize="none" value={email} onChangeText={setEmail} style={styles.input} />
       <TextInput testID="password" accessibilityLabel="密码" placeholder="密码" secureTextEntry value={password} onChangeText={setPassword} style={styles.input} />
       {error !== null && (

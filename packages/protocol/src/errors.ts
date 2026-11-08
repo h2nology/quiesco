@@ -49,7 +49,8 @@ export interface ErrorDataMap {
   APP_ERROR: { message: string; stack?: string };
   RESET_FAILED: { step: string; message: string };
   /** A real touch would not reach the element: another element or window is on top of it. */
-  ELEMENT_OBSCURED: { matcher: Matcher; element: ElementSummary; obscuredBy: string };
+  /** `native`: what the native hit test saw (iOS: hit view and its superviews, presented view controllers). */
+  ELEMENT_OBSCURED: { matcher: Matcher; element: ElementSummary; obscuredBy: string; native?: Record<string, unknown> };
 }
 
 export interface QuiescoErrorObject<N extends ErrorName = ErrorName> {

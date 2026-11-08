@@ -30,12 +30,16 @@ export interface NativeBridge {
     windowHasFocus?: boolean;
     /** iOS: a view controller transition or a Core Animation is running; touches may be dropped. */
     settling?: boolean;
+    /** iOS: class of the native view a touch at the center would reach. */
+    hitClass?: string;
   }>;
   tap(tag: number, x: number, y: number, holdMs: number, count: number): Promise<{ handled: boolean }>;
   swipe(tag: number, fromX: number, fromY: number, toX: number, toY: number, durationMs: number): Promise<{ handled: boolean }>;
   typeText(tag: number, text: string, replace: boolean): Promise<{ text: string }>;
   /** Present when the module can open a URL inside the app (iOS: no system confirmation alert). */
   openUrl?(url: string): Promise<{ opened: boolean }>;
+  /** iOS: native UI settling, sampled every frame (see sync/native-settle.ts). */
+  idleState?(): { settling: boolean; reasons: string[] };
 }
 
 export interface NativeContext {
@@ -160,12 +164,21 @@ export function nativePerformer(ctx: NativeContext): ActionPerformer {
     for (;;) {
       const loc = await bridge.locate(tag);
       if (!loc.found || loc.x === undefined || loc.y === undefined || loc.width === undefined || loc.height === undefined) {
-        throw new QuiescoError('ELEMENT_NOT_FOUND', 'The element has no native view (unmounted?)', { matcher: ctx.matcher });
+        // Rendered by React but not (yet) in a window, e.g. the content of a Modal being presented.
+        if (clock.now() < ctx.deadline) {
+          prev = null;
+          await sleep(STABLE_POLL_MS);
+          continue;
+        }
+        throw new QuiescoError('ELEMENT_NOT_FOUND', 'The element has no native view in a window (unmounted?)', { matcher: ctx.matcher });
       }
       const rect = { x: loc.x, y: loc.y, width: loc.width, height: loc.height };
       const same = loc.settling !== true && prev !== null && Math.abs(prev.x - rect.x) < 0.5 && Math.abs(prev.y - rect.y) < 0.5 && Math.abs(prev.width - rect.width) < 0.5;
       if (same || clock.now() >= ctx.deadline) {
-        if (loc.windowHasFocus === false) throw obscured(node, 'another window (e.g. a Modal or dialog)');
+        if (loc.windowHasFocus === false) {
+          const what = loc.hitClass !== undefined && loc.hitClass !== '' ? ` (the touch would reach ${loc.hitClass})` : '';
+          throw obscured(node, `another window or native view, e.g. a Modal, dialog or navigation bar${what}`, loc);
+        }
         const top = hitTest(ctx.roots(), center(node.measure() ?? rect));
         if (top !== null && !isAncestor(node, top)) throw obscured(node, describe(top));
         return { tag, rect };
@@ -175,11 +188,12 @@ export function nativePerformer(ctx: NativeContext): ActionPerformer {
     }
   };
 
-  const obscured = (node: HostNode, by: string): QuiescoError =>
+  const obscured = (node: HostNode, by: string, native?: Record<string, unknown>): QuiescoError =>
     new QuiescoError('ELEMENT_OBSCURED', `${describe(node)} is covered by ${by}; a real touch would not reach it`, {
       matcher: ctx.matcher,
       element: summarize(node, ctx.viewport()),
       obscuredBy: by,
+      ...(native !== undefined ? { native } : {}),
     });
 
   /** Finger drag inside the element, in its window coordinates. */

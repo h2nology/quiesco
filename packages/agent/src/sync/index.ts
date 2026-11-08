@@ -12,3 +12,5 @@ export { FrameStableTracker } from './frame-stable';
 export type { FrameStableTrackerOptions } from './frame-stable';
 export { SyncEngine } from './wait-for-idle';
 export type { WaitForIdleOptions } from './wait-for-idle';
+export { NativeSettleTracker } from './native-settle';
+export type { NativeSettleSource } from './native-settle';
