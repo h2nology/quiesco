@@ -266,6 +266,9 @@ importers:
       playwright:
         specifier: 1.65.0
         version: 1.65.0
+      quiesco:
+        specifier: workspace:*
+        version: link:../../packages/cli
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
@@ -279,6 +282,12 @@ importers:
       '@types/react':
         specifier: 19.3.0
         version: 19.3.0
+
+  packages/cli:
+    dependencies:
+      '@quiesco/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/core:
     dependencies:

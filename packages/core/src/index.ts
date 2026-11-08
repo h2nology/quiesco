@@ -11,6 +11,8 @@ export { consoleLogger, silentLogger } from './logger.js';
 export type { Logger } from './logger.js';
 export type { ElementQuery, MatcherInput, TextQuery } from './matcher.js';
 export { Session, createSession, createProvider } from './session.js';
+export { attachToRunningApp } from './attach.js';
+export type { AttachOptions, AttachedApp } from './attach.js';
 export { DEFAULT_TAGS, runsOnPlatform, tagNames } from './tags.js';
 export type { TagNames } from './tags.js';
 export type { Evidence, ScenarioInfo, SessionOptions } from './session.js';

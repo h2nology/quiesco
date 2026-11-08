@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-Phase 5 进行中：5.0 ✅ → 5.1 CLI → 5.2 权限 / 键盘 → 5.3 steps → 5.4 文档 → 5.5 验收。prod-strip.yml 待推送后实跑。
+Phase 5 进行中：5.0 ✅ → 5.1 ✅（init 实机验证放在 5.5） → 5.2 权限 / 键盘 → 5.3 steps → 5.4 文档 → 5.5 验收。prod-strip.yml 待推送后实跑。
 
 ## Current Phase
 Phase 5
@@ -137,7 +137,7 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 **HU 决定（2026-11-08）**：① 验收时用 `pnpm pack` 的 tarball 本地安装，README 按发布后的 `npm i -D quiesco …` 写并附「从源码使用」；② 目标被键盘遮挡时**自动收起键盘**再执行动作；③ steps 包提供中 / 日 / 英三种语言的步骤；④ 许可证 MIT（§11-1）。
 
 - [x] 5.0 Phase 4 遗留：「agent loaded after the React renderer」——真问题（release e2e 构建不可用），已修根因（agent early 模块由 withQuiesco 在 RN setup-env 之前执行）
-- [ ] 5.1 CLI 包 `quiesco`（`packages/cli`）：`test`（透传 cucumber-js）、`doctor`（环境与项目接入检查，✅/⚠️/❌ + 修复提示）、`tree`（起 server 等运行中的 App 重连后打印元素树，`--launch` 由 provider 启动）、`init`（依赖、plugin、metro、入口 import、配置、features 示例；不覆盖已有文件）；单元测试；depcruise：cli 不静态依赖 cucumber
+- [x] 5.1 CLI 包 `quiesco`（`packages/cli`）：`test`（透传 cucumber-js）、`doctor`（环境与项目接入检查，✅/⚠️/❌ + 修复提示）、`tree`（起 server 等运行中的 App 重连后打印元素树，`--launch` 由 provider 启动）、`init`（依赖、plugin、metro、入口 import、配置、features 示例；不覆盖已有文件）；单元测试；depcruise：cli 不静态依赖 cucumber
 - [ ] 5.2 权限与键盘：权限映射表文档 + 示例 App 授权场景；动作目标被键盘遮挡时自动收起键盘后再执行（三端），单元测试 + 实机
 - [ ] 5.3 `@quiesco/steps`：`registerQuiescoSteps()`，中 / 日 / 英三套步骤文本；文档注明只适合原型期（§6.11）
 - [ ] 5.4 文档：根 README（快速开始、MIT）、`LICENSE`、`docs/`（API 参考、同步机制、三端差异、故障排查、Driver 模式、CLI、steps）

@@ -19,6 +19,13 @@ module.exports = {
       to: { path: '^packages/(cucumber|web|steps|cli)/' },
     },
     {
+      name: 'cli-runs-cucumber-as-a-process',
+      comment: 'quiesco (cli) starts cucumber-js as a child process; it must not import a test runner or Playwright.',
+      severity: 'error',
+      from: { path: '^packages/cli/src/' },
+      to: { path: '(^|/node_modules/)(@cucumber|@playwright|playwright|playwright-core|jest|vitest|mocha)(/|$)' },
+    },
+    {
       name: 'no-playwright-test',
       comment: 'Use the `playwright` library, never `@playwright/test` (§5, §12).',
       severity: 'error',

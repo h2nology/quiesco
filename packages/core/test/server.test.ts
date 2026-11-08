@@ -31,6 +31,16 @@ describe('QuiescoServer handshake', () => {
     expect((await agent.hello).result?.sessionId).toBe('s1');
   });
 
+  it('an acceptAny session takes agents with a stale session id and anonymous ones', async () => {
+    const { server, port } = await start();
+    server.expectSession('attach', { acceptAny: true, acceptAnonymous: true });
+    const stale = connectAgent(port, { sessionId: 'from-an-earlier-run' });
+    expect((await stale.hello).result?.sessionId).toBe('attach');
+    const anonymous = connectAgent(port, { sessionId: null });
+    expect((await anonymous.hello).result?.sessionId).toBe('attach');
+    expect((await stale.closed).code).toBe(4003); // replaced by the newer connection
+  });
+
   it('refuses unknown sessions (4001) and wrong protocol versions (4002) with structured errors', async () => {
     const { server, port } = await start();
     server.expectSession('s1');

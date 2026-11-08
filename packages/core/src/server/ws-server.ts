@@ -122,6 +122,8 @@ export interface RejectedHello {
 
 interface Expected {
   acceptAnonymous: boolean;
+  /** Take any agent, whatever session it presents (`quiesco tree` attaching to a running app). */
+  acceptAny: boolean;
   connection: AgentConnection | null;
   waiters: ((c: AgentConnection) => void)[];
 }
@@ -165,9 +167,15 @@ export class QuiescoServer {
     await new Promise<void>((resolve) => wss.close(() => resolve()));
   }
 
-  /** Register a session the server will accept. */
-  expectSession(sessionId: string, options: { acceptAnonymous?: boolean } = {}): void {
-    if (!this.sessions.has(sessionId)) this.sessions.set(sessionId, { acceptAnonymous: options.acceptAnonymous ?? false, connection: null, waiters: [] });
+  /**
+   * Register a session the server will accept. `acceptAnonymous`: also agents without a session id
+   * (JS-only builds). `acceptAny`: any agent at all, e.g. an app a previous run launched with its own
+   * session id (refusing it would make the agent stop reconnecting).
+   */
+  expectSession(sessionId: string, options: { acceptAnonymous?: boolean; acceptAny?: boolean } = {}): void {
+    if (!this.sessions.has(sessionId)) {
+      this.sessions.set(sessionId, { acceptAnonymous: options.acceptAnonymous ?? false, acceptAny: options.acceptAny ?? false, connection: null, waiters: [] });
+    }
   }
 
   connection(sessionId: string): AgentConnection | null {
@@ -265,7 +273,10 @@ export class QuiescoServer {
   }
 
   private matchSession(received: string | null): string | null {
-    if (received !== null) return this.sessions.has(received) ? received : null;
+    if (received !== null && this.sessions.has(received)) return received;
+    const any = [...this.sessions.entries()].filter(([, s]) => s.acceptAny);
+    if (any.length === 1) return (any[0] as [string, Expected])[0];
+    if (received !== null) return null;
     const anonymous = [...this.sessions.entries()].filter(([, s]) => s.acceptAnonymous);
     return anonymous.length === 1 ? (anonymous[0] as [string, Expected])[0] : null;
   }

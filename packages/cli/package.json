@@ -1,0 +1,29 @@
+{
+  "name": "quiesco",
+  "version": "0.0.0",
+  "description": "Quiesco command line: init, test, doctor, tree",
+  "license": "UNLICENSED",
+  "type": "module",
+  "bin": {
+    "quiesco": "./dist/bin.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@quiesco/core": "workspace:*"
+  }
+}
