@@ -4,10 +4,10 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-全部 6 个阶段（Phase 0–5）完成并已提交。遗留：prod-strip.yml 与 ci.yml 推送后在 GitHub Actions 实跑；§11-5 npm 发布流程待 HU 决定；原生平台的全新项目流程未实跑。
+Phase 6 计划已确认（HU 2026-11-08）。下一步：6.1 Matcher 与断言扩充。
 
 ## Current Phase
-Phase 5
+Phase 6
 
 ## 工作约定（摘自 requirements.md §12，每个阶段都要遵守）
 - 按阶段推进，不跳阶段；每阶段开始前先输出实施计划，经确认后再写代码。
@@ -145,6 +145,71 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 - **验收：** 全新 create-expo-app 项目按 README 10 分钟内在任一平台跑通首个场景
 - **Status:** complete（2026-11-08）
 
+### Phase 6: 动作与设备能力超越 Detox
+**HU 要求（2026-11-08）**：把相对 Detox 缺少的能力全部补上，能优化的再优化，目标是功能比 Detox 全、体验比 Detox 好。
+**HU 决定（2026-11-08）**：① 重新做并行（6.12）；② iOS 系统弹窗先 spike XCUITest 辅助 runner 再定；③ 做真机（6.13）和 Pilot 类 LLM 驱动（6.14）；④ 按编号顺序执行，每个子阶段三端实跑后提交。
+**对标基线**：Detox 20.51.4（findings.md「调研 B」）。**原则**：Detox 里单平台独占的能力，Quiesco 尽量三端都做（做不到的写进 platforms.md 并报 ACTION_NOT_SUPPORTED + 原因）；每项能力都要有单元测试 + 示例 App 三端实跑；Detox 的已知痛点逐条对应一个可验证的改进。
+
+- [x] 6.0 调研：Detox API 全集与痛点、Quiesco 动作链路 → findings.md（调研 A / B）
+- [ ] 6.1 Matcher 与断言扩充（纯 JS，agent + core）
+  - Matcher：`id` 支持 RegExp；`type`（语义类型 button / input / text / image / switch / slider / scroll / list / picker / progress，三端统一映射，可加原生类名）；`has`（= withDescendant）；`not`；`within` 已有；`index` 已有并文档化排序规则（按树序，三端一致——Detox 的 atIndex 两端顺序不同）
+  - 断言：`expectVisible(t, { ratio })`（可见比例，默认任一像素可见 → 与 Detox 75% 对比写入文档）、`expectFocused`、`expectEnabled` / `expectDisabled`（Detox 没有）、`expectValue`（TextInput value / Switch / Slider 统一）、`expectLabel`、`expectChecked`（switch / checkbox / accessibilityState）
+  - 查询：`attributes(target)`（= getAttributes：text、label、value、enabled、focused、checked、rect、visibleRatio、type、testID、props 子集）
+- [ ] 6.2 元素动作补全（第一批，单指）
+  - `tap(t, { point | offset })`、`multiTap(t, n)`（doubleTap 保留为别名）、`longPress(t, { point, durationMs })`
+  - `replaceText(t, text)`（native：现有 replace 路径；js：onChangeText 直接设值）
+  - `pressKey(t, 'enter' | 'backspace' | 'tab' | …)`：iOS insertText("\n") / deleteBackward；Android InputConnection.sendKeyEvent / performEditorAction；Web keyboard.press；js：onSubmitEditing / onKeyPress。**修 Detox #4546：回车不依赖键盘按键可见**
+  - `scroll(t, dir, { distance, from })`、`scrollTo(t, 'top' | 'bottom' | 'left' | 'right')`（scrollTo edge）、`scrollToIndex(list, i)`（FlatList / SectionList / FlashList 的 scrollToIndex，三端——Detox 仅 Android）
+  - `swipe(t, dir, { speed, distance, from })`
+  - `drag(source, { to: target | point, holdMs, speed })`（长按拖拽排序；native 走 bridge.swipe 带按住阶段，Web 走现成 HostInput drag，js 档位报 ACTION_NOT_SUPPORTED 说明原因）
+  - 屏幕坐标动作：`tapAt({x,y})`、`longPressAt`（= device.tap，不按元素）
+- [ ] 6.3 值控件与无障碍动作
+  - `setValue(t, value)` 统一入口：Slider（onValueChange + onSlidingComplete）、Switch（onValueChange）、Picker（@react-native-picker/picker：onValueChange + selectedValue 校验）、DateTimePicker（@react-native-community/datetimepicker：onChange(event, date)，三端）、SegmentedControl；未知组件报 ACTION_NOT_SUPPORTED 并列出找到的回调
+  - native 档位：Slider 用真实拖动到比例位置（`adjustSlider(t, ratio)`）；iOS 原生 Picker / DatePicker 列滚动作为可选（spike 决定）
+  - `accessibilityAction(t, name)`（onAccessibilityAction，三端）
+- [ ] 6.4 多指手势（spike → 实现）
+  - spike：iOS QSTouchInjector 改多指（N 个 UITouch + 一个 hand event 多个 finger child）、Android MotionEvent 多 pointer、Web CDP `Input.dispatchTouchEvent` 两点；验证 RNGH Pinch / Rotation、react-native-maps / 图片查看器
+  - `pinch(t, scale, { speed, angle })`、`rotate(t, radians)`，三端（Detox pinch 仅 iOS）
+- [ ] 6.5 应用生命周期（DeviceProvider 扩展 + Driver 设备级 API `app.device.*`）
+  - `relaunch({ newInstance, url, args, clearData, reinstall, permissions })`（扩展 LaunchParams；iOS `-key value`、Android `--es`、Web query / init script）；App 内 `quiesco.launchArgs()` 读取
+  - `terminate()`、`sendToBackground()` / `bringToForeground()`（iOS simctl launch / Home 键注入，Android HOME + am start，Web visibilitychange / page.bringToFront）、`install()` / `uninstall()`
+  - `screenshot(name?)`、元素截图 `screenshot(t)`（按 rect 裁剪）
+  - `reversePort(port)` 运行时（Android）
+  - 运行时开关同步：`app.sync.disable()` / `enable()`、按 tracker 关闭（`disableTracker('timer')`）、运行时 `ignoreUrls` / `ignoreElements` 增删（Detox 只能全关，#1513）
+- [ ] 6.6 设备状态
+  - `setOrientation('portrait' | 'landscape')`（iOS 注入方向 / simctl、Android `settings put system user_rotation` + 关自动旋转、Web 视口宽高互换）
+  - `setLocation(lat, lon)`（simctl location set、`adb emu geo fix`、Playwright setGeolocation）
+  - `setPermission(name, 'grant' | 'revoke')` 运行时（三端，Detox 只能 launch 时且仅 iOS）
+  - `setAppearance('light' | 'dark')`、`setFontScale(n)`（Dynamic Type / font_scale）、`setLocale('ja-JP')`（iOS 重启带 -AppleLanguages、Android per-app locale、Web context locale）——Detox 仅 iOS 有 locale，其余没有
+  - `setStatusBar(...)`（simctl status_bar、Android SystemUI demo mode）
+  - 网络：`setUrlBlacklist`（运行时，进 network tracker 的忽略表）、`setNetwork('offline' | 'online')`（agent 层拦截 fetch / XHR 返回网络错误，三端一致；Web 另用 context.setOffline）
+  - `clipboard.set / get`（simctl pbcopy / pbpaste、Android `cmd clipboard`（spike）、Web context clipboard）
+- [ ] 6.7 系统集成（spike → 实现，逐项可降级）
+  - 推送：`sendNotification(payload)`（iOS simctl push 到前台 / 后台、点击通知进入；Android `cmd notification post` 或经 agent 调 expo-notifications 的接收路径——spike 决定）
+  - 生物识别：`biometrics.enroll(bool)` / `match()` / `fail()`（iOS notifyutil `com.apple.BiometricKit_Sim.*`；Android `adb emu finger touch`）——Detox 仅 iOS
+  - `shake()`（iOS 原生模块发 motionEnded；Android `adb emu sensor set acceleration`）、`clearKeychain()`（iOS simctl keychain reset；Android 等价为清除 App 数据）
+  - 系统弹窗：`system.tap({ text })` / `system.expectVisible`（Android uiautomator dump + input tap；iOS 进程外弹窗无法用进程内注入，spike 评估 XCUITest 辅助进程，否则以「预授权 + 运行时授权」规避并在文档说明）
+- [ ] 6.8 WebView（spike → 实现）
+  - `app.webview(t?).element({ css | xpath | id | text })`：agent 找到 react-native-webview 实例，经 injectJavaScript + 消息通道执行脚本 / 查询 DOM；动作（tap / type / replaceText / scrollIntoView）、断言（text / exists / visible）、`runScript`、`url()` / `title()`；WebView 内网络与页面加载纳入同步；Web 平台上 iframe 同 API
+- [ ] 6.9 证据与诊断（artifacts）
+  - 录像：iOS `simctl io recordVideo`、Android `screenrecord`（3 分钟分段）、Playwright recordVideo；策略 none / failing / all
+  - 设备日志：iOS `log stream --predicate` 按 App 过滤、Android `logcat --pid`、Web console；失败时附加
+  - 时间线：每步动作耗时、同步等待耗时与当时忙的 tracker，输出 Chrome trace JSON + 失败场景附 HTML 摘要（Detox 的 artifact 文档仍是 To be done）
+  - 失败元素树加高亮截图（目标 rect 叠框）
+- [ ] 6.10 运行器适配器与网络同步加固
+  - 官方 `@quiesco/jest`、`@quiesco/vitest`（session 生命周期、失败证据附件、tag → describe 过滤、串行校验）；README / docs 的手写示例改用适配器（Detox 只有 Jest）
+  - 验证并加固 network tracker：`expo/fetch`（SDK 56+ 全局 fetch 与直接 import 两种）、WebSocket 握手、EventSource——对应 Detox #4973（Android 网络同步失明）
+  - `@quiesco/steps` 增加新动作的中 / 日 / 英步骤
+- [ ] 6.11 验收与对比文档
+  - 示例 App 增加「能力演示」页面（列表拖拽排序、滑块、开关、选择器、日期、地图或可缩放图片、WebView、深链接、定位、通知、生物识别、横屏布局）及对应 features，三端实跑（单平台不支持的项用平台 tag）
+  - `docs/detox-comparison.md`：逐项对照表（Detox 20.51.4 vs Quiesco，三端支持情况、实测结果）+ 痛点对应改进的验证结果
+  - `pnpm run check` 全绿；三端回归 benchmarks 不退化
+- [ ] 6.12 并行执行（重做）：每个 worker 一台设备 / 一个浏览器 context；保留 Phase 4 的修复（Android 全部 read-only + 冷启动 -no-snapshot-load、install 前 force-stop、LaunchParamsStore）；解决「先串行（可写启动）后并行」被拒的问题（Phase 4 遗留，4.8 记录）；cucumber `--parallel`、Jest workers、Vitest 多文件三种运行器；iOS 20 次 / Android 5 次 / Web 5 次并行稳定性基准
+- [ ] 6.13 真机：Android 真机（adb，无 emulator 专属命令时逐项降级并报 ACTION_NOT_SUPPORTED + 原因）；iOS 真机（devicectl 安装 / 启动 / 传参、签名配置、网络连接改为局域网或 USB 转发，spike 先行）；**需要 HU 提供并连接真机**，验收前暂停确认
+- [ ] 6.14 LLM 驱动（对标 Detox Pilot）：`app.ai.perform('…')` / `app.ai.expect('…')`，以元素树 + 截图为上下文、Driver API 为工具；实现前先读 claude-api 技能确认当前模型与 SDK 用法；结果可「固化」为普通 step 代码（Detox 没有）；默认关闭，需配置 API key
+- **验收**：对照表中 Detox 的每一项都有对应能力（或写明替代方案）；示例 App 新 features 在 iOS / Android / Chromium 通过；Detox 单平台独占项在 Quiesco 中至少两端可用
+- **Status:** in_progress（6.0 完成，计划已确认，下一步 6.1）
+
 ## 待 HU 决定（requirements.md §11，遇到时暂停询问）
 | # | 事项 | 何时需要 | 状态 |
 |---|------|---------|------|
@@ -229,6 +294,8 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | 新增 `appErrors.ignore` / `ignoreDefaults` 与 `DEFAULT_IGNORED_APP_ERRORS`（默认忽略 Expo Router 静态 Web 的 `Requiring unknown module`），被忽略的错误记为警告；docs/known-issues.md | 实测无 Quiesco 时真实用户同样触发（ErrorUtils 记录到 FATAL），App 自行恢复；不忽略会让第一个导航场景误报失败 |
 | Android `boot()` 额外等待用户进入 RUNNING_UNLOCKED，超时提示 `adb reboot` | 实测用户卡在 BOOTING 时 `am start` 报「Activity class does not exist」 |
 | 示例 App Web 用 `web.output: 'static'`；三视口尺寸写在 quiesco.config（`QUIESCO_VIEWPORT`）；`QUIESCO_WEB_URL` 切换开发服务器 | §11-7、§6.13 |
+| Phase 6 对标 Detox 20.51.4，单平台独占能力尽量三端实现 | HU 2026-11-08：功能比 Detox 全、体验比 Detox 好 |
+| 重新做并行（6.12）、做真机（6.13）与 LLM 驱动（6.14）；iOS 系统弹窗先 spike | HU 2026-11-08 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

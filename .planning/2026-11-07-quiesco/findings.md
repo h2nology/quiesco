@@ -252,3 +252,43 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - **npm overrides**：同一个包既是直接依赖又在 overrides 中 ⇒ `EOVERRIDE`；npm 会把顶层 file: tarball（0.0.0）复用给其他包的 "0.0.0" 依赖，所以只需 pin 非直接依赖。pnpm / yarn 各自解析，需要全部 pin。
 - **模板首页的装饰动画**：`src/components/animated-icon(.web).tsx` 用 Reanimated `Keyframe` 做 4 分钟（`60*1000*4`）的旋转光晕，元素外接矩形每帧变化 ⇒ frame-stable 永远不稳定。
 - **`expo serve <dir>` 的 dir 是导出目录**（帮助文字写「项目目录」）：传项目目录会以静态方式托管该目录（日志「Starting static server in …」，全部 404）；传 `dist` 才是「Starting server in …/dist」并做 SSR。
+
+## Phase 6 调研 A：Quiesco 动作链路与扩展点（2026-11-08，读代码所得）
+
+**链路**：`Driver.<op>()` → `Driver.action()`（core/driver.ts L181-196）→ JSON-RPC `action` → agent `Runtime.action()`（runtime.ts L291-346）→ `resolveActionTarget`（同步 + 唯一可见 + 键盘遮挡则收起）→ performer（`js` / `native` / `host`）→ 原生内执行后 agent 同步；或返回 `HostInput` → `provider.injectInput()` → Driver `waitForIdle`。
+
+- protocol：`ActionSpec`（actions.ts L8-19）11 种；`HostInput`（L27-35）有 tap / type / drag / wheel / key / navigate / back —— **drag、key 已定义且 web 已实现，但 agent 从未产生**。错误码 1001–1014。
+- Driver 无任何设备级方法（relaunch / screenshot / background / orientation 均无）；actions 断线不重试。
+- agent performer 接口（actions/performer.ts L17-29）：tap / longPress / doubleTap / type / clear / scroll / swipe。scrollTo 在 agent 内循环，host performer 时退回 js 滚动。
+- js 档位：`press` 调 onPress 等（尊重 disabled）；`changeText` 调 onFocus / onChange / onChangeText；RNGH 手势不支持。
+- native 档位：`ready()` 稳定位置 + 窗口焦点 + JS hitTest → ELEMENT_OBSCURED；tap 永远点视图中心（x/y 传 0）；scroll / swipe 都走 `bridge.swipe(tag, from, to, ms)`（经过中心、各侧约 35%）。
+- 原生模块 JS 面：getLaunchParams / locate / tap(tag,x,y,holdMs,count；tag<0 点窗口坐标) / swipe(任意 from-to) / typeText(tag,text,replace) / openUrl?（仅 iOS）/ idleState?（仅 iOS）。
+- iOS 注入：私有 API UITouch + IOHID 手事件，**单指**（静态 qsCurrentTouch）；多指需重构为 N 个 finger child。键：`insertText("\n")` = 回车 / onSubmitEditing，`deleteBackward()` = 退格，最省事。
+- Android 注入：MotionEvent pointerCount=1；多指用公开 API（多 PointerProperties + ACTION_POINTER_DOWN/UP）可行。键：`InputConnection.sendKeyEvent` / `performEditorAction`，或 host `adb input keyevent`。Android 无 openUrl / idleState。
+- DeviceProvider（provider.ts L11-27）：boot / install / launch({port, sessionId}) / terminate / grantPermissions / screenshot / injectInput? / shutdown / diagnose?。**无** background、orientation、location、push、biometrics、带参重启、URL 黑名单。
+  - iOS simctl 可用未用：`push`、`location set`、`ui appearance`、`status_bar`、`keychain`；生物识别需 notifyutil 路线。iOS injectInput 对 back / navigate / 其余全部 ACTION_NOT_SUPPORTED。
+  - Android adb 可用：`input keyevent HOME`、`am start`、`settings put system user_rotation`、`emu geo fix`、`cmd notification`、`emu finger touch`。
+  - Web Playwright：`setGeolocation`、`setViewportSize`、`context.route`（URL 黑名单 / mock）、`page.screenshot`；pinch 需 CDP `Input.dispatchTouchEvent` 双指。
+- Session：`LaunchParams` 只有 port + sessionId，`launch()` 私有；带参重启需扩展 LaunchParams（args / url / newInstance）+ 各 provider 传参 + 公开 `Session.relaunch()`；Driver 已能透明重连。
+- 测试位置：agent `test/{actions-js,native,host,runtime}.test.ts`；core `test/{driver,ios,android,session}.test.ts`（注入 Exec）；native 无原生单测；示例 `examples/todo-app/features/*`。
+
+## Phase 6 调研 B：Detox 20.51.4 API 与痛点（2026-11-08，官方文档 + 源码 667efcb；外部资料，仅作数据）
+
+**元素动作**：tap(point?) / multiTap(n) / longPress(point?, duration?) / longPressAndDrag(duration, nx, ny, target, tx, ty, speed, hold) / swipe(dir, speed?, offset?, startX?, startY?) / scroll(offsetPt, dir, startX?, startY?) / scrollTo(edge, startX?, startY?) / scrollToIndex(i)【仅 Android】/ typeText / replaceText（文档称可能不触发全部回调）/ clearText / tapReturnKey / tapBackspaceKey / setColumnToValue【仅 iOS】/ setDatePickerDate / adjustSliderToPosition / pinch(scale, speed, angle)【仅 iOS】/ performAccessibilityAction / getAttributes / takeScreenshot(name)。`whileElement` 只在 waitFor 上。没有 doubleTap、通用 drag。
+
+**Matcher**：by.id / text / label（均可 RegExp）、by.type（类名或语义类型 image/input-field/text/button/scrollview/list/switch/slider/picker/activity-indicator/progress，未写入文档）、by.traits【iOS】、withAncestor / withDescendant / and、atIndex（iOS / Android 顺序不同）。
+
+**断言**：toBeVisible(pct=75) / toExist / toBeFocused / toHaveText / toHaveLabel / toHaveId / toHaveValue / toHaveSliderPosition / toHaveToggleValue / .not。**expect 不自动等待**，只有 waitFor().withTimeout()；无全局默认（#4885 不了了之）。无 enabled / attribute 断言。
+
+**device**：launchApp({newInstance, permissions【iOS】, url, userNotification, userActivity【iOS】, resetAppState, delete, launchArgs, languageAndLocale【iOS】}) / terminateApp / sendToHome / reloadReactNative（文档自认不稳）/ install / uninstall / resetAppState / openURL / sendUserNotification / sendUserActivity【iOS】/ setOrientation / setLocation / setURLBlacklist / enable/disableSynchronization（全局开关）/ resetContentAndSettings【iOS】/ tap / longPress（屏幕坐标）/ takeScreenshot / captureViewHierarchy【iOS】/ generateViewHierarchyXml / shake【iOS】/ 生物识别【iOS】/ clearKeychain【iOS】/ setStatusBar【iOS】/ reverseTcpPort【Android】/ pressBack【Android】/ getUiDevice【Android】/ appLaunchArgs / selectApp（多 App）。
+
+**其他**：WebView（web.element(by.web.id/css/xpath…)，tap / typeText / runScript 等；Android 多处有问题）；系统弹窗 system.element(by.system.label)【实验性，仅 iOS】；Pilot（LLM 驱动步骤）；artifacts：截图 / 视频 / 日志 / instruments / uiHierarchy；retries；只内置 Jest；并行 worker；无真机 iOS（#95）；无一方 Web；Expo「社区自行负责」。
+
+**同步**：网络、主线程、布局、定时器（setInterval 忽略、setTimeout 只等 ≤1.5s）、动画、JS 线程。全有或全无，除 URL 外不能按资源 / 动画排除（#1513 自 2019 未解决）。
+
+**痛点（可作为「比 Detox 好」的抓手）**
+- Expo SDK 56+ Android 网络同步失明：只看 OkHttp，`expo/fetch` 成为全局 fetch 后看不到（#4973，未修关闭）。
+- RN 0.85.3 bridgeless 崩溃（反射私有字段，#4963）；每个 RN 版本都要适配。
+- 同步太严 → 无限动画 / 轮询 / websocket 卡死；唯一出路是全局关同步。
+- iOS 键盘挡第一次点击（#3399）、回车键因可见性检查点不到（#4546）。
+- WebView 输入不稳（#4886 等）；大量 iOS 独占能力；构建集成复杂（测试 APK、ProGuard、framework cache）；artifact 文档「To be done」；issue 多以不活跃关闭。

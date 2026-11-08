@@ -237,3 +237,9 @@
 | 5.5 修复（HU 决定） | ✅ | ① `@quiesco/web`：distDir 有 client/ + server/（Expo server 输出）时自动 `npx expo serve <distDir> --port <空闲端口>`（注意：参数是导出目录；传项目目录会被当静态目录 → 404），轮询到 200 再打开，结束时关闭；单元测试 4 个。② `sync.ignoreElements`（MatcherInput[]，经 hello 下发 Matcher）：匹配元素及子树不参与 frame-stable；单元测试（structureLines skip、toAgentConfig）。③ init：npm 只 pin 非直接依赖（EOVERRIDE）、生成 `quiesco.config.mts`（避免 MODULE_TYPELESS 警告）、配置里带 `ignoreElements` 注释示例、Next 提示装饰动画。README 快速开始改为模板实际路径（src/app/_layout.tsx）并加装饰动画一步 |
 | 5.5 验收（全新 create-expo-app，按 README） | ✅ | 共 4 轮（全新项目 + 重新 pack）：第 1 轮 EOVERRIDE；第 2 轮 SSR 无 index.html + 装饰动画 SYNC_TIMEOUT；第 3 轮 `expo serve` 参数错（传了项目目录）；**第 4 轮通过**：create-expo-app 7s → `init --packages` → README 手动 3 步（QuiescoRoot、testID home、glow testID + 取消注释 ignoreElements）→ `npm run e2e:web`：1 scenario / 3 steps 通过，init 开始到通过的工具耗时 9s，`doctor --platform web` 全 ✅，无警告。对照：注释掉 ignoreElements ⇒ SYNC_TIMEOUT 并指出 `div#logo-glow`。npm 缓存与 Chromium 已在本机（冷环境需额外下载，估计仍远低于 10 分钟；人工改 3 处文件约 2–3 分钟）。仓库 `pnpm run check` 297 测试；示例 Web 7/7 |
 | Phase 5 | ✅ | 完成：5.0 renderer 早于 agent（release e2e 修复）、5.1 CLI、5.2 键盘 / 权限、5.3 steps（中日英）、5.4 文档 + MIT、5.5 全新项目验收。遗留：prod-strip.yml 推送后实跑；原生平台的全新项目流程未实跑（README 指向示例 App 的已验证步骤） |
+
+## Session 2026-11-08（Phase 6 启动）
+- 文档：README / docs/api.md 补充 Jest / Vitest 直接调用 `@quiesco/core` 的用法（提交 d1402ad）；Vitest 示例未实跑。
+- HU 要求 Phase 6：补齐相对 Detox 的全部缺口并优化。已建 Phase 6 骨架；并行调研 Detox API（官方文档）与 Quiesco 动作链路。
+- 调研完成（findings.md 调研 A / B）；Phase 6 拆为 6.0–6.14 写入 task_plan.md。
+- HU 决定：重做并行、iOS 系统弹窗先 spike、做真机与 LLM 驱动、按编号顺序。下一步 6.1。
