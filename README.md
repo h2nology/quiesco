@@ -1,10 +1,13 @@
 # Quiesco
 
-Gray-box end-to-end testing for Expo apps on **iOS, Android and the web**, driven by **Cucumber**.
+Gray-box end-to-end testing for Expo apps on **iOS, Android and the web**, driven by **Cucumber**,
+**Jest**, **Vitest** or any other Node.js test runner.
 
 A small agent inside the e2e build of your app tells the test runner when the app is idle — no pending
-network requests, timers, React renders or animations — so steps never sleep and never poll. The same
-feature files and step definitions run unchanged on an iOS simulator, an Android emulator and Chromium.
+network requests, timers, React renders or animations — so tests never sleep and never poll. The same
+tests run unchanged on an iOS simulator, an Android emulator and Chromium. Cucumber gets a ready-made
+adapter (`@quiesco/cucumber`, below); Jest and Vitest call the runner-independent `@quiesco/core`
+directly ([other test runners](#other-test-runners-jest-vitest)).
 
 ```gherkin
 Scenario: A new todo appears at the top of the list
@@ -100,6 +103,37 @@ Point `binaryPath` in `quiesco.config.mts` at the build (the generated config ha
 set the emulator / simulator in `devices` (see [configuration](docs/api.md#configuration)). For CI, an
 EAS build profile with `EXPO_PUBLIC_QUIESCO=1` produces the same e2e build; see
 [examples/todo-app](examples/todo-app/README.md) for a complete, tested setup on all three platforms.
+
+## Other test runners (Jest, Vitest)
+
+`@quiesco/core` does not depend on any test runner. With Jest or Vitest, create one session per test
+file and reset before every test — the same `Driver` that Cucumber steps reach as `this.app`:
+
+```ts
+// e2e/todo.e2e.test.ts (Vitest; with Jest, use the globals and beforeAll / beforeEach / afterAll alike)
+import { afterAll, beforeAll, beforeEach, test } from 'vitest';
+import { createSession, loadConfig, resolvePlatform, type Session } from '@quiesco/core';
+
+let session: Session;
+beforeAll(async () => {
+  const { config } = await loadConfig();
+  session = await createSession({ config, platform: resolvePlatform() }); // QUIESCO_PLATFORM=ios|android|web
+}, 300_000);
+beforeEach(() => session.beforeScenario());                              // soft reset
+afterAll(() => session?.dispose());
+
+test('a new todo appears at the top of the list', async () => {
+  const app = session.driver;
+  await app.tap('add-todo');                      // waits until the app is idle, then taps
+  await app.type('todo-title', 'Buy milk');
+  await app.tap({ role: 'button', text: 'Save' });
+  await app.expectText({ id: 'todo-item', index: 0 }, 'Buy milk');
+});
+```
+
+Run test files serially — one session drives one device (Vitest: `fileParallelism: false`; Jest:
+`--runInBand`) — and set `QUIESCO_PLATFORM` yourself: `quiesco test` only starts `cucumber-js`. See
+[using Quiesco without Cucumber](docs/api.md#using-quiesco-without-cucumber) for tags and failure evidence.
 
 ## Packages
 

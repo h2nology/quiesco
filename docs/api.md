@@ -199,7 +199,9 @@ states to the report.
 
 ## Using Quiesco without Cucumber
 
-`@quiesco/core` does not depend on any test runner. A runner adapter needs four calls:
+`@quiesco/core` does not depend on any test runner, so Jest, Vitest, Mocha or a plain script can drive
+the app as well as Cucumber. Everything Cucumber steps do through `this.app` is `session.driver`; a
+runner needs four calls:
 
 ```ts
 import { createSession, loadConfig, resolvePlatform } from '@quiesco/core';
@@ -212,4 +214,12 @@ const evidence = await session.collectEvidence();                            // 
 await session.dispose();
 ```
 
-Runs are serial: one session drives one device (`cucumber-js --parallel` is refused).
+Map them onto the runner's lifecycle: `createSession` in a before-all hook (it boots the device and
+launches the app, so give the hook a long timeout), `beforeScenario` before each test, `collectEvidence`
+when a test fails, `dispose` in an after-all hook. A complete Vitest file is in the
+[README](../README.md#other-test-runners-jest-vitest).
+
+Runs are serial: one session drives one device. `cucumber-js --parallel` is refused; with Vitest set
+`fileParallelism: false`, with Jest pass `--runInBand`. `quiesco test` only starts `cucumber-js` — for
+other runners set `QUIESCO_PLATFORM` (or pass the platform to `resolvePlatform`) and start the runner
+yourself.
