@@ -254,7 +254,15 @@ export class AgentRuntime {
    */
   private async resolveTarget(matcher: Matcher, opts: SyncOption, deadline: number): Promise<HostNode> {
     for (;;) {
-      await this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now()));
+      let busy: QuiescoError | null = null;
+      try {
+        await this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now()));
+      } catch (e) {
+        // Out of time while waiting for idle. If the target is not there either, that is the real
+        // problem: report it (with what was busy) rather than a sync timeout on the last few ms.
+        if (!(e instanceof QuiescoError) || e.errorName !== 'SYNC_TIMEOUT') throw e;
+        busy = e;
+      }
       const found = findAll(this.adapter.getHostRoots(), matcher);
       if (found.length > 1) {
         throw new QuiescoError('MULTIPLE_MATCHES', `${found.length} elements match ${describeMatcher(matcher)}; add \`index\` or a more specific matcher`, {
@@ -263,10 +271,13 @@ export class AgentRuntime {
         });
       }
       const node = found[0];
-      if (node !== undefined && isVisible(node, this.adapter.viewport())) return node;
-      if (this.clock.now() >= deadline) {
+      const visible = node !== undefined && isVisible(node, this.adapter.viewport());
+      if (busy !== null && visible) throw busy;
+      if (visible) return node;
+      if (busy !== null || this.clock.now() >= deadline) {
         const why = node === undefined ? 'No element matches' : 'The element exists but is not visible:';
-        throw new QuiescoError('ELEMENT_NOT_FOUND', `${why} ${describeMatcher(matcher)}`, { matcher });
+        const alsoBusy = busy === null ? '' : ` (the app was also still busy: ${busy.message})`;
+        throw new QuiescoError('ELEMENT_NOT_FOUND', `${why} ${describeMatcher(matcher)}${alsoBusy}`, { matcher });
       }
       await this.sleep(SyncDefaults.retryIntervalMs);
     }

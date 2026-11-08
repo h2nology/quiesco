@@ -183,6 +183,27 @@ describe('AgentRuntime', () => {
     await a;
   });
 
+  it('action: a missing target is ELEMENT_NOT_FOUND even when the last sync was cut short by the deadline', async () => {
+    let busy = false;
+    const { target, call } = setup({ busy: () => busy });
+    sameRoot(target)(host('RCTView', { testID: 'other', ...R(0) }));
+    const p = call('action', { action: { type: 'tap', matcher: { id: 'missing' } }, mode: 'js', timeoutMs: 300 });
+    const a = expect(p).rejects.toMatchObject({ errorName: 'ELEMENT_NOT_FOUND', message: expect.stringMatching(/No element matches .*also still busy.*fake busy/s) });
+    await vi.advanceTimersByTimeAsync(60);
+    busy = true; // the remaining retries cannot get idle before the deadline
+    await vi.advanceTimersByTimeAsync(400);
+    await a;
+  });
+
+  it('action: a present target in a never-idle app is still SYNC_TIMEOUT', async () => {
+    const { target, call } = setup({ busy: () => true });
+    sameRoot(target)(host('RCTView', { testID: 'go', onPress: () => {}, ...R(0) }));
+    const p = call('action', { action: { type: 'tap', matcher: { id: 'go' } }, mode: 'js', timeoutMs: 300 });
+    const a = expect(p).rejects.toMatchObject({ errorName: 'SYNC_TIMEOUT' });
+    await vi.advanceTimersByTimeAsync(400);
+    await a;
+  });
+
   it('assert: a retry sync cut short by the deadline does not turn ASSERTION_FAILED into SYNC_TIMEOUT', async () => {
     let busy = false;
     const { target, call } = setup({ busy: () => busy });

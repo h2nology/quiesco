@@ -114,13 +114,13 @@ describe('serialization', () => {
     ).toEqual({ cyc: { a: 1 }, n: null, arr: [1, null] });
   });
 
-  it('getTree() exports type / testID / own text / role / rounded rect', () => {
+  it('getTree() exports type / testID / own text / role / semantic type / rounded rect', () => {
     const roots = tree({ testID: 'a', rect: { x: 0.4, y: 1.6, width: 10.5, height: 3 }, children: [{ type: 'RCTText', text: 'hi', rect: null }] });
     expect(getTree(roots)).toEqual({
       type: 'RCTView',
       testID: 'a',
       rect: { x: 0, y: 2, width: 11, height: 3 },
-      children: [{ type: 'RCTText', text: 'hi', children: [] }],
+      children: [{ type: 'RCTText', text: 'hi', semanticType: 'text', children: [] }],
     });
     expect(getTree([])).toBeNull();
     expect(getTree(tree({}, {}))?.type).toBe('root');

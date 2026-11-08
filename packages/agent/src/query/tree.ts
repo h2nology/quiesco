@@ -5,7 +5,8 @@
 import type { ElementSummary, JsonValue, Rect, TreeNode } from '@quiesco/protocol';
 
 import type { HostNode, Viewport } from '../fiber-adapter';
-import { isVisible } from './visibility';
+import { checkedState, elementValue, isEnabled, isFocusedWidget, semanticType, widgetLabel } from './semantic';
+import { visibleRatio } from './visibility';
 
 /** Props never worth sending: structural, or huge and useless for assertions. */
 const SKIPPED_PROPS = new Set(['children', 'style', 'collapsable', 'collapsableChildren']);
@@ -46,16 +47,27 @@ export function serializableProps(props: Readonly<Record<string, unknown>>): Rec
 
 export function summarize(node: HostNode, viewport: Viewport | null): ElementSummary {
   const rect = node.measure();
+  const ratio = visibleRatio(node, viewport, rect);
+  const kind = semanticType(node);
   const s: ElementSummary = {
     type: node.type,
     text: node.text,
     rect,
-    visible: isVisible(node, viewport, rect),
+    visible: ratio > 0,
+    visibleRatio: Math.round(ratio * 1000) / 1000,
+    focused: isFocusedWidget(node),
+    enabled: isEnabled(node),
     props: serializableProps(node.props),
   };
   if (node.testID !== undefined) s.testID = node.testID;
   if (node.role !== undefined) s.role = node.role;
-  if (node.label !== undefined) s.label = node.label;
+  const label = widgetLabel(node);
+  if (label !== undefined) s.label = label;
+  if (kind !== undefined) s.semanticType = kind;
+  const checked = checkedState(node, kind);
+  if (checked !== undefined) s.checked = checked;
+  const value = elementValue(node, kind);
+  if (value !== undefined) s.value = value;
   return s;
 }
 
@@ -69,6 +81,8 @@ export function toTreeNode(node: HostNode): TreeNode {
   const text = node.ownText;
   if (text !== '') t.text = text;
   if (node.role !== undefined) t.role = node.role;
+  const kind = semanticType(node);
+  if (kind !== undefined) t.semanticType = kind;
   const rect = node.measure();
   if (rect !== null) t.rect = roundRect(rect);
   return t;

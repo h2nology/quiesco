@@ -9,6 +9,8 @@ const viewports: Record<string, WebViewport> = {
   desktop: { width: 1280, height: 800 },
 };
 const viewportName = process.env['QUIESCO_VIEWPORT'] ?? 'mobile';
+// Metro serving the dev clients (`pnpm start:e2e`, port 8082); QUIESCO_METRO_URL points at another one.
+const metroUrl = process.env['QUIESCO_METRO_URL'] ?? 'http://localhost:8082';
 const viewport = viewports[viewportName];
 if (viewport === undefined) throw new Error(`Unknown QUIESCO_VIEWPORT "${viewportName}" (${Object.keys(viewports).join(', ')})`);
 
@@ -19,7 +21,7 @@ export default defineConfig({
       // Built by `pnpm build:android`; installed before the run.
       binaryPath: 'android/app/build/outputs/apk/debug/app-debug.apk',
       // A dev client loading JS from Metro (`pnpm start:e2e`, port 8082).
-      devClient: { scheme: 'quiescotodo', metroUrl: 'http://localhost:8082' },
+      devClient: { scheme: 'quiescotodo', metroUrl },
       // The mock backend (mock-server/server.mjs) on the host's localhost.
       reversePorts: [3001],
     },
@@ -28,7 +30,7 @@ export default defineConfig({
       // Built by `pnpm build:ios` (simulator, Debug); installed before the run.
       binaryPath: 'ios/build/Build/Products/Debug-iphonesimulator/QuiescoTodo.app',
       // The simulator shares the Mac's network: Metro and the mock backend are on localhost as is.
-      devClient: { metroUrl: 'http://localhost:8082' },
+      devClient: { metroUrl },
     },
     // Static export (`pnpm build:web`), or a running dev server with QUIESCO_WEB_URL.
     web: process.env['QUIESCO_WEB_URL'] !== undefined ? { url: process.env['QUIESCO_WEB_URL'] } : { distDir: 'dist' },

@@ -70,3 +70,39 @@ Then('App 可以直接使用位置信息', async function (this: QuiescoWorld) {
   const state = await this.app.backdoor('locationPermission');
   if (state !== 'granted') throw new Error(`location permission is ${JSON.stringify(state)}, expected "granted"`);
 });
+
+// ---- form state (Phase 6.1: focus, enabled, checked, value, semantic type) ----
+
+When('打开新建待办页面', async function (this: QuiescoWorld) {
+  await this.app.tap({ id: 'add-todo' });
+});
+
+When('输入标题 {string}', async function (this: QuiescoWorld, title: string) {
+  await this.app.type({ id: 'todo-title' }, title);
+});
+
+When('标记为重要', async function (this: QuiescoWorld) {
+  await this.app.tap({ type: 'switch', label: '标记为重要' });
+});
+
+Then('标题输入框获得焦点', async function (this: QuiescoWorld) {
+  await this.app.expectFocused({ id: 'todo-title' });
+});
+
+Then('还不能标记为重要', async function (this: QuiescoWorld) {
+  await this.app.expect({ id: 'todo-important' }).toBeDisabled();
+});
+
+Then('页面上有 {int} 个开关，并且是关闭的', async function (this: QuiescoWorld, count: number) {
+  await this.app.expectCount({ type: 'switch', within: 'new-todo-screen' }, count);
+  await this.app.expect({ type: 'switch', within: 'new-todo-screen' }).not.toBeChecked();
+});
+
+Then('标题输入框的内容是 {string}', async function (this: QuiescoWorld, title: string) {
+  await this.app.expectValue({ id: 'todo-title' }, title);
+});
+
+Then('已标记为重要', async function (this: QuiescoWorld) {
+  await this.app.expect({ id: 'todo-important' }).toBeEnabled();
+  await this.app.expectChecked({ id: 'todo-important' });
+});

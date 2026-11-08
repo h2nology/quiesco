@@ -21,6 +21,8 @@ class Node implements HostNode {
   readonly label: string | undefined;
   readonly role: string | undefined;
   readonly hiddenByStyle: boolean;
+  readonly clipsContent: boolean;
+  readonly renderedWithParent: boolean;
   readonly children: Node[] = [];
   text = '';
   ownText = '';
@@ -29,6 +31,7 @@ class Node implements HostNode {
     private readonly fiber: Fiber,
     private readonly platform: HostPlatform,
     readonly parent: Node | null,
+    viaComponent: boolean,
   ) {
     const props = isObject(fiber.memoizedProps) ? fiber.memoizedProps : {};
     this.type = typeof fiber.type === 'string' ? fiber.type : String(fiber.type);
@@ -37,6 +40,25 @@ class Node implements HostNode {
     this.label = platform.label(props);
     this.role = platform.role(props);
     this.hiddenByStyle = platform.hiddenByStyle(fiber, props);
+    this.clipsContent = platform.clipsContent(this.type, fiber, props);
+    this.renderedWithParent = parent !== null && !viaComponent;
+  }
+
+  ownerNames(): readonly string[] {
+    const out: string[] = [];
+    for (let f = this.fiber.return; f !== null && !isHostBoundary(f); f = f.return) {
+      const name = componentName(f.type);
+      if (name !== null && !out.includes(name)) out.push(name);
+    }
+    return out;
+  }
+
+  isFocused(): boolean {
+    return this.platform.isFocused(this.fiber);
+  }
+
+  inputValue(): string | undefined {
+    return this.platform.inputValue(this.type, this.fiber, this.props as Record<string, unknown>);
   }
 
   measure(): Rect | null {
@@ -86,6 +108,27 @@ class Node implements HostNode {
   }
 }
 
+/** Display name of a component type: function / class, forwardRef, memo. Null for anonymous ones. */
+function componentName(type: unknown): string | null {
+  const named = (t: unknown): string | null => {
+    if (typeof t !== 'function' && !isObject(t)) return null;
+    const o = t as { displayName?: unknown; name?: unknown };
+    if (typeof o.displayName === 'string' && o.displayName !== '') return o.displayName;
+    return typeof t === 'function' && typeof o.name === 'string' && o.name !== '' ? o.name : null;
+  };
+  const direct = named(type);
+  if (direct !== null || !isObject(type)) return direct;
+  return named(type['render']) ?? named(type['type']);
+}
+
+const COMPONENT_TAGS: ReadonlySet<number> = new Set([
+  WorkTag.FunctionComponent,
+  WorkTag.ClassComponent,
+  WorkTag.ForwardRef,
+  WorkTag.MemoComponent,
+  WorkTag.SimpleMemoComponent,
+]);
+
 function isHostBoundary(f: Fiber): boolean {
   return f.tag === WorkTag.HostComponent || f.tag === WorkTag.HostRoot || f.tag === WorkTag.HostPortal;
 }
@@ -98,15 +141,16 @@ function stringChildren(fiber: Fiber): string {
 
 /**
  * Collect host nodes under `first` and its siblings into `out` (children of `parent`).
+ * `viaComponent`: a component fiber lies between `parent` and `first`.
  * Returns [all text, text not inside a child host], both in render order.
  */
-function collect(first: Fiber | null, parent: Node | null, platform: HostPlatform, out: Node[]): [string, string] {
+function collect(first: Fiber | null, parent: Node | null, platform: HostPlatform, out: Node[], viaComponent = false): [string, string] {
   let text = '';
   let own = '';
   for (let f = first; f !== null; f = f.sibling) {
     switch (f.tag) {
       case WorkTag.HostComponent: {
-        const node = new Node(f, platform, parent);
+        const node = new Node(f, platform, parent, viaComponent);
         const [childText, childOwn] = collect(f.child, node, platform, node.children);
         const mine = stringChildren(f);
         node.text = mine + childText;
@@ -124,7 +168,7 @@ function collect(first: Fiber | null, parent: Node | null, platform: HostPlatfor
       case WorkTag.HostHoistable:
         break;
       default: {
-        const [t, o] = collect(f.child, parent, platform, out);
+        const [t, o] = collect(f.child, parent, platform, out, viaComponent || COMPONENT_TAGS.has(f.tag));
         text += t;
         own += o;
       }

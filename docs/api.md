@@ -50,39 +50,101 @@ Assertions retry until they hold or the timeout runs out (`ASSERTION_FAILED` wit
 
 | Method | Holds when |
 |---|---|
-| `expectVisible(target)` | at least one matching element is visible |
+| `expectVisible(target, { ratio })` | at least one matching element is visible; with `ratio` (0–1], it shows at least that fraction of its area |
 | `expectNotVisible(target)` | no matching element is visible (absent or hidden) |
 | `expectExists(target)` / `expectNotExists(target)` | an element is / is not in the tree, visible or not |
 | `expectText(target, text \| RegExp)` | exactly one match and its text equals / matches |
+| `expectValue(target, value \| RegExp)` | exactly one match and its value equals / matches: input text, switch state, slider / picker value or `accessibilityValue` |
+| `expectLabel(target, text \| RegExp)` | exactly one match and its accessibility label equals / matches |
+| `expectFocused(target)` / `expectNotFocused(target)` | exactly one match and it has / does not have the input focus |
+| `expectEnabled(target)` / `expectDisabled(target)` | exactly one match and it is enabled / disabled (`disabled`, `accessibilityState.disabled`, `aria-disabled`, `editable={false}`, also inherited from an ancestor) |
+| `expectChecked(target)` / `expectNotChecked(target)` | exactly one match and it is checked / unchecked (switch, checkbox, radio or `accessibilityState.checked`); an element without a checked state fails both |
 | `expectProp(target, prop, value)` | exactly one match and the prop has this JSON value (host props first, then its component's, e.g. `disabled`, `value`) |
 | `expectCount(target, n)` | exactly `n` elements match |
+
+The same assertions in a chained, Detox / Jest-like form (both forms call the same implementation):
+
+```ts
+await this.app.expect('save').toBeEnabled();
+await this.app.expect({ type: 'switch', label: 'Wi-Fi' }).not.toBeChecked();
+await this.app.expect('banner').toBeVisible({ ratio: 0.75 });     // Detox: toBeVisible(75)
+await this.app.expect({ id: 'title' }).not.toHaveValue('');
+```
+
+`toBeVisible({ ratio })`, `toExist()`, `toBeFocused()`, `toBeEnabled()`, `toBeDisabled()`, `toBeChecked()`,
+`toHaveText()`, `toHaveValue()`, `toHaveLabel()`, `toHaveProp()`, `toHaveCount()` and `toHaveId()`, each
+with `.not`. A negated single-element assertion (`not.toHaveText`, ...) still needs exactly one match.
 
 ### Queries, sync and state
 
 | Method | Returns |
 |---|---|
-| `query(target)` | Summaries of the matching elements (type, testID, text, rect, visible) |
-| `getTree()` | The element tree as JSON (also attached to failed scenarios) |
+| `query(target)` | Summaries of the matching elements (no waiting) |
+| `attributes(target)` | The summary of the single matching element, after waiting for it to exist (Detox `getAttributes`); `MULTIPLE_MATCHES` for several |
+| `getTree()` | The element tree as JSON, with semantic types (also attached to failed scenarios) |
 | `waitForIdle({ timeoutMs })` | Waits until idle; resolves with the time it took |
 | `getIdleState()` | Every tracker's state — what is busy right now |
 | `backdoor(name, ...args)` | Calls a backdoor registered in the app; arguments and result are JSON |
 | `reset()` | Soft reset (Quiesco does this before every scenario) |
+
+An element summary has `type` (host component), `semanticType`, `testID`, `text`, `label`, `role`,
+`value`, `checked`, `enabled`, `focused`, `rect`, `visible`, `visibleRatio` and the serializable `props`.
 
 ## Matchers
 
 A plain string is a **testID**: `tap('add-todo')`. An object combines conditions:
 
 ```ts
-{ id: 'todo-item', index: 0 }                  // first of several
+{ id: 'todo-item', index: 0 }                  // first of several, in render order
+{ id: /^todo-\d+$/ }                            // testID by regular expression
 { text: 'Save' }                                // displayed text, exact
 { text: /saved \d+ items/i }                    // or a regular expression
 { label: 'Close' }                              // accessibilityLabel / aria-label
 { role: 'button', text: 'Save' }                // accessibilityRole / role
-{ text: 'Delete', within: 'todo-item-3' }       // inside another element (a matcher or testID)
+{ type: 'switch' }                              // semantic type, the same on every platform (below)
+{ type: 'TodoCard' }                            // or a host type ('RCTView', 'div') or a component's displayName
+{ type: 'button', has: { text: 'Buy milk' } }   // with a matching descendant (Detox withDescendant)
+{ type: 'button', not: { id: 'cancel' } }       // excluding elements that match
+{ text: 'Delete', within: 'todo-item-3' }       // inside another element (Detox withAncestor)
 ```
 
 `text` matches the deepest element whose own text matches (a button and its label do not both match).
-On the web `testID` is rendered as `data-testid`; matchers are the same on every platform.
+On the web `testID` is rendered as `data-testid`; matchers are the same on every platform, and `index`
+follows render order on every platform (Detox's `atIndex` order differs between iOS and Android).
+
+### Semantic types
+
+`type` accepts these platform-independent kinds. They come from the accessibility role first, then from
+the host component, so they also work in release builds where component names are minified.
+
+| `type` | iOS / Android host (React Native 0.88) | Web (react-native-web) | Role |
+|---|---|---|---|
+| `button` | `Pressable`, `Touchable*`, `Button`, or a view whose component has `onPress` | `<button>`, same components | `button`, `togglebutton`, `imagebutton` |
+| `link` | — | `<a>` | `link` |
+| `header` | — | `<h1>`–`<h6>` | `header`, `heading` |
+| `text` | `RCTText`, `RCTVirtualText`, `RCTSelectableText` | `Text` | `text` |
+| `input` | `RCTSinglelineTextInputView`, `RCTMultilineTextInputView`, `AndroidTextInput` | `<input>`, `<textarea>` | `textbox`, `searchbox`, `search` |
+| `image` | `RCTImageView`, `ExpoImage` | `<img>`, `Image` | `image`, `img` |
+| `switch` | `Switch` (iOS), `AndroidSwitch` | `Switch` | `switch` |
+| `checkbox` / `radio` | — | `<input type="checkbox">` / `"radio"` | `checkbox` / `radio` |
+| `slider` | `RNCSlider` | `<input type="range">` | `adjustable`, `slider` |
+| `picker` | `RNCPicker`, `RNCAndroidDialogPicker`, `RNCAndroidDropdownPicker`, `RNDateTimePicker` | `<select>` | `combobox`, `spinbutton` |
+| `progress` | `ActivityIndicatorView`, `AndroidProgressBar` | `<progress>`, `ActivityIndicator` | `progressbar` |
+| `scroll` | `RCTScrollView`, `AndroidHorizontalScrollView` | `ScrollView` | — |
+| `list` | the scroll view of a `FlatList` / `SectionList` / `FlashList` (its component has `renderItem`) | same | `list` |
+
+A widget made of several hosts counts once. For example, react-native-web's `Switch` is a `<div>`
+around an `<input role="switch">`: `{ type: 'switch' }` matches the outer element, which also reports
+the input's checked state, value, focus, disabled state and label.
+
+### Visibility
+
+An element is visible when neither it nor an ancestor is hidden by style (`display: none`,
+`opacity: 0`) and part of it is on screen: inside the window **and** inside every ancestor that clips its
+content (scroll views, `overflow` other than `visible`). An element scrolled out of a scroll view is not
+visible even if that position is inside the window. `visibleRatio` is the visible fraction of its area.
+Being covered by another element is not part of visibility; actions check it separately
+(`ELEMENT_OBSCURED`).
 
 ## In-app API (`@quiesco/agent`)
 

@@ -21,6 +21,17 @@ export interface HostNode {
   readonly ownText: string;
   /** `display: none` or `opacity: 0` on this node itself (ancestors are not considered). */
   readonly hiddenByStyle: boolean;
+  /**
+   * Whether this host clips its descendants to its own bounds: scroll views, and `overflow` other
+   * than `visible` (style on native, computed style on the web).
+   */
+  readonly clipsContent: boolean;
+  /**
+   * True when no component (function / class / forwardRef / memo) sits between this host and its
+   * parent host: it was created in the same render as the parent, e.g. the `<input>` inside
+   * react-native-web's Switch root `<div>`. Structural, so it survives minification.
+   */
+  readonly renderedWithParent: boolean;
   readonly parent: HostNode | null;
   readonly children: readonly HostNode[];
   /** Window coordinates in logical units (dp / pt / CSS px), or null if the node cannot be measured. */
@@ -37,6 +48,19 @@ export interface HostNode {
    * nearest ancestor host), nearest first. E.g. a Pressable's `disabled`, a TextInput's `value`.
    */
   ownerProps(): Readonly<Record<string, unknown>>;
+  /**
+   * Names of the composite components that render this host directly (between it and the nearest
+   * ancestor host), nearest first. Only named components appear; release builds minify function
+   * names, so only explicit `displayName`s (Pressable, TextInput, ...) are reliable there.
+   */
+  ownerNames(): readonly string[];
+  /**
+   * Current text of a text input (native: the `text` prop TextInput passes to its host, i.e. the value
+   * or the last typed text; web: the DOM element's live `value`). Undefined for other elements.
+   */
+  inputValue(): string | undefined;
+  /** Whether the element has the input focus (focused text input; `document.activeElement` on the web). */
+  isFocused(): boolean;
   /** Nearest component (this host or an ancestor, up to the root) with a function prop `name`. */
   findHandler(name: string): HandlerRef | null;
   /** Nearest ancestor class component instance with a method `name` (e.g. ScrollView's `scrollTo`). */

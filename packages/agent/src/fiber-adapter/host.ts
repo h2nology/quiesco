@@ -15,6 +15,12 @@ export interface HostPlatform {
   label(props: Record<string, unknown>): string | undefined;
   role(props: Record<string, unknown>): string | undefined;
   hiddenByStyle(fiber: Fiber, props: Record<string, unknown>): boolean;
+  /** Whether the host clips its descendants (scroll views, `overflow` other than `visible`). */
+  clipsContent(type: string, fiber: Fiber, props: Record<string, unknown>): boolean;
+  /** Whether the host has the input focus. */
+  isFocused(fiber: Fiber): boolean;
+  /** Live text of a text input host, undefined for other hosts. */
+  inputValue(type: string, fiber: Fiber, props: Record<string, unknown>): string | undefined;
   measure(fiber: Fiber): Rect | null;
   /** React view tag of the native view (Fabric), for native touch injection. Null on web. */
   nativeTag(fiber: Fiber): number | null;
@@ -31,8 +37,24 @@ export interface PlatformDeps {
   /** `Dimensions.get('window')` on native; `{ innerWidth, innerHeight }` on web. */
   viewport?: () => Viewport | null;
   /** `window.getComputedStyle` on web. */
-  getComputedStyle?: (el: unknown) => { display?: string; opacity?: string } | null;
+  getComputedStyle?: (el: unknown) => ComputedStyleLike | null;
+  /** The focused element: `TextInput.State.currentlyFocusedInput()` on native, `document.activeElement` on web. */
+  focusedElement?: () => unknown;
 }
+
+export interface ComputedStyleLike {
+  display?: string;
+  opacity?: string;
+  overflowX?: string;
+  overflowY?: string;
+}
+
+/** Native host types that scroll (and therefore clip) their content. RN 0.88 host names. */
+const NATIVE_SCROLL_HOSTS = new Set(['RCTScrollView', 'AndroidHorizontalScrollView']);
+/** Native text input hosts (RN 0.88). TextInput passes its current text as the `text` prop. */
+const NATIVE_TEXT_INPUTS = new Set(['RCTSinglelineTextInputView', 'RCTMultilineTextInputView', 'AndroidTextInput']);
+const WEB_TEXT_INPUTS = new Set(['input', 'textarea', 'select']);
+const WEB_NON_TEXT_INPUT_TYPES = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'image', 'file', 'range', 'color', 'hidden']);
 
 function str(v: unknown): string | undefined {
   return typeof v === 'string' ? v : undefined;
@@ -68,6 +90,18 @@ function hiddenStyle(display: unknown, opacity: unknown): boolean {
   return display === 'none' || opacity === 0 || opacity === '0';
 }
 
+function clips(overflow: unknown): boolean {
+  return typeof overflow === 'string' && overflow !== '' && overflow !== 'visible';
+}
+
+function focusedElement(deps: PlatformDeps): unknown {
+  try {
+    return deps.focusedElement?.() ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function nativePlatform(deps: PlatformDeps): HostPlatform {
   let getPublic: ((fiber: Fiber) => unknown) | null | undefined;
   return {
@@ -78,6 +112,15 @@ export function nativePlatform(deps: PlatformDeps): HostPlatform {
     hiddenByStyle: (_fiber, p) => {
       const s = flattenStyle(p['style']);
       return hiddenStyle(s['display'], s['opacity']);
+    },
+    clipsContent: (type, _fiber, p) => NATIVE_SCROLL_HOSTS.has(type) || clips(flattenStyle(p['style'])['overflow']),
+    isFocused(fiber) {
+      const focused = focusedElement(deps);
+      return focused !== null && focused !== undefined && focused === publicInstance(fiber);
+    },
+    inputValue(type, _fiber, p) {
+      if (!NATIVE_TEXT_INPUTS.has(type)) return undefined;
+      return str(p['text']) ?? str(p['value']) ?? str(p['defaultValue']) ?? '';
     },
     measure(fiber) {
       return callRect(publicInstance(fiber));
@@ -120,6 +163,22 @@ export function webPlatform(deps: PlatformDeps): HostPlatform {
       if (computed !== null) return hiddenStyle(computed.display, computed.opacity);
       const s = flattenStyle(p['style']);
       return hiddenStyle(s['display'], s['opacity']);
+    },
+    clipsContent(_type, fiber, p) {
+      const computed = deps.getComputedStyle?.(fiber.stateNode) ?? null;
+      if (computed !== null) return clips(computed.overflowX) || clips(computed.overflowY);
+      return clips(flattenStyle(p['style'])['overflow']);
+    },
+    isFocused(fiber) {
+      const focused = focusedElement(deps);
+      return focused !== null && focused !== undefined && focused === fiber.stateNode;
+    },
+    inputValue(type, fiber, p) {
+      if (!WEB_TEXT_INPUTS.has(type)) return undefined;
+      if (type === 'input' && WEB_NON_TEXT_INPUT_TYPES.has(String(p['type'] ?? ''))) return undefined;
+      const el = fiber.stateNode;
+      const live = isObject(el) ? el['value'] : undefined;
+      return str(live) ?? str(p['value']) ?? str(p['defaultValue']) ?? '';
     },
     measure: (fiber) => callRect(fiber.stateNode),
     nativeTag: () => null,

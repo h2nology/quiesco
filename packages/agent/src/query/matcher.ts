@@ -1,7 +1,9 @@
 /**
  * Matcher evaluation over the HostNode tree (requirements.md §6.1).
  *
- * - `id` / `label` / `role` compare the host's own props.
+ * - `id` / `label` / `role` compare the host's own props; `id` / `text` / `label` accept a regex.
+ * - `type` is a semantic type, a host type or the name of a component rendering the host (semantic.ts).
+ * - `has`: some descendant matches. `not`: the node itself does not match.
  * - `text` compares the concatenated text of the node's subtree. Because a container's text includes
  *   its children's text, only the DEEPEST matching nodes are returned: a node is dropped when one of
  *   its descendants also satisfies the whole matcher (e.g. `{ text: 'Login' }` returns the RCTText,
@@ -13,6 +15,7 @@ import type { ElementSummary, Matcher, TextMatch } from '@quiesco/protocol';
 
 import { QuiescoError } from '../errors';
 import type { HostNode } from '../fiber-adapter';
+import { matchesType, widgetLabel } from './semantic';
 
 export function toRegExp(m: TextMatch): RegExp | string {
   return typeof m === 'string' ? m : new RegExp(m.regex.source, m.regex.flags);
@@ -26,12 +29,18 @@ function textMatches(value: string | undefined, pattern: TextMatch): boolean {
   return p.test(value);
 }
 
-/** Whether `node` itself satisfies the matcher's own fields (`within` / `index` are not considered). */
+/**
+ * Whether `node` itself satisfies the matcher: its own fields, `has` and `not` (`within` / `index`
+ * select among nodes and are not considered here).
+ */
 export function matchesSelf(node: HostNode, m: Matcher): boolean {
-  if (m.id !== undefined && node.testID !== m.id) return false;
+  if (m.id !== undefined && !textMatches(node.testID, m.id)) return false;
   if (m.role !== undefined && node.role !== m.role) return false;
-  if (m.label !== undefined && !textMatches(node.label, m.label)) return false;
+  if (m.label !== undefined && !textMatches(widgetLabel(node), m.label)) return false;
   if (m.text !== undefined && !textMatches(node.text, m.text)) return false;
+  if (m.type !== undefined && !matchesType(node, m.type)) return false;
+  if (m.has !== undefined && !hasMatchingDescendant(node, m.has)) return false;
+  if (m.not !== undefined && matchesSelf(node, m.not)) return false;
   return true;
 }
 
@@ -99,10 +108,13 @@ function fmt(t: TextMatch): string {
 /** Human-readable matcher, e.g. `{ id: "submit", within: { id: "form" } }`. */
 export function describeMatcher(m: Matcher): string {
   const parts: string[] = [];
-  if (m.id !== undefined) parts.push(`id: ${JSON.stringify(m.id)}`);
+  if (m.id !== undefined) parts.push(`id: ${fmt(m.id)}`);
   if (m.text !== undefined) parts.push(`text: ${fmt(m.text)}`);
   if (m.label !== undefined) parts.push(`label: ${fmt(m.label)}`);
   if (m.role !== undefined) parts.push(`role: ${JSON.stringify(m.role)}`);
+  if (m.type !== undefined) parts.push(`type: ${JSON.stringify(m.type)}`);
+  if (m.has !== undefined) parts.push(`has: ${describeMatcher(m.has)}`);
+  if (m.not !== undefined) parts.push(`not: ${describeMatcher(m.not)}`);
   if (m.within !== undefined) parts.push(`within: ${describeMatcher(m.within)}`);
   if (m.index !== undefined) parts.push(`index: ${m.index}`);
   return `{ ${parts.join(', ')} }`;

@@ -21,11 +21,15 @@ export const defaultPlatformDeps: PlatformDeps = {
     const w = win();
     return w === null ? null : { width: w.innerWidth, height: w.innerHeight };
   },
+  focusedElement() {
+    const doc = (globalThis as { document?: { activeElement?: unknown } }).document;
+    return doc?.activeElement ?? null;
+  },
   getComputedStyle(el) {
     const w = win();
     if (w === null || typeof Element === 'undefined' || !(el instanceof Element)) return null;
     const s = w.getComputedStyle(el);
-    return { display: s.display, opacity: s.opacity };
+    return { display: s.display, opacity: s.opacity, overflowX: s.overflowX, overflowY: s.overflowY };
   },
 };
 

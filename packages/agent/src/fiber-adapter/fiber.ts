@@ -6,11 +6,15 @@
 
 /** WorkTag values from ReactWorkTags.js. */
 export const WorkTag = {
+  FunctionComponent: 0,
   ClassComponent: 1,
   HostRoot: 3,
   HostPortal: 4,
   HostComponent: 5,
   HostText: 6,
+  ForwardRef: 11,
+  MemoComponent: 14,
+  SimpleMemoComponent: 15,
   /** react-dom only: <title>, <link>, ... hoisted into <head>. Not queryable; children are walked. */
   HostHoistable: 26,
   /** react-dom only: <html>, <head>, <body>. Not queryable; children are walked. */

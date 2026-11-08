@@ -26,18 +26,12 @@ import { silentLogger } from './logger.js';
 import type { MatcherInput, TextQuery } from './matcher.js';
 import { toMatcher, toTextMatch } from './matcher.js';
 import type { DeviceProvider } from './devices/provider.js';
+import type { ActionOptions, CallOptions } from './options.js';
+import type { VisibleOptions } from './expect.js';
+import { ElementExpectation, checkRatio } from './expect.js';
 import type { AgentConnection } from './server/ws-server.js';
 
-export interface CallOptions {
-  /** Per-call timeout (agent side). Default: `sync.timeoutMs`. */
-  timeoutMs?: number;
-  /** `false` skips waiting for idle around this call (infinite animations etc.). */
-  sync?: boolean;
-}
-
-export interface ActionOptions extends CallOptions {
-  mode?: ActionMode;
-}
+export type { ActionOptions, CallOptions } from './options.js';
 
 export interface DriverOptions {
   provider: DeviceProvider;
@@ -115,8 +109,12 @@ export class Driver {
 
   // ---- assertions (§6.4) ----
 
-  expectVisible(target: MatcherInput, opts?: CallOptions): Promise<ElementSummary[]> {
-    return this.assert({ type: 'visible', matcher: toMatcher(target) }, opts);
+  /** At least one match is visible; with `ratio`, shows at least that fraction of its area. */
+  expectVisible(target: MatcherInput, opts: VisibleOptions = {}): Promise<ElementSummary[]> {
+    const { ratio, ...call } = opts;
+    const spec: Extract<AssertionSpec, { type: 'visible' }> = { type: 'visible', matcher: toMatcher(target) };
+    if (ratio !== undefined) spec.ratio = checkRatio(ratio);
+    return this.assert(spec, call);
   }
   expectNotVisible(target: MatcherInput, opts?: CallOptions): Promise<ElementSummary[]> {
     return this.assert({ type: 'notVisible', matcher: toMatcher(target) }, opts);
@@ -135,6 +133,50 @@ export class Driver {
   }
   expectCount(target: MatcherInput, expected: number, opts?: CallOptions): Promise<ElementSummary[]> {
     return this.assert({ type: 'count', matcher: toMatcher(target), expected }, opts);
+  }
+  expectFocused(target: MatcherInput, opts?: CallOptions): Promise<ElementSummary[]> {
+    return this.assert({ type: 'focused', matcher: toMatcher(target) }, opts);
+  }
+  expectNotFocused(target: MatcherInput, opts?: CallOptions): Promise<ElementSummary[]> {
+    return this.assert({ type: 'notFocused', matcher: toMatcher(target) }, opts);
+  }
+  expectEnabled(target: MatcherInput, opts?: CallOptions): Promise<ElementSummary[]> {
+    return this.assert({ type: 'enabled', matcher: toMatcher(target) }, opts);
+  }
+  expectDisabled(target: MatcherInput, opts?: CallOptions): Promise<ElementSummary[]> {
+    return this.assert({ type: 'disabled', matcher: toMatcher(target) }, opts);
+  }
+  expectChecked(target: MatcherInput, opts?: CallOptions): Promise<ElementSummary[]> {
+    return this.assert({ type: 'checked', matcher: toMatcher(target) }, opts);
+  }
+  expectNotChecked(target: MatcherInput, opts?: CallOptions): Promise<ElementSummary[]> {
+    return this.assert({ type: 'notChecked', matcher: toMatcher(target) }, opts);
+  }
+  /** Input text, switch state, slider / picker value or accessibilityValue equals (or matches) `expected`. */
+  expectValue(target: MatcherInput, expected: JsonValue | RegExp, opts?: CallOptions): Promise<ElementSummary[]> {
+    return this.assert({ type: 'value', matcher: toMatcher(target), expected: expected instanceof RegExp ? toTextMatch(expected) : expected }, opts);
+  }
+  expectLabel(target: MatcherInput, expected: TextQuery, opts?: CallOptions): Promise<ElementSummary[]> {
+    return this.assert({ type: 'label', matcher: toMatcher(target), expected: toTextMatch(expected) }, opts);
+  }
+
+  /** Chained assertions: `await app.expect('save').not.toBeEnabled()` (same semantics as `expectXxx`). */
+  expect(target: MatcherInput): ElementExpectation {
+    return new ElementExpectation(target, (spec, opts) => this.assert(spec, opts));
+  }
+
+  /**
+   * Everything known about the single matching element (Detox `getAttributes`): type, semantic type,
+   * text, label, value, enabled, focused, checked, rect, visible ratio, props. Waits until the element
+   * exists; MULTIPLE_MATCHES when several match.
+   */
+  async attributes(target: MatcherInput, opts?: CallOptions): Promise<ElementSummary> {
+    const matcher = toMatcher(target);
+    const found = await this.assert({ type: 'exists', matcher }, opts);
+    if (found.length > 1) {
+      throw new QuiescoError('MULTIPLE_MATCHES', `${found.length} elements match; add \`index\` or a more specific matcher`, { matcher, matches: found });
+    }
+    return found[0] as ElementSummary;
   }
 
   // ---- queries, sync, backdoors, reset (§6.1, §6.2, §6.5, §6.6) ----

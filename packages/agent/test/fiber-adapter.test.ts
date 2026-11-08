@@ -320,3 +320,73 @@ describe('HostNode lookups used by js actions', () => {
     expect(row.findInstance('nope')).toBeNull();
   });
 });
+
+describe('HostNode: owner names, focus, clipping, input value (Phase 6.1)', () => {
+  it('ownerNames(): named composites between the host and the nearest host ancestor, nearest first', () => {
+    const { adapter, target } = setup();
+    function TodoCard(): null {
+      return null;
+    }
+    const Pressable = Object.assign(() => null, { displayName: 'Pressable' });
+    const forwardRefView = { $$typeof: Symbol.for('react.forward_ref'), render: function View() {} };
+    const anonymous = (() => () => null)(); // no inferred name
+    const memoAnon = { $$typeof: Symbol.for('react.memo'), type: anonymous };
+    renderWith(target, makeRoot(
+      composite(TodoCard, composite(Pressable, composite(forwardRefView, composite(memoAnon, host('RCTView', { testID: 'card' }, composite(TodoCard, host('RCTText', {}, text('x')))))))),
+    ));
+    const [card] = adapter.getHostRoots();
+    expect(card?.ownerNames()).toEqual(['View', 'Pressable', 'TodoCard']);
+    expect(card?.renderedWithParent).toBe(false); // top-level host
+    expect(card?.children[0]?.renderedWithParent).toBe(false); // TodoCard in between
+    // Names stop at the nearest host ancestor.
+    expect(card?.children[0]?.ownerNames()).toEqual(['TodoCard']);
+  });
+
+  it('native: focus via the focused public instance, clipping via scroll hosts and overflow style, input text prop', () => {
+    let focused: unknown = null;
+    const { adapter, target } = setup({}, {
+      platformDeps: { getPublicInstance: () => (f) => f.stateNode, viewport: () => ({ width: 400, height: 800 }), focusedElement: () => focused },
+    });
+    renderWith(target, makeRoot(
+      host('RCTScrollView', {},
+        host('AndroidTextInput', { testID: 'email', text: 'typed', value: 'old' }),
+        host('RCTView', { style: [{ overflow: 'hidden' }] }),
+        host('RCTView', { style: { overflow: 'visible' } }),
+      ),
+    ));
+    const [scroll] = adapter.getHostRoots();
+    const [input, hidden, visible] = scroll!.children;
+    expect(scroll?.clipsContent).toBe(true);
+    expect([hidden?.clipsContent, visible?.clipsContent]).toEqual([true, false]);
+    expect(input?.inputValue()).toBe('typed');
+    expect(hidden?.inputValue()).toBeUndefined();
+    expect(input?.isFocused()).toBe(false);
+    focused = (adapter.getHostRoots()[0]!.children[0] as unknown as { fiber: { stateNode: unknown } }).fiber.stateNode;
+    expect(adapter.getHostRoots()[0]!.children[0]!.isFocused()).toBe(true);
+  });
+
+  it('web: focus via the active element, clipping via computed overflow, live DOM value', () => {
+    let active: unknown = null;
+    const { adapter, target } = setup({}, {
+      platformDeps: {
+        focusedElement: () => active,
+        getComputedStyle: (el) => ({ display: 'block', opacity: '1', overflowX: 'visible', overflowY: (el as { scrolls?: boolean }).scrolls ? 'auto' : 'visible' }),
+      },
+    });
+    renderWith(target, makeRoot(host('div', {}, host('input', { type: 'text', value: 'stale' }), special(7, 'Fragment', host('input', { type: 'checkbox' })))), 'react-dom');
+    const [div] = adapter.getHostRoots();
+    const [textbox, checkbox] = div!.children;
+    // Created directly in the div's render (a Fragment is not a component).
+    expect([textbox?.renderedWithParent, checkbox?.renderedWithParent]).toEqual([true, true]);
+    const domText = (textbox as unknown as { fiber: { stateNode: Record<string, unknown> } }).fiber.stateNode;
+    domText['value'] = 'live';
+    expect(textbox?.inputValue()).toBe('live');
+    expect(checkbox?.inputValue()).toBeUndefined();
+    expect(div?.clipsContent).toBe(false);
+    (div as unknown as { fiber: { stateNode: Record<string, unknown> } }).fiber.stateNode['scrolls'] = true;
+    expect(adapter.getHostRoots()[0]?.clipsContent).toBe(true);
+    active = domText;
+    expect(textbox?.isFocused()).toBe(true);
+    expect(checkbox?.isFocused()).toBe(false);
+  });
+});

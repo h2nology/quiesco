@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-Phase 6 计划已确认（HU 2026-11-08）。下一步：6.1 Matcher 与断言扩充。
+6.1 完成并提交。下一步：6.2 元素动作补全——先输出详细实施计划交 HU 确认。
 
 ## Current Phase
 Phase 6
@@ -151,10 +151,15 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 **对标基线**：Detox 20.51.4（findings.md「调研 B」）。**原则**：Detox 里单平台独占的能力，Quiesco 尽量三端都做（做不到的写进 platforms.md 并报 ACTION_NOT_SUPPORTED + 原因）；每项能力都要有单元测试 + 示例 App 三端实跑；Detox 的已知痛点逐条对应一个可验证的改进。
 
 - [x] 6.0 调研：Detox API 全集与痛点、Quiesco 动作链路 → findings.md（调研 A / B）
-- [ ] 6.1 Matcher 与断言扩充（纯 JS，agent + core）
-  - Matcher：`id` 支持 RegExp；`type`（语义类型 button / input / text / image / switch / slider / scroll / list / picker / progress，三端统一映射，可加原生类名）；`has`（= withDescendant）；`not`；`within` 已有；`index` 已有并文档化排序规则（按树序，三端一致——Detox 的 atIndex 两端顺序不同）
-  - 断言：`expectVisible(t, { ratio })`（可见比例，默认任一像素可见 → 与 Detox 75% 对比写入文档）、`expectFocused`、`expectEnabled` / `expectDisabled`（Detox 没有）、`expectValue`（TextInput value / Switch / Slider 统一）、`expectLabel`、`expectChecked`（switch / checkbox / accessibilityState）
-  - 查询：`attributes(target)`（= getAttributes：text、label、value、enabled、focused、checked、rect、visibleRatio、type、testID、props 子集）
+- [x] 6.1 Matcher 与断言扩充（纯 JS，agent + core）——详细计划（2026-11-09），完成（2026-11-09）
+  - **protocol**：`Matcher` 加 `id: TextMatch`（可正则）、`type?: SemanticType | string`（语义类型或宿主类名）、`has?: Matcher`（子孙中有匹配，= withDescendant）、`not?: Matcher`（自身不满足）；`AssertionSpec` 加 `visible{ratio?}`、`focused` / `notFocused`、`enabled` / `disabled`、`checked` / `notChecked`、`value{expected}`、`label{expected}`；`ElementSummary` 加 `semanticType`、`focused`、`enabled`、`checked?`、`value?`、`visibleRatio`
+  - **fiber-adapter**（平台差异只在这里）：`HostNode` 加 `isFocused()`（native：`TextInputState.currentlyFocusedInput()` 与 public instance 比较；web：`document.activeElement`）、`ownerNames()`（拥有该宿主的复合组件名，用于语义类型，如 Pressable / Slider）、`clipRect()`（滚动容器 / overflow 裁剪：native 按 ScrollView 宿主类型，web 按 computed overflow）
+  - **query 层**：`semanticType(node)` 映射表（宿主类名 + role + 复合组件名 → button / input / text / image / switch / slider / scroll / list / picker / progress / checkbox / link / header），**映射表按三端实机 `quiesco tree` 输出核对后定稿**；`state(node)` 统一读 enabled（disabled / accessibilityState.disabled / aria-disabled / editable=false）、checked（accessibilityState.checked / aria-checked / Switch value）、value（TextInput `text` prop / Slider / Switch / accessibilityValue）；`visibleRatio(node)` = 可见面积 / 自身面积（视口 ∩ 祖先裁剪框）
+  - **可见性规则升级**：可见判定增加祖先滚动容器裁剪（目前只看窗口），默认仍是「任一像素可见」；`expectVisible(t, { ratio: 0.75 })` 可选比例（Detox 默认 75% 且不可关）
+  - **core Driver**：`expectFocused` / `expectNotFocused` / `expectEnabled` / `expectDisabled` / `expectChecked` / `expectNotChecked` / `expectValue` / `expectLabel`、`expectVisible(t, { ratio })`、`attributes(t)`（唯一元素的完整 ElementSummary，多个时报 MULTIPLE_MATCHES）；`ElementQuery` 对应字段（`id` 可 RegExp、`type`、`has`、`not`）
+  - **测试**：agent 单测（各语义类型映射、state 读取、has / not / id 正则、裁剪与比例、焦点）；core 单测（toMatcher、新断言参数）；示例 App 增加一个表单 feature 覆盖焦点 / 禁用 / 勾选 / 值 / 类型匹配，三端实跑；`pnpm run check`
+  - **文档**：api.md Matcher 与断言表、visibility 规则、语义类型三端映射表；steps 新增对应中日英步骤留到 6.10 统一做
+  - **HU 决定（2026-11-09）**：① 祖先滚动容器裁剪加入可见判定并默认生效（三端全量回归）；② 在现有 `expectXxx` 之外再加链式 API `app.expect(t).not.toBeFocused()`（类 Detox / Jest，便于迁移），两套写法共用同一实现
 - [ ] 6.2 元素动作补全（第一批，单指）
   - `tap(t, { point | offset })`、`multiTap(t, n)`（doubleTap 保留为别名）、`longPress(t, { point, durationMs })`
   - `replaceText(t, text)`（native：现有 replace 路径；js：onChangeText 直接设值）
@@ -208,7 +213,7 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 - [ ] 6.13 真机：Android 真机（adb，无 emulator 专属命令时逐项降级并报 ACTION_NOT_SUPPORTED + 原因）；iOS 真机（devicectl 安装 / 启动 / 传参、签名配置、网络连接改为局域网或 USB 转发，spike 先行）；**需要 HU 提供并连接真机**，验收前暂停确认
 - [ ] 6.14 LLM 驱动（对标 Detox Pilot）：`app.ai.perform('…')` / `app.ai.expect('…')`，以元素树 + 截图为上下文、Driver API 为工具；实现前先读 claude-api 技能确认当前模型与 SDK 用法；结果可「固化」为普通 step 代码（Detox 没有）；默认关闭，需配置 API key
 - **验收**：对照表中 Detox 的每一项都有对应能力（或写明替代方案）；示例 App 新 features 在 iOS / Android / Chromium 通过；Detox 单平台独占项在 Quiesco 中至少两端可用
-- **Status:** in_progress（6.0 完成，计划已确认，下一步 6.1）
+- **Status:** in_progress（6.0、6.1 完成，下一步 6.2）
 
 ## 待 HU 决定（requirements.md §11，遇到时暂停询问）
 | # | 事项 | 何时需要 | 状态 |
@@ -296,6 +301,12 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | 示例 App Web 用 `web.output: 'static'`；三视口尺寸写在 quiesco.config（`QUIESCO_VIEWPORT`）；`QUIESCO_WEB_URL` 切换开发服务器 | §11-7、§6.13 |
 | Phase 6 对标 Detox 20.51.4，单平台独占能力尽量三端实现 | HU 2026-11-08：功能比 Detox 全、体验比 Detox 好 |
 | 重新做并行（6.12）、做真机（6.13）与 LLM 驱动（6.14）；iOS 系统弹窗先 spike | HU 2026-11-08 |
+| 可见判定加入祖先滚动容器裁剪，默认生效 | HU 2026-11-09（6.1）：滚出容器但仍在窗口内的元素不应算可见 |
+| 新增链式断言 `app.expect(t)[.not].toBeXxx()`，与 `expectXxx` 共用实现 | HU 2026-11-09（6.1）：便于从 Detox 迁移 |
+| 多宿主控件（如 RNW Switch = 外层 div + 内部 input）：父宿主渲染时直接创建、语义类型相同的子宿主是「部件」，不单独参与 `type` 匹配；控件的 checked / value / enabled / 焦点 / label 从部件读取 | 6.1 Web 实测：一个 Switch 被数成 2 个，状态与 aria-label 在内部 input 上；「直接创建」由 fiber-adapter 按 work tag 判定（不受压缩影响） |
+| `notChecked` 严格：没有勾选状态的元素既不满足 checked 也不满足 notChecked | 未定义状态当作「未勾选」会让断言在错误的元素上误通过（6.1 Web 首轮即如此） |
+| 动作目标解析到截止时间时，若同时目标不存在，报 ELEMENT_NOT_FOUND（附「App 也仍忙」的原因），而不是最后几毫秒的 SYNC_TIMEOUT | 6.1 Web 实测：真实原因（匹配不到）被误报为 frame-stable 超时 |
+| 示例配置 `QUIESCO_METRO_URL` 可覆盖 Metro 地址（默认 8082） | 停止旧 Metro 被权限拒绝；另起干净 Metro（8083）验证，不影响现有进程 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -313,3 +324,6 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | vitest 类型测试从 1.2 起没有生效（tsconfig 的 include 只有 src，test 文件不被 tsc 检查，却显示通过） | 1 | 增加 tsconfig.test.json 并在 vitest typecheck.tsconfig 中指定；protocol / agent 各做一次反向测试确认能报错；顺带修掉暴露出来的测试代码类型错误 |
 | 真机冒烟：AndroidProvider 没认出正在运行的 AVD，又 spawn 了一个同名 emulator（boot 挂起） | 1 | `adb emu avd name` 返回空 → 改用 `getprop ro.boot.qemu.avd_name` 优先；确认多余的 emulator 已自行退出（只剩原进程） |
 | `.npmrc` 的 `node-linker=hoisted` 从 1.1 起没有生效（`.modules.yaml` 显示 isolated） | 1 | 改写到 pnpm-workspace.yaml 的 `nodeLinker: hoisted` 并删除 .npmrc；重装后确认 hoisted，全部检查仍通过 |
+| 6.1 Web 首轮：`{ type: 'switch' }` 数出 2 个 | 1 | RNW Switch 外层 div（displayName Switch）+ 内部 input role=switch 都判为 switch → 引入「部件」规则（renderedWithParent） |
+| 6.1 Web 第二轮：tap `{ type:'switch', label }` 报 SYNC_TIMEOUT | 1 | 实为匹配不到（aria-label 在部件上）；label 回退到部件 + 解析截止时报 ELEMENT_NOT_FOUND；反向测试确认 |
+| 6.1 原生：Metro 8082 打包失败「Unable to resolve ./semantic」 | 1 | 无 watchman 的 Metro 看不到新文件；kill 旧 Metro 被权限拒绝 → 另起 `expo start --port 8083 --clear` + `QUIESCO_METRO_URL` |

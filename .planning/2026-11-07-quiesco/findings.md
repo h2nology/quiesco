@@ -292,3 +292,16 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - 同步太严 → 无限动画 / 轮询 / websocket 卡死；唯一出路是全局关同步。
 - iOS 键盘挡第一次点击（#3399）、回车键因可见性检查点不到（#4546）。
 - WebView 输入不稳（#4886 等）；大量 iOS 独占能力；构建集成复杂（测试 APK、ProGuard、framework cache）；artifact 文档「To be done」；issue 多以不活跃关闭。
+
+## 6.1 源码确认（RN 0.88.1，node_modules/react-native，2026-11-09）
+- 宿主组件名（codegen / requireNativeComponent）：RCTView、RCTText、RCTVirtualText、RCTSelectableText、RCTImageView、RCTScrollView、RCTScrollContentView、AndroidHorizontalScrollView、AndroidHorizontalScrollContentView、RCTSinglelineTextInputView、RCTMultilineTextInputView、AndroidTextInput、Switch（iOS）、AndroidSwitch、ActivityIndicatorView、AndroidProgressBar、ModalHostView、SafeAreaView、AndroidSwipeRefreshLayout、PullToRefreshView、AndroidDrawerLayout。**实际 fiber.type 字符串需在设备上用 tree 核对**（codegen 名与 paper 名可能不同）。
+- TextInput 当前文字：宿主组件 prop `text`（= value ?? lastNativeText，TextInput.js L614/L688）。
+- 焦点：`TextInput.State.currentlyFocusedInput()` 返回 HostInstance（public instance），与 `getPublicInstanceFromInternalInstanceHandle(fiber)` 可直接比较。
+- 有 displayName 的核心组件：ActivityIndicator、Button、Image、Modal、Pressable、ScrollView、Text、TextInput、TouchableHighlight、TouchableNativeFeedback、TouchableOpacity、View。**FlatList / SectionList / Switch 没有**——release 构建会被压缩，语义类型不能依赖复合组件名；改用宿主类型字符串（不压缩）+ role + ownerProps（如 `renderItem` ⇒ list）。
+
+## 6.1 实测发现（2026-11-09）
+- react-native-web Switch 结构：外层 View（`other` props，含 testID，**不含** aria-label / disabled / value）> track View、thumb View、`<input type="checkbox" role="switch" checked disabled aria-label>`（createElement 直接创建，opacity 0 绝对定位）。
+- RNW 的 Text / Image / ScrollView / ActivityIndicator / Switch / TextInput / Pressable / View 都显式设置了 displayName（压缩后仍可用）。
+- React 19 work tag（RN 0.88 渲染器源码确认）：0 Function、1 Class、11 ForwardRef、14 Memo、15 SimpleMemo、7 Fragment。
+- Expo monorepo 下 Metro 的 server root 是仓库根：bundle 路径为 `/examples/todo-app/index.bundle`；expo-router 的路由模块不在主 bundle（require.context 懒加载）。
+- 无 watchman 的 Metro 不会发现**新建**文件（文件 map 过期），表现为「Unable to resolve ./semantic」。

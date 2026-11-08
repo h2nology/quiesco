@@ -19,6 +19,15 @@ export interface NodeSpec {
   /** findInstance(method) result. */
   instance?: InstanceRef | null;
   tag?: number | null;
+  /** ownerNames(): component names rendering this host, nearest first. */
+  ownerNames?: string[];
+  focused?: boolean;
+  /** Clips its descendants (scroll view / overflow hidden). */
+  clips?: boolean;
+  /** inputValue(): live text of a text input. */
+  inputValue?: string;
+  /** Created directly in the parent's render (no component in between). */
+  withParent?: boolean;
   children?: NodeSpec[];
 }
 
@@ -40,6 +49,8 @@ export function node(spec: NodeSpec, parent: MutableNode | null = null): Mutable
     label: spec.label,
     role: spec.role,
     hiddenByStyle: spec.hidden ?? false,
+    clipsContent: spec.clips ?? false,
+    renderedWithParent: spec.withParent ?? false,
     parent,
     children: [],
     ownText: spec.text ?? '',
@@ -49,6 +60,9 @@ export function node(spec: NodeSpec, parent: MutableNode | null = null): Mutable
       return this.rect;
     },
     ownerProps: () => spec.owner ?? {},
+    ownerNames: () => spec.ownerNames ?? [],
+    isFocused: () => spec.focused ?? false,
+    inputValue: () => spec.inputValue,
     findHandler(name: string): HandlerRef | null {
       for (const p of [spec.props ?? {}, spec.owner ?? {}, spec.ancestorHandlers ?? {}]) {
         if (typeof p[name] === 'function') return { fn: p[name] as HandlerRef['fn'], props: p };

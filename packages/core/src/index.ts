@@ -4,6 +4,8 @@ export type { ActionMode, ElementSummary, JsonValue, Platform, TrackerState, Tre
 export { defineConfig, loadConfig, resolvePlatform, serverPort, toAgentConfig, ignoredAppErrors, DEFAULT_CONNECT_TIMEOUT_MS, DEFAULT_IGNORED_APP_ERRORS } from './config.js';
 export type { AndroidAppConfig, AndroidDeviceConfig, IosAppConfig, IosDeviceConfig, QuiescoConfig, WebAppConfig, WebDeviceConfig, WebViewport } from './config.js';
 export { Driver } from './driver.js';
+export { ElementExpectation } from './expect.js';
+export type { VisibleOptions } from './expect.js';
 export type { ActionOptions, CallOptions } from './driver.js';
 export { QuiescoError } from './errors.js';
 export type { HostErrorName } from './errors.js';

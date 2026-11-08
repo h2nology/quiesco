@@ -243,3 +243,7 @@
 - HU 要求 Phase 6：补齐相对 Detox 的全部缺口并优化。已建 Phase 6 骨架；并行调研 Detox API（官方文档）与 Quiesco 动作链路。
 - 调研完成（findings.md 调研 A / B）；Phase 6 拆为 6.0–6.14 写入 task_plan.md。
 - HU 决定：重做并行、iOS 系统弹窗先 spike、做真机与 LLM 驱动、按编号顺序。下一步 6.1。
+| 6.1 代码 + 单测 | ✅ | protocol（Matcher id 正则 / type / has / not；断言 visible{ratio} / notVisible{ratio} / focused / enabled / checked / value / label 及 not 标志；ElementSummary 加 semanticType / focused / enabled / checked / value / visibleRatio）；fiber-adapter（ownerNames、isFocused、clipsContent、inputValue，平台差异只在 host.ts / default-deps）；query（semantic.ts 语义类型 + 状态；visibility 加祖先裁剪与比例）；core（expectFocused 等 8 个方法、attributes()、链式 `expect(t)[.not]`、options.ts 拆出以消除 driver↔expect 环）。新增测试：agent semantic.test.ts + fiber-adapter 3 个、core expect.test.ts。`pnpm run check`：343 测试、depcruise 0 违规（第一次因 driver↔expect 环失败，已修）|
+| 6.1 Web 实测 | ✅ | 首轮 8/9（RNW Switch 被数成 2 个）→ 部件规则；第二轮 8/9（label 在部件上，且报错误导为 SYNC_TIMEOUT）→ label 回退 + ELEMENT_NOT_FOUND 优先（反向测试：去掉修复后新测试失败）；最终 mobile / tablet / desktop 各 9/9（8.5s） |
+| 6.1 iOS / Android 实测 | ✅ | 旧 Metro（8082，无 watchman）看不到新文件 semantic.ts；停止它被权限拒绝 → 另起 8083 `--clear` 并确认 bundle 含新代码。iOS 8 通过 + 1 按 tag 跳过（25.5s，真实触摸）；Android 9/9（冷启动 Medium_Phone_API_37.0，1m4.6s）。包含既有场景在新可见性规则（祖先裁剪）下的全量回归 |
+| 6.1 收尾 | ✅ | docs/api.md（断言表、链式 expect、attributes、Matcher、语义类型三端映射表、可见性规则）；RNW 组件 displayName 实查确认映射表；`pnpm run check` 350 测试、depcruise 0 违规。遗留：8083 上的 Metro 仍在后台运行；旧 8082 Metro 仍是旧代码（需 HU 重启） |

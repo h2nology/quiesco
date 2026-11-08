@@ -20,6 +20,10 @@ export const defaultPlatformDeps: PlatformDeps = {
     const shim = mod.default ?? mod;
     return shim.getPublicInstanceFromInternalInstanceHandle ?? null;
   },
+  focusedElement() {
+    const rn = require('react-native') as { TextInput?: { State?: { currentlyFocusedInput?: () => unknown } } };
+    return rn.TextInput?.State?.currentlyFocusedInput?.() ?? null;
+  },
   viewport() {
     const rn = require('react-native') as { Dimensions: { get(dim: 'window'): Viewport } };
     const { width, height } = rn.Dimensions.get('window');
