@@ -71,4 +71,14 @@ describe('Session', () => {
     expect(msg).toMatch(/Refused connections:\n {2}- Unknown session "someone-else"/);
     expect(provider.calls).toContain('shutdown'); // cleaned up after the failure
   });
+
+  it('follows the app when it reconnects (web page reload) without failing the next call', async () => {
+    const { provider, agents } = agentOnLaunch((m) => (m === 'getTree' ? { root: null } : {}));
+    session = await Session.create({ config: config(), platform: 'android', provider, logger: silentLogger });
+    const port = session.launchParams.port;
+    agents[0]!.ws.terminate();
+    await agents[0]!.closed;
+    connectAgent(port, { sessionId: session.launchParams.sessionId, handler: () => ({ root: { type: 'div', children: [] } }) });
+    await expect(session.driver.getTree()).resolves.toEqual({ type: 'div', children: [] });
+  });
 });

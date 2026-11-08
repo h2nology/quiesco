@@ -171,12 +171,31 @@ export class AndroidProvider implements DeviceProvider {
     throw new QuiescoError('DEVICE_ERROR', `Emulator ${avd} did not appear in adb devices within ${timeoutMs}ms`);
   }
 
+  /**
+   * Boot completed AND the user unlocked. Until the user is RUNNING_UNLOCKED, the package manager hides
+   * components that are not direct-boot aware: `am start` then fails with "Activity class does not
+   * exist" (seen after an emulator's system server restarted overnight with the user stuck in BOOTING).
+   */
   private async waitForBoot(timeoutMs: number): Promise<void> {
     const deadline = Date.now() + timeoutMs;
     for (;;) {
       const done = await this.shell('getprop sys.boot_completed').catch(() => '');
-      if (done.trim() === '1') return;
+      if (done.trim() === '1') break;
       if (Date.now() >= deadline) throw new QuiescoError('DEVICE_ERROR', `Android device ${this.serial} did not finish booting within ${timeoutMs}ms`);
+      await this.sleep(this.options.pollMs ?? 1000);
+    }
+    for (;;) {
+      const users = await this.shell('dumpsys user').catch(() => '');
+      const state = /State:\s*(\w+)/.exec(users)?.[1] ?? 'unknown';
+      if (state === 'RUNNING_UNLOCKED' || users === '') return; // empty: dumpsys unavailable, do not block
+      if (Date.now() >= deadline) {
+        throw new QuiescoError(
+          'DEVICE_ERROR',
+          `Android user on ${this.serial} is not unlocked (state ${state}); apps cannot start. Reboot the device: adb -s ${this.serial} reboot`,
+        );
+      }
+      await this.shell('input keyevent KEYCODE_WAKEUP').catch(() => undefined);
+      await this.shell('wm dismiss-keyguard').catch(() => undefined);
       await this.sleep(this.options.pollMs ?? 1000);
     }
   }
@@ -211,7 +230,7 @@ export class AndroidProvider implements DeviceProvider {
     let command: string;
     if (dc !== undefined) {
       const metroUrl = dc.metroUrl ?? 'http://localhost:8081';
-      const url = `${dc.scheme}://expo-development-client/?url=${encodeURIComponent(metroUrl)}&__expo_disable_onboarding=1&__expo_disable_fab=1`;
+      const url = `${dc.scheme}://expo-development-client/?url=${encodeURIComponent(metroUrl)}&__expo_disable_onboarding=1&__expo_disable_fab=1&__expo_disable_auto_launch=1`;
       command = `am start -W -a android.intent.action.VIEW -d ${shq(url)} ${extras} ${shq(this.pkg)}`;
     } else {
       const activity = this.options.app.activity ?? '.MainActivity';
@@ -255,10 +274,11 @@ export class AndroidProvider implements DeviceProvider {
         await this.shell(`am start -W -a android.intent.action.VIEW -d ${shq(input.url)} ${shq(this.pkg)}`);
         return;
       default:
-        throw new QuiescoError('ACTION_NOT_SUPPORTED', `Android provider cannot inject ${input.kind} (use the agent's native or js mode)`, {
-          action: input.kind,
-          platform: 'android',
-        });
+        throw new QuiescoError(
+          'ACTION_NOT_SUPPORTED',
+          `Real ${input.kind} input on Android needs @quiesco/native in the app (an e2e build with its config plugin); or set actions: { mode: 'js' }`,
+          { action: input.kind, platform: 'android', hint: 'add @quiesco/native to the app and rebuild it with EXPO_PUBLIC_QUIESCO=1' },
+        );
     }
   }
 

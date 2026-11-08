@@ -23,6 +23,7 @@ export interface NodeSpec {
 }
 
 interface MutableNode extends HostNode {
+  spec: NodeSpec;
   children: MutableNode[];
   text: string;
   ownText: string;
@@ -32,6 +33,7 @@ interface MutableNode extends HostNode {
 
 export function node(spec: NodeSpec, parent: MutableNode | null = null): MutableNode {
   const n: MutableNode = {
+    spec,
     type: spec.type ?? 'RCTView',
     props: spec.props ?? {},
     testID: spec.testID,
@@ -55,6 +57,10 @@ export function node(spec: NodeSpec, parent: MutableNode | null = null): Mutable
     },
     findInstance: () => spec.instance ?? null,
     nativeTag: () => spec.tag ?? null,
+    // Same element = built from the same spec object (mirrors "same host instance").
+    isSameElement(other) {
+      return (other as unknown as { spec?: NodeSpec }).spec === spec;
+    },
   };
   n.children = (spec.children ?? []).map((c) => node(c, n));
   n.text = n.ownText + n.children.map((c) => c.text).join('');

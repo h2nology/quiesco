@@ -4,10 +4,10 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-Phase 3（Web）：先读 requirements.md §10 第 3 阶段，输出实施计划，经 HU 确认后再写代码。开始前需要 HU 决定 §11-6（是否首版验收 Firefox / WebKit）与 §11-7（Web 视口默认值）。
+Phase 3 验收全部通过（Android 全新安装 / 屏蔽 Playwright、Web 三视口各 20/20、check 通过），等 HU 说「提交」后 commit，然后出 Phase 4 实施计划。
 
 ## Current Phase
-Phase 3（待确认实施计划）
+Phase 3
 
 ## 工作约定（摘自 requirements.md §12，每个阶段都要遵守）
 - 按阶段推进，不跳阶段；每阶段开始前先输出实施计划，经确认后再写代码。
@@ -97,11 +97,19 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 - **Status:** complete（2026-11-07）
 
 ### Phase 3: Web
-- [ ] `@quiesco/web`：Web DeviceProvider、Playwright 输入注入、静态文件服务器（SPA 回退）
-- [ ] fiber-adapter 的 react-dom 实现、Web 存储适配器、hydration 等待、整页刷新透明重连
-- [ ] 平台 tag 过滤与 `--platform` 切换
-- **验收：** Android 与 Chromium 用完全相同的 feature/steps 通过；Web 连续 20 次无随机失败；不装 Playwright 时原生端正常
-- **Status:** pending
+**范围**（requirements.md §10 第 3 阶段）：`@quiesco/web`（Web DeviceProvider、Playwright 输入注入、静态文件服务器含 SPA 回退）。已提前完成：react-dom 版 fiber-adapter（1.3 / S7）、Web 存储适配器（1.4b）、平台 tag 过滤与 `QUIESCO_PLATFORM`（1.6）；`--platform` CLI 属于 Phase 5。
+
+**HU 决定（2026-11-08）**：§11-6 只验收 Chromium；§11-7 手机 / 平板 / 桌面三个视口都验收（第 9 节场景三视口都通过，20 次稳定性每个视口各 20 次），默认手机。视口尺寸写在示例 App 的 quiesco.config（§6.13 不写死在代码里），`QUIESCO_VIEWPORT` 切换。
+
+**任务拆分（计划待 HU 确认）**
+- [x] 3.1 `packages/web`（`@quiesco/web`）：`WebProvider implements DeviceProvider`，`playwright` 为 peer 依赖。boot = 启动浏览器；install = 启动静态服务器（`apps.web.distDir`，SPA 回退到 index.html）或检查 `apps.web.url` 可访问；launch = 新 browser context（视口、权限映射）+ `addInitScript` 注入 `window.__QUIESCO__` + `goto`；terminate = 关闭 context（硬重置即新 context）；screenshot = `page.screenshot`；injectInput = Playwright 鼠标 / 键盘 / 滚轮 / 导航 / 后退；shutdown = 关浏览器和静态服务器
+- [x] 3.2 core：`createProvider('web')` 运行时动态 import `@quiesco/web`（core 不依赖它，depcruise 规则不变）；未安装时给出安装提示；配置类型补全 `apps.web` / `devices.web`
+- [x] 3.3 Web 的 `native` 档位 = Host 注入：agent 在没有 `@quiesco/native` 时，native 档位不报错，而是做完可见 / 稳定 / 命中检查后返回 `hostInput`（tap / type / wheel），由 Driver 交给 provider 注入后再等空闲（agent 内不按平台分支；Android 无原生模块时 provider 不支持 tap 注入 → 明确报错）。协议新增 `HostInput` 的 `wheel`（Web 上滚动用滚轮，鼠标拖动不会让 RNW ScrollView 滚动）
+- [x] 3.4 整页刷新后透明重连（§6.2）：Driver 发现连接已断开时，先等待同一 session 的新连接（连接超时内），再继续当前调用；与平台无关
+- [x] 3.5 示例 App 的 Web：`web.output` 用 `static`（顺带验证 Expo Router 静态渲染的 hydration：QuiescoRoot 挂载后才连接，Host 等连接 = 等 hydration 完成）；`build:web`（e2e 静态导出）、`test:e2e:web`；quiesco.config 加 `apps.web` / `devices.web`；开发服务器方式也跑一次
+- [ ] 3.6 「只测原生端不装 Playwright 也能运行」的验证：用 Node 的 module hook 在加载 `playwright` / `@quiesco/web` 时直接抛错，带着它跑一次 Android 全量 feature
+- [ ] 3.7 验收：同一份 feature 与 step 在 Android Emulator 与 Chromium（手机 / 平板 / 桌面三视口）上都通过；Web 每个视口连续 20 次无随机失败；3.6 通过；`pnpm run check` 通过
+- **Status:** in_progress（HU 2026-11-08 确认计划）
 
 ### Phase 4: iOS 与 Expo 集成
 - [ ] `@quiesco/native` iOS 实现、iOS DeviceProvider
@@ -127,8 +135,8 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | 3 | iOS 注入替代方案（若 S4 失败） | S4 结论后 | 不需要（S4 成功） |
 | 4 | CI：GitHub Actions / EAS Workflows | Phase 1 搭骨架时（依赖检查要进 CI） | ✅ GitHub Actions（HU 2026-11-07） |
 | 5 | npm `@quiesco` 组织与发布流程 | 发布前 | 未决 |
-| 6 | Web 是否首版验收 Firefox/WebKit | Phase 3 前 | 未决 |
-| 7 | Web 视口默认值（手机/桌面/两者） | Phase 3 前 | 未决 |
+| 6 | Web 是否首版验收 Firefox/WebKit | Phase 3 前 | ✅ 只验收 Chromium（HU 2026-11-08）；provider 可配置 firefox / webkit 但不作为验收对象 |
+| 7 | Web 视口默认值（手机/桌面/两者） | Phase 3 前 | ✅ 手机 / 平板 / 桌面三个视口都作为验收对象（HU 2026-11-08）；默认手机 |
 
 ## Decisions Made
 | Decision | Rationale |
@@ -195,6 +203,14 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | 同一元素的判断用原生 view tag（HostNode 每次遍历都会重建） | 单元测试发现按对象比较会误报「被自己遮挡」 |
 | `@quiesco/native` 的 Android 包名 `dev.quiesco.nativemodule`；package.json 不设 `"type": "module"`（app.plugin.js 为 CJS） | `native` 是 Java 关键字；Expo 以 require 加载 config plugin |
 | ESLint：`_` 开头的参数允许不使用 | 测试替身需要与真实签名一致 |
+| `@quiesco/web`：每次 launch 新建 browser context；`addInitScript` 注入连接参数；触摸视口用 touchscreen.tap，其余用鼠标；滚动用 wheel（协议新增 HostInput `wheel`） | §6.9；RNW ScrollView 不响应鼠标拖动 |
+| core 用变量包名动态 import `@quiesco/web`（depcruise / TS 均不视为静态依赖）；未安装时报出安装命令 | §5「web 通过插件机制在运行时按配置加载」；只测原生端不需要 Playwright |
+| 没有 `@quiesco/native` 时 native 档位改为 Host 注入：agent 做稳定 / 命中检查后返回 HostInput，Driver 交给 provider 注入再等空闲；scrollTo 在这种模式下退回 JS 滚动 | agent 内不按平台分支；scrollTo 需要在 agent 内循环 |
+| `HostNode.isSameElement()` 按底层宿主实例（Fabric 实例 / DOM 元素）比较，替代按 native tag 比较 | Web 没有 native tag，按对象比较会误报「被自己遮挡」 |
+| 连接断开时 Driver 等待同一 session 的新连接；只读调用（query / assert / waitForIdle / getTree / getIdleState）断线后重试一次 | §6.2 整页刷新后透明重连；动作等非幂等调用不重试 |
+| 新增 `appErrors.ignore` / `ignoreDefaults` 与 `DEFAULT_IGNORED_APP_ERRORS`（默认忽略 Expo Router 静态 Web 的 `Requiring unknown module`），被忽略的错误记为警告；docs/known-issues.md | 实测无 Quiesco 时真实用户同样触发（ErrorUtils 记录到 FATAL），App 自行恢复；不忽略会让第一个导航场景误报失败 |
+| Android `boot()` 额外等待用户进入 RUNNING_UNLOCKED，超时提示 `adb reboot` | 实测用户卡在 BOOTING 时 `am start` 报「Activity class does not exist」 |
+| 示例 App Web 用 `web.output: 'static'`；三视口尺寸写在 quiesco.config（`QUIESCO_VIEWPORT`）；`QUIESCO_WEB_URL` 切换开发服务器 | §11-7、§6.13 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

@@ -22,6 +22,8 @@ jobs:
         run: pnpm lint
       - name: architecture rules (dependency-cruiser)
         run: pnpm depcruise
+      - name: install Chromium for @quiesco/web tests
+        run: pnpm --filter @quiesco/web exec playwright install --with-deps chromium
       - name: unit tests
         run: pnpm test
       - name: type-check the example app

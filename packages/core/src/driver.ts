@@ -41,13 +41,21 @@ export interface ActionOptions extends CallOptions {
 
 export interface DriverOptions {
   provider: DeviceProvider;
-  /** Current connection (changes after a hard reset). */
-  connection: () => AgentConnection;
+  /**
+   * Current connection. Changes after a hard reset or a web page reload; when the app is reconnecting,
+   * resolves with the new connection.
+   */
+  connection: () => Promise<AgentConnection>;
   defaultTimeoutMs: number;
   /** Configured action mode; undefined = native if the app has @quiesco/native, else js. */
   mode?: ActionMode;
+  /** App errors (by message) that are logged instead of failing the call. */
+  ignoreAppErrors?: readonly RegExp[];
   logger?: Logger;
 }
+
+/** Calls without side effects, repeated once when the connection drops mid-call. */
+const RETRYABLE: ReadonlySet<keyof AgentMethods> = new Set(['query', 'assert', 'waitForIdle', 'getTree', 'getIdleState']);
 
 /** Extra wall-clock time on top of the agent-side timeout before the host gives up on a reply. */
 const HOST_MARGIN_MS = 5_000;
@@ -171,7 +179,7 @@ export class Driver {
   // ---- internals ----
 
   private async action(spec: ActionSpec, opts: ActionOptions = {}): Promise<ElementSummary | undefined> {
-    const params: ParamsOf<AgentMethods['action']> = { action: spec, mode: opts.mode ?? this.mode(), ...syncParams(opts) };
+    const params: ParamsOf<AgentMethods['action']> = { action: spec, mode: opts.mode ?? (await this.mode()), ...syncParams(opts) };
     const r = await this.call('action', params, opts.timeoutMs);
     if (r.hostInput !== undefined) {
       const inject = this.options.provider.injectInput?.bind(this.options.provider);
@@ -191,9 +199,13 @@ export class Driver {
     return (await this.call('assert', { assertion: spec, ...syncParams(opts) }, opts.timeoutMs)).elements;
   }
 
-  private mode(): ActionMode {
+  /**
+   * Configured mode, else `native` when the app has @quiesco/native or the device injects real input
+   * itself (web), else `js`.
+   */
+  private async mode(): Promise<ActionMode> {
     if (this.options.mode !== undefined) return this.options.mode;
-    const native = this.options.connection().info.nativeModule;
+    const native = (await this.options.connection()).info.nativeModule || this.options.provider.platform === 'web';
     if (!native && !this.warnedJsMode) {
       this.warnedJsMode = true;
       this.logger.info('@quiesco/native is not in the app: actions use js mode (callbacks are called directly, no hit testing)');
@@ -201,12 +213,22 @@ export class Driver {
     return native ? 'native' : 'js';
   }
 
-  private call<M extends keyof AgentMethods>(method: M, params: ParamsOf<AgentMethods[M]>, timeoutMs?: number): Promise<ResultOf<AgentMethods[M]>> {
+  private async call<M extends keyof AgentMethods>(method: M, params: ParamsOf<AgentMethods[M]>, timeoutMs?: number): Promise<ResultOf<AgentMethods[M]>> {
     const pending = this.takeAppError();
-    if (pending !== null) return Promise.reject(pending);
-    const conn = this.options.connection();
-    this.attach(conn);
-    return this.race(conn.request(method, params, (timeoutMs ?? this.options.defaultTimeoutMs) + HOST_MARGIN_MS));
+    if (pending !== null) throw pending;
+    const send = async (): Promise<ResultOf<AgentMethods[M]>> => {
+      const conn = await this.options.connection();
+      this.attach(conn);
+      return this.race(conn.request(method, params, (timeoutMs ?? this.options.defaultTimeoutMs) + HOST_MARGIN_MS));
+    };
+    try {
+      return await send();
+    } catch (e) {
+      // A page reload / relaunch dropped the connection mid-call: read-only calls are safe to repeat
+      // once the app is back (requirements.md §6.2: reconnecting is not an error).
+      if (e instanceof QuiescoError && e.errorName === 'AGENT_DISCONNECTED' && RETRYABLE.has(method)) return send();
+      throw e;
+    }
   }
 
   /** Fail as soon as the app reports an uncaught error. */
@@ -228,6 +250,10 @@ export class Driver {
     this.watched = conn;
     conn.on('appError', (e) => {
       if (this.watched !== conn) return;
+      if (this.options.ignoreAppErrors?.some((re) => re.test(e.message)) === true) {
+        this.logger.warn(`ignored app error (${e.kind}): ${e.message}`);
+        return;
+      }
       this.appErrors.push(e);
       for (const l of [...this.appErrorListeners]) l(e);
     });

@@ -1,0 +1,33 @@
+{
+  "name": "@quiesco/web",
+  "version": "0.0.0",
+  "description": "Quiesco web DeviceProvider (Playwright library). Install only to test on the web.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@quiesco/core": "workspace:*",
+    "@quiesco/protocol": "workspace:*"
+  },
+  "peerDependencies": {
+    "playwright": ">=1.50"
+  },
+  "devDependencies": {
+    "playwright": "1.65.0"
+  }
+}

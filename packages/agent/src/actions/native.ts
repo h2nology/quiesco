@@ -43,7 +43,7 @@ const SWIPE_MS: Record<Speed, number> = { slow: 600, normal: 300, fast: 120 };
 const SCROLL_DRAG_MS = 500;
 const DRAG_FRACTION = 0.35;
 
-function center(r: Rect): { x: number; y: number } {
+export function center(r: Rect): { x: number; y: number } {
   return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
 }
 
@@ -51,19 +51,13 @@ function contains(r: Rect, p: { x: number; y: number }): boolean {
   return p.x >= r.x && p.x < r.x + r.width && p.y >= r.y && p.y < r.y + r.height;
 }
 
-/** Same element? HostNode objects are rebuilt on every tree walk, so compare native view tags. */
-function sameNode(a: HostNode, b: HostNode): boolean {
-  if (a === b) return true;
-  const ta = a.nativeTag();
-  return ta !== null && ta === b.nativeTag();
-}
-
-function isAncestor(a: HostNode, b: HostNode): boolean {
-  for (let n: HostNode | null = b; n !== null; n = n.parent) if (sameNode(n, a)) return true;
+/** Whether `a` is `b` or one of its ancestors (compared as rendered elements, not objects). */
+export function isAncestor(a: HostNode, b: HostNode): boolean {
+  for (let n: HostNode | null = b; n !== null; n = n.parent) if (a.isSameElement(n)) return true;
   return false;
 }
 
-function describe(n: HostNode): string {
+export function describe(n: HostNode): string {
   const id = n.testID !== undefined ? ` testID="${n.testID}"` : '';
   const text = n.text !== '' ? ` text="${n.text.slice(0, 40)}"` : '';
   return `<${n.type}${id}${text}>`;
@@ -152,6 +146,7 @@ export function nativePerformer(ctx: NativeContext): ActionPerformer {
   const fingerFor = (content: Direction): Direction => ({ up: 'down', down: 'up', left: 'right', right: 'left' } as const)[content];
 
   return {
+    viaHost: false,
     async tap(node) {
       const { tag } = await ready(node);
       await bridge.tap(tag, 0, 0, TAP_HOLD_MS, 1);

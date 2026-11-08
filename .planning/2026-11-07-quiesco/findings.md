@@ -179,3 +179,8 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - ③ **中文输入**：先 tap 聚焦，再 `onCreateInputConnection(EditorInfo()).commitText("买牛奶", 1)`，受控 TextInput 的 `value` 变为 "买牛奶"（onChangeText 已触发），`mostRecentEventCount` 递增。
 - ④ **遮挡判断**：Modal 打开时，下层元素所在窗口 `rootView.hasWindowFocus() == false`，上层 Modal 窗口为 true ⇒ 可用于「被其他窗口遮挡」的报错。`WindowInspector.getGlobalWindowViews()`（API 29+）可列出窗口，作为诊断信息。
 - 构建注意：Kotlin/Java 包名不能含关键字 `native`（改为 `dev.quiesco.nativemodule`）；模块需 `implementation 'com.facebook.react:react-android'` 才能用 UIManagerHelper；`expo-modules-autolinking search` 默认不显示仅 android 平台的模块，需 `-p android`。
+
+## Phase 3：全新安装时 dev client 首启弹出菜单（2026-11-08）
+- 现象：Wipe Data / 卸载重装后首次运行，expo-dev-menu 自动弹出开发者菜单（底部面板，独立窗口），所有点击报 ELEMENT_OBSCURED。
+- 原因（expo-dev-menu `DevMenuFragment.onCreate`）：`shouldShowAtLaunch = canLaunchDevMenuOnStart && (showsAtLaunch || !isOnboardingFinished)`。`__expo_disable_onboarding=1` 只置 `isOnboardingFinished`；`showsAtLaunch` 新装默认 true（meta-data `EXDevMenuShowsAtLaunch`），弹出一次后才写 false —— 所以老设备上不复现。
+- 对策：启动 URL 追加 `__expo_disable_auto_launch=1`（本进程内 `canLaunchDevMenuOnStart=false`；iOS 端 `ExpoLauncherURL.swift` 同名参数，Phase 4 复用）。

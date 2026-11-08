@@ -38,16 +38,43 @@ export interface AndroidDeviceConfig {
   shutdown?: boolean;
 }
 
+/** What to open in the browser: a static export served by Quiesco, or a running dev server. */
+export interface WebAppConfig {
+  /** Output of `npx expo export --platform web`; served with SPA fallback. */
+  distDir?: string;
+  /** URL of a running server (e.g. `http://localhost:8081` for `expo start --web`). */
+  url?: string;
+  /** Path opened on launch. Default `/`. */
+  path?: string;
+}
+
+export interface WebViewport {
+  width: number;
+  height: number;
+  deviceScaleFactor?: number;
+  /** Touch events; taps are injected with the touchscreen instead of the mouse. */
+  hasTouch?: boolean;
+  isMobile?: boolean;
+}
+
+export interface WebDeviceConfig {
+  /** Default chromium (the only browser accepted in v1, requirements.md §11-6). */
+  browser?: 'chromium' | 'firefox' | 'webkit';
+  headless?: boolean;
+  /** Sizes come from the user's config; nothing is built in (§6.13). */
+  viewport?: WebViewport;
+}
+
 export interface QuiescoConfig {
   apps: {
     android?: AndroidAppConfig;
     ios?: Record<string, unknown>;
-    web?: Record<string, unknown>;
+    web?: WebAppConfig;
   };
   devices?: {
     android?: AndroidDeviceConfig;
     ios?: Record<string, unknown>;
-    web?: Record<string, unknown>;
+    web?: WebDeviceConfig;
   };
   permissions?: Permission[];
   sync?: {
@@ -74,6 +101,28 @@ export interface QuiescoConfig {
   logLevel?: LogLevel | 'off';
   /** Rename the scenario tags Quiesco reacts to (defaults: @ios @android @web @native @hard-reset). */
   tags?: Partial<TagNames>;
+  /**
+   * App errors that must not fail the current step (they are logged as warnings instead).
+   * Matched against the error message; strings match as substrings.
+   */
+  appErrors?: {
+    ignore?: (string | RegExp)[];
+    /** Also ignore the known benign framework reports in DEFAULT_IGNORED_APP_ERRORS. Default true. */
+    ignoreDefaults?: boolean;
+  };
+}
+
+/**
+ * Framework reports that are not real failures. Expo Router's lazy routes on the web first try a
+ * synchronous require of a not-yet-loaded route chunk; Metro reports that attempt to
+ * ErrorUtils.reportFatalError before the chunk is loaded and the navigation completes. It happens
+ * for real users too (silently in production), see docs/known-issues.md.
+ */
+export const DEFAULT_IGNORED_APP_ERRORS: readonly RegExp[] = [/^Requiring unknown module "\d+"\.?/];
+
+export function ignoredAppErrors(config: QuiescoConfig): RegExp[] {
+  const own = (config.appErrors?.ignore ?? []).map((p) => (typeof p === 'string' ? new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) : p));
+  return config.appErrors?.ignoreDefaults === false ? own : [...DEFAULT_IGNORED_APP_ERRORS, ...own];
 }
 
 export function defineConfig(config: QuiescoConfig): QuiescoConfig {

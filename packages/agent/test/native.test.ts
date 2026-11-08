@@ -59,7 +59,7 @@ describe('nativePerformer', () => {
   it('long press, double tap', async () => {
     const b = bridge();
     const { p, target } = setup(b);
-    const run = async (f: () => Promise<void>) => {
+    const run = async (f: () => Promise<unknown>) => {
       const x = f();
       await vi.advanceTimersByTimeAsync(50);
       await x;

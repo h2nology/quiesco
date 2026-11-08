@@ -105,12 +105,12 @@ describe('AgentRuntime', () => {
     );
   });
 
-  it('native mode needs @quiesco/native; device actions are delegated to the host', async () => {
+  it('native mode without @quiesco/native returns host input; device actions are delegated to the host', async () => {
     const { call, deps, target } = setup();
     sameRoot(target)(host('RCTView', { testID: 'x', ...R(0) }));
-    await expect(drive(call('action', { action: { type: 'tap', matcher: { id: 'x' } }, mode: 'native' }))).rejects.toMatchObject({
-      errorName: 'ACTION_NOT_SUPPORTED',
-      message: expect.stringContaining('@quiesco/native'),
+    await expect(drive(call('action', { action: { type: 'tap', matcher: { id: 'x' } }, mode: 'native' }))).resolves.toEqual({
+      element: expect.objectContaining({ testID: 'x' }),
+      hostInput: { kind: 'tap', x: 50, y: 20 },
     });
     await expect(call('action', { action: { type: 'pressBack' }, mode: 'js' })).resolves.toEqual({ hostInput: { kind: 'back' } });
     await expect(call('action', { action: { type: 'openUrl', url: 'app://x' }, mode: 'js' })).resolves.toEqual({ hostInput: { kind: 'navigate', url: 'app://x' } });

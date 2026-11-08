@@ -28,6 +28,8 @@ export type HostInput =
   | { kind: 'tap'; x: number; y: number; count?: number; holdMs?: number }
   | { kind: 'type'; x: number; y: number; text: string; clearFirst?: boolean }
   | { kind: 'drag'; from: { x: number; y: number }; to: { x: number; y: number }; durationMs: number }
+  /** Mouse wheel at (x, y); positive `dy` scrolls content down (reveals what is below). */
+  | { kind: 'wheel'; x: number; y: number; dx: number; dy: number }
   | { kind: 'key'; key: string }
   | { kind: 'navigate'; url: string }
   | { kind: 'back' };

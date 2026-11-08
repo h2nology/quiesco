@@ -50,6 +50,21 @@ describe('config', () => {
   });
 });
 
+describe('ignored app errors', async () => {
+  const { ignoredAppErrors } = await import('../src/config');
+  it('ignores the known benign Expo web chunk report by default, plus user patterns', () => {
+    const list = ignoredAppErrors({ apps: {}, appErrors: { ignore: ['ResizeObserver loop', /^Warning:/] } });
+    const ignored = (m: string) => list.some((re) => re.test(m));
+    expect(ignored('Requiring unknown module "818".')).toBe(true);
+    expect(ignored('ResizeObserver loop limit exceeded (x)')).toBe(true);
+    expect(ignored('Warning: something')).toBe(true);
+    expect(ignored('undefined is not a function')).toBe(false);
+  });
+  it('can drop the defaults', () => {
+    expect(ignoredAppErrors({ apps: {}, appErrors: { ignoreDefaults: false } })).toEqual([]);
+  });
+});
+
 describe('tags', async () => {
   const { runsOnPlatform, tagNames } = await import('../src/tags');
   it('untagged scenarios run everywhere; platform tags restrict; @native = ios + android', () => {

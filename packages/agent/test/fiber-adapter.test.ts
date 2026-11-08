@@ -174,6 +174,16 @@ describe('host tree (native)', () => {
     expect(adapter.getHostRoots().map((n) => n.nativeTag())).toEqual([42, null]);
   });
 
+  it('isSameElement() compares rendered elements across tree walks', () => {
+    const { adapter, target } = setup();
+    renderWith(target, makeRoot(host('RCTView', { testID: 'a' }), host('RCTView', { testID: 'b' })));
+    const [a1, b1] = adapter.getHostRoots();
+    const [a2] = adapter.getHostRoots();
+    expect(a1).not.toBe(a2);
+    expect(a1!.isSameElement(a2!)).toBe(true);
+    expect(a1!.isSameElement(b1!)).toBe(false);
+  });
+
   it('measures through the public instance and returns null on failure', () => {
     const { adapter, target } = setup();
     renderWith(target, makeRoot(host('RCTView', { __rect: { x: 1, y: 2, width: 3, height: 4 } }), host('RCTView')));

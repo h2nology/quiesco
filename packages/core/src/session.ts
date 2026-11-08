@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import type { Platform, TrackerState, TreeNode } from '@quiesco/protocol';
 
 import type { QuiescoConfig } from './config.js';
-import { DEFAULT_CONNECT_TIMEOUT_MS, serverPort, toAgentConfig } from './config.js';
+import { DEFAULT_CONNECT_TIMEOUT_MS, ignoredAppErrors, serverPort, toAgentConfig } from './config.js';
 import { AndroidProvider } from './devices/android.js';
 import type { DeviceProvider, LaunchParams } from './devices/provider.js';
 import { Driver } from './driver.js';
@@ -41,16 +41,36 @@ export interface ScenarioInfo {
   tags?: readonly string[];
 }
 
-export function createProvider(platform: Platform, config: QuiescoConfig, logger: Logger): DeviceProvider {
+/** Packages providing a platform's DeviceProvider, loaded at runtime (core never imports them statically). */
+const PROVIDER_PACKAGES: Partial<Record<Platform, { name: string; install: string }>> = {
+  web: { name: '@quiesco/web', install: 'npm i -D @quiesco/web playwright && npx playwright install chromium' },
+};
+
+type ProviderModule = { createWebProvider(options: { app: unknown; device?: unknown; logger: Logger }): DeviceProvider };
+
+export async function createProvider(platform: Platform, config: QuiescoConfig, logger: Logger): Promise<DeviceProvider> {
   switch (platform) {
     case 'android': {
       const app = config.apps.android;
       if (app === undefined) throw new QuiescoError('CONFIG_ERROR', 'apps.android is missing in quiesco.config');
       return new AndroidProvider({ app, ...(config.devices?.android !== undefined ? { device: config.devices.android } : {}), logger });
     }
+    case 'web': {
+      const app = config.apps.web;
+      if (app === undefined) throw new QuiescoError('CONFIG_ERROR', 'apps.web is missing in quiesco.config');
+      const pkg = PROVIDER_PACKAGES.web as { name: string; install: string };
+      let mod: ProviderModule;
+      try {
+        // A variable specifier: the web provider (and Playwright) stay optional for native-only projects.
+        const specifier: string = pkg.name;
+        mod = (await import(specifier)) as ProviderModule;
+      } catch (e) {
+        throw new QuiescoError('CONFIG_ERROR', `Testing on the web needs ${pkg.name} (${(e as Error).message}). Install it: ${pkg.install}`);
+      }
+      return mod.createWebProvider({ app, ...(config.devices?.web !== undefined ? { device: config.devices.web } : {}), logger });
+    }
     case 'ios':
-    case 'web':
-      throw new QuiescoError('CONFIG_ERROR', `The ${platform} device provider is not implemented yet`);
+      throw new QuiescoError('CONFIG_ERROR', 'The ios device provider is not implemented yet');
   }
 }
 
@@ -67,14 +87,10 @@ export class Session {
   ) {
     this.driver = new Driver({
       provider,
-      connection: () => {
-        if (this.connection === null || this.connection.closed) {
-          throw new QuiescoError('AGENT_DISCONNECTED', 'The app is not connected (did it crash or get closed?)');
-        }
-        return this.connection;
-      },
+      connection: () => this.currentConnection(),
       defaultTimeoutMs: toAgentConfig(config).sync.timeoutMs,
       ...(config.actions?.mode !== undefined ? { mode: config.actions.mode } : {}),
+      ignoreAppErrors: ignoredAppErrors(config),
       logger,
     });
   }
@@ -90,7 +106,13 @@ export class Session {
       ...(config.server?.host !== undefined ? { host: config.server.host } : {}),
     });
     const port = await server.start();
-    const provider = options.provider ?? createProvider(options.platform, config, logger);
+    let provider: DeviceProvider;
+    try {
+      provider = options.provider ?? (await createProvider(options.platform, config, logger));
+    } catch (e) {
+      await server.stop();
+      throw e;
+    }
     const sessionId = randomUUID();
     // JS-only builds cannot read launch parameters and say `sessionId: null`; accept them for this session.
     server.expectSession(sessionId, { acceptAnonymous: true });
@@ -143,6 +165,31 @@ export class Session {
     await this.provider.shutdown().catch((e: unknown) => this.logger.warn(`device shutdown failed: ${(e as Error).message}`));
   }
 
+  /**
+   * The open connection; after a disconnect (web page reload, app restart) waits for the app to come
+   * back within the connect timeout.
+   */
+  private async currentConnection(): Promise<AgentConnection> {
+    const c = this.connection;
+    if (c !== null && !c.closed) return c;
+    const timeoutMs = this.config.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
+    const conn = await this.server.waitForConnection(
+      this.launchParams.sessionId,
+      timeoutMs,
+      () => `The app disconnected and did not reconnect within ${timeoutMs}ms (did it crash or get closed?)`,
+      c,
+    );
+    this.adopt(conn);
+    return conn;
+  }
+
+  private adopt(conn: AgentConnection): void {
+    if (this.connection === conn) return;
+    this.connection = conn;
+    conn.on('log', (l) => this.logger[l.level](`[app] ${l.message}`));
+    this.driver.attach(conn);
+  }
+
   private async launch(): Promise<void> {
     const previous = this.connection;
     await this.provider.launch(this.launchParams);
@@ -157,9 +204,7 @@ export class Session {
         : await this.provider.diagnose(this.launchParams).catch((d: unknown) => [`(diagnostics failed: ${(d as Error).message})`]);
       throw new QuiescoError('CONNECT_TIMEOUT', this.timeoutMessage(timeoutMs, extra), e.data);
     }
-    this.connection = conn;
-    conn.on('log', (l) => this.logger[l.level](`[app] ${l.message}`));
-    this.driver.attach(conn);
+    this.adopt(conn);
   }
 
   private timeoutMessage(timeoutMs: number, extra: string[]): string {

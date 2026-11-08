@@ -28,6 +28,11 @@ export interface HostNode {
   /** React view tag of the underlying native view (Fabric), or null (web, unmounted). */
   nativeTag(): number | null;
   /**
+   * Whether `other` is the same rendered element. HostNode objects are rebuilt on every tree walk, so
+   * identity is the underlying host instance (Fabric instance / DOM element), not the object.
+   */
+  isSameElement(other: HostNode): boolean;
+  /**
    * Merged props of the composite components that render this host directly (between it and the
    * nearest ancestor host), nearest first. E.g. a Pressable's `disabled`, a TextInput's `value`.
    */

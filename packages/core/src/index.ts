@@ -1,8 +1,8 @@
 export { PROTOCOL_VERSION } from '@quiesco/protocol';
 export type { ActionMode, ElementSummary, JsonValue, Platform, TrackerState, TreeNode } from '@quiesco/protocol';
 
-export { defineConfig, loadConfig, resolvePlatform, serverPort, toAgentConfig, DEFAULT_CONNECT_TIMEOUT_MS } from './config.js';
-export type { AndroidAppConfig, AndroidDeviceConfig, QuiescoConfig } from './config.js';
+export { defineConfig, loadConfig, resolvePlatform, serverPort, toAgentConfig, ignoredAppErrors, DEFAULT_CONNECT_TIMEOUT_MS, DEFAULT_IGNORED_APP_ERRORS } from './config.js';
+export type { AndroidAppConfig, AndroidDeviceConfig, QuiescoConfig, WebAppConfig, WebDeviceConfig, WebViewport } from './config.js';
 export { Driver } from './driver.js';
 export type { ActionOptions, CallOptions } from './driver.js';
 export { QuiescoError } from './errors.js';

@@ -26,6 +26,7 @@ const BOOTED: [RegExp, string][] = [
   [/adb devices$/, 'List of devices attached\nemulator-5554\tdevice\nemulator-5556\toffline\n'],
   [/getprop ro.boot.qemu.avd_name/, 'Pixel_API_37\n'],
   [/getprop sys.boot_completed/, '1\n'],
+  [/dumpsys user/, 'Users:\n  UserInfo{0:Owner:c13} running\n    State: RUNNING_UNLOCKED\n'],
 ];
 
 function provider(answers: [RegExp, string | Error][], opts: Partial<AndroidProviderOptions> = {}) {
@@ -48,6 +49,7 @@ describe('AndroidProvider', () => {
       'adb devices',
       'adb -s emulator-5554 shell getprop ro.boot.qemu.avd_name',
       'adb -s emulator-5554 shell getprop sys.boot_completed',
+      'adb -s emulator-5554 shell dumpsys user',
       'adb -s emulator-5554 shell input keyevent KEYCODE_WAKEUP',
       'adb -s emulator-5554 shell svc power stayon true',
       'adb -s emulator-5554 shell wm dismiss-keyguard',
@@ -79,6 +81,14 @@ describe('AndroidProvider', () => {
     expect(adb.calls[1]).toBe('adb -s emulator-5560 shell getprop sys.boot_completed');
   });
 
+  it('waits for the user to be unlocked and explains a user stuck in BOOTING', async () => {
+    const { p } = provider(
+      [[/adb devices$/, 'List of devices attached\nemulator-5554\tdevice\n'], [/getprop sys.boot_completed/, '1'], [/dumpsys user/, '    State: BOOTING\n']],
+      { device: { bootTimeoutMs: 30 } },
+    );
+    await expect(p.boot()).rejects.toThrow(/not unlocked \(state BOOTING\).*adb -s emulator-5554 reboot/);
+  });
+
   it('does not start a second emulator when the AVD process already runs but adb cannot name it', async () => {
     const spawned: string[] = [];
     const { p } = provider(
@@ -108,7 +118,7 @@ describe('AndroidProvider', () => {
       'adb -s emulator-5554 reverse tcp:8081 tcp:8081',
       'adb -s emulator-5554 reverse tcp:3001 tcp:3001',
       "adb -s emulator-5554 shell pm grant 'com.example.todo' android.permission.ACCESS_LOCAL_NETWORK",
-      "adb -s emulator-5554 shell am start -W -a android.intent.action.VIEW -d 'todo://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081&__expo_disable_onboarding=1&__expo_disable_fab=1' --es quiescoPort 7357 --es quiescoSession 'abc-123' 'com.example.todo'",
+      "adb -s emulator-5554 shell am start -W -a android.intent.action.VIEW -d 'todo://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081&__expo_disable_onboarding=1&__expo_disable_fab=1&__expo_disable_auto_launch=1' --es quiescoPort 7357 --es quiescoSession 'abc-123' 'com.example.todo'",
     ]);
   });
 

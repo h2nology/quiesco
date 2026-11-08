@@ -47,6 +47,13 @@ class Node implements HostNode {
     return this.platform.nativeTag(this.fiber);
   }
 
+  isSameElement(other: HostNode): boolean {
+    if (other === this) return true;
+    if (!(other instanceof Node)) return false;
+    const a = this.fiber.stateNode;
+    return (a !== null && a !== undefined && a === other.fiber.stateNode) || this.fiber === other.fiber;
+  }
+
   ownerProps(): Readonly<Record<string, unknown>> {
     const out: Record<string, unknown> = {};
     for (let f = this.fiber.return; f !== null && !isHostBoundary(f); f = f.return) {

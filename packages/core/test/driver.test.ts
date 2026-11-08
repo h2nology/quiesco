@@ -20,7 +20,7 @@ async function setup(handler: Handler = () => ({}), opts: { nativeModule?: boole
   const agent = connectAgent(port, { sessionId: 's', handler, ...(opts.nativeModule !== undefined ? { nativeModule: opts.nativeModule } : {}) });
   const conn: AgentConnection = await server.waitForConnection('s', 1000, () => '');
   const provider = new FakeProvider();
-  const driver = new Driver({ provider, connection: () => conn, defaultTimeoutMs: 1000, ...(opts.mode !== undefined ? { mode: opts.mode } : {}) });
+  const driver = new Driver({ provider, connection: async () => conn, defaultTimeoutMs: 1000, ...(opts.mode !== undefined ? { mode: opts.mode } : {}) });
   driver.attach(conn);
   return { driver, agent, provider, conn };
 }
@@ -75,6 +75,24 @@ describe('Driver', () => {
     await expect(p).rejects.toMatchObject({ errorName: 'APP_ERROR', data: { kind: 'redbox', stack: 'at App' } });
   });
 
+  it('logs instead of failing for ignored app errors', async () => {
+    const { conn, agent } = await setup(() => ({ root: null }));
+    const warnings: string[] = [];
+    const d = new Driver({
+      provider: new FakeProvider(),
+      connection: async () => conn,
+      defaultTimeoutMs: 1000,
+      ignoreAppErrors: [/^Requiring unknown module/],
+      logger: { debug() {}, info() {}, warn: (m) => warnings.push(m), error() {} },
+    });
+    d.attach(conn);
+    const seen = new Promise((r) => conn.once('appError', r));
+    agent.notify('error', { kind: 'redbox', message: 'Requiring unknown module "818".', timestamp: 1 });
+    await seen;
+    await expect(d.getTree()).resolves.toBeNull();
+    expect(warnings).toEqual(['ignored app error (redbox): Requiring unknown module "818".']);
+  });
+
   it('reports an app error raised between calls on the next call', async () => {
     const { driver, agent, conn } = await setup(() => ({ root: null }));
     const seen = new Promise((r) => conn.once('appError', r));
@@ -89,5 +107,34 @@ describe('Driver', () => {
       throw { code: 1004, message: 'expect text failed', data: { name: 'ASSERTION_FAILED', expected: '1', actual: '0', elements: [] } };
     });
     await expect(driver.expectText('count', '1')).rejects.toMatchObject({ errorName: 'ASSERTION_FAILED', code: 1004, data: { expected: '1', actual: '0' } });
+  });
+
+  it('repeats a read-only call once when the connection drops mid-call, but not an action', async () => {
+    server = new QuiescoServer({ port: 0, host: '127.0.0.1', agentConfig: AGENT_CONFIG });
+    const port = await server.start();
+    server.expectSession('s');
+    const first = connectAgent(port, { sessionId: 's', handler: () => NO_REPLY });
+    let conn: AgentConnection = await server.waitForConnection('s', 1000, () => '');
+    const provider = new FakeProvider();
+    const driver = new Driver({
+      provider,
+      connection: async () => (conn.closed ? (conn = await server!.waitForConnection('s', 1000, () => '', conn)) : conn),
+      defaultTimeoutMs: 1000,
+    });
+    const tree = driver.getTree();
+    const tap = driver.tap('x').catch((e: unknown) => e); // handled right away (rejects before we await it)
+    await expect.poll(() => first.requests.length).toBe(2); // both calls reached the app
+    first.ws.terminate(); // e.g. a web page reload
+    connectAgent(port, { sessionId: 's', handler: (m) => (m === 'getTree' ? { root: null } : {}) });
+    await expect(tree).resolves.toBeNull();
+    await expect(tap).resolves.toMatchObject({ errorName: 'AGENT_DISCONNECTED' });
+  });
+
+  it('uses native (host-injected) mode on the web even without @quiesco/native', async () => {
+    const { agent, provider } = await setup(() => ({}));
+    Object.defineProperty(provider, 'platform', { value: 'web' });
+    const d = new Driver({ provider, connection: async () => (await server!.waitForConnection('s', 1000, () => '')), defaultTimeoutMs: 1000 });
+    await d.tap('x');
+    expect(agent.requests.at(-1)?.params['mode']).toBe('native');
   });
 });

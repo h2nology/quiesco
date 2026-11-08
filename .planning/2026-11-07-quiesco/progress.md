@@ -128,6 +128,12 @@
 - 2.6 基准脚本 `examples/todo-app/bench/run.mts`；结果写入 `docs/benchmarks.md`。
 - 2.7 验收全部完成。**Phase 2 完成。**
 
+- 提交 Phase 2（d0584d1）。HU 决定 §11-6 只验收 Chromium、§11-7 三视口都验收。
+- Phase 3（进行中）：`@quiesco/web`（WebProvider + 静态服务器）、core 动态加载 web provider、host performer（HostInput）、透明重连、appErrors 忽略配置、Android 用户解锁等待；示例 App Web 静态输出与三视口配置。
+  - 首次 Web 运行 6/6 失败 → 两个问题：Web 无 native tag 导致「被自己遮挡」（改为 isSameElement）；Expo Router 静态 Web 的 `Requiring unknown module "818"` 被当作致命错误（查明为框架行为，真实用户同样触发，加默认忽略规则）。
+  - 测试中发现一处固定 sleep（违反 §12）已改为 expect.poll；一处未处理的 Promise 拒绝已修。
+  - 环境：Emulator 夜间 system_server 软重启后用户卡在 BOOTING（Activity class does not exist）→ `adb reboot` 恢复；之后负载长时间偏高（ANR 对话框、bundle 下载 >30s），Android 侧验证暂停。
+
 ## Test Results
 | 测试 | 结果 | 备注 |
 |------|------|------|
@@ -183,3 +189,11 @@
 | 2.7 连续 20 次（native） | ✅ | 20/20，每次 6 场景 34 步，16.9–19.8s（中位数 17.8s） |
 | 2.7 性能基准 | ✅ | 软重置中位数 195ms（native / js 相同，目标 <500ms）；tap 含同步 native 416ms / js 266ms；全量 18.8s / 16.0s |
 | 2.7 `pnpm run check` | ✅ | 196 测试 + 示例类型检查，depcruise 103 模块无违规 |
+| 3.x Web（Chromium）静态导出 × 手机 / 平板 / 桌面 | ✅ | 各 6 场景 34 步通过（约 6s） |
+| 3.x Web 开发服务器（expo start --web） | ✅ | 6 场景 34 步通过（8.5s） |
+| 3.4 整页跳转 / 硬重置后透明重连 | ✅ | openUrl 后与新 context 后断言均通过（连接数 1→2→3） |
+| 3.6 屏蔽 Playwright 跑 Web | ✅ | 明确报错并给出安装命令 |
+| 3.6 屏蔽 Playwright 跑 Android | ✅ | Emulator 冷启动 + Wipe Data 后：6 场景 34 步通过（21.6s），native module true |
+| 3.x Android 全新安装（卸载后首次运行） | ✅ | 首次失败：expo-dev-menu 首启自动弹出菜单 → 6 场景均报 ELEMENT_OBSCURED（判断正确）；启动 URL 加 `__expo_disable_auto_launch=1` 后 6 场景 34 步通过 |
+| 3.7 Web 连续 20 次 × 3 视口 | ✅ | 手机 / 平板 / 桌面各 20/20，每次 6 场景 34 步，5.96–6.27s |
+| 3.7 `pnpm run check`（最终） | ✅ | 220 测试，depcruise 111 模块无违规，类型检查无错误 |

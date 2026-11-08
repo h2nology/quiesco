@@ -6,6 +6,7 @@
 import { SyncDefaults } from '@quiesco/protocol';
 import type {
   ActionSpec,
+  HostInput,
   AgentConfig,
   AgentMethods,
   AssertionSpec,
@@ -19,6 +20,7 @@ import type {
 import * as js from './actions/js';
 import { nativePerformer } from './actions/native';
 import type { NativeBridge } from './actions/native';
+import { hostPerformer } from './actions/host';
 import { jsPerformer } from './actions/performer';
 import type { ActionPerformer } from './actions/performer';
 import type { StorageAdapter } from './api-types';
@@ -243,7 +245,8 @@ export class AgentRuntime {
     const timeoutMs = this.timeout(opts);
     const deadline = this.clock.now() + timeoutMs;
     let node: HostNode | undefined;
-    const perform = (matcher: Matcher): ActionPerformer => this.performer(mode, spec.type, matcher, deadline);
+    let hostInput: HostInput | void = undefined;
+    const perform = (matcher: Matcher): ActionPerformer => this.performer(mode, matcher, deadline);
 
     switch (spec.type) {
       case 'dismissKeyboard':
@@ -252,52 +255,62 @@ export class AgentRuntime {
         break;
       case 'tap':
         node = await this.resolveTarget(spec.matcher, opts, deadline);
-        await perform(spec.matcher).tap(node);
+        hostInput = await perform(spec.matcher).tap(node);
         break;
       case 'longPress':
         node = await this.resolveTarget(spec.matcher, opts, deadline);
-        await perform(spec.matcher).longPress(node, spec.durationMs);
+        hostInput = await perform(spec.matcher).longPress(node, spec.durationMs);
         break;
       case 'doubleTap':
         node = await this.resolveTarget(spec.matcher, opts, deadline);
-        await perform(spec.matcher).doubleTap(node);
+        hostInput = await perform(spec.matcher).doubleTap(node);
         break;
       case 'type':
         node = await this.resolveTarget(spec.matcher, opts, deadline);
-        await perform(spec.matcher).type(node, spec.text);
+        hostInput = await perform(spec.matcher).type(node, spec.text);
         break;
       case 'clear':
         node = await this.resolveTarget(spec.matcher, opts, deadline);
-        await perform(spec.matcher).clear(node);
+        hostInput = await perform(spec.matcher).clear(node);
         break;
       case 'scroll':
         node = await this.resolveTarget(spec.matcher, opts, deadline);
-        await perform(spec.matcher).scroll(node, spec.direction, spec.distance);
+        hostInput = await perform(spec.matcher).scroll(node, spec.direction, spec.distance);
         break;
       case 'swipe':
         node = await this.resolveTarget(spec.matcher, opts, deadline);
-        await perform(spec.matcher).swipe(node, spec.direction, spec.speed);
+        hostInput = await perform(spec.matcher).swipe(node, spec.direction, spec.speed);
         break;
       case 'scrollTo':
-        node = await this.scrollTo(spec.container, spec.target, opts, deadline, perform(spec.container));
+        node = await this.scrollTo(spec.container, spec.target, opts, deadline, this.loopablePerformer(perform(spec.container)));
         break;
     }
 
+    if (hostInput) {
+      // The host injects it, then waits for idle itself (Driver).
+      return node === undefined ? { hostInput } : { element: this.summarize(node), hostInput };
+    }
     await this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now()));
     return node === undefined ? {} : { element: this.summarize(node) };
   }
 
-  private performer(mode: ParamsOf<AgentMethods['action']>['mode'], action: ActionSpec['type'], matcher: Matcher, deadline: number): ActionPerformer {
+  /**
+   * `js`: component callbacks. `native`: real input through @quiesco/native when the app has it,
+   * otherwise the host injects real input (web via Playwright); a host that cannot inject a kind of
+   * input rejects it with ACTION_NOT_SUPPORTED.
+   */
+  private performer(mode: ParamsOf<AgentMethods['action']>['mode'], matcher: Matcher, deadline: number): ActionPerformer {
     if (mode === 'js') return jsPerformer({ platform: this.deps.platform() });
+    const roots = (): HostNode[] => this.adapter.getHostRoots();
+    const viewport = (): ReturnType<FiberAdapter['viewport']> => this.adapter.viewport();
     const bridge: NativeBridge | null = this.nativeModule();
-    if (bridge === null) {
-      throw new QuiescoError('ACTION_NOT_SUPPORTED', `native mode for ${action} needs @quiesco/native in the app (e2e build with its config plugin)`, {
-        action,
-        platform: this.deps.platform(),
-        hint: "install @quiesco/native and rebuild the app, or set actions: { mode: 'js' }",
-      });
-    }
-    return nativePerformer({ bridge, clock: this.clock, roots: () => this.adapter.getHostRoots(), viewport: () => this.adapter.viewport(), matcher, deadline });
+    if (bridge === null) return hostPerformer({ clock: this.clock, roots, viewport, matcher, deadline });
+    return nativePerformer({ bridge, clock: this.clock, roots, viewport, matcher, deadline });
+  }
+
+  /** scrollTo loops in the agent; with host-injected input it scrolls with the JS fallback instead. */
+  private loopablePerformer(p: ActionPerformer): ActionPerformer {
+    return p.viaHost ? jsPerformer({ platform: this.deps.platform() }) : p;
   }
 
   /**

@@ -1,4 +1,16 @@
 import { defineConfig } from '@quiesco/core';
+import type { WebViewport } from '@quiesco/core';
+
+// Web viewports under test (requirements.md §11-7: phone, tablet and desktop are all accepted).
+// Pick one with QUIESCO_VIEWPORT; the default is the phone layout.
+const viewports: Record<string, WebViewport> = {
+  mobile: { width: 390, height: 844, deviceScaleFactor: 3, hasTouch: true, isMobile: true },
+  tablet: { width: 820, height: 1180, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
+  desktop: { width: 1280, height: 800 },
+};
+const viewportName = process.env['QUIESCO_VIEWPORT'] ?? 'mobile';
+const viewport = viewports[viewportName];
+if (viewport === undefined) throw new Error(`Unknown QUIESCO_VIEWPORT "${viewportName}" (${Object.keys(viewports).join(', ')})`);
 
 export default defineConfig({
   apps: {
@@ -11,10 +23,13 @@ export default defineConfig({
       // The mock backend (mock-server/server.mjs) on the host's localhost.
       reversePorts: [3001],
     },
+    // Static export (`pnpm build:web`), or a running dev server with QUIESCO_WEB_URL.
+    web: process.env['QUIESCO_WEB_URL'] !== undefined ? { url: process.env['QUIESCO_WEB_URL'] } : { distDir: 'dist' },
   },
   devices: {
     // Which emulator to use comes from the environment, never from this file.
     android: process.env['QUIESCO_AVD'] !== undefined ? { avd: process.env['QUIESCO_AVD'] } : {},
+    web: { browser: 'chromium', viewport },
   },
   // actions.mode is not set: `native` (real touches) when the app has @quiesco/native, else `js`.
   // Run with QUIESCO_ACTION_MODE=js to force callback mode.
