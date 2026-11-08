@@ -34,6 +34,8 @@ export interface NativeBridge {
   tap(tag: number, x: number, y: number, holdMs: number, count: number): Promise<{ handled: boolean }>;
   swipe(tag: number, fromX: number, fromY: number, toX: number, toY: number, durationMs: number): Promise<{ handled: boolean }>;
   typeText(tag: number, text: string, replace: boolean): Promise<{ text: string }>;
+  /** Present when the module can open a URL inside the app (iOS: no system confirmation alert). */
+  openUrl?(url: string): Promise<{ opened: boolean }>;
 }
 
 export interface NativeContext {

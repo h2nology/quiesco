@@ -118,6 +118,29 @@ describe('AgentRuntime', () => {
     expect(deps.dismissKeyboard).toHaveBeenCalledOnce();
   });
 
+  it('openUrl goes through the native module when it can open URLs in the app (iOS), in any action mode', async () => {
+    const openUrl = vi.fn(async () => ({ opened: true }));
+    const native = {
+      getLaunchParams: () => ({ port: null, session: null }),
+      locate: vi.fn(),
+      tap: vi.fn(),
+      swipe: vi.fn(),
+      typeText: vi.fn(),
+      openUrl,
+    } as unknown as NonNullable<ReturnType<AppDeps['nativeModule']>>;
+    const { call } = setup({ native });
+    await expect(drive(call('action', { action: { type: 'openUrl', url: 'app://todos' }, mode: 'js' }))).resolves.toEqual({});
+    expect(openUrl).toHaveBeenCalledWith('app://todos');
+
+    openUrl.mockResolvedValueOnce({ opened: false });
+    await expect(drive(call('action', { action: { type: 'openUrl', url: 'other://x' }, mode: 'native' }))).rejects.toMatchObject({
+      errorName: 'ACTION_NOT_SUPPORTED',
+      message: expect.stringContaining('other://x'),
+    });
+    // pressBack stays a host action; the iOS DeviceProvider rejects it.
+    await expect(call('action', { action: { type: 'pressBack' }, mode: 'native' })).resolves.toEqual({ hostInput: { kind: 'back' } });
+  });
+
   it('assert retries until the expectation holds', async () => {
     const { target, call } = setup();
     const commit = sameRoot(target);

@@ -19,7 +19,7 @@ import type {
 } from '@quiesco/protocol';
 
 import * as js from './actions/js';
-import { nativePerformer } from './actions/native';
+import { fromNativeError, nativePerformer } from './actions/native';
 import type { NativeBridge } from './actions/native';
 import { hostPerformer } from './actions/host';
 import { jsPerformer } from './actions/performer';
@@ -241,7 +241,7 @@ export class AgentRuntime {
   private async action(spec: ActionSpec, mode: ParamsOf<AgentMethods['action']>['mode'], opts: SyncOption): Promise<ResultOf<AgentMethods['action']>> {
     // Device-level actions are performed by the host's DeviceProvider (adb / simctl / Playwright).
     if (spec.type === 'pressBack') return { hostInput: { kind: 'back' } };
-    if (spec.type === 'openUrl') return { hostInput: { kind: 'navigate', url: spec.url } };
+    if (spec.type === 'openUrl') return this.openUrl(spec.url, opts);
 
     const timeoutMs = this.timeout(opts);
     const deadline = this.clock.now() + timeoutMs;
@@ -293,6 +293,31 @@ export class AgentRuntime {
     }
     await this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now()));
     return node === undefined ? {} : { element: this.summarize(node) };
+  }
+
+  /**
+   * Deep links: inside the app when the native module can (iOS, where `simctl openurl` would show a
+   * system confirmation alert), otherwise by the host (`am start` on Android, the address bar on web).
+   * Independent of the action mode: no touch is involved.
+   */
+  private async openUrl(url: string, opts: SyncOption): Promise<ResultOf<AgentMethods['action']>> {
+    const bridge = this.nativeModule();
+    if (bridge?.openUrl === undefined) return { hostInput: { kind: 'navigate', url } };
+    const timeoutMs = this.timeout(opts);
+    let opened: boolean;
+    try {
+      ({ opened } = await bridge.openUrl(url));
+    } catch (e) {
+      throw fromNativeError(e, 'openUrl', 'openUrl', {});
+    }
+    if (!opened) {
+      throw new QuiescoError('ACTION_NOT_SUPPORTED', `The system refused to open ${url} (is its scheme registered by this app?)`, {
+        action: 'openUrl',
+        platform: this.deps.platform(),
+      });
+    }
+    await this.syncIfNeeded(opts, timeoutMs);
+    return {};
   }
 
   /**
