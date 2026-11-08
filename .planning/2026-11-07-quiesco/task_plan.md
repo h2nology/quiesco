@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-4.6 验收已通过（三端 `--parallel 2`、串行回归、`pnpm run check`），待提交 Android install 前 force-stop 的修复；之后进入 4.7 生产剔除检查脚本。
+4.7 完成（本机三端 × prod/e2e 通过；CI prod-strip.yml 待推送后实跑），待提交；下一步 4.8 验收（iOS 连续 20 次、并行 vs 串行耗时记入 docs/benchmarks.md）。
 
 ## Current Phase
 Phase 4
@@ -125,7 +125,8 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
   - 4.6a core：provider 收 `workerIndex`。iOS：`udids[]` > worker 0 用 base / N>0 用 `"<base> (Quiesco N)"`（无则 `simctl create` 同 device type + runtime，保留复用；`simctl clone` 要求源设备关机，不可用）；Android：`serials[]` > `avd` 时 worker N 绑定 `emulator-(5554+2N)`（`-port`，全部实例 `-read-only` + 冷启动 `-no-snapshot-load`）> 第 N 台在线设备（不足报错）；Web 无需改动
   - 4.6b 协议：hello 返回的 config 加可选 `workerIndex`，agent 暴露 `quiesco.workerIndex`；quiesco.config 可写成 `({ workerIndex }) => config`；示例 mock 后端 3001+N，App 在 e2e.ts 据 workerIndex 切 API 地址，Android `reversePorts: [3001 + workerIndex]`
   - 4.6c 示例 `test:e2e:*:parallel` 脚本、README 并行一节；验收：三端 `--parallel 2` 6 场景通过 + 串行回归 + `pnpm run check`
-- [ ] 4.7 生产剔除检查脚本 `scripts/check-prod-strip.mjs`：生产模式 `expo export --platform all` 后在 JS / Hermes 字节码中 grep agent 特征串；iOS Release simulator 构建后 `nm` 查 `QSTouchInjector`、`IOHIDEventCreateDigitizerEvent`；Android release APK 查 `QuiescoNative`（R8 不混淆的 Module 名）；带 e2e 对照组。接入哪个 CI 由 §11-4 决定
+- [x] 4.7 生产剔除检查脚本 `scripts/check-prod-strip.mjs`：生产模式 `expo export --platform all` 后在 JS / Hermes 字节码中 grep agent 特征串；iOS Release simulator 构建后 `nm` 查 `QSTouchInjector`、`IOHIDEventCreateDigitizerEvent`；Android release APK 查 `QuiescoNative`（R8 不混淆的 Module 名）；带 e2e 对照组。接入哪个 CI 由 §11-4 决定
+  - **HU 确认（2026-11-08）**：本机在原目录跑（已有 android/ios 时需 `--allow-clean`，跑完重建 e2e dev client）；CI 新增 `prod-strip.yml`（web / android ubuntu、ios macos；push main + 相关路径 PR + 手动），不进 ci.yml；扫描逻辑 `scripts/prod-strip/scan.mjs` + vitest 单元测试
 - [ ] 4.8 验收：iOS / Android / Chromium 三端 6 场景通过；iOS 连续 20 次；生产剔除检查通过（含对照组）；2 worker 并行 vs 串行耗时（iOS、Android、Web 三端实测）记入 `docs/benchmarks.md`；`pnpm run check`
 - **验收：** 三端通过；生产构建检查通过；2 worker 并行明显快于串行（记录数据）
 **HU 决定（2026-11-08）**：§11-4 GitHub Actions（再次确认；iOS 检查跑 macos runner）；并行验收三端都实测（含本机同时运行两台 Android Emulator）。

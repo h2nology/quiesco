@@ -1,0 +1,62 @@
+# Production-strip check (task 4.7, requirements.md §6.8, docs/spikes/06-prod-strip.md): builds the example
+# app in production and e2e mode per platform and scans the artifacts (scripts/check-prod-strip.mjs).
+# Kept out of ci.yml because the native release builds take a long time.
+name: prod-strip
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - packages/agent/**
+      - packages/native/**
+      - packages/expo-plugin/**
+      - packages/protocol/**
+      - examples/todo-app/**
+      - scripts/check-prod-strip.mjs
+      - scripts/prod-strip/**
+      - pnpm-lock.yaml
+      - .github/workflows/prod-strip.yml
+  workflow_dispatch:
+
+concurrency:
+  group: prod-strip-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: web
+            os: ubuntu-latest
+          - platform: android
+            os: ubuntu-latest
+          - platform: ios
+            os: macos-latest
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        if: matrix.platform == 'android'
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+      - name: Xcode version
+        if: matrix.platform == 'ios'
+        run: xcodebuild -version
+      - run: pnpm install --frozen-lockfile
+      - name: build packages
+        run: pnpm build
+      # A fresh checkout has no android/ or ios/, so no --allow-clean is needed.
+      - name: check production strip (prod must be clean, e2e control group must match)
+        run: node scripts/check-prod-strip.mjs --platform ${{ matrix.platform }}

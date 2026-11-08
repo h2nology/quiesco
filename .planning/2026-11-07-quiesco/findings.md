@@ -220,3 +220,8 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - **quick-boot 快照过期导致开机后重启**：Quiesco 一直 `-no-snapshot-save`，快照停在旧状态；之后可写运行往 /data 装 APK ⇒ 加载快照后 `boot_completed=1`（4s），约 30s 后 zygote / system_server 重启、adbd 重启（reverse 清空、App 被杀），40s 才稳定。`-no-snapshot-load` 真冷启动 14s 且不再重启（API 37，本机）。
 - **dev client 重新启动 Activity 丢 intent extras**：dev client 有历史状态时会以 `flg=0x10018000`（NEW_TASK|CLEAR_TASK）再 START 一次 MainActivity，`currentActivity.intent` 不再带 `quiescoPort/quiescoSession`；`pm clear` 后第一次正常。agent 退回构建期端口 7357 + 匿名会话（并行时可能连到 worker 0 的 server）。
 - **Android 17 包更新占位（PackageUpdateActivity）**：App 有可见任务时 `adb install -r` ⇒ `CorePackageUpdate: Adding updating tasks`，SystemUI 在该任务放占位 Activity；更新结束后 `ShellPackageUpdate: launching the base intent and removing placeholder`（`flg=0x8000`，无 extras）。若 Quiesco 的 `am start --es quiescoPort` 落在这段时间内，就会被替换 ⇒ App 连 7357。install 前 `am force-stop` ⇒ `no process with activities in it`，不放占位。修复 ③（native 进程级保存参数）仍需要：dev client 自身还会以 CLEAR_TASK 重新 START 一次。
+
+## Phase 4.7 生产剔除检查（2026-11-08）
+- JS 特征选真 agent 独有的字符串字面量（`getIdleState`、`waitForIdle`、`agent error: `）：Web 压缩后与 Hermes 字节码字符串表中都保留；桩（stub.ts）中没有。
+- Android 用 Expo Module 名 `QuiescoNative`（R8 不改字符串常量），在 e2e release APK 中出现 3 次；iOS 用 ObjC 类名 `QSTouchInjector`（38 处）和 extern 私有函数 `IOHIDEventCreateDigitizerEvent`（4 处），直接按字节扫描整个 .app，比 nm 更稳（覆盖动态 framework 与类名字符串）。
+- Xcode 27 的 `xcodebuild -quiet` 会在 Pods 的 Swift 警告后打印「error: the following command failed with exit code 0 but produced no further output」，并非失败（退出码 0、产物完整）。

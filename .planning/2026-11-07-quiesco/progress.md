@@ -214,3 +214,6 @@
 | 4.6 Android 修复 ④：Android 17 包更新占位 Activity | ✅ | 真正的热启动失败原因（与负载无关）：App 在前台时 `install -r` ⇒ SystemUI 往任务里放 PackageUpdateActivity 占位，更新结束（约 2.4s 后）以 CLEAR_TASK 重新启动任务的 base intent（无 extras），覆盖我们的 `am start`；时机竞争 ⇒ 症状不定。install 前 `am force-stop` 后系统日志为「no process with activities in it」，不再放占位（单元测试覆盖） |
 | 4.6 Android `--parallel 2`（热启动） | ✅ | 连续 3/3，6 场景 34 步，14.0–14.5s（串行 18.6s）；关闭 iOS 模拟器后 load 约 2.8 |
 | 4.6 `pnpm run check` | ✅ | 271 测试，depcruise 116 模块无违规，类型检查无错误 |
+| 4.7 `scripts/check-prod-strip.mjs` + `prod-strip.yml` | ✅ | 扫描 / 判定逻辑 `scripts/prod-strip/scan.mjs` + 5 个 vitest 测试（vitest 新增 scripts project）；已有 android/ios 且无 `--allow-clean` 时退出码 2（实测）；workflow YAML 可解析，CI 实跑待推送后确认 |
+| 4.7 本机实跑（三端 × prod / e2e） | ✅ | Web：3 个 JS 特征 prod 0 / e2e 4、6、1；Android（R8 release APK，dex + Hermes bundle）：`QuiescoNative` prod 0 / e2e 3，JS 特征 prod 0 / e2e 各 1（构建 115s / 98s）；iOS（Release simulator .app）：`QSTouchInjector` 0 / 38、`IOHIDEventCreateDigitizerEvent` 0 / 4，JS 特征 prod 0 / e2e 各 1（198s / 140s）。xcodebuild -quiet 输出的「failed with exit code 0」是 Xcode 27 附在 Pods Swift 警告上的噪音，构建成功 |
+| 4.7 环境恢复 + `pnpm run check` | ✅ | `pnpm build:android` 后 Android 串行 6/6（22.4s，iOS 构建同时进行）；`pnpm run check` 276 测试、depcruise 无违规、类型检查无错误；`pnpm build:ios` 后 iOS 6/6（冷启动 + 全新安装 56.0s，热启动 15.9s） |

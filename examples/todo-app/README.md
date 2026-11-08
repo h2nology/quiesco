@@ -85,6 +85,20 @@ The mock backend is started by `features/support/mock-server.ts`. Knobs for robu
 Actions use the `native` mode (real touches and IME text through `@quiesco/native`) because the app
 includes the native module; `QUIESCO_ACTION_MODE=js` switches to callback mode.
 
+## Production-strip check
+
+```sh
+pnpm check:prod-strip --platform web                      # from the repository root
+pnpm check:prod-strip --platform android --allow-clean    # deletes android/: run `pnpm build:android` afterwards
+pnpm check:prod-strip --platform ios --allow-clean        # deletes ios/: run `pnpm build:ios` afterwards
+```
+
+`scripts/check-prod-strip.mjs` builds this app without and with `EXPO_PUBLIC_QUIESCO=1` (Web export,
+Android release APK with R8, iOS Release simulator build) and scans the artifacts: the production build
+must contain no agent JS and no `@quiesco/native` code, the e2e build must contain every marker (control
+group, so a marker that stops matching is noticed). `prebuild --clean` must run in this directory, which
+is why `--allow-clean` is required when `android/` / `ios/` exist. CI runs it in `prod-strip.yml`.
+
 ## Benchmark
 
 ```sh
