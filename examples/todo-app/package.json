@@ -21,13 +21,14 @@
     "@quiesco/native": "workspace:*"
   },
   "devDependencies": {
-    "@types/react": "~19.3.0",
-    "typescript": "~6.0.3",
+    "@cucumber/cucumber": "13.3.0",
     "@quiesco/core": "workspace:*",
     "@quiesco/cucumber": "workspace:*",
-    "@cucumber/cucumber": "13.3.0",
+    "@quiesco/expo-plugin": "workspace:*",
     "@quiesco/web": "workspace:*",
-    "playwright": "1.65.0"
+    "@types/react": "~19.3.0",
+    "playwright": "1.65.0",
+    "typescript": "~6.0.3"
   },
   "scripts": {
     "start": "expo start --dev-client",

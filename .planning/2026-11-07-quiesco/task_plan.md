@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-4.2 完成（未提交），待 HU 确认后进入 4.3（@quiesco/expo-plugin）。
+4.3 完成（未提交），待 HU 确认后进入 4.4（core IosProvider）。
 
 ## Current Phase
 Phase 4
@@ -118,7 +118,7 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 - [x] 4.0 原生验证（spike 未覆盖的 4 项，临时代码，结论记 findings）：① Fabric 下 view tag → `UIView`（`RCTComponentViewRegistry` / `RCTSurfacePresenter`）与窗口坐标；② Modal（同一窗口内 present 的 VC）遮挡判定：目标点 `hitTest` 结果是否是目标 view 的子孙；③ 中文输入：聚焦后 `UITextInput insertText:` / `replaceRange:` 触发 onChangeText；④ swipe / 滚动：Moved 阶段 HID 事件 + ScrollView 惯性；⑤ 进程内 openUrl（不经 `simctl openurl`，避免 SpringBoard 确认框）
 - [x] 4.1 `@quiesco/native` iOS：Swift Module + ObjC `QSTouchInjector`（私有 API 调用前 `respondsToSelector:` 检查，不满足报 `NATIVE_UNSUPPORTED` 并建议 js 档位）；与 Android 相同的 JS 接口：`getLaunchParams` / `locate` / `tap` / `swipe` / `typeText`，新增 `openUrl`；`expo-module.config.json` 加 `ios`；podspec 链接 IOKit
 - [x] 4.2 agent：坐标无需平台分支（原生侧直接返回窗口坐标 pt / dp）；`openUrl` 在原生模块具备 `openUrl` 能力时于 App 内打开（按能力判断，不按平台）；`pressBack` 仍交给 Host，由 4.4 的 iOS provider 报 `ACTION_NOT_SUPPORTED` 并提示改用业务返回操作（§12：平台分支留在 provider）
-- [ ] 4.3 `@quiesco/expo-plugin`：把 `packages/native/app.plugin.js` 迁入并补 iOS ——非 e2e：Podfile 注入 `use_expo_modules!(exclude: ['@quiesco/native'])`；e2e：确认 ATS `NSAllowsLocalNetworking`；dev client 启动参数常量共用。示例 App 改用 `"@quiesco/expo-plugin"`；单元测试覆盖两种模式的 Podfile / settings.gradle / manifest 结果
+- [x] 4.3 `@quiesco/expo-plugin`：把 `packages/native/app.plugin.js` 迁入并补 iOS ——非 e2e：Podfile 注入 `use_expo_modules!(exclude: ['@quiesco/native'])`；e2e：确认 ATS `NSAllowsLocalNetworking`；dev client 启动参数常量共用。示例 App 改用 `"@quiesco/expo-plugin"`；单元测试覆盖两种模式的 Podfile / settings.gradle / manifest 结果
 - [ ] 4.4 core `IosProvider`（`xcrun simctl`）：按名称 / UDID / runtime 选模拟器，`boot` + `bootstatus -b`；`install` .app；`launch` 用进程参数 `-quiescoPort/-quiescoSession`，dev client 用 `--initialUrl`（带 `__expo_disable_onboarding/fab/auto_launch`）；`terminate`、`privacy grant` 权限映射（不支持的给警告）、`io screenshot`、硬重置（terminate + 清 App 容器 / 重装）；连接超时诊断。单元测试用假 exec 校验命令
 - [ ] 4.5 示例 App：`ios` 配置与 `build:ios`（simulator Debug dev client）/ `test:e2e:ios` 脚本；`eas.json` 的 `e2e` profile（iOS simulator build、Android APK、`EXPO_PUBLIC_QUIESCO=1`）
 - [ ] 4.6 cucumber `--parallel`：worker N 用端口 base+N（已有）＋各自的设备（iOS：`simctl clone` 出 worker 专用模拟器；Android：`devices.android.serials[]` / 多 AVD；Web：独立 browser）；示例 mock 后端每 worker 一个端口（3001+N），App 通过 e2e backdoor `setApiBase` 切换（Android 对应 `adb reverse`）

@@ -27,7 +27,7 @@
     "plugins": [
       "expo-router",
       "expo-dev-client",
-      "@quiesco/native"
+      "@quiesco/expo-plugin"
     ],
     "scheme": "quiescotodo"
   }

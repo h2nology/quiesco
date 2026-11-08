@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": [
+      "ES2023"
+    ],
+    "types": [
+      "node"
+    ],
+    "allowJs": true,
+    "checkJs": true
+  },
+  "include": [
+    "app.plugin.js",
+    "test"
+  ]
+}

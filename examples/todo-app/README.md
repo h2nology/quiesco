@@ -43,6 +43,8 @@ The output is a Markdown section for `docs/benchmarks.md`.
 - `src/app/_layout.tsx` wraps the app in `<QuiescoRoot>` and loads `src/e2e.ts` (backdoors, reset hook)
   only when `EXPO_PUBLIC_QUIESCO=1`.
 - `metro.config.js` wraps the config with `withQuiesco()`: production bundles get a no-op stub.
-- `app.json` lists the `@quiesco/native` config plugin: without `EXPO_PUBLIC_QUIESCO=1` at prebuild time
-  the native module is excluded from autolinking, so production binaries do not contain it.
+- `app.json` lists `@quiesco/expo-plugin`: without `EXPO_PUBLIC_QUIESCO=1` at prebuild time it excludes
+  `@quiesco/native` from autolinking (Podfile and settings.gradle), so production binaries do not contain
+  the touch injection code; e2e builds keep it and allow ws://localhost (Android network security config,
+  iOS ATS `NSAllowsLocalNetworking`).
 - Step definitions (`features/step_definitions`) only call `this.app`; they never wait or sleep.

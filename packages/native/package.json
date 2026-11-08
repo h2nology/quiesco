@@ -8,7 +8,6 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./app.plugin.js": "./app.plugin.js",
     "./package.json": "./package.json"
   },
   "files": [
@@ -16,7 +15,6 @@
     "android/build.gradle",
     "android/src",
     "expo-module.config.json",
-    "app.plugin.js",
     "ios/*.swift",
     "ios/*.h",
     "ios/*.m",
@@ -26,7 +24,6 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "expo-modules-core": "*",
-    "@expo/config-plugins": "*"
+    "expo-modules-core": "*"
   }
 }

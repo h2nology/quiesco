@@ -254,6 +254,9 @@ importers:
       '@quiesco/cucumber':
         specifier: workspace:*
         version: link:../../packages/cucumber
+      '@quiesco/expo-plugin':
+        specifier: workspace:*
+        version: link:../../packages/expo-plugin
       '@quiesco/web':
         specifier: workspace:*
         version: link:../../packages/web
@@ -299,6 +302,8 @@ importers:
       '@cucumber/cucumber':
         specifier: 13.3.0
         version: 13.3.0
+
+  packages/expo-plugin: {}
 
   packages/native: {}
 
