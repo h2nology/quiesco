@@ -210,4 +210,7 @@
 | 4.6 iOS `--parallel 2`（Metro 重启后） | ✅ | 6 场景 34 步通过，11.2s（串行 19.4s）；:3001 13 个 / :3002 11 个请求（隔离生效） |
 | 4.6 Android 修复 ①：全部实例 `-read-only` | ✅ | 模拟器只允许「全部实例都 read-only」时多开同一 AVD；worker 0 也改为 read-only；已有可写实例时 7s 内报错并给出 `adb -s emulator-5554 emu kill`（单元测试覆盖） |
 | 4.6 Android 修复 ②：冷启动 `-no-snapshot-load` | ✅ | quick-boot 快照在 /data 重装 APK 后过期，开机约 30s 后用户空间重启（reverse 与 App 消失）⇒ 串行 / 并行冷启动都失败；改为真冷启动 14s（快照 + 重启 40s）；之后冷启动并行 2/2、串行 1/1 通过 |
-| 4.6 Android 修复 ③：启动参数丢失（native，未验证完） | ⏸ | 第二次起 dev client 以 CLEAR_TASK 重新启动 Activity，intent 没有 extras ⇒ App 退回构建期端口 7357（实测 worker 1 App 连到 7357；串行因端口恰为 7357 未暴露）。加 `QuiescoNativePackage`（ReactActivityLifecycleListener 保存参数）后重建 APK（类已确认在 dex 中）；热启动并行仍 0/3，症状变化（白屏、App 未运行、7357 也超时），机器 load 10–13（2 台 emulator + 2 台 iOS 模拟器）。待与 HU 确认方向 |
+| 4.6 Android 修复 ③：启动参数丢失（native） | ✅ | 第二次起 dev client 以 CLEAR_TASK 重新启动 Activity，intent 没有 extras ⇒ App 退回构建期端口 7357（实测 worker 1 App 连到 7357；串行因端口恰为 7357 未暴露）。加 `QuiescoNativePackage`（ReactActivityLifecycleListener 保存参数）后重建 APK（类已确认在 dex 中）；热启动并行仍 0/3，症状变化（白屏、App 未运行、7357 也超时），机器 load 10–13（2 台 emulator + 2 台 iOS 模拟器）。待与 HU 确认方向 |
+| 4.6 Android 修复 ④：Android 17 包更新占位 Activity | ✅ | 真正的热启动失败原因（与负载无关）：App 在前台时 `install -r` ⇒ SystemUI 往任务里放 PackageUpdateActivity 占位，更新结束（约 2.4s 后）以 CLEAR_TASK 重新启动任务的 base intent（无 extras），覆盖我们的 `am start`；时机竞争 ⇒ 症状不定。install 前 `am force-stop` 后系统日志为「no process with activities in it」，不再放占位（单元测试覆盖） |
+| 4.6 Android `--parallel 2`（热启动） | ✅ | 连续 3/3，6 场景 34 步，14.0–14.5s（串行 18.6s）；关闭 iOS 模拟器后 load 约 2.8 |
+| 4.6 `pnpm run check` | ✅ | 271 测试，depcruise 116 模块无违规，类型检查无错误 |

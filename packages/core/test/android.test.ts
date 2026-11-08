@@ -149,7 +149,7 @@ describe('AndroidProvider', () => {
     const a = provider(BOOTED, { app: { package: 'p', binaryPath: '/tmp/app.apk' } });
     await a.p.boot();
     await a.p.install();
-    expect(a.calls.at(-1)).toBe('adb -s emulator-5554 install -r -g /tmp/app.apk');
+    expect(a.calls.slice(-2)).toEqual(["adb -s emulator-5554 shell am force-stop 'p'", 'adb -s emulator-5554 install -r -g /tmp/app.apk']);
     const b = provider(BOOTED);
     await b.p.boot();
     await expect(b.p.install()).rejects.toThrow(/com.example.todo is not installed/);

@@ -9,6 +9,7 @@
  *   snapshot goes stale once the app is installed into /data after it was taken, and Android then
  *   restarts its userspace about 30 s after "boot completed" (adb reverse and the app are gone). A
  *   cold boot took 14 s vs 40 s for snapshot + restart (API 37).
+ * - install: `am force-stop` before `install -r` (see install()).
  * - launch: `adb reverse` for the Quiesco port (and Metro for dev clients), pre-grant
  *   ACCESS_LOCAL_NETWORK (Android 17; ignored where unknown), then `am start` with the connection
  *   parameters as intent extras. The whole device command is one quoted string: the device shell would
@@ -304,6 +305,10 @@ export class AndroidProvider implements DeviceProvider {
   async install(): Promise<void> {
     const apk = this.options.app.binaryPath;
     if (apk !== undefined) {
+      // Stop the app first: on Android 17 updating a package whose task is on screen puts a placeholder
+      // in that task, and when the update finishes SystemUI relaunches the task's base intent with
+      // CLEAR_TASK and no extras, racing (and replacing) our `am start` with the connection parameters.
+      await this.shell(`am force-stop ${shq(this.pkg)}`).catch(() => undefined);
       await this.adbRun(['install', '-r', '-g', path.resolve(apk)], 300_000);
       return;
     }
