@@ -54,6 +54,8 @@ export interface DevToolsHook {
   onCommitFiberRoot?: (rendererID: number, root: FiberRoot, priority: unknown, didError: unknown) => void;
   onPostCommitFiberRoot?: (rendererID: number, root: FiberRoot) => void;
   onCommitFiberUnmount?: (rendererID: number, fiber: Fiber) => void;
+  /** react-devtools-core: the roots it has seen for a renderer. */
+  getFiberRoots?: (rendererID: number) => Set<FiberRoot>;
   [key: string]: unknown;
 }
 

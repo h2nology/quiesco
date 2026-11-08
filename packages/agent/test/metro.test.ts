@@ -9,6 +9,7 @@ const require = createRequire(import.meta.url);
 const { withQuiesco } = require('../metro.cjs') as {
   withQuiesco: <T extends object>(config: T, options?: { enabled?: boolean; env?: Record<string, string>; projectRoot?: string }) => T & {
     resolver: { resolveRequest: (ctx: unknown, name: string, platform: string | null) => unknown };
+    serializer?: { getModulesRunBeforeMainModule?: (entry: string) => string[] };
   };
 };
 
@@ -38,6 +39,30 @@ describe('withQuiesco', () => {
     expect(fs.readFileSync(resolved.filePath, 'utf8')).toContain('export const buildConfig = {"port":7999,"session":null};');
     // a './build-config' import from app code is not touched
     expect(config.resolver.resolveRequest(c, './build-config', 'ios')).toBe('upstream');
+  });
+});
+
+describe('withQuiesco: early module', () => {
+  const early = fs.realpathSync(path.join(agentSrc, 'early.ts'));
+
+  it('runs the agent early module before React Native setup in e2e builds', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'quiesco-metro-'));
+    const upstream = vi.fn(() => ['/rn/setup-env.js', '/expo/winter.js']);
+    const config = withQuiesco({ projectRoot: root, resolver: {}, serializer: { getModulesRunBeforeMainModule: upstream } }, { env: { EXPO_PUBLIC_QUIESCO: '1' } });
+    expect(config.serializer?.getModulesRunBeforeMainModule?.('/app/index.ts')).toEqual([early, '/rn/setup-env.js', '/expo/winter.js']);
+    expect(upstream).toHaveBeenCalledWith('/app/index.ts');
+    // Expo's export serializer holds on to the original serializer object: it must see the change too.
+    const original = { getModulesRunBeforeMainModule: () => ['/rn/setup-env.js'] };
+    withQuiesco({ projectRoot: root, resolver: {}, serializer: original }, { env: { EXPO_PUBLIC_QUIESCO: '1' } });
+    expect(original.getModulesRunBeforeMainModule()).toEqual([early, '/rn/setup-env.js']);
+    const bare = withQuiesco({ projectRoot: root, resolver: {} }, { env: { EXPO_PUBLIC_QUIESCO: '1' } });
+    expect(bare.serializer?.getModulesRunBeforeMainModule?.('/app/index.ts')).toEqual([early]);
+  });
+
+  it('leaves the serializer alone in production builds', () => {
+    const before = () => ['/rn/setup-env.js'];
+    const config = withQuiesco({ resolver: {}, serializer: { getModulesRunBeforeMainModule: before } }, { env: {} });
+    expect(config.serializer?.getModulesRunBeforeMainModule).toBe(before);
   });
 });
 

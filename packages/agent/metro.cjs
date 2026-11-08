@@ -13,6 +13,10 @@
  * - e2e build: the agent's `build-config` module is replaced by a generated file carrying the fallback
  *   port / session (`EXPO_PUBLIC_QUIESCO_PORT`, `EXPO_PUBLIC_QUIESCO_SESSION`), used when no launch
  *   parameters are available (JS-only mode).
+ * - e2e build: the agent's early module (`src/early.ts`: React DevTools hook + scheduler patch) is put
+ *   first in `serializer.getModulesRunBeforeMainModule`. React Native 0.88 loads its renderer from
+ *   `setup-env`, which Metro runs before the app entry; a hook installed later is never seen by the
+ *   renderer in release builds (no React DevTools hook there).
  *
  * Plain CommonJS on purpose: Node loads metro.config.js without a TypeScript step.
  */
@@ -22,6 +26,7 @@ const path = require('node:path');
 const AGENT = '@quiesco/agent';
 const AGENT_SRC = path.join(__dirname, 'src');
 const STUB = path.join(AGENT_SRC, 'stub.ts');
+const EARLY = path.join(AGENT_SRC, 'early.ts');
 
 /**
  * @param {NodeJS.ProcessEnv} env
@@ -48,7 +53,7 @@ function writeBuildConfig(projectRoot, env) {
 }
 
 /**
- * @template {{ projectRoot?: string; resolver?: { resolveRequest?: Function | null } }} T
+ * @template {{ projectRoot?: string; resolver?: { resolveRequest?: Function | null }; serializer?: { getModulesRunBeforeMainModule?: (entryFilePath: string) => string[] } }} T
  * @param {T} config Metro config (e.g. from expo/metro-config)
  * @param {{ enabled?: boolean; env?: NodeJS.ProcessEnv; projectRoot?: string }} [options]
  * @returns {T}
@@ -73,7 +78,25 @@ function withQuiesco(config, options = {}) {
     return upstream !== null ? upstream(context, moduleName, platform) : context.resolveRequest(context, moduleName, platform);
   }
 
-  return { ...config, resolver: { ...config.resolver, resolveRequest } };
+  if (!enabled) return { ...config, resolver: { ...config.resolver, resolveRequest } };
+
+  // Metro compares these paths with the (real) paths of modules in the graph.
+  const early = fs.realpathSync(EARLY);
+  const upstreamBefore = config.serializer?.getModulesRunBeforeMainModule;
+  /** @param {string} entryFilePath */
+  function getModulesRunBeforeMainModule(entryFilePath) {
+    const rest = typeof upstreamBefore === 'function' ? upstreamBefore(entryFilePath) : [];
+    return [early, ...rest.filter((p) => p !== early)];
+  }
+  // Expo's serializer (withExpoSerializers) captured the original `config.serializer` object in
+  // getDefaultConfig() and reads getModulesRunBeforeMainModule from it when exporting (release
+  // bundles); the dev server reads the returned config. Set it on both.
+  if (config.serializer !== undefined && config.serializer !== null) config.serializer.getModulesRunBeforeMainModule = getModulesRunBeforeMainModule;
+  return {
+    ...config,
+    resolver: { ...config.resolver, resolveRequest },
+    serializer: { ...config.serializer, getModulesRunBeforeMainModule },
+  };
 }
 
 module.exports = { withQuiesco, isE2E };

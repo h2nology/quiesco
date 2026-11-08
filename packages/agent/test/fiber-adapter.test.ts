@@ -47,15 +47,48 @@ describe('DevTools hook', () => {
     expect(adapter.diagnostics()).toMatchObject({ hookSource: 'existing', rootCount: 1, problems: [] });
   });
 
-  it('reports a problem when a renderer was injected before the agent ("installed too late")', () => {
-    const original = { supportsFiber: true, renderers: new Map([[1, { rendererPackageName: 'react-native-renderer', version: '19.3.0' }]]), inject: () => 2 };
+  it('takes over a renderer registered before the agent without reporting it when nothing rendered yet', () => {
+    const original = {
+      supportsFiber: true,
+      renderers: new Map([[1, { rendererPackageName: 'react-native-renderer', version: '19.3.0' }]]),
+      inject: () => 2,
+      getFiberRoots: () => new Set(),
+    };
+    const { adapter, target } = setup({ [HOOK_KEY]: original });
+    expect(adapter.diagnostics()).toMatchObject({ renderers: [expect.objectContaining({ id: 1, kind: 'native' })], problems: [] });
+    hookOf(target).onCommitFiberRoot?.(1, makeRoot(host('RCTView', { testID: 'a' })), 0, false);
+    expect(adapter.diagnostics().rootCount).toBe(1);
+  });
+
+  it('adopts roots rendered before the agent and reports them ("app rendered first")', () => {
+    const early = makeRoot(host('RCTView', { testID: 'early' }));
+    const original = {
+      supportsFiber: true,
+      renderers: new Map([[1, { rendererPackageName: 'react-native-renderer', version: '19.3.0' }]]),
+      inject: () => 2,
+      getFiberRoots: () => new Set([early]),
+    };
     const { adapter } = setup({ [HOOK_KEY]: original });
-    expect(adapter.diagnostics().problems[0]).toMatch(/loaded after the React renderer/);
+    const d = adapter.diagnostics();
+    expect(d.rootCount).toBe(1);
+    expect(d.problems[0]).toMatch(/rendered before @quiesco\/agent was installed/);
+  });
+
+  it('installEarly() sets up the hook and scheduler that install() then reuses', async () => {
+    const { installEarly } = await import('../src/fiber-adapter');
+    const target: Record<string, unknown> = {};
+    const sched = fakeScheduler();
+    installEarly(target, () => sched.mod);
+    const hook = target[HOOK_KEY];
+    expect(hook).toBeDefined();
+    const { adapter } = setup(target, { loadScheduler: () => sched.mod });
+    expect(target[HOOK_KEY]).toBe(hook);
+    expect(adapter.diagnostics()).toMatchObject({ hookSource: 'installed', schedulerPatched: true, problems: [] });
   });
 
   it('checkRendererSeen() reports when no renderer ever registered', () => {
     const { adapter, target } = setup();
-    expect(adapter.checkRendererSeen()).toMatch(/first line of the app entry/);
+    expect(adapter.checkRendererSeen()).toMatch(/withQuiesco\(\)/);
     renderWith(target, makeRoot());
     expect(adapter.checkRendererSeen()).toBeNull();
   });

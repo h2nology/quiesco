@@ -5,8 +5,11 @@
  *   WRAP its methods and call the originals, so React DevTools keeps working.
  * - No hook (release builds, web production): install a minimal one.
  *
- * Renderers look the hook up once, at module init. If the renderer was loaded before this runs,
- * we never see it — that is detected and reported as a problem ("installed too late").
+ * Renderers look the hook up once, at module init. React Native 0.88 loads its renderer from
+ * `setup-env` (run by Metro before the app entry), so `withQuiesco()` makes Metro run the agent's
+ * early module (`src/early.ts`) before that. When the renderer is already registered on an existing
+ * hook anyway, its roots are taken over from `getFiberRoots`; only roots rendered before the agent
+ * (app code that ran first) are reported as a problem.
  */
 import type { DevToolsHook, FiberRoot, RendererInternals } from './fiber';
 import { isObject } from './fiber';
@@ -27,7 +30,7 @@ export interface HookState {
   source: 'existing' | 'installed';
   renderers: Map<number, RendererInfo>;
   roots: Map<number, Set<FiberRoot>>;
-  /** Renderers that had already been injected when we installed (we may have missed their roots). */
+  /** Renderers that had already rendered roots when we installed (state set up before may be missed). */
   lateRenderers: RendererInfo[];
   commitListeners: Set<CommitListener>;
 }
@@ -109,7 +112,11 @@ export function installHook(target: Record<string, unknown>): HookState {
       for (const [id, internals] of hook.renderers) {
         const info = describeRenderer(id, internals);
         state.renderers.set(id, info);
-        state.lateRenderers.push(info);
+        const roots = typeof hook.getFiberRoots === 'function' ? hook.getFiberRoots(id) : undefined;
+        if (roots !== undefined && roots.size > 0) {
+          for (const root of roots) addRoot(state, id, root);
+          state.lateRenderers.push(info);
+        }
       }
     }
     wrapMethod(hook, 'onScheduleFiberRoot', (a) => addRoot(state, a[0], a[1]));

@@ -28,6 +28,20 @@ export interface FiberAdapterOptions {
   now?: () => number;
 }
 
+/**
+ * Install the DevTools hook and patch the scheduler on `target`, before any renderer loads. Run by
+ * `src/early.ts`, which `withQuiesco()` makes Metro execute ahead of React Native's own setup.
+ * Idempotent: FiberAdapter.install() later picks up the same hook and scheduler state.
+ */
+export function installEarly(target: Record<string, unknown> = globalThis as unknown as Record<string, unknown>, load: () => unknown = loadScheduler): void {
+  installHook(target);
+  try {
+    patchScheduler(load());
+  } catch {
+    // FiberAdapter.install() reports scheduler problems.
+  }
+}
+
 export class FiberAdapter {
   private hook: HookState | null = null;
   private scheduler: SchedulerState | null = null;
@@ -130,8 +144,8 @@ export class FiberAdapter {
     const renderers = [...hook.renderers.values()];
     if (hook.lateRenderers.length > 0) {
       problems.push(
-        `@quiesco/agent was loaded after the React renderer (${hook.lateRenderers.map((r) => r.packageName).join(', ')}). ` +
-          'Import @quiesco/agent on the first line of the app entry file.',
+        `The app rendered before @quiesco/agent was installed (${hook.lateRenderers.map((r) => r.packageName).join(', ')}); ` +
+          'work started before that is not tracked. Import @quiesco/agent on the first line of the app entry file.',
       );
     }
     if (this.schedulerError !== null) problems.push(this.schedulerError);
@@ -156,8 +170,9 @@ export class FiberAdapter {
     const hook = this.requireHook();
     if (hook.renderers.size > 0) return null;
     return (
-      'No React renderer registered with the Quiesco DevTools hook: @quiesco/agent was loaded after ' +
-      'React Native / react-dom. Import @quiesco/agent on the first line of the app entry file.'
+      'No React renderer registered with the Quiesco DevTools hook: the renderer loaded before the hook existed. ' +
+      'Wrap metro.config.js with withQuiesco() from @quiesco/agent/metro (it runs the hook before React Native ' +
+      'starts) and import @quiesco/agent on the first line of the app entry file.'
     );
   }
 

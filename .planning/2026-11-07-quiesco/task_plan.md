@@ -4,10 +4,10 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-Phase 4 完成（待提交）。下一步 Phase 5（易用性与周边）：开始前先输出实施计划并经 HU 确认。待跟进：agent「loaded after the React renderer」警告在 dev client 每次 reload 时出现（4.8 前即有，测试不受影响）；prod-strip.yml 推送后实跑。
+Phase 5 进行中：5.0 ✅ → 5.1 CLI → 5.2 权限 / 键盘 → 5.3 steps → 5.4 文档 → 5.5 验收。prod-strip.yml 待推送后实跑。
 
 ## Current Phase
-Phase 4
+Phase 5
 
 ## 工作约定（摘自 requirements.md §12，每个阶段都要遵守）
 - 按阶段推进，不跳阶段；每阶段开始前先输出实施计划，经确认后再写代码。
@@ -134,17 +134,21 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 - **Status:** complete（2026-11-08）
 
 ### Phase 5: 易用性与周边
-- [ ] CLI：init / test / doctor / tree
-- [ ] 权限预授权、键盘处理
-- [ ] `@quiesco/steps` 可选通用步骤
-- [ ] 文档：README、API 参考、同步机制、三端差异、故障排查、Driver 模式
+**HU 决定（2026-11-08）**：① 验收时用 `pnpm pack` 的 tarball 本地安装，README 按发布后的 `npm i -D quiesco …` 写并附「从源码使用」；② 目标被键盘遮挡时**自动收起键盘**再执行动作；③ steps 包提供中 / 日 / 英三种语言的步骤；④ 许可证 MIT（§11-1）。
+
+- [x] 5.0 Phase 4 遗留：「agent loaded after the React renderer」——真问题（release e2e 构建不可用），已修根因（agent early 模块由 withQuiesco 在 RN setup-env 之前执行）
+- [ ] 5.1 CLI 包 `quiesco`（`packages/cli`）：`test`（透传 cucumber-js）、`doctor`（环境与项目接入检查，✅/⚠️/❌ + 修复提示）、`tree`（起 server 等运行中的 App 重连后打印元素树，`--launch` 由 provider 启动）、`init`（依赖、plugin、metro、入口 import、配置、features 示例；不覆盖已有文件）；单元测试；depcruise：cli 不静态依赖 cucumber
+- [ ] 5.2 权限与键盘：权限映射表文档 + 示例 App 授权场景；动作目标被键盘遮挡时自动收起键盘后再执行（三端），单元测试 + 实机
+- [ ] 5.3 `@quiesco/steps`：`registerQuiescoSteps()`，中 / 日 / 英三套步骤文本；文档注明只适合原型期（§6.11）
+- [ ] 5.4 文档：根 README（快速开始、MIT）、`LICENSE`、`docs/`（API 参考、同步机制、三端差异、故障排查、Driver 模式、CLI、steps）
+- [ ] 5.5 验收：全新 create-expo-app（SDK 58）按 README 操作计时 ≤ 10 分钟跑通首个场景（Web；时间允许再 Android）；`pnpm run check`
 - **验收：** 全新 create-expo-app 项目按 README 10 分钟内在任一平台跑通首个场景
-- **Status:** pending
+- **Status:** in_progress
 
 ## 待 HU 决定（requirements.md §11，遇到时暂停询问）
 | # | 事项 | 何时需要 | 状态 |
 |---|------|---------|------|
-| 1 | 开源许可证 | 发布前（Phase 5 前即可） | 未决 |
+| 1 | 开源许可证 | 发布前（Phase 5 前即可） | ✅ MIT（HU 2026-11-08） |
 | 2 | 最低支持 Expo SDK | Phase 0 结束时给建议 | ✅ SDK 58（HU 2026-11-07）；Phase 4 CI 冒烟 55–57 后可再下调 |
 | 3 | iOS 注入替代方案（若 S4 失败） | S4 结论后 | 不需要（S4 成功） |
 | 4 | CI：GitHub Actions / EAS Workflows | Phase 1 搭骨架时（依赖检查要进 CI） | ✅ GitHub Actions（HU 2026-11-07） |
