@@ -321,7 +321,7 @@ export default function App() {
 
 ### 6.9 Host 侧（core）
 
-- **WebSocket Server**：管理与 agent 的连接，支持多个设备同时连接（并行执行时每个 worker 一台设备）。
+- **WebSocket Server**：管理与 agent 的连接（一次运行对应一台设备）。
 - **Driver**：对外暴露 6.3〜6.6 的全部 API，全部为 `async`。
 - **设备管理**：通过 `DeviceProvider` 接口抽象，三端各一个实现：
 
@@ -360,7 +360,7 @@ export default function App() {
   - `After`：失败时附加截图与元素树 JSON 到报告。
   - `AfterAll`：关闭连接，按配置决定是否关闭设备。
 - step definition 中通过 `this.app` 访问 Driver。
-- 支持 cucumber-js 的 `--parallel`：每个 worker 分配独立设备与独立端口（Web 端每个 worker 独立 browser context 即可）。
+- 只支持串行执行：以 cucumber-js 的 `--parallel` 运行时明确报错（HU 2026-11-08 决定撤销并行支持）。
 - **目标平台切换**：通过环境变量或 CLI 参数选择平台，例如 `QUIESCO_PLATFORM=web`、`quiesco test --platform android`。同一份 feature 与 step definition 不做任何修改即可在三端运行。
 - **平台专属场景**：用 tag 标注只在某些平台成立的场景（如 `@ios`、`@android`、`@web`、`@native`），运行时自动跳过不匹配当前平台的场景。tag 名称可配置。
 - **兼容 Driver 模式**：`this.app` 的接口设计要允许用户实现自己的业务 Driver 包装层（Ports & Adapters），例如在 Quiesco 之外再接一个纯 API 层的 Driver。文档中给出示例。
@@ -573,13 +573,12 @@ Then('列表第一条是 {string}', async function (title: string) {
 - `native` 模块的 iOS 实现、iOS 设备管理。
 - `expo-plugin`、`eas.json` 的 e2e profile 示例。
 - 生产剔除的 CI 检查。
-- cucumber `--parallel` 支持。
 
 验收：
 
 - 第 9 节场景在 iOS Simulator、Android Emulator、Chromium 三端都通过。
 - 生产构建检查通过。
-- 2 个 worker 并行时总耗时明显低于串行（记录数据）。
+- iOS 端连续运行 20 次无随机失败（记录耗时）。
 
 ### 第 5 阶段：易用性与周边
 

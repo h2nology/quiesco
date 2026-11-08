@@ -2,7 +2,7 @@
  * Maps the cucumber-js lifecycle onto @quiesco/core's session API (requirements.md §6.10). Kept free of
  * cucumber imports so it can be unit-tested and mirrored by other runner adapters.
  */
-import { createSession, loadConfig, resolvePlatform, runsOnPlatform, tagNames } from '@quiesco/core';
+import { QuiescoError, createSession, loadConfig, resolvePlatform, runsOnPlatform, tagNames } from '@quiesco/core';
 import type { Platform, QuiescoConfig, Session, SessionOptions } from '@quiesco/core';
 
 export interface LifecycleOptions {
@@ -40,13 +40,13 @@ export class Lifecycle {
   /** BeforeAll: load the config, start the server and device, launch the app, wait for the agent. */
   async beforeAll(): Promise<void> {
     const env = this.options.env ?? process.env;
-    // `--parallel N` runs N worker threads; each gets its own port, device and config evaluation.
-    const workerIndex = Number.parseInt(env['CUCUMBER_WORKER_ID'] ?? '0', 10) || 0;
-    const workerCount = Number.parseInt(env['CUCUMBER_TOTAL_WORKERS'] ?? '1', 10) || 1;
-    this.config =
-      this.options.config ?? (await loadConfig({ workerIndex, ...(env['QUIESCO_CONFIG'] !== undefined ? { file: env['QUIESCO_CONFIG'] } : {}) })).config;
+    // cucumber-js --parallel runs worker threads that would all launch the same device and port.
+    if (Number.parseInt(env['CUCUMBER_TOTAL_WORKERS'] ?? '1', 10) > 1) {
+      throw new QuiescoError('CONFIG_ERROR', 'Quiesco does not support cucumber-js --parallel: every worker would drive the same device. Run the features serially (drop --parallel).');
+    }
+    this.config = this.options.config ?? (await loadConfig(env['QUIESCO_CONFIG'] !== undefined ? { file: env['QUIESCO_CONFIG'] } : {})).config;
     this.platform = this.options.platform ?? resolvePlatform(undefined, env);
-    this.session = await (this.options.createSession ?? createSession)({ config: this.config, platform: this.platform, workerIndex, workerCount });
+    this.session = await (this.options.createSession ?? createSession)({ config: this.config, platform: this.platform });
   }
 
   /** Before: `'skipped'` for scenarios tagged for other platforms, else reset the app. */

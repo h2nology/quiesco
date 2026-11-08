@@ -51,3 +51,48 @@ Notes:
 
 Per run (s): 19.8, 18.4, 16.9, 17.1, 17.3, 17.4, 17.7, 17.6, 18.6, 18.7, 17.9, 18.6, 18.0, 17.0, 17.1, 18.6,
 17.4, 18.1, 18.1, 17.5.
+
+## Phase 4 acceptance (2026-11-08)
+
+Serial runs only (`cucumber-js --parallel` is not supported; see requirements.md §6.9). Measured with
+`examples/todo-app/bench/suite.mts` (`pnpm bench:suite --platform <p> --runs <n>`): wall time around
+`cucumber-js`, including install, launch and session setup, with the device already booted. Only the
+measured platform's device was running.
+
+- Host: Apple M5 Pro, darwin 25.6.0, Node v24.22.1; dev clients loading a development bundle from Metro
+- iOS: iPhone 17 simulator, iOS 26.5; Android: Medium_Phone_API_37.0 (Android 17); Web: Chromium (Playwright)
+- 6 scenarios / 34 steps per run, `native` action mode on iOS and Android
+
+| Platform | Runs | Passed | Wall time per run (s) |
+|---|---|---|---|
+| iOS | 20 | 20 / 20 | min 15.9, median 16.1, max 16.4 |
+| Android | 5 | 5 / 5 | min 17.7, median 18.5, max 18.7 |
+| Web | 5 | 5 / 5 | min 6.4, median 6.4, max 6.8 |
+
+iOS per run (s): 16.1, 16.2, 16.1, 16.1, 16.1, 16, 16, 16, 16, 16.4, 16.1, 16, 16.1, 16.2, 16, 15.9, 16.2, 16,
+16, 16.2.
+
+First run after booting the device (not included above): Android cold boot 14 s plus a 51–72 s first
+run (first bundle load, system still settling); iOS simulator boot plus first run 32 s.
+
+Notes:
+
+- During an earlier 5-run Android series one run failed right after a cold boot (machine load ≈ 12):
+  a sync timeout before tapping a button in the confirm Modal, the frame-stable tracker seeing the element
+  tree change for 10 s. It did not reproduce in 18 further runs (two cold-boot series of 6 and 6 runs
+  under artificial CPU load, load ≈ 15). The frame-stable timeout report now names the sampled frame count
+  and the first node that changed, so a recurrence can be diagnosed from the report alone.
+
+### Production strip check
+
+`node scripts/check-prod-strip.mjs` (task 4.7), real builds of the example app; count of each marker in
+production / e2e (control group) artifacts:
+
+| Marker | Web export | Android release APK (R8) | iOS Release simulator .app |
+|---|---|---|---|
+| `getIdleState` (agent) | 0 / 4 | 0 / 1 | 0 / 1 |
+| `waitForIdle` (agent) | 0 / 6 | 0 / 1 | 0 / 1 |
+| `agent error: ` (agent) | 0 / 1 | 0 / 1 | 0 / 1 |
+| `QuiescoNative` (native module name) | — | 0 / 3 | — |
+| `QSTouchInjector` (iOS touch injector) | — | — | 0 / 38 |
+| `IOHIDEventCreateDigitizerEvent` (private IOKit) | — | — | 0 / 4 |

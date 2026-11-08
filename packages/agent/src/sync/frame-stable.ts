@@ -1,22 +1,47 @@
 /**
- * Frame-stable tracker (requirements.md §6.2-5): the element tree's structure hash (type, testID,
- * text, rounded rect) is unchanged for N consecutive frames (default 2). Catches UI-thread animations
- * (e.g. Reanimated) that are invisible to the JS-side trackers.
+ * Frame-stable tracker (requirements.md §6.2-5): the element tree's structure snapshot (type, testID,
+ * text, rounded rect of every host node) is unchanged for N consecutive frames (default 2). Catches
+ * UI-thread animations (e.g. Reanimated) that are invisible to the JS-side trackers.
  *
  * Sampling runs only while a waitForIdle is in progress (beginWait / endWait), so idle apps do not
- * pay for hashing the tree every frame. Outside a wait it reports idle.
+ * pay for snapshotting the tree every frame. Outside a wait it reports idle.
+ *
+ * When the tree never settles, describeBusy() says how many frames were sampled in how long (very few
+ * frames means a starved UI thread, not an animation) and which node differed between the last two
+ * different frames, so a sync timeout names the element that keeps changing.
  */
 import { SyncDefaults } from '@quiesco/protocol';
 
 import type { IdleTracker } from './tracker';
 
 export interface FrameStableTrackerOptions {
-  /** Structure hash of the current element tree. */
-  hash: () => string;
+  /** Structure snapshot of the current element tree, one line per host node. */
+  snapshot: () => readonly string[];
   frames?: number;
   /** Default: `globalThis.requestAnimationFrame`. */
   requestFrame?: (cb: () => void) => unknown;
   cancelFrame?: (id: unknown) => void;
+  /** Clock for the diagnostics. Default: `Date.now`. */
+  now?: () => number;
+}
+
+const MAX_LINE = 120;
+
+function sameLines(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+const clip = (line: string | undefined): string =>
+  line === undefined ? '(none)' : line.length > MAX_LINE ? `${line.slice(0, MAX_LINE - 1)}…` : line;
+
+/** Where two snapshots first differ, as a short human-readable line. */
+export function describeChange(before: readonly string[], after: readonly string[]): string {
+  let i = 0;
+  while (i < before.length && i < after.length && before[i] === after[i]) i++;
+  const count = before.length === after.length ? '' : `node count ${before.length} → ${after.length}; `;
+  return `${count}first difference at node ${i}: ${clip(before[i])} → ${clip(after[i])}`;
 }
 
 export class FrameStableTracker implements IdleTracker {
@@ -24,10 +49,13 @@ export class FrameStableTracker implements IdleTracker {
   private frames: number;
   private waiting = 0;
   private frameId: unknown = null;
-  private last: string | null = null;
-  /** Consecutive sampled frames with the same hash, including the first. */
+  private last: readonly string[] | null = null;
+  /** The snapshot before the most recent change (for describeBusy). */
+  private beforeChange: readonly string[] | null = null;
+  /** Consecutive sampled frames with the same snapshot, including the first. */
   private same = 0;
   private sampled = 0;
+  private startedAt = 0;
 
   constructor(private readonly options: FrameStableTrackerOptions) {
     this.frames = Math.max(1, options.frames ?? SyncDefaults.stableFrames);
@@ -44,7 +72,10 @@ export class FrameStableTracker implements IdleTracker {
   describeBusy(): string[] {
     if (this.isIdle()) return [];
     if (this.sampled === 0) return ['no frame rendered yet (is the app in the foreground?)'];
-    return [`element tree changing: stable for ${this.same}/${this.frames} frames`];
+    const elapsed = this.now() - this.startedAt;
+    const lines = [`element tree changing: stable for ${this.same}/${this.frames} frames (${this.sampled} frames sampled in ${elapsed}ms)`];
+    if (this.beforeChange !== null && this.last !== null) lines.push(`last change: ${describeChange(this.beforeChange, this.last)}`);
+    return lines;
   }
 
   install(): void {}
@@ -57,14 +88,20 @@ export class FrameStableTracker implements IdleTracker {
   beginWait(): void {
     if (this.waiting++ > 0) return;
     this.last = null;
+    this.beforeChange = null;
     this.same = 0;
     this.sampled = 0;
+    this.startedAt = this.now();
     this.schedule();
   }
 
   endWait(): void {
     if (this.waiting === 0 || --this.waiting > 0) return;
     this.stop();
+  }
+
+  private now(): number {
+    return (this.options.now ?? Date.now)();
   }
 
   private schedule(): void {
@@ -79,15 +116,20 @@ export class FrameStableTracker implements IdleTracker {
   }
 
   private sample(): void {
-    let h: string;
+    let snap: readonly string[];
     try {
-      h = this.options.hash();
+      snap = this.options.snapshot();
     } catch (e) {
-      h = `error:${String(e)}`;
+      snap = [`error: ${String(e)}`];
     }
     this.sampled++;
-    this.same = h === this.last ? this.same + 1 : 1;
-    this.last = h;
+    if (this.last !== null && sameLines(snap, this.last)) {
+      this.same++;
+    } else {
+      if (this.last !== null) this.beforeChange = this.last;
+      this.same = 1;
+    }
+    this.last = snap;
   }
 
   private stop(): void {

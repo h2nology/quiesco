@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-4.7 完成（本机三端 × prod/e2e 通过；CI prod-strip.yml 待推送后实跑），待提交；下一步 4.8 验收（iOS 连续 20 次、并行 vs 串行耗时记入 docs/benchmarks.md）。
+Phase 4 完成（待提交）。下一步 Phase 5（易用性与周边）：开始前先输出实施计划并经 HU 确认。待跟进：agent「loaded after the React renderer」警告在 dev client 每次 reload 时出现（4.8 前即有，测试不受影响）；prod-strip.yml 推送后实跑。
 
 ## Current Phase
 Phase 4
@@ -121,16 +121,17 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 - [x] 4.3 `@quiesco/expo-plugin`：把 `packages/native/app.plugin.js` 迁入并补 iOS ——非 e2e：Podfile 注入 `use_expo_modules!(exclude: ['@quiesco/native'])`；e2e：确认 ATS `NSAllowsLocalNetworking`；dev client 启动参数常量共用。示例 App 改用 `"@quiesco/expo-plugin"`；单元测试覆盖两种模式的 Podfile / settings.gradle / manifest 结果
 - [x] 4.4 core `IosProvider`（`xcrun simctl`）：按名称 / UDID / runtime 选模拟器，`boot` + `bootstatus -b`；`install` .app；`launch` 用进程参数 `-quiescoPort/-quiescoSession`，dev client 用 `--initialUrl`（带 `__expo_disable_onboarding/fab/auto_launch`）；`terminate`、`privacy grant` 权限映射（不支持的给警告）、`io screenshot`、硬重置（terminate + 清 App 容器 / 重装）；连接超时诊断。单元测试用假 exec 校验命令
 - [x] 4.5 示例 App：`ios` 配置与 `build:ios`（simulator Debug dev client）/ `test:e2e:ios` 脚本；`eas.json` 的 `e2e` profile（iOS simulator build、Android APK、`EXPO_PUBLIC_QUIESCO=1`）
-- [x] 4.6 cucumber `--parallel`（HU 2026-11-08 确认：方案 A、Android 同 AVD `-read-only`）
+- [x] ~~4.6 cucumber `--parallel`~~（2026-11-08 HU 撤销并已回退；保留对串行也有效的修复：冷启动 `-no-snapshot-load`、install 前 force-stop、native LaunchParamsStore）
   - 4.6a core：provider 收 `workerIndex`。iOS：`udids[]` > worker 0 用 base / N>0 用 `"<base> (Quiesco N)"`（无则 `simctl create` 同 device type + runtime，保留复用；`simctl clone` 要求源设备关机，不可用）；Android：`serials[]` > `avd` 时 worker N 绑定 `emulator-(5554+2N)`（`-port`，全部实例 `-read-only` + 冷启动 `-no-snapshot-load`）> 第 N 台在线设备（不足报错）；Web 无需改动
   - 4.6b 协议：hello 返回的 config 加可选 `workerIndex`，agent 暴露 `quiesco.workerIndex`；quiesco.config 可写成 `({ workerIndex }) => config`；示例 mock 后端 3001+N，App 在 e2e.ts 据 workerIndex 切 API 地址，Android `reversePorts: [3001 + workerIndex]`
   - 4.6c 示例 `test:e2e:*:parallel` 脚本、README 并行一节；验收：三端 `--parallel 2` 6 场景通过 + 串行回归 + `pnpm run check`
 - [x] 4.7 生产剔除检查脚本 `scripts/check-prod-strip.mjs`：生产模式 `expo export --platform all` 后在 JS / Hermes 字节码中 grep agent 特征串；iOS Release simulator 构建后 `nm` 查 `QSTouchInjector`、`IOHIDEventCreateDigitizerEvent`；Android release APK 查 `QuiescoNative`（R8 不混淆的 Module 名）；带 e2e 对照组。接入哪个 CI 由 §11-4 决定
   - **HU 确认（2026-11-08）**：本机在原目录跑（已有 android/ios 时需 `--allow-clean`，跑完重建 e2e dev client）；CI 新增 `prod-strip.yml`（web / android ubuntu、ios macos；push main + 相关路径 PR + 手动），不进 ci.yml；扫描逻辑 `scripts/prod-strip/scan.mjs` + vitest 单元测试
-- [ ] 4.8 验收：iOS / Android / Chromium 三端 6 场景通过；iOS 连续 20 次；生产剔除检查通过（含对照组）；2 worker 并行 vs 串行耗时（iOS、Android、Web 三端实测）记入 `docs/benchmarks.md`；`pnpm run check`
-- **验收：** 三端通过；生产构建检查通过；2 worker 并行明显快于串行（记录数据）
+- **HU 决定（2026-11-08，4.8 中）**：三端都去掉 `--parallel` 支持（Android 串行保持可写启动）；保留 4.6 中对串行也有效的修复（`-no-snapshot-load`、install 前 force-stop、native LaunchParamsStore）；cucumber `--parallel` 时明确报错。HU 确认回退计划并要求同步修改 requirements.md（§6.9、第 4 阶段范围与验收：并行验收改为 iOS 连续 20 次）。偶发失败：18 次复现未果，HU 决定把探针转为正式诊断（frame-stable 超时报告采样帧数 / 耗时与首个变化节点）。
+- [x] 4.8 验收（按 HU 2026-11-08 修改后的标准）：iOS / Android / Chromium 三端串行 6 场景通过；iOS 连续 20 次 20/20；生产剔除检查通过（含对照组，4.7）；结果记入 `docs/benchmarks.md`；`pnpm run check`
+- **验收：** 三端串行通过；iOS 连续 20 次无随机失败；生产构建检查通过 ✅（并行验收已随需求撤销）
 **HU 决定（2026-11-08）**：§11-4 GitHub Actions（再次确认；iOS 检查跑 macos runner）；并行验收三端都实测（含本机同时运行两台 Android Emulator）。
-- **Status:** in_progress
+- **Status:** complete（2026-11-08）
 
 ### Phase 5: 易用性与周边
 - [ ] CLI：init / test / doctor / tree

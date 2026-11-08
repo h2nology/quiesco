@@ -4,12 +4,8 @@
  */
 import { quiesco } from '@quiesco/agent';
 
-import { api, setApiBase } from './api';
+import { api } from './api';
 import { store } from './store';
-
-// Parallel test workers each run their own mock backend on 3001 + worker index
-// (features/support/mock-server.ts); the index arrives with the host connection.
-setApiBase(() => `http://localhost:${3001 + (quiesco.workerIndex() ?? 0)}`);
 
 quiesco.backdoor('loginAs', async (email: string) => {
   const session = await api.login(email, 'e2e-password');

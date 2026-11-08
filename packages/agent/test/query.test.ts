@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { QuiescoError } from '../src/errors';
-import { describeMatcher, findAll, getTree, isVisible, resolveOne, serializableProps, structureHash, summarize } from '../src/query';
+import { describeMatcher, findAll, getTree, isVisible, resolveOne, serializableProps, structureLines, summarize } from '../src/query';
 import { node, tree } from './helpers/nodes';
 
 const VIEWPORT = { width: 400, height: 800 };
@@ -126,12 +126,14 @@ describe('serialization', () => {
     expect(getTree(tree({}, {}))?.type).toBe('root');
   });
 
-  it('structureHash() changes with text, rect (rounded) and structure, not with sub-pixel moves', () => {
+  it('structureLines() changes with text, rect (rounded) and structure, not with sub-pixel moves', () => {
     const base = node({ children: [{ text: 'a', rect: { x: 0, y: 0, width: 10, height: 10 } }] });
-    const h = structureHash([base]);
-    expect(structureHash([node({ children: [{ text: 'a', rect: { x: 0.2, y: 0, width: 10, height: 10 } }] })])).toBe(h);
-    expect(structureHash([node({ children: [{ text: 'b', rect: { x: 0, y: 0, width: 10, height: 10 } }] })])).not.toBe(h);
-    expect(structureHash([node({ children: [{ text: 'a', rect: { x: 5, y: 0, width: 10, height: 10 } }] })])).not.toBe(h);
-    expect(structureHash([node({ children: [{ text: 'a', rect: { x: 0, y: 0, width: 10, height: 10 } }, {}] })])).not.toBe(h);
+    const h = structureLines([base]);
+    expect(h).toHaveLength(2);
+    expect(h[1]).toMatch(/"a" @0,0 10x10 children=0$/);
+    expect(structureLines([node({ children: [{ text: 'a', rect: { x: 0.2, y: 0, width: 10, height: 10 } }] })])).toEqual(h);
+    expect(structureLines([node({ children: [{ text: 'b', rect: { x: 0, y: 0, width: 10, height: 10 } }] })])).not.toEqual(h);
+    expect(structureLines([node({ children: [{ text: 'a', rect: { x: 5, y: 0, width: 10, height: 10 } }] })])).not.toEqual(h);
+    expect(structureLines([node({ children: [{ text: 'a', rect: { x: 0, y: 0, width: 10, height: 10 } }, {}] })])).not.toEqual(h);
   });
 });

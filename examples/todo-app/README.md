@@ -34,31 +34,14 @@ installs the `.app`, launches it with the expo-dev-menu switched off (no menu, o
 button) and turns off password AutoFill on the simulator (`devices.ios.disablePasswordAutoFill`), so
 iOS's "Save Password?" sheet never covers the app after the login form.
 
-## Run in parallel (`--parallel 2`)
+## Serial only
 
-```sh
-pnpm test:e2e:web:parallel
-pnpm test:e2e:ios:parallel                       # Metro running (pnpm start:e2e)
-QUIESCO_AVD=Medium_Phone_API_37.0 pnpm test:e2e:android:parallel
-```
+Quiesco drives one device per run, so `cucumber-js --parallel` is refused with a clear error. Emulators
+that Quiesco boots itself (`QUIESCO_AVD`) start writable and cold (`-no-snapshot-load`, about 14 s): a
+quick-boot snapshot goes stale once the app is reinstalled and makes Android restart after boot.
 
-Every cucumber worker gets its own Quiesco port (7357 + N), its own device and its own mock backend
-(3001 + N). Because `quiesco.config.mts` is a function of `workerIndex`, Android forwards `3001 + N`
-with `adb reverse`; the app picks the backend port from `quiesco.workerIndex()` (`src/e2e.ts`).
-
-- **iOS**: worker 0 uses the chosen simulator; worker N uses `"<name> (Quiesco N)"` (same device type
-  and runtime), created with `simctl create` on first use and kept for later runs. Remove them with
-  `xcrun simctl delete "iPhone 17 (Quiesco 1)"`. `devices.ios.udids` assigns simulators explicitly.
-- **Android**: with `QUIESCO_AVD`, worker N uses that AVD's emulator on console port 5554 + 2N
-  (`emulator-5554`, `emulator-5556`, ...) and boots it if needed. The emulator runs one AVD several
-  times only when **every** instance is `-read-only`, so all worker instances start that way: nothing
-  they change is kept after they exit (the app is installed again on every run anyway). If a writable
-  instance of the AVD is already running (e.g. started from Android Studio), Quiesco stops with the
-  `adb -s <serial> emu kill` command to close it. Emulators boot cold (`-no-snapshot-load`, about 14 s):
-  a quick-boot snapshot goes stale once the app is reinstalled and makes Android restart after boot.
-  Without `QUIESCO_AVD`, worker N uses the N-th connected device; `devices.android.serials` assigns
-  devices explicitly.
-- **Web**: every worker launches its own browser and static server; nothing to set up.
+Simulators named `"<name> (Quiesco N)"` were created by an earlier version for parallel workers and are
+no longer used; remove them with `xcrun simctl delete "iPhone 17 (Quiesco 1)"`.
 
 ## EAS builds for e2e
 

@@ -23,5 +23,4 @@ export const quiesco: QuiescoApi = {
   backdoor: () => noop,
   onReset: () => noop,
   registerStorage: () => noop,
-  workerIndex: () => null,
 };

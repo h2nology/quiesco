@@ -82,25 +82,19 @@ export function getTree(roots: readonly HostNode[]): TreeNode | null {
 }
 
 /**
- * Structure hash for the frame-stable tracker (requirements.md §6.2-5): type, testID, text and
- * rounded rect of every host node, in tree order. FNV-1a over the serialized string.
+ * Structure snapshot for the frame-stable tracker (requirements.md §6.2-5): one line per host node in
+ * tree order with its type, testID, text, rounded rect and child count. Two frames are stable when the
+ * lines are equal; the lines also say which node changed when the tree never settles.
  */
-export function structureHash(roots: readonly HostNode[]): string {
-  let h = 0x811c9dc5;
-  const feed = (s: string): void => {
-    for (let i = 0; i < s.length; i++) {
-      h ^= s.charCodeAt(i);
-      h = Math.imul(h, 0x01000193);
-    }
-  };
+export function structureLines(roots: readonly HostNode[]): string[] {
+  const lines: string[] = [];
   const stack = [...roots].reverse();
   while (stack.length > 0) {
     const n = stack.pop() as HostNode;
     const r = n.measure();
-    feed(`${n.type}|${n.testID ?? ''}|${n.ownText}|`);
-    feed(r === null ? '-' : `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)},${Math.round(r.height)}`);
-    feed(`|${n.children.length};`);
+    const rect = r === null ? '-' : `${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)}`;
+    lines.push(`${n.type}${n.testID === undefined ? '' : `#${n.testID}`}${n.ownText === '' ? '' : ` ${JSON.stringify(n.ownText)}`} @${rect} children=${n.children.length}`);
     for (let i = n.children.length - 1; i >= 0; i--) stack.push(n.children[i] as HostNode);
   }
-  return (h >>> 0).toString(16);
+  return lines;
 }

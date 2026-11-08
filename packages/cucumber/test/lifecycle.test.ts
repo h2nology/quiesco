@@ -25,13 +25,20 @@ function fakeSession(opts: { lateError?: Error } = {}) {
 const config: QuiescoConfig = { apps: { android: { package: 'p' } } };
 
 describe('Lifecycle', () => {
-  it('creates the session with config, platform and worker index', async () => {
+  it('creates the session with config and platform', async () => {
     const { session } = fakeSession();
     const create = vi.fn<(o: SessionOptions) => Promise<Session>>(async () => session);
-    const l = new Lifecycle({ config, createSession: create, env: { QUIESCO_PLATFORM: 'android', CUCUMBER_WORKER_ID: '2', CUCUMBER_TOTAL_WORKERS: '3' } });
+    const l = new Lifecycle({ config, createSession: create, env: { QUIESCO_PLATFORM: 'android' } });
     await l.beforeAll();
-    expect(create).toHaveBeenCalledWith({ config, platform: 'android', workerIndex: 2, workerCount: 3 });
+    expect(create).toHaveBeenCalledWith({ config, platform: 'android' });
     expect(l.current).toBe(session);
+  });
+
+  it('refuses cucumber-js --parallel before touching any device', async () => {
+    const create = vi.fn<(o: SessionOptions) => Promise<Session>>();
+    const l = new Lifecycle({ config, createSession: create, env: { QUIESCO_PLATFORM: 'android', CUCUMBER_PARALLEL: 'true', CUCUMBER_TOTAL_WORKERS: '2', CUCUMBER_WORKER_ID: '0' } });
+    await expect(l.beforeAll()).rejects.toThrow(/does not support cucumber-js --parallel/);
+    expect(create).not.toHaveBeenCalled();
   });
 
   it('skips scenarios tagged for other platforms and resets before the others', async () => {

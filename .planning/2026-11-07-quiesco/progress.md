@@ -217,3 +217,13 @@
 | 4.7 `scripts/check-prod-strip.mjs` + `prod-strip.yml` | ✅ | 扫描 / 判定逻辑 `scripts/prod-strip/scan.mjs` + 5 个 vitest 测试（vitest 新增 scripts project）；已有 android/ios 且无 `--allow-clean` 时退出码 2（实测）；workflow YAML 可解析，CI 实跑待推送后确认 |
 | 4.7 本机实跑（三端 × prod / e2e） | ✅ | Web：3 个 JS 特征 prod 0 / e2e 4、6、1；Android（R8 release APK，dex + Hermes bundle）：`QuiescoNative` prod 0 / e2e 3，JS 特征 prod 0 / e2e 各 1（构建 115s / 98s）；iOS（Release simulator .app）：`QSTouchInjector` 0 / 38、`IOHIDEventCreateDigitizerEvent` 0 / 4，JS 特征 prod 0 / e2e 各 1（198s / 140s）。xcodebuild -quiet 输出的「failed with exit code 0」是 Xcode 27 附在 Pods Swift 警告上的噪音，构建成功 |
 | 4.7 环境恢复 + `pnpm run check` | ✅ | `pnpm build:android` 后 Android 串行 6/6（22.4s，iOS 构建同时进行）；`pnpm run check` 276 测试、depcruise 无违规、类型检查无错误；`pnpm build:ios` 后 iOS 6/6（冷启动 + 全新安装 56.0s，热启动 15.9s） |
+| 4.8 iOS 串行连续 20 次 | ✅ | 20/20，min 15.9 / median 16.1 / max 17.8s（`bench/suite.mts`） |
+| 4.8 iOS `--parallel 2` × 5 | ✅ | 5/5，median 10.8s（min 10.5 / max 14.2）；热身 1 次 49.3s（新建 worker 模拟器） |
+| 4.8 Web 串行 / 并行 × 5 | ✅ | 串行 5/5 median 6.4s；并行 5/5 median 4.2s |
+| 4.8 Android 串行 × 5 | ❌ | 4/5（18.5–26.8s）；第 1 次（冷启动热身后，load ≈ 12）「取消后待办保留」的 `清空全部待办但取消` 同步超时：frame-stable 元素树 10s 内不稳定（Modal 淡出期间），未定位 |
+| 4.8 Android `--parallel 2` × 5 | ❌ | 0/5：串行热身以**可写**方式启动了 emulator-5554，worker 1 被 4.6 的保护拒绝（按设计）⇒ 同一台机器「先串行后并行」需要手动关模拟器，可用性缺口。待 HU 决定 |
+| 4.8 偶发失败复现 | ⏸ | 冷启动后 6 次 × 2 轮 + CPU 加压（load 14.7）6 次，共 18 次全通过，未复现；重读原报错：10s 几乎全在点「取消」前的同步（after 只等 36ms），即 Modal 出现后元素树一直在变（淡入只改透明度、不进 hash，应是类型 / 文本 / 位置在变） |
+| 4.8 frame-stable 正式诊断 | ✅ | `structureHash` → `structureLines`（每节点一行）；超时时报告「N frames sampled in T ms」与首个变化节点（含节点数变化、长行截断）；agent 144 测试 |
+| 4.8 回退并行（HU 决定） | ✅ | protocol / agent / core / cucumber / 示例恢复到 0da158c 后去掉「端口 + N」；保留 `-no-snapshot-load`、install 前 force-stop、native LaunchParamsStore；`--parallel` 时 CONFIG_ERROR（单元测试 + 实测）；README 改为「Serial only」；requirements.md §6.9 / 第 4 阶段同步修改；`pnpm run check` 264 测试；Metro 漏掉 git checkout 的变更 ⇒ 重启（--clear）后确认 bundle 为新代码 |
+| 4.8 最终回归（三端串行，最终代码） | ✅ | iOS 20/20（15.9 / 16.1 / 16.4s）；Android 5/5（17.7 / 18.5 / 18.7s）；Web 5/5（6.4 / 6.4 / 6.8s）；`--parallel` 实测报 CONFIG_ERROR；结果写入 docs/benchmarks.md「Phase 4 acceptance」 |
+| Phase 4 | ✅ | 完成。遗留：agent「loaded after the React renderer」警告每次 dev client reload 出现（旧 Metro 日志已有 256 次，非本轮引入）；prod-strip.yml 待推送后实跑 |

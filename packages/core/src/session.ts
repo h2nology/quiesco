@@ -11,7 +11,7 @@ import type { QuiescoConfig } from './config.js';
 import { DEFAULT_CONNECT_TIMEOUT_MS, ignoredAppErrors, serverPort, toAgentConfig } from './config.js';
 import { AndroidProvider } from './devices/android.js';
 import { IosProvider } from './devices/ios.js';
-import type { DeviceProvider, LaunchParams, WorkerInfo } from './devices/provider.js';
+import type { DeviceProvider, LaunchParams } from './devices/provider.js';
 import { Driver } from './driver.js';
 import { QuiescoError } from './errors.js';
 import type { Logger } from './logger.js';
@@ -23,10 +23,6 @@ import { tagNames } from './tags.js';
 export interface SessionOptions {
   config: QuiescoConfig;
   platform: Platform;
-  /** Parallel worker index; worker N listens on `server.port + N` and gets its own device. */
-  workerIndex?: number;
-  /** Number of parallel workers in the run (default 1). Providers allocate devices differently when > 1. */
-  workerCount?: number;
   logger?: Logger;
   /** Override the device provider (tests, custom providers). */
   provider?: DeviceProvider;
@@ -51,12 +47,12 @@ const PROVIDER_PACKAGES: Partial<Record<Platform, { name: string; install: strin
 
 type ProviderModule = { createWebProvider(options: { app: unknown; device?: unknown; logger: Logger }): DeviceProvider };
 
-export async function createProvider(platform: Platform, config: QuiescoConfig, logger: Logger, worker: WorkerInfo = { index: 0, count: 1 }): Promise<DeviceProvider> {
+export async function createProvider(platform: Platform, config: QuiescoConfig, logger: Logger): Promise<DeviceProvider> {
   switch (platform) {
     case 'android': {
       const app = config.apps.android;
       if (app === undefined) throw new QuiescoError('CONFIG_ERROR', 'apps.android is missing in quiesco.config');
-      return new AndroidProvider({ app, ...(config.devices?.android !== undefined ? { device: config.devices.android } : {}), logger, worker });
+      return new AndroidProvider({ app, ...(config.devices?.android !== undefined ? { device: config.devices.android } : {}), logger });
     }
     case 'web': {
       const app = config.apps.web;
@@ -75,7 +71,7 @@ export async function createProvider(platform: Platform, config: QuiescoConfig, 
     case 'ios': {
       const app = config.apps.ios;
       if (app === undefined) throw new QuiescoError('CONFIG_ERROR', 'apps.ios is missing in quiesco.config');
-      return new IosProvider({ app, ...(config.devices?.ios !== undefined ? { device: config.devices.ios } : {}), logger, worker });
+      return new IosProvider({ app, ...(config.devices?.ios !== undefined ? { device: config.devices.ios } : {}), logger });
     }
   }
 }
@@ -105,17 +101,16 @@ export class Session {
   static async create(options: SessionOptions): Promise<Session> {
     const logger = options.logger ?? consoleLogger;
     const { config } = options;
-    const worker: WorkerInfo = { index: options.workerIndex ?? 0, count: Math.max(options.workerCount ?? 1, (options.workerIndex ?? 0) + 1) };
     const server = new QuiescoServer({
-      port: serverPort(config, worker.index),
-      agentConfig: toAgentConfig(config, worker.index),
+      port: serverPort(config),
+      agentConfig: toAgentConfig(config),
       logger,
       ...(config.server?.host !== undefined ? { host: config.server.host } : {}),
     });
     const port = await server.start();
     let provider: DeviceProvider;
     try {
-      provider = options.provider ?? (await createProvider(options.platform, config, logger, worker));
+      provider = options.provider ?? (await createProvider(options.platform, config, logger));
     } catch (e) {
       await server.stop();
       throw e;

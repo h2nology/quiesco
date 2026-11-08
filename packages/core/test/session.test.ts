@@ -36,14 +36,6 @@ describe('Session', () => {
     await expect(session.driver.getTree()).resolves.toEqual({ type: 'RCTView', children: [] });
   });
 
-  it('gives a parallel worker its own port and tells the app its worker index', async () => {
-    const { provider, agents } = agentOnLaunch();
-    const base = 40000 + Math.floor(Math.random() * 20000);
-    session = await Session.create({ config: config({ server: { port: base, host: '127.0.0.1' } }), platform: 'android', provider, workerIndex: 1, workerCount: 2, logger: silentLogger });
-    expect(session.launchParams.port).toBe(base + 1);
-    expect((await agents[0]!.hello).result?.config.workerIndex).toBe(1);
-  });
-
   it('soft-resets before a scenario, and relaunches for @hard-reset', async () => {
     const { provider, agents } = agentOnLaunch((m) => (m === 'reset' ? { durationMs: 5 } : {}));
     session = await Session.create({ config: config(), platform: 'android', provider, logger: silentLogger });

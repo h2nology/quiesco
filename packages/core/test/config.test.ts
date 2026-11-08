@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { defineConfig, loadConfig, resolveConfig, resolvePlatform, serverPort, toAgentConfig } from '../src/config';
+import { defineConfig, loadConfig, resolvePlatform, serverPort, toAgentConfig } from '../src/config';
 
 describe('config', () => {
   it('defineConfig is an identity helper', () => {
@@ -23,27 +23,12 @@ describe('config', () => {
         trackers: { 'frame-stable': false },
       },
       logLevel: 'info',
-      workerIndex: 0,
     });
-    expect(toAgentConfig({ apps: {} }, 3).workerIndex).toBe(3);
   });
 
-  it('evaluates a config function per worker', async () => {
-    const fn = defineConfig(({ workerIndex }) => ({ apps: { android: { package: 'p', reversePorts: [3001 + workerIndex] } } }));
-    expect(resolveConfig(fn, { workerIndex: 1 }).apps.android?.reversePorts).toEqual([3002]);
-    const obj = { apps: {} };
-    expect(resolveConfig(obj, { workerIndex: 1 })).toBe(obj);
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'quiesco-config-fn-'));
-    fs.writeFileSync(path.join(dir, 'quiesco.config.mjs'), 'export default ({ workerIndex }) => ({ apps: { web: { url: `http://localhost:${8000 + workerIndex}` } } });\n');
-    expect((await loadConfig({ cwd: dir, workerIndex: 2 })).config.apps.web?.url).toBe('http://localhost:8002');
-    expect((await loadConfig({ cwd: dir })).config.apps.web?.url).toBe('http://localhost:8000');
-    fs.writeFileSync(path.join(dir, 'bad-fn.mjs'), 'export default () => 42;\n');
-    await expect(loadConfig({ cwd: dir, file: 'bad-fn.mjs' })).rejects.toThrow(/must return the config object/);
-  });
-
-  it('gives each worker its own port', () => {
+  it('uses server.port or 7357', () => {
     expect(serverPort({ apps: {} })).toBe(7357);
-    expect(serverPort({ apps: {}, server: { port: 8000 } }, 2)).toBe(8002);
+    expect(serverPort({ apps: {}, server: { port: 8000 } })).toBe(8000);
   });
 
   it('resolves the platform from the argument or QUIESCO_PLATFORM', () => {

@@ -38,13 +38,11 @@
     "mock-server": "node mock-server/server.mjs",
     "web": "expo start --web",
     "test:e2e:android": "QUIESCO_PLATFORM=android cucumber-js",
-    "test:e2e:android:parallel": "QUIESCO_PLATFORM=android cucumber-js --parallel 2",
     "test:e2e:ios": "QUIESCO_PLATFORM=ios cucumber-js",
-    "test:e2e:ios:parallel": "QUIESCO_PLATFORM=ios cucumber-js --parallel 2",
     "bench:android": "QUIESCO_PLATFORM=android node bench/run.mts",
+    "bench:suite": "node bench/suite.mts",
     "build:web": "EXPO_PUBLIC_QUIESCO=1 expo export --platform web",
-    "test:e2e:web": "QUIESCO_PLATFORM=web cucumber-js",
-    "test:e2e:web:parallel": "QUIESCO_PLATFORM=web cucumber-js --parallel 2"
+    "test:e2e:web": "QUIESCO_PLATFORM=web cucumber-js"
   },
   "private": true
 }

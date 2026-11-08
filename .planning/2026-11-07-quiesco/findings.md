@@ -225,3 +225,9 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - JS 特征选真 agent 独有的字符串字面量（`getIdleState`、`waitForIdle`、`agent error: `）：Web 压缩后与 Hermes 字节码字符串表中都保留；桩（stub.ts）中没有。
 - Android 用 Expo Module 名 `QuiescoNative`（R8 不改字符串常量），在 e2e release APK 中出现 3 次；iOS 用 ObjC 类名 `QSTouchInjector`（38 处）和 extern 私有函数 `IOHIDEventCreateDigitizerEvent`（4 处），直接按字节扫描整个 .app，比 nm 更稳（覆盖动态 framework 与类名字符串）。
 - Xcode 27 的 `xcodebuild -quiet` 会在 Pods 的 Swift 警告后打印「error: the following command failed with exit code 0 but produced no further output」，并非失败（退出码 0、产物完整）。
+
+## Phase 4.8（2026-11-08）
+- **HU 撤销并行**：同一 AVD 多开需全部 `-read-only`，与串行可写启动冲突（先串行后并行必失败）；HU 选择只保留串行 + 可写。
+- **Metro 再次漏掉变更**：`git checkout` 批量恢复文件后，长时间运行的 Metro（无 watchman）仍提供旧 bundle（含已还原的探针）。改动后用 curl 取 `/examples/todo-app/index.bundle?platform=android&dev=true` grep 特征串确认；不一致就 `--clear` 重启。注意入口路径是相对 monorepo 根目录。
+- **frame-stable 偶发超时**：原报错「waited 36ms for idle after the action」说明 10s 几乎全花在动作前同步上（Modal 出现后）；18 次复现未果。诊断已加强：采样帧数 / 耗时 + 首个变化节点。
+- **「agent loaded after the React renderer」警告**：dev client 每次 reload（Bundled 1 module）后出现，4.8 前的 Metro 日志已有 256 次；测试不受影响，原因未查（可能是 reload 时 DevTools hook 上已有上一轮的 renderer）。

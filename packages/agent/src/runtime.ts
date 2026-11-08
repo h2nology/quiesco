@@ -39,7 +39,7 @@ import type { AppDeps } from './platform';
 import { defaultAppDeps } from './platform';
 import { ResetManager } from './reset';
 import { defaultStorageAdapters } from './reset/storage-defaults';
-import { describeMatcher, findAll, getTree, isVisible, structureHash, summarize, toRegExp } from './query';
+import { describeMatcher, findAll, getTree, isVisible, structureLines, summarize, toRegExp } from './query';
 import type { Clock, IdleTracker, TimerGlobals } from './sync';
 import { FrameStableTracker, IdleCallbackTracker, NetworkTracker, ReactTracker, SyncEngine, TimerTracker, realClock } from './sync';
 import { AGENT_VERSION } from './version';
@@ -415,7 +415,7 @@ export class AgentRuntime {
   private defaultTrackers(): IdleTracker[] {
     this.network = new NetworkTracker({ target: this.global });
     this.timer = new TimerTracker({ target: this.global as unknown as TimerGlobals });
-    this.frames = new FrameStableTracker({ hash: () => structureHash(this.adapter.getHostRoots()) });
+    this.frames = new FrameStableTracker({ snapshot: () => structureLines(this.adapter.getHostRoots()) });
     return [
       this.network,
       this.timer,
