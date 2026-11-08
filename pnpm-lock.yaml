@@ -318,6 +318,22 @@ importers:
 
   packages/protocol: {}
 
+  packages/steps:
+    dependencies:
+      '@quiesco/core':
+        specifier: workspace:*
+        version: link:../core
+      '@quiesco/cucumber':
+        specifier: workspace:*
+        version: link:../cucumber
+    devDependencies:
+      '@cucumber/cucumber':
+        specifier: 13.3.0
+        version: 13.3.0
+      '@cucumber/cucumber-expressions':
+        specifier: 20.1.0
+        version: 20.1.0
+
   packages/web:
     dependencies:
       '@quiesco/core':

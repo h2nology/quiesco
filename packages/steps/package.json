@@ -1,0 +1,34 @@
+{
+  "name": "@quiesco/steps",
+  "version": "0.0.0",
+  "description": "Optional generic cucumber steps for Quiesco (prototyping only; write business-language steps for real projects)",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@quiesco/core": "workspace:*",
+    "@quiesco/cucumber": "workspace:*"
+  },
+  "devDependencies": {
+    "@cucumber/cucumber": "13.3.0",
+    "@cucumber/cucumber-expressions": "20.1.0"
+  },
+  "peerDependencies": {
+    "@cucumber/cucumber": ">=12"
+  }
+}
