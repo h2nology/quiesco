@@ -10,6 +10,7 @@ import type { Platform, TrackerState, TreeNode } from '@quiesco/protocol';
 import type { QuiescoConfig } from './config.js';
 import { DEFAULT_CONNECT_TIMEOUT_MS, ignoredAppErrors, serverPort, toAgentConfig } from './config.js';
 import { AndroidProvider } from './devices/android.js';
+import { IosProvider } from './devices/ios.js';
 import type { DeviceProvider, LaunchParams } from './devices/provider.js';
 import { Driver } from './driver.js';
 import { QuiescoError } from './errors.js';
@@ -69,8 +70,11 @@ export async function createProvider(platform: Platform, config: QuiescoConfig, 
       }
       return mod.createWebProvider({ app, ...(config.devices?.web !== undefined ? { device: config.devices.web } : {}), logger });
     }
-    case 'ios':
-      throw new QuiescoError('CONFIG_ERROR', 'The ios device provider is not implemented yet');
+    case 'ios': {
+      const app = config.apps.ios;
+      if (app === undefined) throw new QuiescoError('CONFIG_ERROR', 'apps.ios is missing in quiesco.config');
+      return new IosProvider({ app, ...(config.devices?.ios !== undefined ? { device: config.devices.ios } : {}), logger });
+    }
   }
 }
 

@@ -38,6 +38,27 @@ export interface AndroidDeviceConfig {
   shutdown?: boolean;
 }
 
+export interface IosAppConfig {
+  /** Bundle identifier, e.g. `com.example.myapp`. */
+  bundleId: string;
+  /** Simulator build (`.app`) to install. Omit when the app (e.g. a dev client) is already installed. */
+  binaryPath?: string;
+  /** Launch through an Expo dev client that loads JS from Metro (passed as `--initialUrl`). */
+  devClient?: { metroUrl?: string };
+}
+
+export interface IosDeviceConfig {
+  /** Simulator name, e.g. `iPhone 17`. Default: the booted simulator. */
+  device?: string;
+  /** iOS version of the simulator runtime, e.g. `27.0`, when several runtimes have that device. */
+  os?: string;
+  /** Use exactly this simulator. */
+  udid?: string;
+  bootTimeoutMs?: number;
+  /** Shut down a simulator Quiesco booted when the session ends. Default false (faster reruns). */
+  shutdown?: boolean;
+}
+
 /** What to open in the browser: a static export served by Quiesco, or a running dev server. */
 export interface WebAppConfig {
   /** Output of `npx expo export --platform web`; served with SPA fallback. */
@@ -68,12 +89,12 @@ export interface WebDeviceConfig {
 export interface QuiescoConfig {
   apps: {
     android?: AndroidAppConfig;
-    ios?: Record<string, unknown>;
+    ios?: IosAppConfig;
     web?: WebAppConfig;
   };
   devices?: {
     android?: AndroidDeviceConfig;
-    ios?: Record<string, unknown>;
+    ios?: IosDeviceConfig;
     web?: WebDeviceConfig;
   };
   permissions?: Permission[];

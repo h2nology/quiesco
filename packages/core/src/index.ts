@@ -2,7 +2,7 @@ export { PROTOCOL_VERSION } from '@quiesco/protocol';
 export type { ActionMode, ElementSummary, JsonValue, Platform, TrackerState, TreeNode } from '@quiesco/protocol';
 
 export { defineConfig, loadConfig, resolvePlatform, serverPort, toAgentConfig, ignoredAppErrors, DEFAULT_CONNECT_TIMEOUT_MS, DEFAULT_IGNORED_APP_ERRORS } from './config.js';
-export type { AndroidAppConfig, AndroidDeviceConfig, QuiescoConfig, WebAppConfig, WebDeviceConfig, WebViewport } from './config.js';
+export type { AndroidAppConfig, AndroidDeviceConfig, IosAppConfig, IosDeviceConfig, QuiescoConfig, WebAppConfig, WebDeviceConfig, WebViewport } from './config.js';
 export { Driver } from './driver.js';
 export type { ActionOptions, CallOptions } from './driver.js';
 export { QuiescoError } from './errors.js';
@@ -15,6 +15,8 @@ export { DEFAULT_TAGS, runsOnPlatform, tagNames } from './tags.js';
 export type { TagNames } from './tags.js';
 export type { Evidence, ScenarioInfo, SessionOptions } from './session.js';
 export { AndroidProvider } from './devices/android.js';
+export { IosProvider, IOS_DEV_MENU_ARGS } from './devices/ios.js';
+export type { IosProviderOptions } from './devices/ios.js';
 export type { DeviceProvider, LaunchParams } from './devices/provider.js';
 export type { Permission } from './devices/permissions.js';
 export { QuiescoServer, AgentConnection } from './server/ws-server.js';

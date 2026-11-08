@@ -196,3 +196,7 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - ⑥ **dev client 菜单 / 浮动按钮**：`--initialUrl` 走 `loadApp`，不经过 URL 参数处理（EXDevLauncherController.m:242）⇒ `__expo_disable_*` 无效（spike 遗留问题的原因）。expo-dev-menu 的开关全部经 `UserDefaults.standard` 读取 ⇒ 启动参数 `-EXDevMenuShowsAtLaunch NO -EXDevMenuIsOnboardingFinished YES -EXDevMenuShowFloatingActionButton NO -EXDevMenuDisableAutoLaunch YES`（NSArgumentDomain 优先）可关闭。对照：全新安装不带参数 → 弹出 onboarding 面板；带参数 → 无菜单、无 FAB。
 - **示例 App 布局问题（iOS 26+）**：react-native-screens 4.30 在 iOS 26+ 一律 `edgesForExtendedLayout = UIRectEdgeAll`（RNSScreenStackHeaderConfig.mm:599），内容需自行按安全区域留出顶部间距；示例画面未处理 ⇒ 内容画在导航栏下（greeting y=16、save-todo y=81），Quiesco 正确报 ELEMENT_OBSCURED（真实用户也点不到）。4.5 修示例 App（各画面遵守安全区域）。
 - `driver.type` 在 native 档位为追加（与 Android 一致）。
+
+## Phase 4.4（2026-11-08）
+- **simctl**：`simctl privacy` 在 Xcode 27 没有 `camera` / `notifications` 服务 ⇒ 这两个权限在 iOS 模拟器上只能警告跳过；授权会终止正在运行的 App（Session 先授权后启动，顺序无碍）。`simctl io screenshot -` 不能输出到 stdout ⇒ 写临时文件再读。
+- **断言把 ASSERTION_FAILED 报成 SYNC_TIMEOUT（平台无关的竞态 bug，已修）**：assert 每次重试前用「剩余时间」做同步；最后一轮只剩十几 ms，frame-stable 需要 2 帧（约 33ms）⇒ 同步超时盖掉断言失败。iOS 硬重置后稳定复现（Android 同脚本也能复现时机）。修复：同一次 assert 中已经同步成功过一次后，因截止时间不够导致的 SYNC_TIMEOUT 不再抛出，照常评估并报 ASSERTION_FAILED；从未空闲过仍报 SYNC_TIMEOUT。iOS / Android 复现脚本 A–D 全部变为 ASSERTION_FAILED。

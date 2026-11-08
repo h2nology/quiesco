@@ -370,8 +370,17 @@ export class AgentRuntime {
   private async assert(spec: AssertionSpec, opts: SyncOption): Promise<ResultOf<AgentMethods['assert']>> {
     const timeoutMs = this.timeout(opts);
     const deadline = this.clock.now() + timeoutMs;
+    let synced = false;
     for (;;) {
-      await this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now()));
+      try {
+        await this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now()));
+        synced = true;
+      } catch (e) {
+        // Once the app has been idle in this call, a later retry's sync cut short by the deadline (a
+        // few ms left, less than the frames frame-stable needs) must not hide the real outcome: the
+        // expectation did not hold. Never idle at all stays a SYNC_TIMEOUT.
+        if (!(synced && e instanceof QuiescoError && e.errorName === 'SYNC_TIMEOUT')) throw e;
+      }
       const ev = evaluate(this.adapter.getHostRoots(), spec, this.adapter.viewport());
       if (ev.pass) return { elements: ev.elements };
       if (this.clock.now() >= deadline) {

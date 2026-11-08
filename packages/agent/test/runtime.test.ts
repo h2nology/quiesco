@@ -166,6 +166,27 @@ describe('AgentRuntime', () => {
     await a;
   });
 
+  it('assert: a retry sync cut short by the deadline does not turn ASSERTION_FAILED into SYNC_TIMEOUT', async () => {
+    let busy = false;
+    const { target, call } = setup({ busy: () => busy });
+    sameRoot(target)(host('RCTText', { testID: 'count', ...R(0) }, text('0')));
+    const p = call('assert', { assertion: { type: 'text', matcher: { id: 'count' }, expected: '5' }, timeoutMs: 300 });
+    const a = expect(p).rejects.toMatchObject({ errorName: 'ASSERTION_FAILED' });
+    await vi.advanceTimersByTimeAsync(60); // first sync done: the app was idle
+    busy = true; // later retries cannot get idle before the deadline
+    await vi.advanceTimersByTimeAsync(400);
+    await a;
+  });
+
+  it('assert: an app that is never idle still fails with SYNC_TIMEOUT', async () => {
+    const { target, call } = setup({ busy: () => true });
+    sameRoot(target)(host('RCTText', { testID: 'count', ...R(0) }, text('0')));
+    const p = call('assert', { assertion: { type: 'text', matcher: { id: 'count' }, expected: '5' }, timeoutMs: 300 });
+    const a = expect(p).rejects.toMatchObject({ errorName: 'SYNC_TIMEOUT' });
+    await vi.advanceTimersByTimeAsync(400);
+    await a;
+  });
+
   it('propagates SYNC_TIMEOUT unless sync is disabled for the call', async () => {
     const { target, call } = setup({ busy: () => true });
     sameRoot(target)(host('RCTView', { testID: 'a', ...R(0) }));
