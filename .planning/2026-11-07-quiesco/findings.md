@@ -184,3 +184,15 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - 现象：Wipe Data / 卸载重装后首次运行，expo-dev-menu 自动弹出开发者菜单（底部面板，独立窗口），所有点击报 ELEMENT_OBSCURED。
 - 原因（expo-dev-menu `DevMenuFragment.onCreate`）：`shouldShowAtLaunch = canLaunchDevMenuOnStart && (showsAtLaunch || !isOnboardingFinished)`。`__expo_disable_onboarding=1` 只置 `isOnboardingFinished`；`showsAtLaunch` 新装默认 true（meta-data `EXDevMenuShowsAtLaunch`），弹出一次后才写 false —— 所以老设备上不复现。
 - 对策：启动 URL 追加 `__expo_disable_auto_launch=1`（本进程内 `canLaunchDevMenuOnStart=false`；iOS 端 `ExpoLauncherURL.swift` 同名参数，Phase 4 复用）。
+
+## Phase 4.0 iOS 原生验证（2026-11-08，iPhone 17 / iOS 27.0 Simulator，示例 App + `@quiesco/native` iOS 初版）
+验证方式：`packages/native/ios` 初版（Swift Module + ObjC `QSTouchInjector`），示例 App 临时 backdoor `probe`（按 testID 取 HostNode → `nativeTag()` → 调原生），Host 脚本 scratchpad/`ios-harness.mjs` + `probe-ios-*.mjs`（Session + 临时 simctl provider）。
+- ① **view tag → UIView**：Fabric 的 `RCTComponentViewRegistry` dequeue 时设 `view.tag = reactTag`，回收时置 0（RCTComponentViewRegistry.mm:53/67）⇒ 公开 API `[window viewWithTag:]` + 判 `RCTComponentViewProtocol`（`NSProtocolFromString`，不依赖 React 头文件）即可。`convertRect:toView:window` 的坐标与 JS `getBoundingClientRect()` 完全一致（add-todo 16, 814.67, 179×43.33），单位 pt。
+- ② **Modal 遮挡**：iOS 的 RN Modal 在同一个 UIWindow 里 present（windowCount 1）⇒ 不能用窗口焦点。改为在目标中心做跨窗口 `hitTest`（从最前面的窗口往下），命中 view 不是目标的子孙 ⇒ `windowHasFocus=false`。Modal 下的 add-todo：hitClass=RCTViewComponentView（Modal 背景）→ driver.tap 报 ELEMENT_OBSCURED；连续 5 轮稳定。
+  - **转场期间丢触摸**：Modal `animationType="fade"` 的 present / dismiss 转场约 400ms，期间 UIKit 丢弃触摸；位置不变，JS 也不知道 ⇒ 偶发「点了确定没反应」。对策：`locate` 返回 `settling`（窗口内 VC 有 `transitionCoordinator` / `isBeingPresented|Dismissed`，或目标及祖先 layer 有 `animationKeys`），agent native performer 在 settling 时视为未稳定继续等待。实测 settling 400ms 后点击 4/4 成功；接入 agent 后 5/5。
+- ③ **中文输入**：`becomeFirstResponder` + `UIKeyInput insertText:`（RCTUITextField）触发 onChangeText，value="买牛奶"；replace 用全选 + `deleteBackward` 后再 insert，OK。
+- ④ **swipe / 滚动**：Moved 阶段用 `_setLocationInWindow:resetPrevious:NO` + HID position 事件；300ms 拖动产生惯性（拖 ~450pt，滚动 1106pt），`waitForIdle` 覆盖惯性结束；`driver.scrollTo('待办 35')` 成功。
+- ⑤ **进程内 openUrl**：(a) App 内 `UIApplication.open(ownScheme)` **不弹** SpringBoard 确认框（与 `simctl openurl` 不同），经 SceneDelegate → RCTLinkingManager 正常导航；(b) 直接 post `RCTOpenURLNotification {url}` 也可。采用 (a)（走真实系统路由），(b) 作为备选不实现。
+- ⑥ **dev client 菜单 / 浮动按钮**：`--initialUrl` 走 `loadApp`，不经过 URL 参数处理（EXDevLauncherController.m:242）⇒ `__expo_disable_*` 无效（spike 遗留问题的原因）。expo-dev-menu 的开关全部经 `UserDefaults.standard` 读取 ⇒ 启动参数 `-EXDevMenuShowsAtLaunch NO -EXDevMenuIsOnboardingFinished YES -EXDevMenuShowFloatingActionButton NO -EXDevMenuDisableAutoLaunch YES`（NSArgumentDomain 优先）可关闭。对照：全新安装不带参数 → 弹出 onboarding 面板；带参数 → 无菜单、无 FAB。
+- **示例 App 布局问题（iOS 26+）**：react-native-screens 4.30 在 iOS 26+ 一律 `edgesForExtendedLayout = UIRectEdgeAll`（RNSScreenStackHeaderConfig.mm:599），内容需自行按安全区域留出顶部间距；示例画面未处理 ⇒ 内容画在导航栏下（greeting y=16、save-todo y=81），Quiesco 正确报 ELEMENT_OBSCURED（真实用户也点不到）。4.5 修示例 App（各画面遵守安全区域）。
+- `driver.type` 在 native 档位为追加（与 Android 一致）。

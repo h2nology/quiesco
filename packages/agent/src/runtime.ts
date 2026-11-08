@@ -6,6 +6,7 @@
 import { SyncDefaults } from '@quiesco/protocol';
 import type {
   ActionSpec,
+  ActionType,
   HostInput,
   AgentConfig,
   AgentMethods,
@@ -246,7 +247,7 @@ export class AgentRuntime {
     const deadline = this.clock.now() + timeoutMs;
     let node: HostNode | undefined;
     let hostInput: HostInput | void = undefined;
-    const perform = (matcher: Matcher): ActionPerformer => this.performer(mode, matcher, deadline);
+    const perform = (matcher: Matcher): ActionPerformer => this.performer(mode, spec.type, matcher, deadline);
 
     switch (spec.type) {
       case 'dismissKeyboard':
@@ -299,13 +300,13 @@ export class AgentRuntime {
    * otherwise the host injects real input (web via Playwright); a host that cannot inject a kind of
    * input rejects it with ACTION_NOT_SUPPORTED.
    */
-  private performer(mode: ParamsOf<AgentMethods['action']>['mode'], matcher: Matcher, deadline: number): ActionPerformer {
+  private performer(mode: ParamsOf<AgentMethods['action']>['mode'], action: ActionType, matcher: Matcher, deadline: number): ActionPerformer {
     if (mode === 'js') return jsPerformer({ platform: this.deps.platform() });
     const roots = (): HostNode[] => this.adapter.getHostRoots();
     const viewport = (): ReturnType<FiberAdapter['viewport']> => this.adapter.viewport();
     const bridge: NativeBridge | null = this.nativeModule();
     if (bridge === null) return hostPerformer({ clock: this.clock, roots, viewport, matcher, deadline });
-    return nativePerformer({ bridge, clock: this.clock, roots, viewport, matcher, deadline });
+    return nativePerformer({ bridge, clock: this.clock, roots, viewport, action, matcher, deadline });
   }
 
   /** scrollTo loops in the agent; with host-injected input it scrolls with the JS fallback instead. */

@@ -4,10 +4,10 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-Phase 3 验收全部通过（Android 全新安装 / 屏蔽 Playwright、Web 三视口各 20/20、check 通过），等 HU 说「提交」后 commit，然后出 Phase 4 实施计划。
+4.1 完成，待 HU 确认后进入 4.2（agent：openUrl 在有原生 openUrl 时走 App 内；pressBack 在 iOS 报 UNSUPPORTED）。
 
 ## Current Phase
-Phase 3
+Phase 4
 
 ## 工作约定（摘自 requirements.md §12，每个阶段都要遵守）
 - 按阶段推进，不跳阶段；每阶段开始前先输出实施计划，经确认后再写代码。
@@ -112,12 +112,21 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 - **Status:** in_progress（HU 2026-11-08 确认计划）
 
 ### Phase 4: iOS 与 Expo 集成
-- [ ] `@quiesco/native` iOS 实现、iOS DeviceProvider
-- [ ] `@quiesco/expo-plugin`、`eas.json` e2e profile 示例
-- [ ] 生产剔除 CI 检查（需 HU 决定 CI 环境，§11-4）
-- [ ] cucumber `--parallel` 支持
+**范围**：`@quiesco/native` iOS 实现、iOS DeviceProvider、`@quiesco/expo-plugin`（从 native 包迁出并补 iOS）、`eas.json` e2e profile、生产剔除检查、cucumber `--parallel`。环境：Xcode 27.2，iPhone 17 / iOS 27.0（另有 iOS 26.5 runtime）。
+
+**任务拆分（按顺序）**
+- [x] 4.0 原生验证（spike 未覆盖的 4 项，临时代码，结论记 findings）：① Fabric 下 view tag → `UIView`（`RCTComponentViewRegistry` / `RCTSurfacePresenter`）与窗口坐标；② Modal（同一窗口内 present 的 VC）遮挡判定：目标点 `hitTest` 结果是否是目标 view 的子孙；③ 中文输入：聚焦后 `UITextInput insertText:` / `replaceRange:` 触发 onChangeText；④ swipe / 滚动：Moved 阶段 HID 事件 + ScrollView 惯性；⑤ 进程内 openUrl（不经 `simctl openurl`，避免 SpringBoard 确认框）
+- [x] 4.1 `@quiesco/native` iOS：Swift Module + ObjC `QSTouchInjector`（私有 API 调用前 `respondsToSelector:` 检查，不满足报 `NATIVE_UNSUPPORTED` 并建议 js 档位）；与 Android 相同的 JS 接口：`getLaunchParams` / `locate` / `tap` / `swipe` / `typeText`，新增 `openUrl`；`expo-module.config.json` 加 `ios`；podspec 链接 IOKit
+- [ ] 4.2 agent：native performer 的 iOS 分支只在 fiber-adapter / native 层（坐标单位 pt，不乘 density）；`pressBack` 在 iOS 报 `UNSUPPORTED_ON_PLATFORM` 并提示改用业务返回操作
+- [ ] 4.3 `@quiesco/expo-plugin`：把 `packages/native/app.plugin.js` 迁入并补 iOS ——非 e2e：Podfile 注入 `use_expo_modules!(exclude: ['@quiesco/native'])`；e2e：确认 ATS `NSAllowsLocalNetworking`；dev client 启动参数常量共用。示例 App 改用 `"@quiesco/expo-plugin"`；单元测试覆盖两种模式的 Podfile / settings.gradle / manifest 结果
+- [ ] 4.4 core `IosProvider`（`xcrun simctl`）：按名称 / UDID / runtime 选模拟器，`boot` + `bootstatus -b`；`install` .app；`launch` 用进程参数 `-quiescoPort/-quiescoSession`，dev client 用 `--initialUrl`（带 `__expo_disable_onboarding/fab/auto_launch`）；`terminate`、`privacy grant` 权限映射（不支持的给警告）、`io screenshot`、硬重置（terminate + 清 App 容器 / 重装）；连接超时诊断。单元测试用假 exec 校验命令
+- [ ] 4.5 示例 App：`ios` 配置与 `build:ios`（simulator Debug dev client）/ `test:e2e:ios` 脚本；`eas.json` 的 `e2e` profile（iOS simulator build、Android APK、`EXPO_PUBLIC_QUIESCO=1`）
+- [ ] 4.6 cucumber `--parallel`：worker N 用端口 base+N（已有）＋各自的设备（iOS：`simctl clone` 出 worker 专用模拟器；Android：`devices.android.serials[]` / 多 AVD；Web：独立 browser）；示例 mock 后端每 worker 一个端口（3001+N），App 通过 e2e backdoor `setApiBase` 切换（Android 对应 `adb reverse`）
+- [ ] 4.7 生产剔除检查脚本 `scripts/check-prod-strip.mjs`：生产模式 `expo export --platform all` 后在 JS / Hermes 字节码中 grep agent 特征串；iOS Release simulator 构建后 `nm` 查 `QSTouchInjector`、`IOHIDEventCreateDigitizerEvent`；Android release APK 查 `QuiescoNative`（R8 不混淆的 Module 名）；带 e2e 对照组。接入哪个 CI 由 §11-4 决定
+- [ ] 4.8 验收：iOS / Android / Chromium 三端 6 场景通过；iOS 连续 20 次；生产剔除检查通过（含对照组）；2 worker 并行 vs 串行耗时（iOS、Android、Web 三端实测）记入 `docs/benchmarks.md`；`pnpm run check`
 - **验收：** 三端通过；生产构建检查通过；2 worker 并行明显快于串行（记录数据）
-- **Status:** pending
+**HU 决定（2026-11-08）**：§11-4 GitHub Actions（再次确认；iOS 检查跑 macos runner）；并行验收三端都实测（含本机同时运行两台 Android Emulator）。
+- **Status:** in_progress
 
 ### Phase 5: 易用性与周边
 - [ ] CLI：init / test / doctor / tree

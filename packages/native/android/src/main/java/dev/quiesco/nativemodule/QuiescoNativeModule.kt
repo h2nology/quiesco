@@ -60,7 +60,7 @@ class QuiescoNativeModule : Module() {
     /** Drag from (fromX, fromY) to (toX, toY) in dp of the window of `tag` over `durationMs`. */
     AsyncFunction("swipe") { tag: Int, fromX: Double, fromY: Double, toX: Double, toY: Double, durationMs: Int, promise: Promise ->
       val root = (if (tag >= 0) findView(tag)?.rootView else null) ?: appContext.currentActivity?.window?.decorView
-        ?: return@AsyncFunction promise.reject("E_NO_WINDOW", "no window", null)
+        ?: return@AsyncFunction promise.reject("E_NO_VIEW", "no window for view $tag", null)
       val d = density()
       val steps = maxOf(4, durationMs / STEP_MS)
       val down = SystemClock.uptimeMillis()
@@ -85,9 +85,9 @@ class QuiescoNativeModule : Module() {
      * Type into the text field `tag` (or the EditText inside it) through its InputConnection, the path a
      * soft keyboard uses, so TextWatchers / onChangeText fire. `replace` clears the field first.
      */
-    AsyncFunction("typeText") { tag: Int, text: String, replace: Boolean ->
-      val view = findView(tag) ?: throw IllegalStateException("view $tag not found")
-      val edit = findEditText(view) ?: throw IllegalStateException("view $tag is not a text field")
+    AsyncFunction("typeText") { tag: Int, text: String, replace: Boolean, promise: Promise ->
+      val view = findView(tag) ?: return@AsyncFunction promise.reject("E_NO_VIEW", "view $tag not found", null)
+      val edit = findEditText(view) ?: return@AsyncFunction promise.reject("E_NOT_TEXT_INPUT", "view $tag is not a text field", null)
       edit.requestFocus()
       val ic = edit.onCreateInputConnection(EditorInfo())
       if (ic != null) {
@@ -101,7 +101,7 @@ class QuiescoNativeModule : Module() {
       } else {
         if (replace) edit.setText(text) else edit.text?.append(text)
       }
-      mapOf("text" to (edit.text?.toString() ?: ""), "inputConnection" to (ic != null), "focused" to edit.isFocused)
+      promise.resolve(mapOf("text" to (edit.text?.toString() ?: ""), "inputConnection" to (ic != null), "focused" to edit.isFocused))
     }.runOnQueue(Queues.MAIN)
   }
 

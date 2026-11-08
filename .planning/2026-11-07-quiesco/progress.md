@@ -197,3 +197,5 @@
 | 3.x Android 全新安装（卸载后首次运行） | ✅ | 首次失败：expo-dev-menu 首启自动弹出菜单 → 6 场景均报 ELEMENT_OBSCURED（判断正确）；启动 URL 加 `__expo_disable_auto_launch=1` 后 6 场景 34 步通过 |
 | 3.7 Web 连续 20 次 × 3 视口 | ✅ | 手机 / 平板 / 桌面各 20/20，每次 6 场景 34 步，5.96–6.27s |
 | 3.7 `pnpm run check`（最终） | ✅ | 220 测试，depcruise 111 模块无违规，类型检查无错误 |
+| 4.0 iOS 原生验证 6 项 | ✅ | tag→UIView 坐标与 JS 一致；Modal 遮挡（跨窗口 hitTest）5/5，转场 settling 等待；中文 insertText；swipe 惯性 + scrollTo；App 内 open(ownScheme) 无确认框；启动参数关闭 dev menu / FAB（含对照组） |
+| 4.1 native iOS 正式实现 | ✅ | 错误码统一（E_UNSUPPORTED / E_NO_VIEW / E_NOT_TEXT_INPUT / E_BAD_URL，Android 同步）；openUrl 只保留 App 内 UIApplication.open；agent 映射原生错误（ACTION_NOT_SUPPORTED + js 提示 / ELEMENT_NOT_FOUND）；回归：Modal 5/5、中文输入、swipe 惯性 1140pt、openUrl 3 次 + 非法 URL 拒绝；`pnpm run check` 229 测试 |

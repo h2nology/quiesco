@@ -16,7 +16,11 @@
     "android/build.gradle",
     "android/src",
     "expo-module.config.json",
-    "app.plugin.js"
+    "app.plugin.js",
+    "ios/*.swift",
+    "ios/*.h",
+    "ios/*.m",
+    "ios/QuiescoNative.podspec"
   ],
   "scripts": {
     "test": "vitest run"

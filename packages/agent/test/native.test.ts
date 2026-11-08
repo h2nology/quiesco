@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { hitTest, nativePerformer } from '../src/actions/native';
+import { fromNativeError, hitTest, nativePerformer } from '../src/actions/native';
 import type { NativeBridge } from '../src/actions/native';
 import type { Clock } from '../src/sync';
 import { node, tree } from './helpers/nodes';
@@ -22,7 +22,7 @@ function bridge(locations: Partial<Awaited<ReturnType<NativeBridge['locate']>>>[
 
 function setup(b: ReturnType<typeof bridge>, roots = tree({ testID: 'btn', tag: 7, rect: { x: 0, y: 0, width: 100, height: 40 } })) {
   const target = roots[0]!;
-  const p = nativePerformer({ bridge: b, clock, roots: () => roots, viewport: () => ({ width: 400, height: 800 }), matcher: { id: 'btn' }, deadline: Date.now() + 5000 });
+  const p = nativePerformer({ bridge: b, clock, roots: () => roots, viewport: () => ({ width: 400, height: 800 }), action: 'tap', matcher: { id: 'btn' }, deadline: Date.now() + 5000 });
   return { p, target, roots };
 }
 
@@ -129,6 +129,40 @@ describe('nativePerformer', () => {
     const a = expect(r).rejects.toMatchObject({ errorName: 'ELEMENT_OBSCURED', message: expect.stringContaining('<RCTView testID="banner" text="Cookies?">') });
     await vi.advanceTimersByTimeAsync(100);
     await a;
+  });
+
+  it('keeps waiting while the native side reports settling (iOS view controller transition), even if the view does not move', async () => {
+    const b = bridge([{ settling: true }, { settling: true }, { settling: true }, { settling: false }]);
+    const { p, target } = setup(b);
+    const done = p.tap(target);
+    await vi.advanceTimersByTimeAsync(200);
+    await done;
+    // Taps at the first check that is not settling and has the same position as the previous one.
+    expect(b.locate).toHaveBeenCalledTimes(4);
+    expect(b.tap).toHaveBeenCalledTimes(1);
+  });
+
+  it('maps native rejections: E_UNSUPPORTED → ACTION_NOT_SUPPORTED with a js-mode hint, E_NO_VIEW → ELEMENT_NOT_FOUND', async () => {
+    const unsupported = Object.assign(new Error('touch injection needs private UIKit API'), { code: 'E_UNSUPPORTED' });
+    const b = bridge();
+    b.tap.mockRejectedValueOnce(unsupported);
+    const { p, target } = setup(b);
+    const r = p.tap(target);
+    const a = expect(r).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { hint: expect.stringContaining("'js'") } });
+    await vi.advanceTimersByTimeAsync(100);
+    await a;
+
+    b.typeText.mockRejectedValueOnce(Object.assign(new Error('view 7 not found'), { code: 'E_NO_VIEW' }));
+    const t = p.type(target, 'x');
+    const ta = expect(t).rejects.toMatchObject({ errorName: 'ELEMENT_NOT_FOUND', data: { matcher: { id: 'btn' } } });
+    await vi.advanceTimersByTimeAsync(100);
+    await ta;
+  });
+
+  it('leaves unknown errors unchanged', () => {
+    const e = new Error('boom');
+    expect(fromNativeError(e, 'tap', 'tap', { id: 'x' })).toBe(e);
+    expect(fromNativeError(Object.assign(new Error('no field'), { code: 'E_NOT_TEXT_INPUT' }), 'typeText', 'type', { id: 'x' })).toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED' });
   });
 
   it('cannot address elements without a native tag', async () => {

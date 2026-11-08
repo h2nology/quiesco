@@ -3,23 +3,34 @@
  * gesture handlers, pressed states and focus behave as for a user.
  *
  * Before touching an element:
- * 1. its native view must stay at the same place for two consecutive checks (transitions finished);
+ * 1. its native view must stay at the same place for two consecutive checks, and the native side must
+ *    not report it as settling (iOS: a view controller transition such as a Modal fading in drops
+ *    touches without moving the view);
  * 2. its window must have the input focus (otherwise e.g. a Modal is on top) → ELEMENT_OBSCURED;
  * 3. within the window, the topmost element at its center must be the element or a descendant
  *    (elements with pointerEvents none / box-none are transparent) → ELEMENT_OBSCURED.
  * The touch point itself is computed natively from the view (docs/spikes, Phase 2.0 findings).
  */
-import type { Direction, Matcher, Rect, Speed } from '@quiesco/protocol';
+import type { ActionType, Direction, Matcher, Rect, Speed } from '@quiesco/protocol';
 
 import { QuiescoError } from '../errors';
 import type { HostNode, Viewport } from '../fiber-adapter';
-import { summarize } from '../query';
+import { describeMatcher, summarize } from '../query';
 import type { Clock } from '../sync';
 import type { ActionPerformer } from './performer';
 
 /** The parts of @quiesco/native used here (see packages/native/src/index.ts). */
 export interface NativeBridge {
-  locate(tag: number): Promise<{ found: boolean; x?: number; y?: number; width?: number; height?: number; windowHasFocus?: boolean }>;
+  locate(tag: number): Promise<{
+    found: boolean;
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+    windowHasFocus?: boolean;
+    /** iOS: a view controller transition or a Core Animation is running; touches may be dropped. */
+    settling?: boolean;
+  }>;
   tap(tag: number, x: number, y: number, holdMs: number, count: number): Promise<{ handled: boolean }>;
   swipe(tag: number, fromX: number, fromY: number, toX: number, toY: number, durationMs: number): Promise<{ handled: boolean }>;
   typeText(tag: number, text: string, replace: boolean): Promise<{ text: string }>;
@@ -30,7 +41,8 @@ export interface NativeContext {
   clock: Clock;
   roots: () => readonly HostNode[];
   viewport: () => Viewport | null;
-  /** Matcher of the current action, for error data. */
+  /** The current action and its matcher, for error data. */
+  action: ActionType;
   matcher: Matcher;
   deadline: number;
 }
@@ -81,11 +93,11 @@ export function hitTest(roots: readonly HostNode[], p: { x: number; y: number })
   return top;
 }
 
-function tagOf(node: HostNode, matcher: Matcher): number {
+function tagOf(node: HostNode, action: ActionType, matcher: Matcher): number {
   const tag = node.nativeTag();
   if (tag === null) {
     throw new QuiescoError('ACTION_NOT_SUPPORTED', 'native mode cannot address this element (no native view tag)', {
-      action: 'tap',
+      action,
       platform: 'native',
       hint: `element ${JSON.stringify(matcher)} has no native view; use mode 'js' for this call`,
     });
@@ -93,8 +105,47 @@ function tagOf(node: HostNode, matcher: Matcher): number {
   return tag;
 }
 
+/**
+ * Rejections of @quiesco/native (its NativeErrorCode) as Quiesco errors; anything else unchanged.
+ */
+export function fromNativeError(e: unknown, call: string, action: ActionType, matcher: Matcher): unknown {
+  const code = typeof e === 'object' && e !== null ? (e as { code?: unknown }).code : undefined;
+  const message = e instanceof Error ? e.message : String(e);
+  switch (code) {
+    case 'E_UNSUPPORTED':
+      return new QuiescoError('ACTION_NOT_SUPPORTED', message, {
+        action,
+        platform: 'native',
+        hint: "real touch injection is not available on this OS version; set actions.mode to 'js' (or pass { mode: 'js' } to this call)",
+      });
+    case 'E_NO_VIEW':
+      return new QuiescoError('ELEMENT_NOT_FOUND', `The element's native view disappeared during ${action} (native ${call}; unmounted?)`, { matcher });
+    case 'E_NOT_TEXT_INPUT':
+      return new QuiescoError('ACTION_NOT_SUPPORTED', `${describeMatcher(matcher)} is not a text field: ${message}`, { action, platform: 'native' });
+    default:
+      return e;
+  }
+}
+
+/** The bridge with rejections mapped by {@link fromNativeError}. */
+function guarded(bridge: NativeBridge, action: ActionType, matcher: Matcher): NativeBridge {
+  const wrap =
+    <A extends unknown[], R>(name: string, fn: (...a: A) => Promise<R>) =>
+    (...a: A): Promise<R> =>
+      fn(...a).catch((e: unknown) => {
+        throw fromNativeError(e, name, action, matcher);
+      });
+  return {
+    locate: wrap('locate', bridge.locate.bind(bridge)),
+    tap: wrap('tap', bridge.tap.bind(bridge)),
+    swipe: wrap('swipe', bridge.swipe.bind(bridge)),
+    typeText: wrap('typeText', bridge.typeText.bind(bridge)),
+  };
+}
+
 export function nativePerformer(ctx: NativeContext): ActionPerformer {
-  const { bridge, clock } = ctx;
+  const { clock } = ctx;
+  const bridge = guarded(ctx.bridge, ctx.action, ctx.matcher);
   const sleep = (ms: number): Promise<void> =>
     new Promise((r) => {
       clock.setTimeout(r, ms);
@@ -102,7 +153,7 @@ export function nativePerformer(ctx: NativeContext): ActionPerformer {
 
   /** Wait until the native view stops moving, then check it can receive the touch. */
   const ready = async (node: HostNode): Promise<{ tag: number; rect: Rect }> => {
-    const tag = tagOf(node, ctx.matcher);
+    const tag = tagOf(node, ctx.action, ctx.matcher);
     let prev: Rect | null = null;
     for (;;) {
       const loc = await bridge.locate(tag);
@@ -110,7 +161,7 @@ export function nativePerformer(ctx: NativeContext): ActionPerformer {
         throw new QuiescoError('ELEMENT_NOT_FOUND', 'The element has no native view (unmounted?)', { matcher: ctx.matcher });
       }
       const rect = { x: loc.x, y: loc.y, width: loc.width, height: loc.height };
-      const same = prev !== null && Math.abs(prev.x - rect.x) < 0.5 && Math.abs(prev.y - rect.y) < 0.5 && Math.abs(prev.width - rect.width) < 0.5;
+      const same = loc.settling !== true && prev !== null && Math.abs(prev.x - rect.x) < 0.5 && Math.abs(prev.y - rect.y) < 0.5 && Math.abs(prev.width - rect.width) < 0.5;
       if (same || clock.now() >= ctx.deadline) {
         if (loc.windowHasFocus === false) throw obscured(node, 'another window (e.g. a Modal or dialog)');
         const top = hitTest(ctx.roots(), center(node.measure() ?? rect));
