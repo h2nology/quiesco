@@ -3,7 +3,7 @@
  * that would load React Native before the DevTools hook is installed). Injected for unit tests.
  * On web, `react-native` is aliased to react-native-web, which provides the same APIs.
  */
-import type { Platform } from '@quiesco/protocol';
+import type { Platform, Rect } from '@quiesco/protocol';
 
 import type { NativeBridge } from './actions/native';
 import type { InteractionManagerLike } from './sync';
@@ -22,6 +22,8 @@ export interface SocketLike {
 export interface AppDeps {
   platform(): Platform;
   dismissKeyboard(): void;
+  /** The software keyboard's frame in screen coordinates while it is shown, else null. */
+  keyboardFrame(): Rect | null;
   /** @quiesco/native when it is installed and its native code is linked, else null. */
   nativeModule(): (NativeBridge & { getLaunchParams(): { port: string | null; session: string | null } }) | null;
   createSocket(url: string): SocketLike;
@@ -31,7 +33,12 @@ export interface AppDeps {
 
 interface RN {
   Platform: { OS: string };
-  Keyboard: { dismiss(): void };
+  Keyboard: {
+    dismiss(): void;
+    // React Native ≥ 0.70; react-native-web has neither (no software keyboard to track).
+    isVisible?(): boolean;
+    metrics?(): { screenX: number; screenY: number; width: number; height: number } | null | undefined;
+  };
   InteractionManager?: InteractionManagerLike;
 }
 
@@ -44,6 +51,12 @@ export const defaultAppDeps: AppDeps = {
   },
   dismissKeyboard() {
     rn().Keyboard.dismiss();
+  },
+  keyboardFrame() {
+    const k = rn().Keyboard;
+    if (k.isVisible?.() !== true) return null;
+    const m = k.metrics?.();
+    return m === null || m === undefined ? null : { x: m.screenX, y: m.screenY, width: m.width, height: m.height };
   },
   nativeModule() {
     // Optional dependency: Metro bundles apps without @quiesco/native when the require sits directly

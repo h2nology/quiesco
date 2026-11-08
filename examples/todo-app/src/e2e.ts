@@ -3,6 +3,7 @@
  * code nor the test API calls reach production bundles (docs/spikes/06, approach A).
  */
 import { quiesco } from '@quiesco/agent';
+import { PermissionsAndroid, Platform } from 'react-native';
 
 import { api } from './api';
 import { store } from './store';
@@ -14,6 +15,18 @@ quiesco.backdoor('loginAs', async (email: string) => {
 
 quiesco.backdoor('seedTodos', async (titles: string[]) => {
   store.setTodos(await api.replaceTodos(titles));
+});
+
+// Whether the app may use location without asking: 'granted' / 'denied' / 'prompt', or null where the
+// app cannot tell without a permissions library (iOS). Used by features/permissions.feature.
+quiesco.backdoor('locationPermission', async () => {
+  if (Platform.OS === 'android') {
+    return (await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION)) ? 'granted' : 'denied';
+  }
+  if (Platform.OS === 'web') {
+    return (await navigator.permissions.query({ name: 'geolocation' })).state;
+  }
+  return null;
 });
 
 quiesco.onReset(async () => {

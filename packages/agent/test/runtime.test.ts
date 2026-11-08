@@ -11,12 +11,13 @@ import type { Spec } from './helpers/fake-fiber';
 const clock: Clock = { setTimeout: (cb, ms) => setTimeout(cb, ms), clearTimeout: (id) => clearTimeout(id as number), now: () => Date.now() };
 const R = (y: number) => ({ __rect: { x: 0, y, width: 100, height: 40 } });
 
-function setup(opts: { busy?: () => boolean; native?: ReturnType<AppDeps['nativeModule']> } = {}) {
+function setup(opts: { busy?: () => boolean; native?: ReturnType<AppDeps['nativeModule']>; keyboard?: () => ReturnType<AppDeps['keyboardFrame']> } = {}) {
   const target: Record<string, unknown> = {};
   const sockets: FakeSocket[] = [];
   const deps: AppDeps = {
     platform: () => 'android',
     dismissKeyboard: vi.fn(),
+    keyboardFrame: () => opts.keyboard?.() ?? null,
     nativeModule: () => opts.native ?? null,
     createSocket: (url) => {
       const s = new FakeSocket(url);
@@ -261,5 +262,36 @@ describe('AgentRuntime', () => {
     sameRoot(target)(host('RCTView', { testID: 'go', ...R(10) }));
     await expect(drive(call('action', { action: { type: 'tap', matcher: { id: 'go' } }, mode: 'native' }))).resolves.toMatchObject({ element: { testID: 'go' } });
     expect(native.tap).toHaveBeenCalledWith(expect.any(Number), 0, 0, 50, 1);
+  });
+
+  it('native mode dismisses a software keyboard that covers the target, then taps it', async () => {
+    let keyboard: { x: number; y: number; width: number; height: number } | null = { x: 0, y: 500, width: 400, height: 300 };
+    const native = {
+      getLaunchParams: () => ({ port: null, session: null }),
+      locate: vi.fn(async () => ({ found: true, x: 0, y: 520, width: 100, height: 40, windowHasFocus: true })),
+      tap: vi.fn(async () => ({ handled: true })),
+      swipe: vi.fn(),
+      typeText: vi.fn(),
+    };
+    const { call, deps, target } = setup({ native, keyboard: () => keyboard });
+    const order: string[] = [];
+    vi.mocked(deps.dismissKeyboard).mockImplementation(() => {
+      order.push('dismiss');
+      keyboard = null;
+    });
+    native.tap.mockImplementation(async () => {
+      order.push('tap');
+      return { handled: true };
+    });
+    sameRoot(target)(host('RCTView', { testID: 'save', ...R(520) }), host('RCTView', { testID: 'top', ...R(10) }));
+    await expect(drive(call('action', { action: { type: 'tap', matcher: { id: 'save' } }, mode: 'native' }))).resolves.toMatchObject({ element: { testID: 'save' } });
+    expect(order).toEqual(['dismiss', 'tap']);
+    // not covered: the keyboard stays
+    keyboard = { x: 0, y: 500, width: 400, height: 300 };
+    await drive(call('action', { action: { type: 'tap', matcher: { id: 'top' } }, mode: 'native' }));
+    expect(deps.dismissKeyboard).toHaveBeenCalledOnce();
+    // js mode calls the handler directly: no touch to block
+    await drive(call('action', { action: { type: 'tap', matcher: { id: 'save' } }, mode: 'js' })).catch(() => undefined);
+    expect(deps.dismissKeyboard).toHaveBeenCalledOnce();
   });
 });

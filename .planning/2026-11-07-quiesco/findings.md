@@ -239,3 +239,10 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - **注意**：metro.config 只在 Metro 启动时读取，改了 metro.cjs 要重启 Metro；本机无 watchman，Metro 多次漏掉文件变更（git checkout、追加写入），验证前用 curl 取 bundle grep 特征串。
 - **Expo 导出（release）不读 withQuiesco 返回的 serializer**：`withExpoSerializers` 在 `getDefaultConfig()` 时把原始 config 闭包进自定义 serializer，导出时从原始 `config.serializer` 取 `getModulesRunBeforeMainModule`；dev server 才读返回值 ⇒ 第一次修复只对 dev 生效。`withQuiesco` 改为同时写回原始 serializer 对象。用 `expo export:embed --dev false --minify false` 导出后看末尾 `__r(...)` 顺序可直接验证。
 - **Gradle 不感知 monorepo 包的变化**：`createBundleReleaseJsAndAssets` 的输入不含 `packages/agent`，改了 agent 后仍 UP-TO-DATE（APK 里是旧 JS）。删掉 `android/app/build/generated/assets/react/release` 再构建。检查 Hermes 字节码要 `grep -a`。
+
+## Phase 5.2 权限 / 键盘（2026-11-08）
+- **RN 0.88 `Keyboard.isVisible()` / `metrics()`**：Keyboard 单例在模块加载时监听 keyboardDidShow / DidHide，metrics 为屏幕坐标 `{screenX, screenY, width, height}`；react-native-web 没有这两个方法。
+- **Android 模拟器默认不弹软键盘**（AVD 有硬键盘 hw.keyboard=yes）；要验证键盘相关行为需 `adb shell settings put secure show_ime_with_hard_keyboard 1`。logcat `ImeTracker ... onRequestHide at ORIGIN_CLIENT reason HIDE_SOFT_INPUT` = App 自己收起键盘。
+- **Android 注入的触摸会穿过键盘**：dispatchTouchEvent 进 Activity 窗口，被 IME 盖住的元素也能点到（真实用户做不到）⇒ 自动收起键盘后行为才与用户一致。
+- **`simctl privacy`（Xcode 27）服务**：calendar、contacts(-limited)、location(-always)、photos(-add)、media-library、microphone、motion、reminders、siri；**没有 camera、notifications**。location 授权记录在 `data/Library/Caches/locationd/clients.plist` 的 `Authorization`（revoke=1、grant=2）。
+- **权限映射**：camera → Android CAMERA / iOS ✗ / Web camera；microphone → RECORD_AUDIO / microphone / microphone；location → ACCESS_FINE+COARSE_LOCATION / location / geolocation；notifications → POST_NOTIFICATIONS / ✗ / notifications；contacts → READ_CONTACTS / contacts / ✗；photos → READ_MEDIA_IMAGES / photos / ✗；calendar → READ+WRITE_CALENDAR / calendar / ✗。Android 只能授予 manifest 中声明过的权限（否则警告）。

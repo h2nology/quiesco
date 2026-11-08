@@ -65,3 +65,8 @@ When('清空全部待办但取消', async function (this: QuiescoWorld) {
 Then('列表中有 {int} 条待办', async function (this: QuiescoWorld, count: number) {
   await this.app.expectCount({ id: 'todo-item' }, count);
 });
+
+Then('App 可以直接使用位置信息', async function (this: QuiescoWorld) {
+  const state = await this.app.backdoor('locationPermission');
+  if (state !== 'granted') throw new Error(`location permission is ${JSON.stringify(state)}, expected "granted"`);
+});

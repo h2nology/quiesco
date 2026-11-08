@@ -8,7 +8,10 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "dev.quiesco.todo"
+      "bundleIdentifier": "dev.quiesco.todo",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Quiesco example: shows that test runs pre-grant permissions (quiesco.config.mts permissions)."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +21,11 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "dev.quiesco.todo"
+      "package": "dev.quiesco.todo",
+      "permissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",

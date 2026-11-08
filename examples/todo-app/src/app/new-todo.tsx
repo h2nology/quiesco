@@ -36,7 +36,10 @@ export default function NewTodo() {
             {error}
           </Text>
         )}
-        <Button testID="save-todo" title="保存" onPress={() => void save()} disabled={busy} />
+        {/* Pinned to the bottom, so the software keyboard covers it after typing (Quiesco dismisses it first). */}
+        <View style={styles.footer}>
+          <Button testID="save-todo" title="保存" onPress={() => void save()} disabled={busy} />
+        </View>
       </View>
     </ScreenTransition>
   );
@@ -46,4 +49,5 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 24, gap: 12, backgroundColor: 'white' },
   input: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, padding: 12, fontSize: 16 },
   error: { color: '#dc2626' },
+  footer: { marginTop: 'auto', paddingBottom: 24 },
 });

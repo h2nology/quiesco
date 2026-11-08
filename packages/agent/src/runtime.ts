@@ -14,6 +14,7 @@ import type {
   ElementSummary,
   Matcher,
   ParamsOf,
+  Rect,
   ResultOf,
   SyncOption,
 } from '@quiesco/protocol';
@@ -256,6 +257,22 @@ export class AgentRuntime {
     }
   }
 
+  /**
+   * The target of a touch action. In native mode (real touches) a software keyboard covering the target
+   * is dismissed first, then the target is looked up again once the app has settled (HU 2026-11-08):
+   * a user would close the keyboard to reach it, and on Android an injected touch would otherwise land
+   * on the element behind the keyboard.
+   */
+  private async resolveActionTarget(matcher: Matcher, mode: ParamsOf<AgentMethods['action']>['mode'], opts: SyncOption, deadline: number): Promise<HostNode> {
+    const node = await this.resolveTarget(matcher, opts, deadline);
+    if (mode !== 'native') return node;
+    const keyboard = this.deps.keyboardFrame();
+    const rect = node.measure();
+    if (keyboard === null || rect === null || !overlaps(keyboard, rect)) return node;
+    this.deps.dismissKeyboard();
+    return this.resolveTarget(matcher, opts, deadline);
+  }
+
   private async action(spec: ActionSpec, mode: ParamsOf<AgentMethods['action']>['mode'], opts: SyncOption): Promise<ResultOf<AgentMethods['action']>> {
     // Device-level actions are performed by the host's DeviceProvider (adb / simctl / Playwright).
     if (spec.type === 'pressBack') return { hostInput: { kind: 'back' } };
@@ -273,31 +290,31 @@ export class AgentRuntime {
         this.deps.dismissKeyboard();
         break;
       case 'tap':
-        node = await this.resolveTarget(spec.matcher, opts, deadline);
+        node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
         hostInput = await perform(spec.matcher).tap(node);
         break;
       case 'longPress':
-        node = await this.resolveTarget(spec.matcher, opts, deadline);
+        node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
         hostInput = await perform(spec.matcher).longPress(node, spec.durationMs);
         break;
       case 'doubleTap':
-        node = await this.resolveTarget(spec.matcher, opts, deadline);
+        node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
         hostInput = await perform(spec.matcher).doubleTap(node);
         break;
       case 'type':
-        node = await this.resolveTarget(spec.matcher, opts, deadline);
+        node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
         hostInput = await perform(spec.matcher).type(node, spec.text);
         break;
       case 'clear':
-        node = await this.resolveTarget(spec.matcher, opts, deadline);
+        node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
         hostInput = await perform(spec.matcher).clear(node);
         break;
       case 'scroll':
-        node = await this.resolveTarget(spec.matcher, opts, deadline);
+        node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
         hostInput = await perform(spec.matcher).scroll(node, spec.direction, spec.distance);
         break;
       case 'swipe':
-        node = await this.resolveTarget(spec.matcher, opts, deadline);
+        node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
         hostInput = await perform(spec.matcher).swipe(node, spec.direction, spec.speed);
         break;
       case 'scrollTo':
@@ -425,4 +442,9 @@ export class AgentRuntime {
       new NativeSettleTracker(() => this.nativeModule()),
     ];
   }
+}
+
+/** Whether two rects share some area (touching edges do not count). */
+function overlaps(a: Rect, b: Rect): boolean {
+  return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 }
