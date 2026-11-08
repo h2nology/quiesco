@@ -2,7 +2,7 @@
   "name": "@quiesco/expo-plugin",
   "version": "0.0.0",
   "description": "Quiesco Expo config plugin: links @quiesco/native into e2e builds only.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "main": "./app.plugin.js",
   "exports": {
     ".": "./app.plugin.js",

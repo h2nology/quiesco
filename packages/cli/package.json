@@ -2,7 +2,7 @@
   "name": "quiesco",
   "version": "0.0.0",
   "description": "Quiesco command line: init, test, doctor, tree",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "bin": {
     "quiesco": "./dist/bin.js"

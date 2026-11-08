@@ -2,7 +2,7 @@
   "name": "@quiesco/cucumber",
   "version": "0.0.0",
   "description": "cucumber-js World and hooks for Quiesco",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

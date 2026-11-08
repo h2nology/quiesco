@@ -2,7 +2,7 @@
   "name": "@quiesco/steps",
   "version": "0.0.0",
   "description": "Optional generic cucumber steps for Quiesco (prototyping only; write business-language steps for real projects)",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
