@@ -7,6 +7,10 @@
  *   plus the expo-dev-menu switches as launch arguments: `--initialUrl` bypasses the launcher URL
  *   params (`__expo_disable_*`), but every dev-menu preference is read from UserDefaults, which the
  *   argument domain overrides.
+ * - Parallel workers (worker.count > 1) each get their own simulator: `udids[N]`; or worker 0 uses the
+ *   chosen simulator and worker N > 0 a simulator named "<name> (Quiesco N)" of the same device type
+ *   and runtime, created with `simctl create` on first use and kept for later runs. (`simctl clone`
+ *   would copy the base, but it refuses a booted source, and worker 0 is using it.)
  * - The simulator shares the Mac's network: no port forwarding.
  * - Device input: no system back button on iOS; deep links are opened inside the app by
  *   @quiesco/native, because `simctl openurl` shows a SpringBoard confirmation alert.
@@ -25,7 +29,7 @@ import { silentLogger } from '../logger.js';
 import type { Exec } from './exec.js';
 import { execCommand } from './exec.js';
 import type { Permission } from './permissions.js';
-import type { DeviceProvider, LaunchParams } from './provider.js';
+import type { DeviceProvider, LaunchParams, WorkerInfo } from './provider.js';
 
 /** `simctl privacy` services; camera and notifications have none (Xcode 27). */
 const IOS_PRIVACY: Partial<Record<Permission, string[]>> = {
@@ -59,13 +63,24 @@ export interface SimDevice {
   dataPath?: string;
   /** Runtime identifier, e.g. `com.apple.CoreSimulator.SimRuntime.iOS-27-0`. */
   runtime: string;
+  /** Device type identifier, e.g. `com.apple.CoreSimulator.SimDeviceType.iPhone-17`. */
+  deviceType?: string;
 }
+
+/** Name of the simulator parallel worker `index` (> 0) uses next to the base simulator `baseName`. */
+export function workerSimulatorName(baseName: string, index: number): string {
+  return `${baseName} (Quiesco ${index})`;
+}
+
+const WORKER_SIMULATOR = / \(Quiesco \d+\)$/;
 
 export interface IosProviderOptions {
   app: IosAppConfig;
   device?: IosDeviceConfig;
   logger?: Logger;
   exec?: Exec;
+  /** The parallel worker this provider serves. Default: the only worker. */
+  worker?: WorkerInfo;
 }
 
 /** `27.0` / `iOS 27.0` / `27` → does the runtime identifier match? */
@@ -74,8 +89,12 @@ export function runtimeMatches(runtime: string, version: string): boolean {
   return runtime.endsWith(`.iOS-${v}`) || runtime.includes(`.iOS-${v}-`);
 }
 
-/** Choose a simulator: udid, else name (+ os), preferring a booted one; else the only booted one. */
-export function chooseSimulator(devices: readonly SimDevice[], cfg: IosDeviceConfig): SimDevice {
+/**
+ * Choose a simulator: udid, else name (+ os), preferring a booted one; else the first booted one.
+ * Simulators created for parallel workers are only chosen by udid.
+ */
+export function chooseSimulator(all: readonly SimDevice[], cfg: IosDeviceConfig): SimDevice {
+  const devices = cfg.udid !== undefined ? all : all.filter((d) => !WORKER_SIMULATOR.test(d.name));
   const describe = (ds: readonly SimDevice[]): string => ds.map((d) => `${d.name} (${d.runtime.replace(/^.*SimRuntime\./, '')}, ${d.state})`).join(', ') || 'none';
   if (cfg.udid !== undefined) {
     const d = devices.find((x) => x.udid === cfg.udid);
@@ -123,16 +142,55 @@ export class IosProvider implements DeviceProvider {
   /** Available simulators from `simctl list devices available --json`. */
   async devices(): Promise<SimDevice[]> {
     const json = JSON.parse(await this.simctl(['list', 'devices', 'available', '--json'])) as {
-      devices: Record<string, { udid: string; name: string; state: string; dataPath?: string; isAvailable?: boolean }[]>;
+      devices: Record<string, { udid: string; name: string; state: string; dataPath?: string; deviceTypeIdentifier?: string; isAvailable?: boolean }[]>;
     };
     return Object.entries(json.devices).flatMap(([runtime, ds]) =>
-      ds.map((d) => ({ udid: d.udid, name: d.name, state: d.state, runtime, ...(d.dataPath !== undefined ? { dataPath: d.dataPath } : {}) })),
+      ds.map((d) => ({
+        udid: d.udid,
+        name: d.name,
+        state: d.state,
+        runtime,
+        ...(d.dataPath !== undefined ? { dataPath: d.dataPath } : {}),
+        ...(d.deviceTypeIdentifier !== undefined ? { deviceType: d.deviceTypeIdentifier } : {}),
+      })),
     );
+  }
+
+  private get worker(): WorkerInfo {
+    return this.options.worker ?? { index: 0, count: 1 };
+  }
+
+  /** The simulator this worker uses (see the file comment). */
+  private async pickSimulator(cfg: IosDeviceConfig): Promise<SimDevice> {
+    const worker = this.worker;
+    const all = await this.devices();
+    if (cfg.udids !== undefined && cfg.udids.length > 0) {
+      const udid = cfg.udids[worker.index];
+      if (udid === undefined) {
+        throw new QuiescoError('DEVICE_ERROR', `devices.ios.udids lists ${cfg.udids.length} simulator(s), but this is worker ${worker.index} of ${worker.count}; add one udid per worker`);
+      }
+      return chooseSimulator(all, { udid });
+    }
+    if (worker.count > 1 && cfg.udid !== undefined) {
+      throw new QuiescoError('CONFIG_ERROR', `devices.ios.udid pins one simulator, but ${worker.count} workers run in parallel; set devices.ios.udids (one per worker) or devices.ios.device`);
+    }
+    const base = chooseSimulator(all, cfg);
+    if (worker.index === 0) return base;
+    const name = workerSimulatorName(base.name, worker.index);
+    const existing = all.find((d) => d.name === name && d.runtime === base.runtime);
+    if (existing !== undefined) return existing;
+    if (base.deviceType === undefined) throw new QuiescoError('DEVICE_ERROR', `Cannot tell the device type of ${base.name} to create "${name}"; set devices.ios.udids`);
+    this.logger.info(`worker ${worker.index}: creating iOS simulator "${name}" (${base.deviceType.replace(/^.*SimDeviceType\./, '')}, ${base.runtime.replace(/^.*SimRuntime\./, '')})`);
+    const udid = (await this.simctl(['create', name, base.deviceType, base.runtime])).trim();
+    const created = (await this.devices()).find((d) => d.udid === udid);
+    if (created === undefined) throw new QuiescoError('DEVICE_ERROR', `simctl create "${name}" did not produce an available simulator (got "${udid}")`);
+    return created;
   }
 
   async boot(): Promise<void> {
     const cfg = this.options.device ?? {};
-    this.sim = chooseSimulator(await this.devices(), cfg);
+    this.sim = await this.pickSimulator(cfg);
+    if (this.worker.count > 1) this.logger.info(`worker ${this.worker.index}: iOS simulator ${this.sim.name} (${this.sim.udid})`);
     const timeoutMs = cfg.bootTimeoutMs ?? 180_000;
     if (this.sim.state !== 'Booted') {
       this.logger.info(`booting iOS simulator ${this.sim.name} (${this.sim.udid})`);

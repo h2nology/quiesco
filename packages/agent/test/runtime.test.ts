@@ -71,6 +71,23 @@ describe('AgentRuntime', () => {
     expect(rt.config.sync.timeoutMs).toBe(1234);
   });
 
+  it('quiesco.workerIndex() is null until hello, then the worker index from the host config', async () => {
+    const { quiesco } = await import('../src/api');
+    const { rt, sockets } = setup();
+    const g = globalThis as Record<string, unknown>;
+    const previous = g['__quiescoRuntime'];
+    g['__quiescoRuntime'] = rt;
+    try {
+      rt.mount(null);
+      expect(quiesco.workerIndex()).toBeNull();
+      sockets[0]!.open();
+      sockets[0]!.receive({ jsonrpc: '2.0', id: 'hello', result: { accepted: true, sessionId: 'sess', config: { ...CONFIG, workerIndex: 1 } } });
+      expect(quiesco.workerIndex()).toBe(1);
+    } finally {
+      g['__quiescoRuntime'] = previous;
+    }
+  });
+
   it('keeps the connection when QuiescoRoot is unmounted and mounted again in the same commit; stops one tick after the last unmount', async () => {
     const { rt, sockets } = setup();
     rt.mount(null);

@@ -5,10 +5,16 @@ export interface Todo {
 }
 
 // Android reaches the host's localhost through `adb reverse` (apps.android.reversePorts in quiesco.config.ts).
-const BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001';
+const DEFAULT_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001';
+let resolveBase: () => string = () => DEFAULT_BASE;
+
+/** Test builds point each parallel test worker at its own mock backend (src/e2e.ts). */
+export function setApiBase(resolver: () => string): void {
+  resolveBase = resolver;
+}
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${resolveBase()}${path}`, {
     method,
     headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
     body: body === undefined ? null : JSON.stringify(body),

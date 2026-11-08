@@ -176,3 +176,71 @@ describe('AndroidProvider', () => {
     ]);
   });
 });
+
+describe('AndroidProvider with parallel workers', () => {
+  const devicesOut = (...serials: string[]) => `List of devices attached\n${serials.map((s) => `${s}\tdevice\n`).join('')}`;
+  const ready: [RegExp, string][] = [
+    [/getprop sys.boot_completed/, '1'],
+    [/dumpsys user/, '    State: RUNNING_UNLOCKED\n'],
+  ];
+
+  it('gives worker N serials[N] and rejects a missing entry', async () => {
+    const { p, calls } = provider([[/adb devices$/, devicesOut('emulator-5554', 'R58M')], ...ready], { device: { serials: ['emulator-5554', 'R58M'] }, worker: { index: 1, count: 2 } });
+    await p.boot();
+    expect(calls[1]).toBe('adb -s R58M shell getprop sys.boot_completed');
+    await expect(provider(BOOTED, { device: { serials: ['emulator-5554'] }, worker: { index: 1, count: 2 } }).p.boot()).rejects.toThrow(/serials lists 1 device.*worker 1 of 2/);
+  });
+
+  it('refuses a single pinned serial for several workers', async () => {
+    await expect(provider(BOOTED, { device: { serial: 'emulator-5554' }, worker: { index: 0, count: 2 } }).p.boot()).rejects.toThrow(/serial pins one device.*serials/);
+  });
+
+  it('attaches worker N to the emulator of the AVD on port 5554 + 2N', async () => {
+    const spawned: string[] = [];
+    const { p, calls } = provider(
+      [[/adb devices$/, devicesOut('emulator-5554', 'emulator-5556')], [/getprop ro.boot.qemu.avd_name/, 'Pixel_API_37\n'], ...ready],
+      { device: { avd: 'Pixel_API_37' }, worker: { index: 1, count: 2 }, spawn: (f, a) => spawned.push(`${f} ${a.join(' ')}`) },
+    );
+    await p.boot();
+    expect(calls[1]).toBe('adb -s emulator-5556 shell getprop ro.boot.qemu.avd_name');
+    expect(calls[2]).toBe('adb -s emulator-5556 shell getprop sys.boot_completed');
+    expect(spawned).toEqual([]);
+  });
+
+  it('boots worker 0 writable on 5554 and worker 1 read-only on 5556 beside it', async () => {
+    for (const [index, expected] of [
+      [0, 'emulator -avd Pixel_API_37 -port 5554 -no-boot-anim -no-snapshot-save'],
+      [1, 'emulator -avd Pixel_API_37 -port 5556 -no-boot-anim -no-snapshot-save -read-only'],
+    ] as const) {
+      let n = 0;
+      const spawned: string[] = [];
+      const serial = `emulator-${5554 + 2 * index}`;
+      const adb = fakeAdb(ready);
+      const exec: Exec = async (file, args, o) => {
+        if (args.join(' ') === 'devices') {
+          n++;
+          // The other worker's instance is already up; ours appears after a few polls.
+          const other = index === 0 ? 'emulator-5556' : 'emulator-5554';
+          return { stdout: Buffer.from(devicesOut(other, ...(n >= 3 ? [serial] : []))), stderr: '' };
+        }
+        return adb.exec(file, args, o);
+      };
+      const p = new AndroidProvider({ app: { package: 'x' }, device: { avd: 'Pixel_API_37' }, worker: { index, count: 2 }, adbPath: 'adb', emulatorPath: 'emulator', exec, spawn: (f, a) => spawned.push(`${f} ${a.join(' ')}`), pollMs: 1 });
+      await p.boot();
+      expect(spawned).toEqual([expected]);
+      expect(adb.calls[0]).toBe(`adb -s ${serial} shell getprop sys.boot_completed`);
+    }
+  });
+
+  it('fails when the worker port runs another AVD', async () => {
+    const { p } = provider([[/adb devices$/, devicesOut('emulator-5554')], [/getprop ro.boot.qemu.avd_name/, 'Other_AVD\n']], { device: { avd: 'Pixel_API_37' }, worker: { index: 0, count: 2 } });
+    await expect(p.boot()).rejects.toThrow(/port 5554 \(emulator-5554\), but it runs AVD Other_AVD instead of Pixel_API_37/);
+  });
+
+  it('without avd or serials gives worker N the N-th connected device, and needs one per worker', async () => {
+    const { p, calls } = provider([[/adb devices$/, devicesOut('emulator-5556', 'emulator-5554')], ...ready], { worker: { index: 1, count: 2 } });
+    await p.boot();
+    expect(calls[1]).toBe('adb -s emulator-5556 shell getprop sys.boot_completed');
+    await expect(provider([[/adb devices$/, devicesOut('emulator-5554')]], { worker: { index: 0, count: 2 } }).p.boot()).rejects.toThrow(/2 workers need 2 Android devices, but 1 are connected/);
+  });
+});

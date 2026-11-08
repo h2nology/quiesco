@@ -8,6 +8,14 @@ export interface LaunchParams {
   sessionId: string;
 }
 
+/** The parallel test worker a provider serves; each worker needs its own device. */
+export interface WorkerInfo {
+  /** 0-based worker index. */
+  index: number;
+  /** Number of workers in the run (1 when running serially). */
+  count: number;
+}
+
 export interface DeviceProvider {
   readonly platform: Platform;
   /** Start the emulator / simulator / browser (or attach to a running one). */

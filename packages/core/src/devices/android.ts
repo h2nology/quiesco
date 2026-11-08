@@ -2,6 +2,9 @@
  * Android via adb (requirements.md §6.9; docs/spikes/05, findings "Android 运行环境注意事项").
  * - boot: attach to the configured serial / a running emulator of the configured AVD, or boot the AVD;
  *   then wake the screen and keep it on (a sleeping emulator never brings the app to the front).
+ * - Parallel workers (worker.count > 1) each get their own device: `serials[N]`; or, with `avd`, the
+ *   emulator on console port 5554 + 2N (booted with `-port`, and `-read-only` for N > 0 so one AVD can
+ *   run several instances); or else the N-th connected device.
  * - launch: `adb reverse` for the Quiesco port (and Metro for dev clients), pre-grant
  *   ACCESS_LOCAL_NETWORK (Android 17; ignored where unknown), then `am start` with the connection
  *   parameters as intent extras. The whole device command is one quoted string: the device shell would
@@ -19,7 +22,7 @@ import { silentLogger } from '../logger.js';
 import type { Exec, Spawn } from './exec.js';
 import { execCommand, shq, spawnDetached } from './exec.js';
 import type { Permission } from './permissions.js';
-import type { DeviceProvider, LaunchParams } from './provider.js';
+import type { DeviceProvider, LaunchParams, WorkerInfo } from './provider.js';
 
 const ANDROID_PERMISSIONS: Record<Permission, string[]> = {
   camera: ['android.permission.CAMERA'],
@@ -42,6 +45,16 @@ export interface AndroidProviderOptions {
   emulatorPath?: string;
   /** Polling interval while waiting for the emulator to boot. */
   pollMs?: number;
+  /** The parallel worker this provider serves. Default: the only worker. */
+  worker?: WorkerInfo;
+}
+
+/** First emulator console port; adb names the emulator on console port P `emulator-P`. */
+export const EMULATOR_BASE_PORT = 5554;
+
+/** Console port of the emulator that parallel worker `index` uses for an AVD (ports come in pairs). */
+export function emulatorPortForWorker(index: number): number {
+  return EMULATOR_BASE_PORT + 2 * index;
 }
 
 function sdkTool(rel: string, fallback: string): string {
@@ -115,23 +128,54 @@ export class AndroidProvider implements DeviceProvider {
     return new Promise((r) => setTimeout(r, ms));
   }
 
+  private get worker(): WorkerInfo {
+    return this.options.worker ?? { index: 0, count: 1 };
+  }
+
   async boot(): Promise<void> {
     const cfg = this.options.device ?? {};
+    const worker = this.worker;
+    const parallel = worker.count > 1;
+    const bootTimeoutMs = cfg.bootTimeoutMs ?? 180_000;
     const online = await this.devices();
-    if (cfg.serial !== undefined) {
-      if (!online.includes(cfg.serial)) {
-        throw new QuiescoError('DEVICE_ERROR', `Android device ${cfg.serial} is not connected (adb devices: ${online.join(', ') || 'none'})`);
+    const requireOnline = (serial: string): string => {
+      if (!online.includes(serial)) throw new QuiescoError('DEVICE_ERROR', `Android device ${serial} is not connected (adb devices: ${online.join(', ') || 'none'})`);
+      return serial;
+    };
+    if (cfg.serials !== undefined && cfg.serials.length > 0) {
+      const serial = cfg.serials[worker.index];
+      if (serial === undefined) {
+        throw new QuiescoError('DEVICE_ERROR', `devices.android.serials lists ${cfg.serials.length} device(s), but this is worker ${worker.index} of ${worker.count}; add one serial per worker`);
       }
-      this.serial = cfg.serial;
+      this.serial = requireOnline(serial);
+    } else if (cfg.serial !== undefined) {
+      if (parallel) {
+        throw new QuiescoError('CONFIG_ERROR', `devices.android.serial pins one device, but ${worker.count} workers run in parallel; set devices.android.serials (one per worker) or devices.android.avd`);
+      }
+      this.serial = requireOnline(cfg.serial);
     } else if (cfg.avd !== undefined) {
-      for (const s of online) if ((await this.avdName(s)) === cfg.avd) this.serial = s;
-      if (this.serial === null) this.serial = await this.bootAvd(cfg.avd, online, cfg.bootTimeoutMs ?? 180_000);
+      if (parallel) {
+        this.serial = await this.workerEmulator(cfg.avd, online, bootTimeoutMs);
+      } else {
+        for (const s of online) if ((await this.avdName(s)) === cfg.avd) this.serial = s;
+        if (this.serial === null) this.serial = await this.bootAvd(cfg.avd, online, bootTimeoutMs);
+      }
+    } else if (parallel) {
+      const sorted = [...online].sort();
+      if (sorted.length < worker.count) {
+        throw new QuiescoError(
+          'DEVICE_ERROR',
+          `${worker.count} workers need ${worker.count} Android devices, but ${sorted.length} are connected (${sorted.join(', ') || 'none'}); set devices.android.avd to boot one emulator per worker`,
+        );
+      }
+      this.serial = sorted[worker.index] as string;
     } else {
       if (online.length === 0) throw new QuiescoError('DEVICE_ERROR', 'No Android device or emulator is running; set devices.android.avd to boot one');
       this.serial = online[0] as string;
       if (online.length > 1) this.logger.warn(`Several Android devices are connected; using ${this.serial} (set devices.android.serial to choose)`);
     }
-    await this.waitForBoot(cfg.bootTimeoutMs ?? 180_000);
+    if (parallel) this.logger.info(`worker ${worker.index}: Android device ${this.serial}`);
+    await this.waitForBoot(bootTimeoutMs);
     // A sleeping emulator does not bring the app to the foreground (findings, 0.1).
     await this.shell('input keyevent KEYCODE_WAKEUP');
     await this.shell('svc power stayon true');
@@ -169,6 +213,41 @@ export class AndroidProvider implements DeviceProvider {
       await this.sleep(this.options.pollMs ?? 1000);
     }
     throw new QuiescoError('DEVICE_ERROR', `Emulator ${avd} did not appear in adb devices within ${timeoutMs}ms`);
+  }
+
+  /**
+   * Parallel worker N's emulator of `avd`: the one on console port 5554 + 2N, booted there if not
+   * running. Instances after the first are `-read-only`: the emulator allows one writable instance of
+   * an AVD at a time, read-only ones run beside it (their changes are discarded on exit).
+   */
+  private async workerEmulator(avd: string, online: string[], timeoutMs: number): Promise<string> {
+    const index = this.worker.index;
+    const port = emulatorPortForWorker(index);
+    const serial = `emulator-${port}`;
+    if (online.includes(serial)) {
+      const name = await this.avdName(serial);
+      if (name !== avd) {
+        throw new QuiescoError(
+          'DEVICE_ERROR',
+          `Worker ${index} uses the emulator on port ${port} (${serial}), but it runs AVD ${name ?? 'unknown'} instead of ${avd}. Stop it, or set devices.android.serials`,
+        );
+      }
+      return serial;
+    }
+    const args = ['-avd', avd, '-port', String(port), '-no-boot-anim', '-no-snapshot-save', ...(index > 0 ? ['-read-only'] : [])];
+    this.logger.info(`worker ${index}: booting Android emulator ${avd} on port ${port}${index > 0 ? ' (read-only)' : ''}`);
+    this.spawn(this.emulator, args);
+    this.bootedByUs = true;
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if ((await this.devices()).includes(serial)) return serial;
+      await this.sleep(this.options.pollMs ?? 1000);
+    }
+    throw new QuiescoError(
+      'DEVICE_ERROR',
+      `Emulator ${avd} on port ${port} did not appear in adb devices within ${timeoutMs}ms. ` +
+        (index === 0 ? `If another writable instance of ${avd} runs on a different port, stop it (worker 0 needs port ${port}).` : `Check the emulator output: ${this.emulator} ${args.join(' ')}`),
+    );
   }
 
   /**

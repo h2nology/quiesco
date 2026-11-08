@@ -211,3 +211,8 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - **iOS「保存密码？」系统对话框（已修 provider，HU 选方案：provider 关闭自动填充）**：提交含 secureTextEntry 的表单后，系统在 `UITextEffectsWindow` 弹出 Passwords 保存提示，遮住整个 App，且不受软重置影响 ⇒ 连锁失败。App 侧 `textContentType="none"` / `autoComplete="off"` 无效。IosProvider.boot 用 plutil 把模拟器 3 个配置描述文件的 `restrictedBool.allowPasswordAutoFill.value` 设为 NO（与 MDM 限制相同；来源 Detox issue #3761），无需重启即生效；`devices.ios.disablePasswordAutoFill: false` 可关闭。
 - **键盘活动后的触摸被丢弃（已修 native）**：iOS 27 上，键盘活动（输入文字、键盘出现 / 改变高度）后 0ms 的触摸不会到达 App，300ms 后可以（实测 0ms ×2 失败、300/600/1000ms 全部成功；与按住时长无关，KIF 的 HID 构造与我们相同，sender ID 无效）。修复：KeyboardMotion 记录 typeText 与全部键盘通知（含 WillChangeFrame / DidChangeFrame），之后 400ms 内 settling=true。
 - **原生 UI 转场未纳入同步（已修：新增 `native` tracker）**：软重置后 Stack 重新挂载期间 `loginAs` 触发的导航被 UIKit / react-native-screens 丢掉 ⇒ JS 在待办画面、原生停在空白登录画面。`NativeSettleMonitor` 用 CADisplayLink 每帧在主线程采样（任一窗口 VC 转场、键盘移动 / 刚用过），`Function("idleState")` 同步读取；agent 的 `NativeSettleTracker`（按能力，无此函数即 idle）让所有同步点等待。之后 iOS 全量 3/3 通过。
+
+## Phase 4.6 并行（2026-11-08）
+- **cucumber 13 的 `--parallel` 用 worker_threads**（不是子进程）：环境变量 `CUCUMBER_PARALLEL` / `CUCUMBER_TOTAL_WORKERS` / `CUCUMBER_WORKER_ID`（"0" 起）注入每个线程的 `process.env`；每个线程各自加载模块与 config。
+- **`simctl clone` 要求源设备关机**（`Unable to clone device in current state: Booted`，code 405）⇒ 不能在 worker 0 用着 base 时克隆。改用 `simctl create "<name> (Quiesco N)" <deviceTypeIdentifier> <runtime>`（`list devices --json` 有 `deviceTypeIdentifier`），不依赖源设备状态。
+- **Metro 漏掉文件变更**：本机没装 watchman，长时间运行的 Metro（Node fs 监听）在 `git checkout` / 脚本写文件后，App 已有的 graph 仍是旧代码；而新请求的 graph（curl 同一入口）是新代码。症状：backdoor 列表与源码不符。处理：重启 Metro（`pnpm start:e2e`）。

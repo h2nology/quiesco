@@ -183,3 +183,67 @@ describe('IosProvider', () => {
     expect((await dead.p.diagnose({ port: 7357, sessionId: 's' }))[1]).toMatch(/is NOT running on iPhone 17/);
   });
 });
+
+describe('IosProvider with parallel workers', () => {
+  const T17 = 'com.apple.CoreSimulator.SimDeviceType.iPhone-17';
+  const list = (extra: object[] = []) =>
+    JSON.stringify({
+      devices: {
+        [R27]: [{ udid: 'NEW-17', name: 'iPhone 17', state: 'Booted', deviceTypeIdentifier: T17, dataPath: '/sims/NEW-17/data' }, ...extra],
+      },
+    });
+
+  it('never picks a worker simulator as the default booted one', () => {
+    const devices: SimDevice[] = [
+      { udid: 'W1', name: 'iPhone 17 (Quiesco 1)', state: 'Booted', runtime: R27 },
+      { udid: 'NEW-17', name: 'iPhone 17', state: 'Booted', runtime: R27 },
+    ];
+    expect(chooseSimulator(devices, {}).udid).toBe('NEW-17');
+    expect(chooseSimulator(devices, { udid: 'W1' }).udid).toBe('W1');
+  });
+
+  it('worker 0 uses the base simulator', async () => {
+    const x = fakeXcrun([[/list devices available --json/, list()]]);
+    await new IosProvider({ app: { bundleId: 'b' }, device: { disablePasswordAutoFill: false }, exec: x.exec, worker: { index: 0, count: 2 } }).boot();
+    expect(x.calls).toEqual(['xcrun simctl list devices available --json', 'xcrun simctl bootstatus NEW-17 -b']);
+  });
+
+  it('worker N creates "<base> (Quiesco N)" with the same device type and runtime, then boots it', async () => {
+    let created = false;
+    const calls: string[] = [];
+    const exec: Exec = async (file, args) => {
+      const line = `${file} ${args.join(' ')}`;
+      calls.push(line);
+      if (args[1] === 'list') {
+        return { stdout: Buffer.from(list(created ? [{ udid: 'W1', name: 'iPhone 17 (Quiesco 1)', state: 'Shutdown', deviceTypeIdentifier: T17, dataPath: '/sims/W1/data' }] : [])), stderr: '' };
+      }
+      if (args[1] === 'create') {
+        created = true;
+        return { stdout: Buffer.from('W1\n'), stderr: '' };
+      }
+      return { stdout: Buffer.from(''), stderr: '' };
+    };
+    await new IosProvider({ app: { bundleId: 'b' }, device: { disablePasswordAutoFill: false }, exec, worker: { index: 1, count: 2 } }).boot();
+    expect(calls).toEqual([
+      'xcrun simctl list devices available --json',
+      `xcrun simctl create iPhone 17 (Quiesco 1) ${T17} ${R27}`,
+      'xcrun simctl list devices available --json',
+      'xcrun simctl boot W1',
+      'xcrun simctl bootstatus W1 -b',
+    ]);
+  });
+
+  it('reuses an existing worker simulator', async () => {
+    const x = fakeXcrun([[/list devices available --json/, list([{ udid: 'W2', name: 'iPhone 17 (Quiesco 2)', state: 'Booted', deviceTypeIdentifier: T17 }])]]);
+    await new IosProvider({ app: { bundleId: 'b' }, device: { disablePasswordAutoFill: false }, exec: x.exec, worker: { index: 2, count: 3 } }).boot();
+    expect(x.calls).toEqual(['xcrun simctl list devices available --json', 'xcrun simctl bootstatus W2 -b']);
+  });
+
+  it('gives worker N udids[N]; rejects a missing entry and a single pinned udid', async () => {
+    const x = fakeXcrun([[/list devices available --json/, list([{ udid: 'OTHER', name: 'iPhone Air', state: 'Booted' }])]]);
+    await new IosProvider({ app: { bundleId: 'b' }, device: { udids: ['NEW-17', 'OTHER'], disablePasswordAutoFill: false }, exec: x.exec, worker: { index: 1, count: 2 } }).boot();
+    expect(x.calls[1]).toBe('xcrun simctl bootstatus OTHER -b');
+    await expect(new IosProvider({ app: { bundleId: 'b' }, device: { udids: ['NEW-17'] }, exec: x.exec, worker: { index: 1, count: 2 } }).boot()).rejects.toThrow(/udids lists 1 simulator.*worker 1 of 2/);
+    await expect(new IosProvider({ app: { bundleId: 'b' }, device: { udid: 'NEW-17' }, exec: x.exec, worker: { index: 0, count: 2 } }).boot()).rejects.toThrow(/udid pins one simulator/);
+  });
+});

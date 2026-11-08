@@ -12,7 +12,8 @@ const viewportName = process.env['QUIESCO_VIEWPORT'] ?? 'mobile';
 const viewport = viewports[viewportName];
 if (viewport === undefined) throw new Error(`Unknown QUIESCO_VIEWPORT "${viewportName}" (${Object.keys(viewports).join(', ')})`);
 
-export default defineConfig({
+// Evaluated per test worker (`--parallel N`): worker N has its own mock backend on 3001 + N.
+export default defineConfig(({ workerIndex }) => ({
   apps: {
     android: {
       package: 'dev.quiesco.todo',
@@ -20,8 +21,8 @@ export default defineConfig({
       binaryPath: 'android/app/build/outputs/apk/debug/app-debug.apk',
       // A dev client loading JS from Metro (`pnpm start:e2e`, port 8082).
       devClient: { scheme: 'quiescotodo', metroUrl: 'http://localhost:8082' },
-      // The mock backend (mock-server/server.mjs) on the host's localhost.
-      reversePorts: [3001],
+      // This worker's mock backend (mock-server/server.mjs) on the host's localhost.
+      reversePorts: [3001 + workerIndex],
     },
     ios: {
       bundleId: 'dev.quiesco.todo',
@@ -34,9 +35,11 @@ export default defineConfig({
     web: process.env['QUIESCO_WEB_URL'] !== undefined ? { url: process.env['QUIESCO_WEB_URL'] } : { distDir: 'dist' },
   },
   devices: {
-    // Which emulator to use comes from the environment, never from this file.
+    // Which emulator to use comes from the environment, never from this file. With `--parallel N` and
+    // QUIESCO_AVD set, worker N uses that AVD's emulator on port 5554 + 2N (booted read-only for N > 0).
     android: process.env['QUIESCO_AVD'] !== undefined ? { avd: process.env['QUIESCO_AVD'] } : {},
     // Default: the booted simulator. QUIESCO_IOS_DEVICE (e.g. "iPhone 17") and QUIESCO_IOS_OS (e.g. "27.0") pick one.
+    // With `--parallel N`, worker N > 0 uses "<that simulator> (Quiesco N)", created on first use.
     ios: {
       ...(process.env['QUIESCO_IOS_DEVICE'] !== undefined ? { device: process.env['QUIESCO_IOS_DEVICE'] } : {}),
       ...(process.env['QUIESCO_IOS_OS'] !== undefined ? { os: process.env['QUIESCO_IOS_OS'] } : {}),
@@ -46,4 +49,4 @@ export default defineConfig({
   // actions.mode is not set: `native` (real touches) when the app has @quiesco/native, else `js`.
   // Run with QUIESCO_ACTION_MODE=js to force callback mode.
   ...(process.env['QUIESCO_ACTION_MODE'] === 'js' ? { actions: { mode: 'js' as const } } : {}),
-});
+}));

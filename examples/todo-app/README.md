@@ -34,6 +34,28 @@ installs the `.app`, launches it with the expo-dev-menu switched off (no menu, o
 button) and turns off password AutoFill on the simulator (`devices.ios.disablePasswordAutoFill`), so
 iOS's "Save Password?" sheet never covers the app after the login form.
 
+## Run in parallel (`--parallel 2`)
+
+```sh
+pnpm test:e2e:web:parallel
+pnpm test:e2e:ios:parallel                       # Metro running (pnpm start:e2e)
+QUIESCO_AVD=Medium_Phone_API_37.0 pnpm test:e2e:android:parallel
+```
+
+Every cucumber worker gets its own Quiesco port (7357 + N), its own device and its own mock backend
+(3001 + N). Because `quiesco.config.mts` is a function of `workerIndex`, Android forwards `3001 + N`
+with `adb reverse`; the app picks the backend port from `quiesco.workerIndex()` (`src/e2e.ts`).
+
+- **iOS**: worker 0 uses the chosen simulator; worker N uses `"<name> (Quiesco N)"` (same device type
+  and runtime), created with `simctl create` on first use and kept for later runs. Remove them with
+  `xcrun simctl delete "iPhone 17 (Quiesco 1)"`. `devices.ios.udids` assigns simulators explicitly.
+- **Android**: with `QUIESCO_AVD`, worker N uses that AVD's emulator on console port 5554 + 2N
+  (`emulator-5554`, `emulator-5556`, ...) and boots it if needed. Instances after the first run with
+  `-read-only`: one AVD can then run several times, but nothing they change is kept after they exit
+  (the app is installed again on every run anyway). Without `QUIESCO_AVD`, worker N uses the N-th
+  connected device; `devices.android.serials` assigns devices explicitly.
+- **Web**: every worker launches its own browser and static server; nothing to set up.
+
 ## EAS builds for e2e
 
 `eas.json` has an `e2e` profile (JS bundled in, `EXPO_PUBLIC_QUIESCO=1`, iOS simulator build, Android

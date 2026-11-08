@@ -28,9 +28,9 @@ describe('Lifecycle', () => {
   it('creates the session with config, platform and worker index', async () => {
     const { session } = fakeSession();
     const create = vi.fn<(o: SessionOptions) => Promise<Session>>(async () => session);
-    const l = new Lifecycle({ config, createSession: create, env: { QUIESCO_PLATFORM: 'android', CUCUMBER_WORKER_ID: '2' } });
+    const l = new Lifecycle({ config, createSession: create, env: { QUIESCO_PLATFORM: 'android', CUCUMBER_WORKER_ID: '2', CUCUMBER_TOTAL_WORKERS: '3' } });
     await l.beforeAll();
-    expect(create).toHaveBeenCalledWith({ config, platform: 'android', workerIndex: 2 });
+    expect(create).toHaveBeenCalledWith({ config, platform: 'android', workerIndex: 2, workerCount: 3 });
     expect(l.current).toBe(session);
   });
 

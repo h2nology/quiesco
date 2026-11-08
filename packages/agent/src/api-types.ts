@@ -16,4 +16,10 @@ export interface QuiescoApi {
   onReset(hook: () => void | Promise<void>): () => void;
   /** Extra store to clear on soft reset. AsyncStorage (native) / web storage are cleared built-in. */
   registerStorage(adapter: StorageAdapter): () => void;
+  /**
+   * Index of the parallel test worker driving this app (0 when tests run serially), for per-worker
+   * resources such as a mock backend on `3001 + workerIndex`. `null` until the host has connected
+   * (it connects before the first test command) and always in production builds.
+   */
+  workerIndex(): number | null;
 }

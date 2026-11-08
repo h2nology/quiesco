@@ -40,10 +40,13 @@ export class Lifecycle {
   /** BeforeAll: load the config, start the server and device, launch the app, wait for the agent. */
   async beforeAll(): Promise<void> {
     const env = this.options.env ?? process.env;
-    this.config = this.options.config ?? (await loadConfig(env['QUIESCO_CONFIG'] !== undefined ? { file: env['QUIESCO_CONFIG'] } : {})).config;
-    this.platform = this.options.platform ?? resolvePlatform(undefined, env);
+    // `--parallel N` runs N worker threads; each gets its own port, device and config evaluation.
     const workerIndex = Number.parseInt(env['CUCUMBER_WORKER_ID'] ?? '0', 10) || 0;
-    this.session = await (this.options.createSession ?? createSession)({ config: this.config, platform: this.platform, workerIndex });
+    const workerCount = Number.parseInt(env['CUCUMBER_TOTAL_WORKERS'] ?? '1', 10) || 1;
+    this.config =
+      this.options.config ?? (await loadConfig({ workerIndex, ...(env['QUIESCO_CONFIG'] !== undefined ? { file: env['QUIESCO_CONFIG'] } : {}) })).config;
+    this.platform = this.options.platform ?? resolvePlatform(undefined, env);
+    this.session = await (this.options.createSession ?? createSession)({ config: this.config, platform: this.platform, workerIndex, workerCount });
   }
 
   /** Before: `'skipped'` for scenarios tagged for other platforms, else reset the app. */
