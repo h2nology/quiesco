@@ -21,9 +21,17 @@ describe('config', () => {
         stableFrames: 2,
         ignoreUrls: [{ regex: { source: '\\/analytics\\/', flags: 'i' } }, 'sse'],
         trackers: { 'frame-stable': false },
+        ignoreElements: [],
       },
       logLevel: 'info',
     });
+  });
+
+  it('passes sync.ignoreElements to the agent as matchers', () => {
+    expect(toAgentConfig({ apps: {}, sync: { ignoreElements: ['logo-glow', { text: /loading/i }] } }).sync.ignoreElements).toEqual([
+      { id: 'logo-glow' },
+      { text: { regex: { source: 'loading', flags: 'i' } } },
+    ]);
   });
 
   it('uses server.port or 7357', () => {

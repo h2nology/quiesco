@@ -122,7 +122,14 @@ function quiescoConfig(app: AppJson, platforms: readonly CliPlatform[]): string 
   if (platforms.includes('web')) {
     lines.push("    // Static export made with EXPO_PUBLIC_QUIESCO=1 npx expo export --platform web.", "    web: { distDir: 'dist' },");
   }
-  lines.push('  },', '});', '');
+  lines.push(
+    '  },',
+    '  // A decorative animation that runs for minutes (the default Expo template spins a glow on the home',
+    "  // screen) never lets the screen settle: give it a testID and list it here.",
+    "  // sync: { ignoreElements: ['logo-glow'] },",
+    '});',
+    '',
+  );
   return lines.join('\n');
 }
 
@@ -205,13 +212,17 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
     }
     spec = (name) => (tarballs.has(name) ? `file:${tarballs.get(name) as string}` : name);
     // Their own dependencies on each other ("@quiesco/protocol": "0.0.0") must resolve to the tarballs too.
-    const pins = Object.fromEntries([...tarballs].map(([n, f]) => [n, `file:${f}`]));
+    // npm refuses an override for a package that is also a direct dependency (EOVERRIDE) and reuses the
+    // directly installed tarballs for those ranges anyway: pin only the indirect ones there. pnpm and
+    // yarn resolve every dependency on its own, so they need all of them pinned.
+    const direct = new Set([...runtime, ...dev]);
+    const pins = Object.fromEntries([...tarballs].filter(([n]) => pm !== 'npm' || !direct.has(n)).map(([n, f]) => [n, `file:${f}`]));
     const current = readJson<PackageJson>(ctx, pkgFile) as PackageJson;
     if (pm === 'pnpm') current.pnpm = { ...current.pnpm, overrides: { ...current.pnpm?.overrides, ...pins } };
     else if (pm === 'yarn') current.resolutions = { ...current.resolutions, ...pins };
     else current.overrides = { ...current.overrides, ...pins };
     writeJson(ctx, pkgFile, current);
-    steps.push({ status: 'updated', what: 'package.json', note: `pinned ${tarballs.size} Quiesco packages to the tarballs in ${packagesOpt.value}` });
+    steps.push({ status: 'updated', what: 'package.json', note: `installing from the tarballs in ${packagesOpt.value} (${Object.keys(pins).length} indirect ${Object.keys(pins).length === 1 ? 'dependency' : 'dependencies'} pinned)` });
   }
   const installs = [addCommand(pm, false, runtime.map(spec)), addCommand(pm, true, dev.map(spec))];
   for (const cmd of installs) {
@@ -291,7 +302,7 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
     }
   }
 
-  // 5. quiesco.config.ts, cucumber config, features.
+  // 5. quiesco.config.mts (.mts: an ES module whatever package.json says), cucumber config, features.
   const write = (rel: string, content: string, note: string, alternatives: readonly string[] = [rel]): void => {
     const existing = alternatives.find((f) => ctx.exists(path.join(ctx.cwd, f)));
     if (existing !== undefined) {
@@ -301,7 +312,7 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
     ctx.writeFile(path.join(ctx.cwd, rel), content);
     steps.push({ status: 'created', what: rel, note });
   };
-  write('quiesco.config.ts', quiescoConfig(app, platforms), `apps: ${platforms.join(', ')}`, ['quiesco.config.ts', 'quiesco.config.mts', 'quiesco.config.js', 'quiesco.config.mjs']);
+  write('quiesco.config.mts', quiescoConfig(app, platforms), `apps: ${platforms.join(', ')}`, ['quiesco.config.ts', 'quiesco.config.mts', 'quiesco.config.js', 'quiesco.config.mjs']);
   write('cucumber.mjs', CUCUMBER_CONFIG, 'features/**/*.feature', ['cucumber.mjs', 'cucumber.js', 'cucumber.cjs', 'cucumber.json', 'cucumber.yaml', 'cucumber.yml']);
   write('features/package.json', '{ "type": "module" }\n', 'step files are ES modules');
   write('features/support/quiesco.ts', SUPPORT, 'this.app and the lifecycle hooks');
@@ -333,6 +344,7 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
   ctx.out("  1. Wrap the root layout in <QuiescoRoot> (import { QuiescoRoot } from '@quiesco/agent').");
   ctx.out('  2. Give the home screen testID="home" (features/step_definitions/app.steps.ts looks for it).');
   if (platforms.includes('web')) ctx.out('  3. npx playwright install chromium, then npm run e2e:web');
-  if (platforms.some((p) => p !== 'web')) ctx.out('  •  iOS / Android: build the app with EXPO_PUBLIC_QUIESCO=1, fix binaryPath in quiesco.config.ts, run `npx quiesco doctor`.');
+  if (platforms.some((p) => p !== 'web')) ctx.out('  •  iOS / Android: build the app with EXPO_PUBLIC_QUIESCO=1, fix binaryPath in quiesco.config.mts, run `npx quiesco doctor`.');
+  ctx.out('  •  A SYNC_TIMEOUT that names a decorative animation (the default template spins a glow): give it a testID and add it to sync.ignoreElements.');
   return 0;
 }

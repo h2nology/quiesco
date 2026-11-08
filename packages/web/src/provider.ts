@@ -1,6 +1,7 @@
 /**
  * Web DeviceProvider (requirements.md §6.9): the Playwright library (never @playwright/test).
- * - boot: launch the browser; install: serve `distDir` or check `url`;
+ * - boot: launch the browser; install: serve `distDir` (a static export with Quiesco's file server, a
+ *   server export with `npx expo serve`) or check `url`;
  * - launch: a fresh browser context per app launch (cookies and storage isolated; hard reset = new
  *   context), connection parameters injected with addInitScript before any page script runs
  *   (docs/spikes/05), then open the app;
@@ -14,6 +15,7 @@ import { QuiescoError, silentLogger } from '@quiesco/core';
 import { chromium, firefox, webkit } from 'playwright';
 import type { Browser, BrowserContext, BrowserType, Page } from 'playwright';
 
+import { isServerExport, startExpoServer } from './expo-server.js';
 import { startStaticServer } from './static-server.js';
 import type { StaticServer } from './static-server.js';
 
@@ -64,7 +66,9 @@ export class WebProvider implements DeviceProvider {
   async install(): Promise<void> {
     const { distDir, url } = this.options.app;
     if (distDir !== undefined) {
-      this.server = await startStaticServer(distDir).catch((e: unknown) => {
+      const server = isServerExport(distDir);
+      if (server) this.logger.info(`${distDir} is a server export (web.output: "server"); starting \`npx expo serve\``);
+      this.server = await (server ? startExpoServer(distDir) : startStaticServer(distDir)).catch((e: unknown) => {
         throw new QuiescoError('CONFIG_ERROR', (e as Error).message);
       });
       this.baseUrl = this.server.url;

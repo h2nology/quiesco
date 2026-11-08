@@ -24,8 +24,9 @@ describe('quiesco init', () => {
     const pkg = JSON.parse(ctx.file('package.json') as string);
     expect(pkg.main).toBe('index.ts');
     expect(pkg.scripts).toMatchObject({ 'e2e:web': expect.stringContaining('quiesco test --platform web'), 'e2e:android': 'quiesco test --platform android' });
-    const config = ctx.file('quiesco.config.ts') as string;
+    const config = ctx.file('quiesco.config.mts') as string;
     expect(config).toContain("web: { distDir: 'dist' }");
+    expect(config).toContain("// sync: { ignoreElements: ['logo-glow'] },");
     expect(config).toContain("devClient: { scheme: 'myapp'");
     expect(config).toContain("package: 'com.example.app', // TODO: expo.android.package");
     expect(ctx.file('features/support/quiesco.ts')).toContain("import '@quiesco/cucumber/register'");
@@ -37,18 +38,18 @@ describe('quiesco init', () => {
     const ctx = fakeContext();
     freshExpoApp(ctx);
     await main(['init', '--skip-install'], ctx);
-    ctx.put('quiesco.config.ts', '// mine\n');
+    ctx.put('quiesco.config.mts', '// mine\n');
     const before = ctx.file('index.ts');
     ctx.lines.length = 0;
     expect(await main(['init', '--skip-install'], ctx)).toBe(0);
-    expect(ctx.file('quiesco.config.ts')).toBe('// mine\n');
+    expect(ctx.file('quiesco.config.mts')).toBe('// mine\n');
     expect(ctx.file('index.ts')).toBe(before);
     expect(JSON.parse(ctx.file('app.json') as string).expo.plugins).toEqual(['expo-router', '@quiesco/expo-plugin']);
     const out = ctx.lines.join('\n');
     expect(out).toMatch(/= app\.json — @quiesco\/expo-plugin already listed/);
     expect(out).toMatch(/= metro\.config\.js — already uses withQuiesco/);
     expect(out).toMatch(/= index\.ts — already imports @quiesco\/agent/);
-    expect(out).toMatch(/= quiesco\.config\.ts — already exists/);
+    expect(out).toMatch(/= quiesco\.config\.mts — already exists/);
     expect(out).toMatch(/! install — npm install @quiesco\/agent/);
     expect(ctx.calls).toEqual([]);
   });
@@ -67,7 +68,7 @@ describe('quiesco init', () => {
     expect(ctx.file('metro.config.js')).toBe('module.exports = { custom: true };\n');
     expect(ctx.lines.join('\n')).toMatch(/! metro\.config\.js — wrap the exported config/);
     expect(ctx.file('App.tsx')).toMatch(/^import '@quiesco\/agent';.*\nimport \{ registerRootComponent \}/);
-    expect(ctx.file('quiesco.config.ts')).not.toContain('web:');
+    expect(ctx.file('quiesco.config.mts')).not.toContain('web:');
     expect(ctx.calls[1]?.args).not.toContain('playwright');
   });
 
@@ -80,11 +81,17 @@ describe('quiesco init', () => {
     freshExpoApp(ctx);
     expect(await main(['init', '--packages', dir], ctx)).toBe(0);
     const pkg = JSON.parse(ctx.file('package.json') as string);
-    expect(pkg.overrides['@quiesco/protocol']).toBe(`file:${path.join(dir, 'quiesco-protocol-0.0.0.tgz')}`);
-    expect(pkg.overrides['quiesco']).toBe(`file:${path.join(dir, 'quiesco-0.0.0.tgz')}`);
+    // npm: only the packages not installed directly (an override for a direct dependency is EOVERRIDE)
+    expect(pkg.overrides).toEqual({ '@quiesco/protocol': `file:${path.join(dir, 'quiesco-protocol-0.0.0.tgz')}` });
     expect(ctx.calls[0]?.args).toEqual(['install', `file:${path.join(dir, 'quiesco-agent-0.0.0.tgz')}`, `file:${path.join(dir, 'quiesco-native-0.0.0.tgz')}`]);
     expect(ctx.calls[1]?.args).toContain('@cucumber/cucumber');
     expect(ctx.calls[1]?.args).toContain('playwright');
+    // pnpm resolves each range on its own: every Quiesco package is pinned
+    const pnpm = fakeContext();
+    freshExpoApp(pnpm);
+    pnpm.put('pnpm-lock.yaml', '');
+    expect(await main(['init', '--packages', dir], pnpm)).toBe(0);
+    expect(Object.keys(JSON.parse(pnpm.file('package.json') as string).pnpm.overrides)).toHaveLength(8);
     fs.rmSync(path.join(dir, 'quiesco-web-0.0.0.tgz'));
     const missing = fakeContext();
     freshExpoApp(missing);
@@ -107,6 +114,6 @@ describe('quiesco init', () => {
     freshExpoApp(failing);
     expect(await main(['init'], failing)).toBe(1);
     expect(failing.errors.join('\n')).toMatch(/E404[\s\S]*failed \(exit 1\)/);
-    expect(failing.file('quiesco.config.ts')).toBeNull();
+    expect(failing.file('quiesco.config.mts')).toBeNull();
   });
 });

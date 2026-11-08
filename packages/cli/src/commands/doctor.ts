@@ -255,7 +255,7 @@ export async function runChecks(ctx: CliContext, only: CliPlatform | undefined, 
     config = await deps.loadConfig(ctx.cwd);
     results.push({ name: 'quiesco.config', status: 'ok', detail: `apps: ${Object.keys(config.apps).join(', ') || 'none'}` });
   } catch (e) {
-    results.push({ name: 'quiesco.config', status: 'fail', detail: (e as Error).message.split('\n')[0] ?? '', fix: 'Create quiesco.config.ts (npx quiesco init writes one).' });
+    results.push({ name: 'quiesco.config', status: 'fail', detail: (e as Error).message.split('\n')[0] ?? '', fix: 'Create quiesco.config.mts (npx quiesco init writes one).' });
   }
 
   const platforms = only !== undefined ? [only] : PLATFORMS.filter((p) => config?.apps[p] !== undefined);

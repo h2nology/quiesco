@@ -5,7 +5,7 @@ The same features, steps and `this.app` calls run on all three platforms. What d
 | | iOS | Android | Web |
 |---|---|---|---|
 | Device | Simulator (`xcrun simctl`), booted if needed | Emulator or device (`adb`); an AVD is booted cold if needed | Chromium through the Playwright library (a new browser context per launch) |
-| App build | `.app` for the simulator, made with `EXPO_PUBLIC_QUIESCO=1` | APK made with `EXPO_PUBLIC_QUIESCO=1` | `npx expo export --platform web` with `EXPO_PUBLIC_QUIESCO=1`, or a dev server |
+| App build | `.app` for the simulator, made with `EXPO_PUBLIC_QUIESCO=1` | APK made with `EXPO_PUBLIC_QUIESCO=1` | `npx expo export --platform web` with `EXPO_PUBLIC_QUIESCO=1` (static output served by Quiesco, server output hosted with `npx expo serve`), or a dev server |
 | How the app finds the host | launch arguments | intent extras | an init script in the page |
 | Real input (`native` mode) | synthesized `UITouch` events (`@quiesco/native`, private API, e2e builds only) | `MotionEvent`s dispatched to the activity (`@quiesco/native`) | Playwright touchscreen (touch viewports) or mouse; text with the keyboard |
 | Text input | `insertText` | `InputConnection.commitText` (any language, written at once) | Playwright keyboard |

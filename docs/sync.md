@@ -41,9 +41,11 @@ What to do depends on the tracker:
 - **timer** — a short timer that is re-armed forever (a polling loop with `setTimeout`, a toast that
   re-schedules itself). Raise `sync.timerThresholdMs` only if the loop is longer than the threshold;
   otherwise skip sync for that step (`{ sync: false }`) or stop the loop in e2e builds.
-- **frame-stable** — something keeps moving: an endless animation (spinner, shimmer, marquee) or a
-  counter. The report names the first element that changed. Call the step with `{ sync: false }` and
-  assert what you need afterwards, or disable the animation in e2e builds. If `frames sampled` is very
+- **frame-stable** — something keeps moving: an endless animation (spinner, shimmer, marquee, a slow
+  decorative glow) or a counter. The report names the first element that changed. If the element is
+  decoration, give it a testID and list it in `sync.ignoreElements` — it and its subtree are left out of
+  this check, everything else still is. Otherwise call the step with `{ sync: false }` and assert what
+  you need afterwards, or disable the animation in e2e builds. If `frames sampled` is very
   low for the time waited, the UI thread is starved (an overloaded emulator), not animating.
 - **react** — a render loop (a state update in an effect without a guard) never settles: a real bug.
 

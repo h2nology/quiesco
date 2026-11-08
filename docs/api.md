@@ -139,7 +139,7 @@ export default defineConfig({
 |---|---|---|
 | `apps.ios.bundleId` / `binaryPath` / `devClient.metroUrl` | | App to install (`.app` for the simulator) and launch; `devClient`: launch the Expo dev client with this Metro |
 | `apps.android.package` / `binaryPath` / `activity` / `devClient` / `reversePorts` | `.MainActivity` | APK to install and launch; `devClient: { scheme, metroUrl }`; `reversePorts`: host ports the app calls on `localhost` (`adb reverse`) |
-| `apps.web.distDir` / `url` / `path` | `/` | A static export served by Quiesco, or a running server |
+| `apps.web.distDir` / `url` / `path` | `/` | An export (static: served by Quiesco; `web.output: "server"`: hosted with `npx expo serve`), or a running server |
 | `devices.ios.device` / `os` / `udid` | the booted simulator | Which simulator; booted if needed |
 | `devices.ios.disablePasswordAutoFill` | `true` | Keep iOS's "Save Password?" sheet from covering the app |
 | `devices.android.avd` / `serial` | a running device | Which emulator / device; the AVD is booted (cold) if not running |
@@ -152,6 +152,7 @@ export default defineConfig({
 | `sync.stableFrames` | `2` | Frames the element tree must stay the same |
 | `sync.ignoreUrls` | `[]` | Requests that never keep the app busy (strings match as substrings) |
 | `sync.trackers` | all on | e.g. `{ 'frame-stable': false }` |
+| `sync.ignoreElements` | `[]` | Matchers of elements (with their subtrees) left out of the frame-stable check, e.g. a decorative animation: `['logo-glow']` |
 | `actions.mode` | `native` if the app has `@quiesco/native`, else `js` | Real input or callbacks |
 | `reset.default` | `soft` | `hard` relaunches the app before every scenario |
 | `server.port` / `server.host` | `7357` / all interfaces | The host's WebSocket server |

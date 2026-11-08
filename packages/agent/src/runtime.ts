@@ -184,6 +184,21 @@ export class AgentRuntime {
     this.events.setLevel(config.logLevel);
   }
 
+  /** Elements matching `sync.ignoreElements`, left out of the frame-stable snapshot with their subtrees. */
+  private ignoredForFrames(roots: readonly HostNode[]): ReadonlySet<HostNode> | undefined {
+    const matchers = this.config.sync.ignoreElements ?? [];
+    if (matchers.length === 0) return undefined;
+    const out = new Set<HostNode>();
+    for (const m of matchers) {
+      try {
+        for (const n of findAll(roots, m)) out.add(n);
+      } catch {
+        // e.g. a `within` that matches nothing on this screen: nothing to ignore
+      }
+    }
+    return out;
+  }
+
   handle(method: string, params: unknown): Promise<unknown> {
     const h = (this.handlers as Record<string, ((p: unknown) => Promise<unknown>) | undefined>)[method];
     if (h === undefined) return Promise.reject(new MethodNotFound(method));
@@ -432,7 +447,12 @@ export class AgentRuntime {
   private defaultTrackers(): IdleTracker[] {
     this.network = new NetworkTracker({ target: this.global });
     this.timer = new TimerTracker({ target: this.global as unknown as TimerGlobals });
-    this.frames = new FrameStableTracker({ snapshot: () => structureLines(this.adapter.getHostRoots()) });
+    this.frames = new FrameStableTracker({
+      snapshot: () => {
+        const roots = this.adapter.getHostRoots();
+        return structureLines(roots, this.ignoredForFrames(roots));
+      },
+    });
     return [
       this.network,
       this.timer,

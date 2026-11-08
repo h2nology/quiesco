@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-Phase 5 进行中：5.0 ✅ → 5.1 ✅（init 实机验证放在 5.5） → 5.2 ✅ → 5.3 ✅ → 5.4 ✅（快速开始待 5.5 实测修正） → 5.5 验收。prod-strip.yml 待推送后实跑。
+全部 6 个阶段（Phase 0–5）完成并已提交。遗留：prod-strip.yml 与 ci.yml 推送后在 GitHub Actions 实跑；§11-5 npm 发布流程待 HU 决定；原生平台的全新项目流程未实跑。
 
 ## Current Phase
 Phase 5
@@ -141,9 +141,9 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 - [x] 5.2 权限与键盘：权限映射表文档 + 示例 App 授权场景；动作目标被键盘遮挡时自动收起键盘后再执行（三端），单元测试 + 实机
 - [x] 5.3 `@quiesco/steps`：`registerQuiescoSteps()`，中 / 日 / 英三套步骤文本；文档注明只适合原型期（§6.11）
 - [x] 5.4 文档：根 README（快速开始、MIT）、`LICENSE`、`docs/`（API 参考、同步机制、三端差异、故障排查、Driver 模式、CLI、steps）
-- [ ] 5.5 验收：全新 create-expo-app（SDK 58）按 README 操作计时 ≤ 10 分钟跑通首个场景（Web；时间允许再 Android）；`pnpm run check`
+- [x] 5.5 验收：全新 create-expo-app（SDK 58）按 README 操作计时 ≤ 10 分钟跑通首个场景（Web；时间允许再 Android）；`pnpm run check`
 - **验收：** 全新 create-expo-app 项目按 README 10 分钟内在任一平台跑通首个场景
-- **Status:** in_progress
+- **Status:** complete（2026-11-08）
 
 ## 待 HU 决定（requirements.md §11，遇到时暂停询问）
 | # | 事项 | 何时需要 | 状态 |

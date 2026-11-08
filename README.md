@@ -37,34 +37,43 @@ Requirements: Node.js 24+, an Expo app on SDK 58 (`npx create-expo-app@latest`).
 
 ```sh
 cd my-app
-npx quiesco init          # dependencies, config plugin, Metro, entry file, quiesco.config.ts, a first feature
+npx quiesco init          # dependencies, config plugin, Metro, entry file, quiesco.config.mts, a first feature
 ```
 
 Then, in your app:
 
-1. Wrap the root layout in `<QuiescoRoot>` (`app/_layout.tsx` with Expo Router):
+1. Wrap the root layout in `<QuiescoRoot>` (`src/app/_layout.tsx` in the default template):
 
    ```tsx
    import { QuiescoRoot } from '@quiesco/agent';
 
-   export default function RootLayout() {
+   export default function TabLayout() {
+     // …
      return (
        <QuiescoRoot>
-         <Stack />
+         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>…</ThemeProvider>
        </QuiescoRoot>
      );
    }
    ```
 
-2. Give the home screen a test id: `<View testID="home">…`. The generated
-   `features/app.feature` checks that it is visible.
+2. Give the home screen a test id: `<ThemedView style={styles.container} testID="home">` in
+   `src/app/index.tsx`. The generated `features/app.feature` checks that it is visible.
 
-3. Run it:
+3. The default template spins a decorative glow on the home screen for four minutes, so the screen never
+   settles. Give it a test id — `<Animated.View … style={styles.glow} testID="logo-glow">` in
+   `src/components/animated-icon.web.tsx` (and `animated-icon.tsx` for iOS / Android) — and uncomment
+   `sync: { ignoreElements: ['logo-glow'] }` in `quiesco.config.mts`.
+
+4. Run it:
 
    ```sh
    npx playwright install chromium
    npm run e2e:web           # exports the web build with EXPO_PUBLIC_QUIESCO=1, then quiesco test --platform web
    ```
+
+   The template renders on the server (`web.output: "server"`); Quiesco runs `npx expo serve` for that
+   export by itself. Static exports are served directly.
 
 `npx quiesco doctor` checks the setup and says how to fix what is missing.
 `npx quiesco tree` prints the element tree of the running app to find test ids.
@@ -87,7 +96,7 @@ EXPO_PUBLIC_QUIESCO=1 npx expo start --dev-client   # Metro, in another terminal
 npm run e2e:android       # or: npm run e2e:ios
 ```
 
-Point `binaryPath` in `quiesco.config.ts` at the build (the generated config has the usual paths) and
+Point `binaryPath` in `quiesco.config.mts` at the build (the generated config has the usual paths) and
 set the emulator / simulator in `devices` (see [configuration](docs/api.md#configuration)). For CI, an
 EAS build profile with `EXPO_PUBLIC_QUIESCO=1` produces the same e2e build; see
 [examples/todo-app](examples/todo-app/README.md) for a complete, tested setup on all three platforms.

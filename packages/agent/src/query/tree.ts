@@ -86,11 +86,12 @@ export function getTree(roots: readonly HostNode[]): TreeNode | null {
  * tree order with its type, testID, text, rounded rect and child count. Two frames are stable when the
  * lines are equal; the lines also say which node changed when the tree never settles.
  */
-export function structureLines(roots: readonly HostNode[]): string[] {
+export function structureLines(roots: readonly HostNode[], skip?: ReadonlySet<HostNode>): string[] {
   const lines: string[] = [];
   const stack = [...roots].reverse();
   while (stack.length > 0) {
     const n = stack.pop() as HostNode;
+    if (skip?.has(n) === true) continue; // and its subtree
     const r = n.measure();
     const rect = r === null ? '-' : `${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)}`;
     lines.push(`${n.type}${n.testID === undefined ? '' : `#${n.testID}`}${n.ownText === '' ? '' : ` ${JSON.stringify(n.ownText)}`} @${rect} children=${n.children.length}`);

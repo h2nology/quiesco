@@ -126,6 +126,15 @@ describe('serialization', () => {
     expect(getTree(tree({}, {}))?.type).toBe('root');
   });
 
+  it('structureLines() leaves out skipped elements with their subtrees', () => {
+    const spinning = node({ children: [{ text: 'glow', rect: { x: 0, y: 0, width: 228, height: 228 } }] });
+    const page = node({ children: [] });
+    const all = structureLines([page, spinning]);
+    const skipped = structureLines([page, spinning], new Set([spinning]));
+    expect(all).toHaveLength(3);
+    expect(skipped).toEqual(structureLines([page]));
+  });
+
   it('structureLines() changes with text, rect (rounded) and structure, not with sub-pixel moves', () => {
     const base = node({ children: [{ text: 'a', rect: { x: 0, y: 0, width: 10, height: 10 } }] });
     const h = structureLines([base]);

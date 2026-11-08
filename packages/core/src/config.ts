@@ -10,7 +10,8 @@ import { DEFAULT_PORT, SyncDefaults } from '@quiesco/protocol';
 import type { ActionMode, AgentConfig, LogLevel, Platform, TrackerName } from '@quiesco/protocol';
 
 import { QuiescoError } from './errors.js';
-import { toTextMatch } from './matcher.js';
+import { toMatcher, toTextMatch } from './matcher.js';
+import type { MatcherInput } from './matcher.js';
 import type { Permission } from './devices/permissions.js';
 import type { TagNames } from './tags.js';
 
@@ -111,6 +112,12 @@ export interface QuiescoConfig {
     ignoreUrls?: (RegExp | string)[];
     /** Disable individual trackers, e.g. `{ 'frame-stable': false }`. */
     trackers?: Partial<Record<TrackerName, boolean>>;
+    /**
+     * Elements whose changes never keep the app busy for the frame-stable check (they and their
+     * subtrees are left out), e.g. `['logo-glow']` for a decorative animation that runs for minutes.
+     * Other trackers (network, timers, React) are not affected.
+     */
+    ignoreElements?: MatcherInput[];
   };
   /** `native` needs @quiesco/native; when omitted, `native` is used if the app has it, else `js`. */
   actions?: { mode?: ActionMode };
@@ -171,6 +178,7 @@ export function toAgentConfig(config: QuiescoConfig): AgentConfig {
       stableFrames: s.stableFrames ?? SyncDefaults.stableFrames,
       ignoreUrls: (s.ignoreUrls ?? []).map(toTextMatch),
       trackers: { ...s.trackers },
+      ignoreElements: (s.ignoreElements ?? []).map(toMatcher),
     },
     logLevel: config.logLevel ?? 'warn',
   };

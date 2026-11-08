@@ -246,3 +246,9 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - **Android 注入的触摸会穿过键盘**：dispatchTouchEvent 进 Activity 窗口，被 IME 盖住的元素也能点到（真实用户做不到）⇒ 自动收起键盘后行为才与用户一致。
 - **`simctl privacy`（Xcode 27）服务**：calendar、contacts(-limited)、location(-always)、photos(-add)、media-library、microphone、motion、reminders、siri；**没有 camera、notifications**。location 授权记录在 `data/Library/Caches/locationd/clients.plist` 的 `Authorization`（revoke=1、grant=2）。
 - **权限映射**：camera → Android CAMERA / iOS ✗ / Web camera；microphone → RECORD_AUDIO / microphone / microphone；location → ACCESS_FINE+COARSE_LOCATION / location / geolocation；notifications → POST_NOTIFICATIONS / ✗ / notifications；contacts → READ_CONTACTS / contacts / ✗；photos → READ_MEDIA_IMAGES / photos / ✗；calendar → READ+WRITE_CALENDAR / calendar / ✗。Android 只能授予 manifest 中声明过的权限（否则警告）。
+
+## Phase 5.5 全新项目验收（2026-11-08）
+- **create-expo-app（SDK 58 默认模板）**：`main: expo-router/entry`，路由在 `src/app/`，`app.json` 的 `web.output` 默认是 **`server`**（SSR）：`expo export --platform web` 生成 `dist/client`（无 index.html）+ `dist/server`，需 `npx expo serve <项目目录> --port N` 托管。
+- **npm overrides**：同一个包既是直接依赖又在 overrides 中 ⇒ `EOVERRIDE`；npm 会把顶层 file: tarball（0.0.0）复用给其他包的 "0.0.0" 依赖，所以只需 pin 非直接依赖。pnpm / yarn 各自解析，需要全部 pin。
+- **模板首页的装饰动画**：`src/components/animated-icon(.web).tsx` 用 Reanimated `Keyframe` 做 4 分钟（`60*1000*4`）的旋转光晕，元素外接矩形每帧变化 ⇒ frame-stable 永远不稳定。
+- **`expo serve <dir>` 的 dir 是导出目录**（帮助文字写「项目目录」）：传项目目录会以静态方式托管该目录（日志「Starting static server in …」，全部 404）；传 `dist` 才是「Starting server in …/dist」并做 SSR。

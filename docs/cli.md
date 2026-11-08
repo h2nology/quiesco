@@ -17,7 +17,7 @@ overwritten — when a file needs a change Quiesco cannot make safely, it prints
 3. Creates `metro.config.js` with `withQuiesco()` (or explains how to wrap an existing one).
 4. Makes `@quiesco/agent` the first import of the entry file. Expo Router apps get an `index.ts`
    (`import '@quiesco/agent'; import 'expo-router/entry';`) and `"main": "index.ts"`.
-5. Writes `quiesco.config.ts` (bundle id, package and scheme taken from `app.json`), `cucumber.mjs`,
+5. Writes `quiesco.config.mts` (bundle id, package and scheme taken from `app.json`), `cucumber.mjs`,
    `features/support/quiesco.ts`, a first feature with its step, and `e2e:*` scripts.
 
 | Option | |
@@ -42,7 +42,7 @@ unchanged. `--parallel` is refused: Quiesco drives one device at a time.
 ## `quiesco doctor`
 
 ```sh
-npx quiesco doctor                 # every platform configured in quiesco.config.ts
+npx quiesco doctor                 # every platform configured in quiesco.config.mts
 npx quiesco doctor --platform ios
 ```
 

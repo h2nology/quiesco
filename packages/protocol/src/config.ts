@@ -1,5 +1,5 @@
 import type { LogLevel } from './events.js';
-import type { TextMatch } from './matcher.js';
+import type { Matcher, TextMatch } from './matcher.js';
 
 export type TrackerName = 'network' | 'timer' | 'react' | 'idle-callback' | 'frame-stable' | 'native';
 
@@ -17,6 +17,11 @@ export interface AgentConfig {
     ignoreUrls: TextMatch[];
     /** Per-tracker switch; omitted trackers are enabled. */
     trackers: Partial<Record<TrackerName, boolean>>;
+    /**
+     * Elements (and their subtrees) left out of the frame-stable check, e.g. a decorative animation that
+     * runs for minutes. Optional for older hosts.
+     */
+    ignoreElements?: Matcher[];
   };
   /** Minimum console level forwarded as `log` events; `off` disables forwarding. */
   logLevel: LogLevel | 'off';
