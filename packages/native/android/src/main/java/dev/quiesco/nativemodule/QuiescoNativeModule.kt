@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.view.InputDevice
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -80,6 +81,65 @@ class QuiescoNativeModule : Module() {
         }
       }
       main.postDelayed({ step(1) }, (durationMs / steps).toLong())
+    }.runOnQueue(Queues.MAIN)
+
+    /**
+     * One finger along a timed path in dp of the window of `tag` (activity window when tag < 0): `path`
+     * is flat [x, y, tMs, ...] with t from 0, increasing. Down at the first point, up at the last; moves
+     * are interpolated every STEP_MS between points that differ, none while the finger rests (a hold).
+     */
+    AsyncFunction("gesture") { tag: Int, path: List<Double>, promise: Promise ->
+      if (path.size < 6 || path.size % 3 != 0) return@AsyncFunction promise.reject("E_BAD_ARGS", "path needs at least two [x, y, tMs] points", null)
+      val root = (if (tag >= 0) findView(tag)?.rootView else null) ?: appContext.currentActivity?.window?.decorView
+        ?: return@AsyncFunction promise.reject("E_NO_VIEW", "no window for view $tag", null)
+      val d = density()
+      val pts = (path.indices step 3).map { Triple((path[it] * d).toFloat(), (path[it + 1] * d).toFloat(), path[it + 2]) }
+      val events = ArrayList<Triple<Float, Float, Double>>()
+      for (i in 1 until pts.size) {
+        val (ax, ay, ta) = pts[i - 1]
+        val (bx, by, tb) = pts[i]
+        val steps = if (ax == bx && ay == by) 1 else maxOf(1, ((tb - ta) / STEP_MS).toInt())
+        for (k in 1..steps) {
+          val t = k.toFloat() / steps
+          events.add(Triple(ax + (bx - ax) * t, ay + (by - ay) * t, ta + (tb - ta) * t))
+        }
+      }
+      val down = SystemClock.uptimeMillis()
+      var handled = dispatch(root, down, down, MotionEvent.ACTION_DOWN, pts[0].first, pts[0].second)
+      fun fire(i: Int) {
+        val (x, y, _) = events[i]
+        val last = i == events.size - 1
+        handled = dispatch(root, down, SystemClock.uptimeMillis(), if (last) MotionEvent.ACTION_UP else MotionEvent.ACTION_MOVE, x, y) && handled
+        if (last) promise.resolve(mapOf("handled" to handled))
+        else main.postAtTime({ fire(i + 1) }, down + events[i + 1].third.toLong())
+      }
+      main.postAtTime({ fire(0) }, down + events[0].third.toLong())
+    }.runOnQueue(Queues.MAIN)
+
+    /**
+     * A key of the soft keyboard on the text field `tag`, through its InputConnection: `enter` performs
+     * the field's IME action (where React Native submits), or commits a newline when the field asks for
+     * no enter action (multi-line); `backspace` sends KEYCODE_DEL (RN reports it to onKeyPress).
+     */
+    AsyncFunction("pressKey") { tag: Int, key: String, promise: Promise ->
+      val view = findView(tag) ?: return@AsyncFunction promise.reject("E_NO_VIEW", "view $tag not found", null)
+      val edit = findEditText(view) ?: return@AsyncFunction promise.reject("E_NOT_TEXT_INPUT", "view $tag is not a text field", null)
+      edit.requestFocus()
+      val info = EditorInfo()
+      val ic = edit.onCreateInputConnection(info) ?: return@AsyncFunction promise.reject("E_NOT_TEXT_INPUT", "view $tag has no input connection", null)
+      when (key) {
+        "enter" -> {
+          val action = info.imeOptions and EditorInfo.IME_MASK_ACTION
+          if ((info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION) != 0 || action == EditorInfo.IME_ACTION_NONE) ic.commitText("\n", 1)
+          else ic.performEditorAction(if (action == EditorInfo.IME_ACTION_UNSPECIFIED) EditorInfo.IME_ACTION_DONE else action)
+        }
+        "backspace" -> {
+          ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL))
+          ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL))
+        }
+        else -> return@AsyncFunction promise.reject("E_BAD_ARGS", "unknown key $key", null)
+      }
+      promise.resolve(mapOf("text" to (edit.text?.toString() ?: ""), "focused" to edit.isFocused))
     }.runOnQueue(Queues.MAIN)
 
     /**

@@ -57,6 +57,10 @@ class Node implements HostNode {
     return this.platform.isFocused(this.fiber);
   }
 
+  focus(): boolean {
+    return this.platform.focus(this.fiber);
+  }
+
   inputValue(): string | undefined {
     return this.platform.inputValue(this.type, this.fiber, this.props as Record<string, unknown>);
   }
@@ -102,6 +106,7 @@ class Node implements HostNode {
       return {
         call: (...args) => (inst[method] as (...a: unknown[]) => unknown).apply(inst, args),
         hostNodes: () => buildHostTree(owner, platform),
+        raw: () => inst,
       };
     }
     return null;

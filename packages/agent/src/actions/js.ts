@@ -9,25 +9,37 @@
  *   Controlled inputs update through their `value`; uncontrolled inputs keep their native text.
  *   `type` appends to the current `value` (or `defaultValue`) in a single call, not key by key.
  * - scroll / swipe / scrollTo call `scrollTo({ x, y, animated: false })` on the nearest ScrollView
- *   (FlatList / SectionList included). Other scrollables (pager views ...) are not supported.
+ *   (FlatList / SectionList included). Other scrollables (pager views ...) are not supported. `from`
+ *   (a start point) has no meaning here and is ignored.
+ * - A tap at a point (`tap(t, { point })`, `tapAt`) presses the topmost element under that point.
+ * - A tap on a switch / checkbox without onPress calls `onValueChange(!value)` (unless disabled).
+ * - pressKey: `enter` calls `onSubmitEditing` (a multi-line input without it gets a newline);
+ *   `backspace` calls `onKeyPress` and removes the last character.
+ * - drag is not supported (it needs real touches).
  */
-import type { Direction, Rect } from '@quiesco/protocol';
+import type { Direction, Edge, KeyName, Point, Rect } from '@quiesco/protocol';
 
 import { QuiescoError } from '../errors';
 import type { HandlerRef, HostNode } from '../fiber-adapter';
+import { hitTest } from './hit-test';
 
 export interface JsActionContext {
   platform: string;
+  /** Current host roots, for taps at a point (hit testing). */
+  roots?: () => readonly HostNode[];
 }
 
-/** Synthetic event passed to press handlers: the fields user code commonly reads. */
-function pressEvent(node: HostNode, type: string): Record<string, unknown> {
+/** Holding at least this long is a long press (`longPressAt`). */
+export const LONG_PRESS_THRESHOLD_MS = 500;
+
+/** Synthetic event passed to press handlers: the fields user code commonly reads. `at`: window point. */
+function pressEvent(node: HostNode, type: string, at?: Point): Record<string, unknown> {
   const r = node.measure();
-  const cx = r === null ? 0 : r.x + r.width / 2;
-  const cy = r === null ? 0 : r.y + r.height / 2;
+  const cx = at?.x ?? (r === null ? 0 : r.x + r.width / 2);
+  const cy = at?.y ?? (r === null ? 0 : r.y + r.height / 2);
   const nativeEvent = {
-    locationX: r === null ? 0 : r.width / 2,
-    locationY: r === null ? 0 : r.height / 2,
+    locationX: r === null ? 0 : cx - r.x,
+    locationY: r === null ? 0 : cy - r.y,
     pageX: cx,
     pageY: cy,
     timestamp: Date.now(),
@@ -50,7 +62,9 @@ function pressEvent(node: HostNode, type: string): Record<string, unknown> {
   };
 }
 
-function notSupported(action: 'tap' | 'longPress' | 'doubleTap' | 'type' | 'clear' | 'scroll' | 'swipe' | 'scrollTo', ctx: JsActionContext, hint: string): QuiescoError {
+type JsAction = 'tap' | 'longPress' | 'doubleTap' | 'multiTap' | 'type' | 'replaceText' | 'clear' | 'pressKey' | 'scroll' | 'swipe' | 'scrollTo' | 'drag' | 'tapAt';
+
+export function notSupported(action: JsAction, ctx: JsActionContext, hint: string): QuiescoError {
   return new QuiescoError('ACTION_NOT_SUPPORTED', `${action} is not possible in js mode: ${hint}`, { action, platform: ctx.platform, hint });
 }
 
@@ -65,29 +79,57 @@ function call(owner: HandlerRef, name: string, event: unknown): void {
   if (typeof fn === 'function') (fn as (e: unknown) => unknown)(event);
 }
 
-function press(node: HostNode, handlerName: 'onPress' | 'onLongPress', action: 'tap' | 'longPress' | 'doubleTap', ctx: JsActionContext): void {
+/** A tap on a switch / checkbox without onPress toggles it through `onValueChange` (what the native control does). */
+function toggle(node: HostNode): boolean {
+  const owner = node.findHandler('onValueChange');
+  if (owner === null || typeof owner.props['value'] !== 'boolean') return false;
+  if (owner.props['disabled'] === true) return true;
+  owner.fn(!owner.props['value']);
+  return true;
+}
+
+function press(node: HostNode, handlerName: 'onPress' | 'onLongPress', action: JsAction, ctx: JsActionContext, at?: Point): void {
   const owner = node.findHandler(handlerName);
+  if (owner === null && handlerName === 'onPress' && toggle(node)) return;
   if (owner === null) throw notSupported(action, ctx, `no ${handlerName} handler on the element or its ancestors (gesture-handler gestures need native mode)`);
   if (isDisabled(node, owner)) return;
-  call(owner, 'onPressIn', pressEvent(node, 'pressIn'));
-  owner.fn(pressEvent(node, handlerName === 'onPress' ? 'press' : 'longPress'));
-  call(owner, 'onPressOut', pressEvent(node, 'pressOut'));
+  call(owner, 'onPressIn', pressEvent(node, 'pressIn', at));
+  owner.fn(pressEvent(node, handlerName === 'onPress' ? 'press' : 'longPress', at));
+  call(owner, 'onPressOut', pressEvent(node, 'pressOut', at));
 }
 
-export function tap(node: HostNode, ctx: JsActionContext): void {
-  press(node, 'onPress', 'tap', ctx);
+/** The topmost element at the window point `p` (hit testing like a real touch). */
+function elementAt(p: Point, action: JsAction, ctx: JsActionContext): HostNode {
+  const top = ctx.roots === undefined ? null : hitTest(ctx.roots(), p);
+  if (top === null) throw notSupported(action, ctx, `no element at (${Math.round(p.x)}, ${Math.round(p.y)})`);
+  return top;
 }
 
-export function longPress(node: HostNode, ctx: JsActionContext): void {
-  press(node, 'onLongPress', 'longPress', ctx);
+/** `point` inside `node` → the topmost element there (a child may be on top of the target). */
+function pressAt(node: HostNode, point: Point | undefined, handler: 'onPress' | 'onLongPress', action: JsAction, ctx: JsActionContext): void {
+  if (point === undefined) return press(node, handler, action, ctx);
+  const r = node.measure();
+  const at = { x: (r?.x ?? 0) + point.x, y: (r?.y ?? 0) + point.y };
+  press(elementAt(at, action, ctx), handler, action, ctx, at);
 }
 
-export function doubleTap(node: HostNode, ctx: JsActionContext): void {
-  press(node, 'onPress', 'doubleTap', ctx);
-  press(node, 'onPress', 'doubleTap', ctx);
+export function tap(node: HostNode, ctx: JsActionContext, point?: Point): void {
+  pressAt(node, point, 'onPress', 'tap', ctx);
 }
 
-function changeText(node: HostNode, action: 'type' | 'clear', next: (current: string) => string, ctx: JsActionContext): void {
+export function longPress(node: HostNode, ctx: JsActionContext, point?: Point): void {
+  pressAt(node, point, 'onLongPress', 'longPress', ctx);
+}
+
+export function multiTap(node: HostNode, count: number, ctx: JsActionContext): void {
+  for (let i = 0; i < count; i++) press(node, 'onPress', count === 2 ? 'doubleTap' : 'multiTap', ctx);
+}
+
+export function tapAt(p: Point, long: boolean, ctx: JsActionContext): void {
+  press(elementAt(p, 'tapAt', ctx), long ? 'onLongPress' : 'onPress', 'tapAt', ctx, p);
+}
+
+function changeText(node: HostNode, action: JsAction, next: (current: string) => string, ctx: JsActionContext): void {
   const owner = node.findHandler('onChangeText') ?? node.findHandler('onChange');
   if (owner === null) throw notSupported(action, ctx, 'no onChangeText / onChange handler on the element or its ancestors');
   if (owner.props['editable'] === false || owner.props['readOnly'] === true) return;
@@ -106,11 +148,34 @@ export function clearText(node: HostNode, ctx: JsActionContext): void {
   changeText(node, 'clear', () => '', ctx);
 }
 
+export function replaceText(node: HostNode, text: string, ctx: JsActionContext): void {
+  changeText(node, 'replaceText', () => text, ctx);
+}
+
+export function pressKey(node: HostNode, key: KeyName, ctx: JsActionContext): void {
+  const input = node.findHandler('onChangeText') ?? node.findHandler('onSubmitEditing') ?? node.findHandler('onKeyPress');
+  if (input === null) throw notSupported('pressKey', ctx, 'no text input (onChangeText / onSubmitEditing / onKeyPress) on the element or its ancestors');
+  const value = input.props['value'] ?? input.props['defaultValue'];
+  const text = typeof value === 'string' ? value : '';
+  call(input, 'onKeyPress', { nativeEvent: { key: key === 'enter' ? 'Enter' : 'Backspace' } });
+  if (key === 'backspace') {
+    if (typeof input.props['onChangeText'] === 'function' || typeof input.props['onChange'] === 'function') changeText(node, 'pressKey', (t) => t.slice(0, -1), ctx);
+    return;
+  }
+  if (typeof input.props['onSubmitEditing'] === 'function') {
+    call(input, 'onSubmitEditing', { nativeEvent: { text } });
+  } else if (input.props['multiline'] === true) {
+    changeText(node, 'pressKey', (t) => `${t}\n`, ctx);
+  }
+}
+
 export interface Scrollable {
   /** Current content offset. */
   offset(): { x: number; y: number };
   /** Size of the scroll viewport. */
   viewport(): Rect | null;
+  /** The content container (its size is the scrollable extent). */
+  content(): Rect | null;
   scrollTo(x: number, y: number): void;
 }
 
@@ -132,6 +197,7 @@ export function findScrollable(node: HostNode): Scrollable | null {
       return { x: s.x - c.x, y: s.y - c.y };
     },
     viewport: () => host().scroll?.measure() ?? null,
+    content: () => host().content?.measure() ?? null,
     scrollTo(x, y) {
       inst.call({ x: Math.max(0, x), y: Math.max(0, y), animated: false });
     },
@@ -149,6 +215,19 @@ export function scrollBy(s: Scrollable, direction: Direction, distance?: number)
   const { x, y } = s.offset();
   const sign = direction === 'down' || direction === 'right' ? 1 : -1;
   s.scrollTo(vertical ? x : x + sign * d, vertical ? y + sign * d : y);
+}
+
+/** Jump to an edge of the current content (a virtualized list may grow afterwards; callers repeat). */
+export function scrollToEdge(s: Scrollable, edge: Edge): void {
+  const vp = s.viewport();
+  const content = s.content();
+  const { x, y } = s.offset();
+  const maxX = vp === null || content === null ? x : Math.max(0, content.width - vp.width);
+  const maxY = vp === null || content === null ? y : Math.max(0, content.height - vp.height);
+  if (edge === 'top') s.scrollTo(x, 0);
+  else if (edge === 'bottom') s.scrollTo(x, maxY);
+  else if (edge === 'left') s.scrollTo(0, y);
+  else s.scrollTo(maxX, y);
 }
 
 /** A swipe moves the finger; the content scrolls the opposite way (swipe up = scroll down). */

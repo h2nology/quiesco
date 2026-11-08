@@ -305,3 +305,14 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - React 19 work tag（RN 0.88 渲染器源码确认）：0 Function、1 Class、11 ForwardRef、14 Memo、15 SimpleMemo、7 Fragment。
 - Expo monorepo 下 Metro 的 server root 是仓库根：bundle 路径为 `/examples/todo-app/index.bundle`；expo-router 的路由模块不在主 bundle（require.context 懒加载）。
 - 无 watchman 的 Metro 不会发现**新建**文件（文件 map 过期），表现为「Unable to resolve ./semantic」。
+
+## 6.2 源码确认（2026-11-09）
+- `VirtualizedList.scrollToIndex`（@react-native/virtualized-lists，RN 0.88）：index 越界 → invariant；**无 getItemLayout 且 index > 已测量的最大行** → 有 onScrollToIndexFailed 则回调后 return，否则 invariant 抛错（「should be used in conjunction with getItemLayout or onScrollToIndexFailed」）。⇒ Quiesco 不能直接调用：先判断是否安全（私有 `_listMetrics.getHighestMeasuredCellIndex()`，取不到则 try），不安全时向目标方向滚动、等空闲、重试。
+- 原生现状：iOS / Android `tap(tag≥0)` 永远点视图中心；`swipe` 无按住阶段；均为单指（6.4 再扩多指）。
+
+## 6.2 实测发现（2026-11-09）
+- Fabric（iOS）挂载层级 ≠ React 层级：canvas（有边框）的子节点 quadrant 的原生 superview 是屏幕容器，而非 canvas。原生「是否后代」不能用于可达性判断；`UIView.tag` = React tag，可与 JS `__nativeTag` 对照。
+- iOS 26：UINavigationController 在内容区任意位置右滑即返回（不仅是左边缘）；JS PanResponder 挡不住，需 `gestureEnabled: false`。
+- react-native-web ResponderSystem：出现文本选择（selectionchange）时终止当前 responder ⇒ 鼠标拖过文字时 PanResponder 收到 terminate 而非 release。
+- react-native-web 自带的 VirtualizedList（dist/vendor）用 `_highestMeasuredFrameIndex`，RN 0.88 用 `_listMetrics.getHighestMeasuredCellIndex()`。
+- `expo start` 在 `CI=1` 时不监听文件变化。

@@ -32,7 +32,7 @@ describe('js tap / longPress / doubleTap', () => {
     const onLongPress = vi.fn();
     const onPress = vi.fn();
     js.longPress(node({ owner: { onLongPress } }), ctx);
-    js.doubleTap(node({ owner: { onPress } }), ctx);
+    js.multiTap(node({ owner: { onPress } }), 2, ctx);
     expect(onLongPress).toHaveBeenCalledOnce();
     expect(onPress).toHaveBeenCalledTimes(2);
   });
@@ -68,7 +68,7 @@ describe('js scroll', () => {
       rect: { x: 0, y: 100, width: 400, height: 500 },
       children: [{ rect: { x: 0, y: 100 - offsetY, width: 400, height: 3000 } }],
     });
-    const instance: InstanceRef = { call: (arg) => calls.push(arg), hostNodes: () => [scroll] };
+    const instance: InstanceRef = { raw: () => ({}), call: (arg) => calls.push(arg), hostNodes: () => [scroll] };
     return { calls, target: node({ instance }) };
   }
 

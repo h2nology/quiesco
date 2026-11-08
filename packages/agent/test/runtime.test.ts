@@ -235,6 +235,96 @@ describe('AgentRuntime', () => {
     await expect(drive(call('query', { matcher: { id: 'a' }, sync: false }))).resolves.toMatchObject({ elements: [{ testID: 'a' }] });
   });
 
+  // ---- Phase 6.2 ----
+
+  /** A class component fiber (work tag 1) with `instance` as its stateNode. */
+  const classOf = (instance: object, ...children: Spec[]): Spec => ({ tag: 1, type: class List {}, props: {}, stateNode: instance, children });
+
+  it('scrollToIndex: scrolls to the last measured row until the requested row can be reached', async () => {
+    const { target, call } = setup();
+    let highest = 9;
+    const calls: number[] = [];
+    const list = {
+      props: { data: Array.from({ length: 200 }, (_, i) => i) },
+      _listMetrics: { getHighestMeasuredCellIndex: () => highest },
+      scrollToIndex({ index }: { index: number }) {
+        if (index > highest) throw new Error('scrollToIndex should be used in conjunction with getItemLayout or onScrollToIndexFailed');
+        calls.push(index);
+        if (index === highest) highest += 20; // the list renders (and measures) more rows
+      },
+    };
+    sameRoot(target)(classOf(list, host('RCTScrollView', { testID: 'list', ...R(0) })));
+    await expect(drive(call('action', { action: { type: 'scrollToIndex', matcher: { id: 'list' }, index: 45, viewPosition: 0.5 }, mode: 'native' }), 500)).resolves.toMatchObject({ element: { testID: 'list' } });
+    expect(calls).toEqual([9, 29, 45]);
+  });
+
+  it('scrollToIndex: reads react-native-web\'s _highestMeasuredFrameIndex', async () => {
+    const { target, call } = setup();
+    const calls: number[] = [];
+    const list = {
+      props: { data: Array.from({ length: 100 }, (_, i) => i) },
+      _highestMeasuredFrameIndex: 9,
+      scrollToIndex({ index }: { index: number }) {
+        if (index > list._highestMeasuredFrameIndex) throw new Error('onScrollToIndexFailed');
+        calls.push(index);
+        if (index === list._highestMeasuredFrameIndex) list._highestMeasuredFrameIndex += 30;
+      },
+    };
+    sameRoot(target)(classOf(list, host('RCTScrollView', { testID: 'list', ...R(0) })));
+    await drive(call('action', { action: { type: 'scrollToIndex', matcher: { id: 'list' }, index: 60 }, mode: 'js' }), 500);
+    expect(calls).toEqual([9, 39, 60]);
+  });
+
+  it('scrollToIndex: out of range and non-list targets fail clearly', async () => {
+    const { target, call } = setup();
+    const list = { props: { data: [1, 2, 3] }, scrollToIndex: vi.fn() };
+    sameRoot(target)(classOf(list, host('RCTScrollView', { testID: 'list', ...R(0) })), host('RCTView', { testID: 'plain', ...R(50) }));
+    await expect(drive(call('action', { action: { type: 'scrollToIndex', matcher: { id: 'list' }, index: 3 }, mode: 'js' }))).rejects.toMatchObject({
+      errorName: 'ELEMENT_NOT_FOUND',
+      message: expect.stringContaining('has 3 rows'),
+    });
+    await expect(drive(call('action', { action: { type: 'scrollToIndex', matcher: { id: 'plain' }, index: 0 }, mode: 'js' }))).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED' });
+    expect(list.scrollToIndex).not.toHaveBeenCalled();
+  });
+
+  it('scrollToEdge (js): sets the offset to the end, repeating while the content grows', async () => {
+    const { target, call } = setup();
+    const viewport = { x: 0, y: 0, width: 300, height: 500 };
+    const content = { x: 0, y: 0, width: 300, height: 1000 };
+    const scrollView = {
+      scrollTo({ y }: { y: number }) {
+        content.y = -y;
+        if (content.height < 3000) content.height += 1000; // a virtualized list renders more rows
+      },
+    };
+    sameRoot(target)(classOf(scrollView, host('RCTScrollView', { testID: 'sv', __rect: viewport }, host('RCTScrollContentView', { __rect: content }))));
+    await drive(call('action', { action: { type: 'scrollToEdge', matcher: { id: 'sv' }, edge: 'bottom' }, mode: 'js' }), 500);
+    expect(content).toMatchObject({ height: 3000, y: -2500 });
+  });
+
+  it('a point outside the element is rejected; pressKey reaches a field that is not visible', async () => {
+    const { target, call } = setup();
+    const onSubmitEditing = vi.fn();
+    sameRoot(target)(
+      host('RCTView', { testID: 'box', onPress: () => {}, ...R(0) }),
+      host('AndroidTextInput', { testID: 'offscreen', onSubmitEditing, onChangeText: () => {}, value: 'x', __rect: { x: 0, y: 5000, width: 100, height: 40 } }),
+    );
+    await expect(drive(call('action', { action: { type: 'tap', matcher: { id: 'box' }, point: { x: 150, y: 10 } }, mode: 'js' }))).rejects.toMatchObject({
+      errorName: 'ACTION_NOT_SUPPORTED',
+      message: expect.stringContaining('outside the element (100×40)'),
+    });
+    await drive(call('action', { action: { type: 'pressKey', matcher: { id: 'offscreen' }, key: 'enter' }, mode: 'js' }));
+    expect(onSubmitEditing).toHaveBeenCalledOnce();
+  });
+
+  it('drag to an element: the host gets a drag to its center (web)', async () => {
+    const { target, call } = setup();
+    sameRoot(target)(host('RCTView', { testID: 'card', ...R(0) }), host('RCTView', { testID: 'slot', __rect: { x: 0, y: 300, width: 200, height: 100 } }));
+    await expect(drive(call('action', { action: { type: 'drag', matcher: { id: 'card' }, to: { matcher: { id: 'slot' } }, speed: 'fast' }, mode: 'native' }))).resolves.toMatchObject({
+      hostInput: { kind: 'drag', from: { x: 50, y: 20 }, to: { x: 100, y: 350 }, durationMs: 250, holdMs: 800 },
+    });
+  });
+
   it('getTree / getIdleState / unknown methods', async () => {
     const { target, call } = setup();
     sameRoot(target)(host('RCTView', { testID: 'a', ...R(0) }));

@@ -66,7 +66,7 @@ describe('nativePerformer', () => {
     };
     await run(() => p.longPress(target, 1200));
     await run(() => p.longPress(target));
-    await run(() => p.doubleTap(target));
+    await run(() => p.multiTap(target, 2));
     expect(b.tap.mock.calls).toEqual([
       [7, 0, 0, 1200, 1],
       [7, 0, 0, 800, 1],

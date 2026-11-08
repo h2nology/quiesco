@@ -23,7 +23,7 @@ describe('hostPerformer', () => {
   it('returns taps at the element center (CSS px), with count / hold for double tap / long press', async () => {
     const { p, node } = setup();
     expect(await run(p.tap(node))).toEqual({ kind: 'tap', x: 110, y: 120 });
-    expect(await run(p.doubleTap(node))).toEqual({ kind: 'tap', x: 110, y: 120, count: 2 });
+    expect(await run(p.multiTap(node, 2))).toEqual({ kind: 'tap', x: 110, y: 120, count: 2 });
     expect(await run(p.longPress(node))).toEqual({ kind: 'tap', x: 110, y: 120, holdMs: 800 });
   });
 

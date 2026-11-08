@@ -10,9 +10,12 @@ import type {
   AgentMethods,
   AssertionSpec,
   Direction,
+  Edge,
   ElementSummary,
   JsonValue,
+  KeyName,
   ParamsOf,
+  Point,
   ResultOf,
   Speed,
   TrackerState,
@@ -53,6 +56,8 @@ const RETRYABLE: ReadonlySet<keyof AgentMethods> = new Set(['query', 'assert', '
 
 /** Extra wall-clock time on top of the agent-side timeout before the host gives up on a reply. */
 const HOST_MARGIN_MS = 5_000;
+/** Upper bound of steps of scrollToEdge / scrollToIndex in the agent (each may take the call timeout). */
+const MAX_SCROLL_STEPS = 60;
 
 export class Driver {
   private readonly appErrors: AgentEvents['error'][] = [];
@@ -67,35 +72,98 @@ export class Driver {
 
   // ---- actions (§6.3) ----
 
-  tap(target: MatcherInput, opts?: ActionOptions): Promise<ElementSummary | undefined> {
-    return this.action({ type: 'tap', matcher: toMatcher(target) }, opts);
+  /** Tap the element; `point` taps that spot in the element's own coordinates (default: center). */
+  tap(target: MatcherInput, opts: ActionOptions & { point?: Point } = {}): Promise<ElementSummary | undefined> {
+    const spec: Extract<ActionSpec, { type: 'tap' }> = { type: 'tap', matcher: toMatcher(target) };
+    if (opts.point !== undefined) spec.point = checkPoint(opts.point, 'point');
+    return this.action(spec, opts);
   }
-  longPress(target: MatcherInput, opts: ActionOptions & { durationMs?: number } = {}): Promise<ElementSummary | undefined> {
-    const spec: ActionSpec = { type: 'longPress', matcher: toMatcher(target) };
+  longPress(target: MatcherInput, opts: ActionOptions & { durationMs?: number; point?: Point } = {}): Promise<ElementSummary | undefined> {
+    const spec: Extract<ActionSpec, { type: 'longPress' }> = { type: 'longPress', matcher: toMatcher(target) };
     if (opts.durationMs !== undefined) spec.durationMs = opts.durationMs;
+    if (opts.point !== undefined) spec.point = checkPoint(opts.point, 'point');
     return this.action(spec, opts);
   }
   doubleTap(target: MatcherInput, opts?: ActionOptions): Promise<ElementSummary | undefined> {
     return this.action({ type: 'doubleTap', matcher: toMatcher(target) }, opts);
   }
+  /** `count` taps in one gesture (iOS: increasing tap count, like a user's rapid taps). */
+  multiTap(target: MatcherInput, count: number, opts?: ActionOptions): Promise<ElementSummary | undefined> {
+    if (!Number.isInteger(count) || count < 1) throw new RangeError(`count must be a positive integer, got ${count}`);
+    return this.action({ type: 'multiTap', matcher: toMatcher(target), count }, opts);
+  }
   type(target: MatcherInput, text: string, opts?: ActionOptions): Promise<ElementSummary | undefined> {
     return this.action({ type: 'type', matcher: toMatcher(target), text }, opts);
+  }
+  /** Replace the whole text at once (no typing character by character). */
+  replaceText(target: MatcherInput, text: string, opts?: ActionOptions): Promise<ElementSummary | undefined> {
+    return this.action({ type: 'replaceText', matcher: toMatcher(target), text }, opts);
   }
   clear(target: MatcherInput, opts?: ActionOptions): Promise<ElementSummary | undefined> {
     return this.action({ type: 'clear', matcher: toMatcher(target) }, opts);
   }
-  scroll(target: MatcherInput, direction: Direction, opts: ActionOptions & { distance?: number } = {}): Promise<ElementSummary | undefined> {
-    const spec: ActionSpec = { type: 'scroll', matcher: toMatcher(target), direction };
+  /**
+   * Press `enter` (the return key: submits, or a newline in a multi-line input) or `backspace` on a
+   * text field. The field only needs to exist: the key reaches it even when the keyboard's return key
+   * would be out of reach.
+   */
+  pressKey(target: MatcherInput, key: KeyName, opts?: ActionOptions): Promise<ElementSummary | undefined> {
+    if (key !== 'enter' && key !== 'backspace') throw new RangeError(`key must be 'enter' or 'backspace', got ${String(key)}`);
+    return this.action({ type: 'pressKey', matcher: toMatcher(target), key }, opts);
+  }
+  /** `down` reveals content below. `distance` in logical units; `from`: start point, normalized 0–1 in the element. */
+  scroll(target: MatcherInput, direction: Direction, opts: ActionOptions & { distance?: number; from?: Point } = {}): Promise<ElementSummary | undefined> {
+    const spec: Extract<ActionSpec, { type: 'scroll' }> = { type: 'scroll', matcher: toMatcher(target), direction };
     if (opts.distance !== undefined) spec.distance = opts.distance;
+    if (opts.from !== undefined) spec.from = checkNormalized(opts.from, 'from');
     return this.action(spec, opts);
   }
+  /** Scroll `container` until `target` is visible. */
   scrollTo(container: MatcherInput, target: MatcherInput, opts?: ActionOptions): Promise<ElementSummary | undefined> {
     return this.action({ type: 'scrollTo', container: toMatcher(container), target: toMatcher(target) }, opts);
   }
-  swipe(target: MatcherInput, direction: Direction, opts: ActionOptions & { speed?: Speed } = {}): Promise<ElementSummary | undefined> {
-    const spec: ActionSpec = { type: 'swipe', matcher: toMatcher(target), direction };
+  /** Scroll to the top / bottom / left / right end (a virtualized list is followed while it grows). */
+  scrollToEdge(target: MatcherInput, edge: Edge, opts?: ActionOptions): Promise<ElementSummary | undefined> {
+    if (!['top', 'bottom', 'left', 'right'].includes(edge)) throw new RangeError(`edge must be top, bottom, left or right, got ${String(edge)}`);
+    return this.action({ type: 'scrollToEdge', matcher: toMatcher(target), edge }, opts);
+  }
+  /**
+   * Bring row `index` of a FlatList / FlashList into view, on every platform, also without
+   * getItemLayout. `viewPosition`: 0 = top, 0.5 = middle, 1 = bottom.
+   */
+  scrollToIndex(list: MatcherInput, index: number, opts: ActionOptions & { viewPosition?: number } = {}): Promise<ElementSummary | undefined> {
+    if (!Number.isInteger(index) || index < 0) throw new RangeError(`index must be a non-negative integer, got ${index}`);
+    const spec: Extract<ActionSpec, { type: 'scrollToIndex' }> = { type: 'scrollToIndex', matcher: toMatcher(list), index };
+    if (opts.viewPosition !== undefined) spec.viewPosition = checkUnit(opts.viewPosition, 'viewPosition');
+    return this.action(spec, opts);
+  }
+  /** A finger swipe (`up` moves the finger up). `distance` in logical units; `from`: normalized start point. */
+  swipe(target: MatcherInput, direction: Direction, opts: ActionOptions & { speed?: Speed; distance?: number; from?: Point } = {}): Promise<ElementSummary | undefined> {
+    const spec: Extract<ActionSpec, { type: 'swipe' }> = { type: 'swipe', matcher: toMatcher(target), direction };
+    if (opts.speed !== undefined) spec.speed = opts.speed;
+    if (opts.distance !== undefined) spec.distance = opts.distance;
+    if (opts.from !== undefined) spec.from = checkNormalized(opts.from, 'from');
+    return this.action(spec, opts);
+  }
+  /**
+   * Press and hold the element (`holdMs`, default 800: enough for long-press-activated drags), move to
+   * the center of `to` (an element) or to `{ point }` (window coordinates), release.
+   */
+  drag(target: MatcherInput, to: MatcherInput | { point: Point }, opts: ActionOptions & { holdMs?: number; speed?: Speed } = {}): Promise<ElementSummary | undefined> {
+    const dest = typeof to === 'object' && 'point' in to ? { point: checkPoint(to.point, 'point') } : { matcher: toMatcher(to) };
+    const spec: Extract<ActionSpec, { type: 'drag' }> = { type: 'drag', matcher: toMatcher(target), to: dest };
+    if (opts.holdMs !== undefined) spec.holdMs = opts.holdMs;
     if (opts.speed !== undefined) spec.speed = opts.speed;
     return this.action(spec, opts);
+  }
+  /** Tap a point of the screen (window coordinates), whatever is there (Detox `device.tap`). */
+  async tapAt(point: Point, opts?: ActionOptions): Promise<void> {
+    await this.action({ type: 'tapAt', point: checkPoint(point, 'point') }, opts);
+  }
+  async longPressAt(point: Point, opts: ActionOptions & { durationMs?: number } = {}): Promise<void> {
+    const spec: Extract<ActionSpec, { type: 'longPressAt' }> = { type: 'longPressAt', point: checkPoint(point, 'point') };
+    if (opts.durationMs !== undefined) spec.durationMs = opts.durationMs;
+    await this.action(spec, opts);
   }
   async pressBack(opts?: ActionOptions): Promise<void> {
     await this.action({ type: 'pressBack' }, opts);
@@ -222,7 +290,9 @@ export class Driver {
 
   private async action(spec: ActionSpec, opts: ActionOptions = {}): Promise<ElementSummary | undefined> {
     const params: ParamsOf<AgentMethods['action']> = { action: spec, mode: opts.mode ?? (await this.mode()), ...syncParams(opts) };
-    const r = await this.call('action', params, opts.timeoutMs);
+    // Multi-step scrolls give every step the full timeout in the agent (bounded number of steps).
+    const steps = spec.type === 'scrollToEdge' || spec.type === 'scrollToIndex' ? MAX_SCROLL_STEPS : 1;
+    const r = await this.call('action', params, opts.timeoutMs, steps);
     if (r.hostInput !== undefined) {
       const inject = this.options.provider.injectInput?.bind(this.options.provider);
       if (inject === undefined) {
@@ -255,13 +325,14 @@ export class Driver {
     return native ? 'native' : 'js';
   }
 
-  private async call<M extends keyof AgentMethods>(method: M, params: ParamsOf<AgentMethods[M]>, timeoutMs?: number): Promise<ResultOf<AgentMethods[M]>> {
+  /** `steps`: the agent may wait up to `timeoutMs` this many times (multi-step actions). */
+  private async call<M extends keyof AgentMethods>(method: M, params: ParamsOf<AgentMethods[M]>, timeoutMs?: number, steps = 1): Promise<ResultOf<AgentMethods[M]>> {
     const pending = this.takeAppError();
     if (pending !== null) throw pending;
     const send = async (): Promise<ResultOf<AgentMethods[M]>> => {
       const conn = await this.options.connection();
       this.attach(conn);
-      return this.race(conn.request(method, params, (timeoutMs ?? this.options.defaultTimeoutMs) + HOST_MARGIN_MS));
+      return this.race(conn.request(method, params, (timeoutMs ?? this.options.defaultTimeoutMs) * steps + HOST_MARGIN_MS));
     };
     try {
       return await send();
@@ -300,6 +371,21 @@ export class Driver {
       for (const l of [...this.appErrorListeners]) l(e);
     });
   }
+}
+
+function checkPoint(p: Point, name: string): Point {
+  if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) throw new RangeError(`${name} must have finite x and y, got ${JSON.stringify(p)}`);
+  return { x: p.x, y: p.y };
+}
+
+function checkUnit(v: number, name: string): number {
+  if (!(v >= 0 && v <= 1)) throw new RangeError(`${name} must be between 0 and 1, got ${v}`);
+  return v;
+}
+
+/** A point normalized to the element: both coordinates in [0, 1]. */
+function checkNormalized(p: Point, name: string): Point {
+  return { x: checkUnit(p.x, `${name}.x`), y: checkUnit(p.y, `${name}.y`) };
 }
 
 function syncParams(opts: CallOptions): { sync?: boolean; timeoutMs?: number } {

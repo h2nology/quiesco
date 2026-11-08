@@ -3,6 +3,7 @@
  * code nor the test API calls reach production bundles (docs/spikes/06, approach A).
  */
 import { quiesco } from '@quiesco/agent';
+import { router } from 'expo-router';
 import { PermissionsAndroid, Platform } from 'react-native';
 
 import { api } from './api';
@@ -27,6 +28,11 @@ quiesco.backdoor('locationPermission', async () => {
     return (await navigator.permissions.query({ name: 'geolocation' })).state;
   }
   return null;
+});
+
+// The hidden capability playground (src/app/playground.tsx), used by features/actions.feature.
+quiesco.backdoor('openPlayground', () => {
+  router.push('/playground');
 });
 
 quiesco.onReset(async () => {

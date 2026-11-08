@@ -106,3 +106,86 @@ Then('已标记为重要', async function (this: QuiescoWorld) {
   await this.app.expect({ id: 'todo-important' }).toBeEnabled();
   await this.app.expectChecked({ id: 'todo-important' });
 });
+
+When('在标题框按回车', async function (this: QuiescoWorld) {
+  await this.app.pressKey({ id: 'todo-title' }, 'enter');
+});
+
+// ---- playground (Phase 6.2 actions) ----
+
+const CANVAS_POINTS: Record<string, { x: number; y: number }> = {
+  // The canvas is 200 × 100; points are in its own coordinates.
+  左上角: { x: 10, y: 10 },
+  右上角: { x: 190, y: 10 },
+  左下角: { x: 10, y: 90 },
+  右下角: { x: 190, y: 90 },
+};
+
+Given('打开能力演示页', async function (this: QuiescoWorld) {
+  await this.app.backdoor('openPlayground');
+  await this.app.expectVisible({ id: 'playground' });
+});
+
+When('点击画布的 {string}', async function (this: QuiescoWorld, corner: string) {
+  const point = CANVAS_POINTS[corner];
+  if (point === undefined) throw new Error(`unknown corner ${corner}`);
+  await this.app.tap({ id: 'canvas' }, { point });
+});
+
+Then('点中了 {string}', async function (this: QuiescoWorld, quadrant: string) {
+  await this.app.expectText({ id: 'tap-result' }, quadrant);
+});
+
+When('连续点击计数按钮 {int} 次', async function (this: QuiescoWorld, n: number) {
+  await this.app.multiTap({ id: 'counter' }, n);
+});
+
+When('按屏幕坐标点击计数按钮所在的位置', async function (this: QuiescoWorld) {
+  const { rect } = await this.app.attributes({ id: 'counter' });
+  if (rect === null) throw new Error('counter has no rect');
+  await this.app.tapAt({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 });
+});
+
+Then('计数是 {string}', async function (this: QuiescoWorld, count: string) {
+  await this.app.expectText({ id: 'count' }, count);
+});
+
+When('在备注框输入 {string}', async function (this: QuiescoWorld, text: string) {
+  await this.app.type({ id: 'note' }, text);
+});
+
+When('在备注框按 {string}', async function (this: QuiescoWorld, key: string) {
+  await this.app.pressKey({ id: 'note' }, key as 'enter' | 'backspace');
+});
+
+When('把备注替换为 {string}', async function (this: QuiescoWorld, text: string) {
+  await this.app.replaceText({ id: 'note' }, text);
+});
+
+Then('备注框的内容是 {string}', async function (this: QuiescoWorld, text: string) {
+  await this.app.expectValue({ id: 'note' }, text);
+});
+
+Then('已提交 {string}', async function (this: QuiescoWorld, text: string) {
+  await this.app.expectText({ id: 'submitted' }, text);
+});
+
+When('把方块拖到 {string}', async function (this: QuiescoWorld, zone: string) {
+  await this.app.drag({ id: 'drag-box' }, { id: zone });
+});
+
+Then('看到拖拽结果 {string}', async function (this: QuiescoWorld, result: string) {
+  await this.app.expectText({ id: 'drop-result' }, result);
+});
+
+When('把长列表滚动到第 {int} 行', async function (this: QuiescoWorld, row: number) {
+  await this.app.scrollToIndex({ id: 'long-list' }, row - 1);
+});
+
+When('把长列表滚动到 {string}', async function (this: QuiescoWorld, edge: string) {
+  await this.app.scrollToEdge({ id: 'long-list' }, edge as 'top' | 'bottom');
+});
+
+Then('第 {int} 行可见', async function (this: QuiescoWorld, row: number) {
+  await this.app.expectVisible({ id: `row-${row}` });
+});

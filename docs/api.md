@@ -26,17 +26,31 @@ All calls take an optional last argument:
 
 | Method | What it does |
 |---|---|
-| `tap(target)` | Tap the element (center) |
-| `doubleTap(target)` | Two taps |
-| `longPress(target, { durationMs })` | Press and hold |
+| `tap(target, { point })` | Tap the element: its center, or `point` in its own coordinates (`{ x, y }` from its top-left corner) |
+| `doubleTap(target)` / `multiTap(target, n)` | `n` taps in one gesture |
+| `longPress(target, { durationMs, point })` | Press and hold (default 800 ms) |
 | `type(target, text)` | Focus the input and enter `text` (native mode: through the IME, so any language works) |
+| `replaceText(target, text)` | Replace the whole text at once |
 | `clear(target)` | Clear a text input |
-| `scroll(target, 'up' \| 'down' \| 'left' \| 'right', { distance })` | Scroll a scroll view |
+| `pressKey(target, 'enter' \| 'backspace')` | The return key (submits; a newline in a multi-line input) or backspace, sent to the field. The field only has to exist: the key reaches it even where a keyboard's return key would be out of reach |
+| `scroll(target, direction, { distance, from })` | Scroll a scroll view (`down` reveals content below). `from`: start point normalized 0–1 in the element |
 | `scrollTo(container, target)` | Scroll `container` until `target` is visible |
-| `swipe(target, direction, { speed: 'slow' \| 'normal' \| 'fast' })` | A swipe gesture (with inertia) |
+| `scrollToEdge(target, 'top' \| 'bottom' \| 'left' \| 'right')` | Scroll to an end; a virtualized list is followed while it grows (native mode: real flings) |
+| `scrollToIndex(list, index, { viewPosition })` | Bring row `index` of a FlatList / FlashList into view, also without `getItemLayout`; `viewPosition` 0 = top, 0.5 = middle, 1 = bottom |
+| `swipe(target, direction, { speed, distance, from })` | A swipe gesture (with inertia); `direction` is the finger's |
+| `drag(target, to, { holdMs, speed })` | Press and hold the element (default 800 ms), move to the center of `to` (an element) or to `{ point }` (window coordinates), release |
+| `tapAt({ x, y })` / `longPressAt({ x, y }, { durationMs })` | Touch a point of the screen (window coordinates), whatever is there |
 | `pressBack()` | Android back button; browser back on the web; not available on iOS |
 | `openUrl(url)` | Open a deep link (in the app on iOS, `am start` on Android, the address bar on the web) |
 | `dismissKeyboard()` | Hide the software keyboard |
+
+Coordinates are logical units (pt on iOS, dp on Android, CSS px on the web). `scrollToEdge` and
+`scrollToIndex` take several steps; each step may wait up to the call timeout for the app to settle.
+
+In `js` mode (callbacks instead of real input), a tap at a point presses the topmost element there, a
+tap on a switch without `onPress` toggles it through `onValueChange`, `pressKey` calls
+`onSubmitEditing` / `onKeyPress`, `scrollToEdge` sets the scroll offset, `from` is ignored, and `drag` is
+not supported (it needs real touches).
 
 An action needs exactly one **visible** element: it waits until the target exists and is visible (or
 fails with `ELEMENT_NOT_FOUND`, saying whether it is missing or hidden) and fails at once with

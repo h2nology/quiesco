@@ -11,6 +11,8 @@ The same features, steps and `this.app` calls run on all three platforms. What d
 | Text input | `insertText` | `InputConnection.commitText` (any language, written at once) | Playwright keyboard |
 | Without `@quiesco/native` | `js` mode only (the default then); `openUrl` unavailable | `js` mode only (the default then) | always real input |
 | `pressBack()` | not available (`ACTION_NOT_SUPPORTED`) | back key | browser back |
+| `tap` at a point, `drag`, `pressKey` (native mode) | needs an app built with `@quiesco/native` ≥ Phase 6.2 (`gesture`, `pressKey`); older builds get `ACTION_NOT_SUPPORTED` with a rebuild hint | same | real input through Playwright |
+| `drag` | real touches; iOS 26 also pops a screen on a rightward swipe in its content (turn the screen's back gesture off where content is dragged right) | real touches | mouse drag; text under the pointer must not be selectable (a selection ends the web responder gesture) |
 | `openUrl()` | opened inside the app (no system confirmation) | `am start` | navigation |
 | Soft reset clears | AsyncStorage + registered adapters | AsyncStorage + registered adapters | `localStorage`, `sessionStorage`, IndexedDB + registered adapters |
 | `@hard-reset` | terminate and relaunch | force-stop and relaunch | new browser context, reload |

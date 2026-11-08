@@ -159,6 +159,8 @@ export class WebProvider implements DeviceProvider {
         const steps = Math.max(4, Math.round(input.durationMs / 16));
         await page.mouse.move(input.from.x, input.from.y);
         await page.mouse.down();
+        // Press-and-hold first (long-press-activated drags), then move in small steps.
+        if (input.holdMs !== undefined && input.holdMs > 0) await new Promise((r) => setTimeout(r, input.holdMs));
         await page.mouse.move(input.to.x, input.to.y, { steps });
         await page.mouse.up();
         return;

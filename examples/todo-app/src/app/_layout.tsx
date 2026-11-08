@@ -23,6 +23,9 @@ function App() {
       <Stack.Screen name="index" options={{ title: '登录' }} />
       <Stack.Screen name="todos" options={{ title: '待办', headerBackVisible: false }} />
       <Stack.Screen name="new-todo" options={{ title: '新建待办' }} />
+      {/* iOS 26 pops a screen on a rightward swipe anywhere in its content; the playground's drag box
+          moves right, so its back gesture is off (a real user dragging it would leave the screen too). */}
+      <Stack.Screen name="playground" options={{ title: '能力演示', gestureEnabled: false }} />
     </Stack>
   );
 }

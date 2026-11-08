@@ -62,10 +62,10 @@ describe('iOS sources', () => {
     expect(podspec).toContain("s.source_files = '**/*.{h,m,swift}'");
   });
 
-  it('the Swift module exposes the same functions as the Android module, plus the iOS-only openUrl and idleState', () => {
+  it('the Swift module exposes the same functions as the Android module, plus the iOS-only openUrl, idleState and hitAt', () => {
     const fns = (src: string): string[] => [...src.matchAll(/(?:Async)?Function\("(\w+)"\)/g)].map((m) => m[1] as string).sort();
     const kt = read(`android/src/main/java/${(config.android?.modules[0] ?? '').replace(/\./g, '/')}.kt`);
     const swift = read(`ios/${config.apple?.modules[0] ?? ''}.swift`);
-    expect(fns(swift)).toEqual([...fns(kt), 'idleState', 'openUrl'].sort());
+    expect(fns(swift)).toEqual([...fns(kt), 'hitAt', 'idleState', 'openUrl'].sort());
   });
 });

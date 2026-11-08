@@ -247,3 +247,6 @@
 | 6.1 Web 实测 | ✅ | 首轮 8/9（RNW Switch 被数成 2 个）→ 部件规则；第二轮 8/9（label 在部件上，且报错误导为 SYNC_TIMEOUT）→ label 回退 + ELEMENT_NOT_FOUND 优先（反向测试：去掉修复后新测试失败）；最终 mobile / tablet / desktop 各 9/9（8.5s） |
 | 6.1 iOS / Android 实测 | ✅ | 旧 Metro（8082，无 watchman）看不到新文件 semantic.ts；停止它被权限拒绝 → 另起 8083 `--clear` 并确认 bundle 含新代码。iOS 8 通过 + 1 按 tag 跳过（25.5s，真实触摸）；Android 9/9（冷启动 Medium_Phone_API_37.0，1m4.6s）。包含既有场景在新可见性规则（祖先裁剪）下的全量回归 |
 | 6.1 收尾 | ✅ | docs/api.md（断言表、链式 expect、attributes、Matcher、语义类型三端映射表、可见性规则）；RNW 组件 displayName 实查确认映射表；`pnpm run check` 350 测试、depcruise 0 违规。遗留：8083 上的 Metro 仍在后台运行；旧 8082 Metro 仍是旧代码（需 HU 重启） |
+| 6.2 原生 | ✅ | iOS / Android 新增 `gesture`（单指定时路径）、`pressKey`；iOS 另增 `hitAt` 与 locate 的 `hitTags`；两端 dev client 重建成功 |
+| 6.2 代码 + 单测 | ✅ | protocol（multiTap / replaceText / pressKey / scrollToEdge / scrollToIndex / drag / tapAt / longPressAt，point / from / distance）；agent 三档位（hit-test.ts 拆出）、runtime（pointInside、resolveExisting、scrollToEdge、scrollToIndex）；fiber-adapter `focus()`、`InstanceRef.raw()`；core Driver 新方法 + 参数校验 + 多步动作 Host 等待；web drag holdMs。`pnpm run check` 375 测试 |
+| 6.2 实跑 | ✅ | 示例新增 playground 页 + actions.feature（5 场景）+ 新建待办回车保存。Web 三视口各 15/15；iOS 14 通过 + 1 按 tag 跳过；Android 15/15（1m58s）；iOS js 档位（not @needs-touch）13 通过 + 1 跳过。期间修复见 Errors 表。临时 Metro 已停止 |

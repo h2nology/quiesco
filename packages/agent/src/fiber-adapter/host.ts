@@ -19,6 +19,8 @@ export interface HostPlatform {
   clipsContent(type: string, fiber: Fiber, props: Record<string, unknown>): boolean;
   /** Whether the host has the input focus. */
   isFocused(fiber: Fiber): boolean;
+  /** Focus the host (text inputs); false when it has no way to be focused. */
+  focus(fiber: Fiber): boolean;
   /** Live text of a text input host, undefined for other hosts. */
   inputValue(type: string, fiber: Fiber, props: Record<string, unknown>): string | undefined;
   measure(fiber: Fiber): Rect | null;
@@ -118,6 +120,12 @@ export function nativePlatform(deps: PlatformDeps): HostPlatform {
       const focused = focusedElement(deps);
       return focused !== null && focused !== undefined && focused === publicInstance(fiber);
     },
+    focus(fiber) {
+      const el = publicInstance(fiber);
+      if (!isObject(el) || typeof el['focus'] !== 'function') return false;
+      (el['focus'] as () => void).call(el);
+      return true;
+    },
     inputValue(type, _fiber, p) {
       if (!NATIVE_TEXT_INPUTS.has(type)) return undefined;
       return str(p['text']) ?? str(p['value']) ?? str(p['defaultValue']) ?? '';
@@ -172,6 +180,21 @@ export function webPlatform(deps: PlatformDeps): HostPlatform {
     isFocused(fiber) {
       const focused = focusedElement(deps);
       return focused !== null && focused !== undefined && focused === fiber.stateNode;
+    },
+    focus(fiber) {
+      const el = fiber.stateNode;
+      if (!isObject(el) || typeof el['focus'] !== 'function') return false;
+      (el['focus'] as () => void).call(el);
+      // Keys act at the end of the text, like after a user tapped into the field.
+      const value = el['value'];
+      if (typeof value === 'string' && typeof el['setSelectionRange'] === 'function') {
+        try {
+          (el['setSelectionRange'] as (a: number, b: number) => void).call(el, value.length, value.length);
+        } catch {
+          // Inputs like type="email" do not support selection.
+        }
+      }
+      return true;
     },
     inputValue(type, fiber, p) {
       if (!WEB_TEXT_INPUTS.has(type)) return undefined;

@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-6.1 完成并提交。下一步：6.2 元素动作补全——先输出详细实施计划交 HU 确认。
+6.2 完成并提交。下一步：6.3 值控件与无障碍动作——先输出详细实施计划交 HU 确认。
 
 ## Current Phase
 Phase 6
@@ -160,14 +160,20 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
   - **测试**：agent 单测（各语义类型映射、state 读取、has / not / id 正则、裁剪与比例、焦点）；core 单测（toMatcher、新断言参数）；示例 App 增加一个表单 feature 覆盖焦点 / 禁用 / 勾选 / 值 / 类型匹配，三端实跑；`pnpm run check`
   - **文档**：api.md Matcher 与断言表、visibility 规则、语义类型三端映射表；steps 新增对应中日英步骤留到 6.10 统一做
   - **HU 决定（2026-11-09）**：① 祖先滚动容器裁剪加入可见判定并默认生效（三端全量回归）；② 在现有 `expectXxx` 之外再加链式 API `app.expect(t).not.toBeFocused()`（类 Detox / Jest，便于迁移），两套写法共用同一实现
-- [ ] 6.2 元素动作补全（第一批，单指）
-  - `tap(t, { point | offset })`、`multiTap(t, n)`（doubleTap 保留为别名）、`longPress(t, { point, durationMs })`
-  - `replaceText(t, text)`（native：现有 replace 路径；js：onChangeText 直接设值）
-  - `pressKey(t, 'enter' | 'backspace' | 'tab' | …)`：iOS insertText("\n") / deleteBackward；Android InputConnection.sendKeyEvent / performEditorAction；Web keyboard.press；js：onSubmitEditing / onKeyPress。**修 Detox #4546：回车不依赖键盘按键可见**
-  - `scroll(t, dir, { distance, from })`、`scrollTo(t, 'top' | 'bottom' | 'left' | 'right')`（scrollTo edge）、`scrollToIndex(list, i)`（FlatList / SectionList / FlashList 的 scrollToIndex，三端——Detox 仅 Android）
-  - `swipe(t, dir, { speed, distance, from })`
-  - `drag(source, { to: target | point, holdMs, speed })`（长按拖拽排序；native 走 bridge.swipe 带按住阶段，Web 走现成 HostInput drag，js 档位报 ACTION_NOT_SUPPORTED 说明原因）
-  - 屏幕坐标动作：`tapAt({x,y})`、`longPressAt`（= device.tap，不按元素）
+- [x] 6.2 元素动作补全（第一批，单指）——详细计划（2026-11-09），完成（2026-11-09）
+  - **原生模块（需重建 iOS / Android dev client）**：新增 `gesture(tag, path, ...)`——单指按时间的路径（`[x, y, tMs]` 列表，窗口坐标，在 tag 所在窗口注入），覆盖「按住后拖动」「指定点点击 / 长按」「指定起点的滑动」，为 6.4 多指留出扩展；新增 `pressKey(tag, key)`：iOS `insertText("\n")`（回车 → onSubmitEditing，**spike 先验证**）/ `deleteBackward()`，Android `InputConnection.performEditorAction(imeOptions)` / `sendKeyEvent(KEYCODE_DEL)`；现有 tap / swipe / typeText 不变
+  - **protocol**：ActionSpec 加 `tap{point?}`、`multiTap{count}`（doubleTap 保留 = count 2）、`longPress{point?}`、`replaceText{text}`、`pressKey{key: 'enter'|'backspace'}`、`scroll{from?}`、`scrollToEdge{edge}`、`scrollToIndex{index, viewPosition?}`、`swipe{distance?, from?}`、`drag{to: Matcher | {x,y}, holdMs?, speed?}`、`tapAt{x,y}` / `longPressAt{x,y,durationMs?}`（窗口坐标，不按元素）；HostInput 复用现有 tap / drag / key / wheel
+  - **坐标约定**：`point` = 元素内坐标（逻辑像素，与 Detox `tap(point)` 相同）；`from` = 元素内归一化起点 0–1（与 Detox normalizedStartingPoint 相同）；`distance` = 逻辑像素；点不在元素内时报参数错误
+  - **三种档位**：
+    - native：gesture / pressKey 原生实现；scrollToEdge = 反复拖动直到偏移不再变化
+    - host（Web 真实输入）：tap / drag / key / wheel HostInput；scrollToEdge = 反复 wheel
+    - js：tap point → 按点 hitTest 后调最近的 onPress；multiTap = n 次 onPress；replaceText = onChangeText(text)；pressKey enter → onSubmitEditing、backspace → onKeyPress + onChangeText；scrollToEdge = ScrollView `scrollTo` / `scrollToEnd`；drag → ACTION_NOT_SUPPORTED（说明：拖拽依赖手势识别，请用 native 档位）
+    - `scrollToIndex` 三档相同：调用列表实例的 `scrollToIndex`（FlatList / SectionList 用 scrollToLocation / FlashList），之后等待空闲并确认目标行已渲染；越界、行高未知（onScrollToIndexFailed）给出明确错误——Detox 只支持 Android
+  - **Driver**：`tap(t, { point })`、`multiTap(t, n)`、`longPress(t, { point, durationMs })`、`replaceText`、`pressKey(t, key)`、`scroll(t, dir, { distance, from })`、`scrollToEdge(t, edge)`（实施时改为独立方法：`scrollTo(list, 'bottom')` 中 'bottom' 也可能是 testID，有歧义）、`scrollToIndex(list, i, { viewPosition })`、`swipe(t, dir, { speed, distance, from })`、`drag(t, { to, holdMs, speed })`、`tapAt({x,y})`、`longPressAt({x,y}, { durationMs })`
+  - **示例 App**：新增隐藏的「能力演示」页 `playground`（backdoor 打开；6.3 起继续扩充），本阶段放：记录点击坐标的区域、连击计数器、长按后可拖动的方块（PanResponder）与两个放置区、回车提交的输入框、200 行 FlatList；`features/actions.feature` 覆盖以上动作；新建待办的标题框加 onSubmitEditing（回车保存）
+  - **测试**：agent 单测（三档位各动作、坐标换算、scrollToEdge 循环、scrollToIndex 失败分支）；core 单测（参数转换）；三端实跑（iOS / Android 真实触摸 + js 档位各一次、Web 三视口）；`pnpm run check`
+  - **文档**：api.md 动作表、坐标约定、各档位支持表；platforms.md 差异
+  - **HU 决定（2026-11-09）**：① 原生新增 gesture / pressKey 并重建两端 dev client（iOS 回车先实验确认）；② 原生实跑时临时在空闲端口起干净 Metro（--clear）、用 QUIESCO_METRO_URL 指向、跑完立即停掉，不碰 8082；③ 示例 App 新增隐藏的 playground 页（backdoor 打开），后续子阶段的测试控件都放这里
 - [ ] 6.3 值控件与无障碍动作
   - `setValue(t, value)` 统一入口：Slider（onValueChange + onSlidingComplete）、Switch（onValueChange）、Picker（@react-native-picker/picker：onValueChange + selectedValue 校验）、DateTimePicker（@react-native-community/datetimepicker：onChange(event, date)，三端）、SegmentedControl；未知组件报 ACTION_NOT_SUPPORTED 并列出找到的回调
   - native 档位：Slider 用真实拖动到比例位置（`adjustSlider(t, ratio)`）；iOS 原生 Picker / DatePicker 列滚动作为可选（spike 决定）
@@ -213,7 +219,7 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 - [ ] 6.13 真机：Android 真机（adb，无 emulator 专属命令时逐项降级并报 ACTION_NOT_SUPPORTED + 原因）；iOS 真机（devicectl 安装 / 启动 / 传参、签名配置、网络连接改为局域网或 USB 转发，spike 先行）；**需要 HU 提供并连接真机**，验收前暂停确认
 - [ ] 6.14 LLM 驱动（对标 Detox Pilot）：`app.ai.perform('…')` / `app.ai.expect('…')`，以元素树 + 截图为上下文、Driver API 为工具；实现前先读 claude-api 技能确认当前模型与 SDK 用法；结果可「固化」为普通 step 代码（Detox 没有）；默认关闭，需配置 API key
 - **验收**：对照表中 Detox 的每一项都有对应能力（或写明替代方案）；示例 App 新 features 在 iOS / Android / Chromium 通过；Detox 单平台独占项在 Quiesco 中至少两端可用
-- **Status:** in_progress（6.0、6.1 完成，下一步 6.2）
+- **Status:** in_progress（6.0–6.2 完成，下一步 6.3）
 
 ## 待 HU 决定（requirements.md §11，遇到时暂停询问）
 | # | 事项 | 何时需要 | 状态 |
@@ -307,6 +313,13 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | `notChecked` 严格：没有勾选状态的元素既不满足 checked 也不满足 notChecked | 未定义状态当作「未勾选」会让断言在错误的元素上误通过（6.1 Web 首轮即如此） |
 | 动作目标解析到截止时间时，若同时目标不存在，报 ELEMENT_NOT_FOUND（附「App 也仍忙」的原因），而不是最后几毫秒的 SYNC_TIMEOUT | 6.1 Web 实测：真实原因（匹配不到）被误报为 frame-stable 超时 |
 | 示例配置 `QUIESCO_METRO_URL` 可覆盖 Metro 地址（默认 8082） | 停止旧 Metro 被权限拒绝；另起干净 Metro（8083）验证，不影响现有进程 |
+| 原生实跑用临时 Metro（空闲端口、--clear、QUIESCO_METRO_URL），跑完即停；不碰 8082 | HU 2026-11-09（6.2）：不留后台服务 |
+| 示例 App 增加隐藏的 playground 页放测试控件 | HU 2026-11-09（6.2） |
+| iOS 触摸可达性按 React tag 判断：原生返回命中视图链的 tag（`hitTags`），JS 取链上第一个 React 宿主，必须在目标的 React 子树内；点击指定点时用原生 `hitAt` 在该点判断 | 6.2 iOS 实测：Fabric 不把每个 React 子节点挂在其 React 父节点的原生视图里（不形成层叠上下文的视图，其子节点挂到更上层），原先「命中视图是原生后代」的判断会误报 ELEMENT_OBSCURED |
+| scrollToEdge / scrollToIndex 每一步（及最终等待空闲）各有完整超时，步数上限 60；Host 等待相应放宽；原生档位 scrollToEdge 用快速甩动 | 6.2 实测：200 行列表用慢速拖动 / 共用一个 10s 期限必然超时 |
+| scrollToIndex 先读已测量的最大行（RN `_listMetrics`、RNW `_highestMeasuredFrameIndex`），不安全时先滚到该行再重试；都读不到时按屏滚动重试 | 无 getItemLayout 时 RN 的 scrollToIndex 会抛 invariant；Quiesco 不要求 App 提供 getItemLayout（Detox 只支持 Android） |
+| js 档位 tap 在开关 / 复选框上（无 onPress）调用 `onValueChange(!value)` | 6.2 js 档位实测：开关无 onPress；这是原生控件的点击语义 |
+| 临时 Metro 不加 `CI=1` | CI=1 时 Expo 关闭文件监听，Metro 一直提供旧代码（6.2 实测踩坑） |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -327,3 +340,10 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | 6.1 Web 首轮：`{ type: 'switch' }` 数出 2 个 | 1 | RNW Switch 外层 div（displayName Switch）+ 内部 input role=switch 都判为 switch → 引入「部件」规则（renderedWithParent） |
 | 6.1 Web 第二轮：tap `{ type:'switch', label }` 报 SYNC_TIMEOUT | 1 | 实为匹配不到（aria-label 在部件上）；label 回退到部件 + 解析截止时报 ELEMENT_NOT_FOUND；反向测试确认 |
 | 6.1 原生：Metro 8082 打包失败「Unable to resolve ./semantic」 | 1 | 无 watchman 的 Metro 看不到新文件；kill 旧 Metro 被权限拒绝 → 另起 `expo start --port 8083 --clear` + `QUIESCO_METRO_URL` |
+| 6.2 Web：拖拽无效果（纯 Playwright 也复现） | 1 | RNW 在出现文本选择时终止 responder；示例拖拽区加 userSelect none + 拒绝终止请求（App 侧问题） |
+| 6.2 Web：scrollToIndex 抛 invariant | 1 | RNW 自带的 VirtualizedList 字段为 `_highestMeasuredFrameIndex`；兼容并加按屏滚动兜底 |
+| 6.2 iOS：指定点点击误报 ELEMENT_OBSCURED | 1 | Fabric 挂载层级与 React 层级不同 → 原生返回 hitTags + 新增 hitAt，JS 按 React 子树判断 |
+| 6.2 iOS：拖拽后回到待办列表 | 1 | iOS 26 内容区右滑返回；playground 关闭 gestureEnabled（App 侧问题，真实用户同样会遇到） |
+| 6.2 iOS / Android：scrollToEdge 超时 | 2 | 慢速拖动 → 快速甩动；每步独立超时 + 最终等待独立超时 + Host 等待放宽 |
+| 6.2 iOS：修复后仍是旧行为 | 1 | 临时 Metro 带 CI=1 → 无文件监听；去掉 CI=1 重启并确认 bundle |
+| 6.2 Android：一次 BeforeAll 17 分钟后失败 | 1 | 未复现（紧接着重跑 15/15，1m58s）；发生在 Metro 重启后首次打包 Android bundle 期间，原因未确认 |

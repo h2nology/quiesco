@@ -28,6 +28,8 @@ export interface NodeSpec {
   inputValue?: string;
   /** Created directly in the parent's render (no component in between). */
   withParent?: boolean;
+  /** Incremented by focus(). */
+  focusCalls?: number;
   children?: NodeSpec[];
 }
 
@@ -63,6 +65,10 @@ export function node(spec: NodeSpec, parent: MutableNode | null = null): Mutable
     ownerNames: () => spec.ownerNames ?? [],
     isFocused: () => spec.focused ?? false,
     inputValue: () => spec.inputValue,
+    focus: () => {
+      spec.focusCalls = (spec.focusCalls ?? 0) + 1;
+      return true;
+    },
     findHandler(name: string): HandlerRef | null {
       for (const p of [spec.props ?? {}, spec.owner ?? {}, spec.ancestorHandlers ?? {}]) {
         if (typeof p[name] === 'function') return { fn: p[name] as HandlerRef['fn'], props: p };

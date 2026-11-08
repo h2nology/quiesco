@@ -16,7 +16,9 @@ export type NativeErrorCode =
   /** typeText on a view that contains no text field. */
   | 'E_NOT_TEXT_INPUT'
   /** openUrl with an unparsable URL. */
-  | 'E_BAD_URL';
+  | 'E_BAD_URL'
+  /** gesture / pressKey with malformed arguments. */
+  | 'E_BAD_ARGS';
 
 export interface LocateResult {
   found: boolean;
@@ -40,6 +42,10 @@ export interface LocateResult {
    * Animation on the view or an ancestor, or the software keyboard sliding in / out.
    */
   settling?: boolean;
+  /** iOS: class of the native view a touch at the center would reach, its superview chain and their tags. */
+  hitClass?: string;
+  hitChain?: string[];
+  hitTags?: number[];
 }
 
 export interface TapResult {
@@ -52,10 +58,20 @@ export interface TapResult {
 export interface QuiescoNativeModule {
   getLaunchParams(): { port: string | null; session: string | null };
   locate(tag: number): Promise<LocateResult>;
+  /** iOS: who would receive a touch at the window point (x, y) of `tag`'s window. */
+  hitAt?(tag: number, x: number, y: number): Promise<Pick<LocateResult, 'windowHasFocus' | 'hitClass' | 'hitChain' | 'hitTags'>>;
   /** `tag < 0`: tap the point (x, y) of the main window (Android: activity window; iOS: key window). */
   tap(tag: number, x: number, y: number, holdMs: number, count: number): Promise<TapResult>;
   swipe(tag: number, fromX: number, fromY: number, toX: number, toY: number, durationMs: number): Promise<{ handled: boolean }>;
   typeText(tag: number, text: string, replace: boolean): Promise<{ text: string; inputConnection: boolean; focused: boolean }>;
+  /**
+   * One finger along a timed path in the window of `tag` (main window when tag < 0): flat
+   * `[x, y, tMs, x, y, tMs, ...]`, t from 0 and increasing; down at the first point, up at the last.
+   * Equal consecutive points are a hold.
+   */
+  gesture?(tag: number, path: number[]): Promise<{ handled: boolean }>;
+  /** `enter` (return / IME action) or `backspace` on the text field `tag`, the way the software keyboard sends them. */
+  pressKey?(tag: number, key: 'enter' | 'backspace'): Promise<{ text: string; focused: boolean }>;
   /**
    * iOS only: open a URL from inside the app (own scheme: routed to RN Linking without the system
    * confirmation alert of `simctl openurl`). Android opens deep links from the host (`am start`).

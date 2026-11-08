@@ -59,6 +59,11 @@ export interface HostNode {
    * or the last typed text; web: the DOM element's live `value`). Undefined for other elements.
    */
   inputValue(): string | undefined;
+  /**
+   * Give the element the input focus (text inputs). Web: DOM `focus()` and the caret moved to the end;
+   * native: the host instance's `focus()`. False when the element cannot be focused this way.
+   */
+  focus(): boolean;
   /** Whether the element has the input focus (focused text input; `document.activeElement` on the web). */
   isFocused(): boolean;
   /** Nearest component (this host or an ancestor, up to the root) with a function prop `name`. */
@@ -78,6 +83,8 @@ export interface InstanceRef {
   call(...args: unknown[]): unknown;
   /** Top-level host nodes rendered by the component (e.g. the native scroll view). */
   hostNodes(): HostNode[];
+  /** The component instance itself, for reading documented-but-internal state (e.g. list metrics). */
+  raw(): Record<string, unknown>;
 }
 
 export type RendererKind = 'native' | 'web';

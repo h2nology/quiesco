@@ -33,7 +33,7 @@ export default function NewTodo() {
   return (
     <ScreenTransition>
       <View style={styles.container} testID="new-todo-screen">
-        <TextInput testID="todo-title" accessibilityLabel="标题" placeholder="标题" value={title} onChangeText={setTitle} style={styles.input} autoFocus />
+        <TextInput testID="todo-title" accessibilityLabel="标题" placeholder="标题" value={title} onChangeText={setTitle} onSubmitEditing={() => void save()} returnKeyType="done" style={styles.input} autoFocus />
         <View style={styles.row}>
           <Text>标记为重要</Text>
           <Switch testID="todo-important" accessibilityLabel="标记为重要" value={important} onValueChange={setImportant} disabled={title.trim() === ''} />

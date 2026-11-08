@@ -43,6 +43,11 @@ public class QuiescoNativeModule: Module {
       return Self.describe(view)
     }.runOnQueue(.main)
 
+    /** Like `locate`'s reach fields, for a window point of `tag`'s window (taps at a point). */
+    AsyncFunction("hitAt") { (tag: Int, x: Double, y: Double) -> [String: Any] in
+      return Self.hit(tag: tag, x: x, y: y) ?? ["found": false]
+    }.runOnQueue(.main)
+
     /** Tap the center of `tag` (or the point `x`,`y` of the key window when tag < 0). */
     AsyncFunction("tap") { (tag: Int, x: Double, y: Double, holdMs: Int, count: Int, promise: Promise) in
       if let missing = QSTouchInjector.missingPrivateAPI() {
@@ -97,6 +102,87 @@ public class QuiescoNativeModule: Module {
         }
       }
       DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(interval)) { step(1) }
+    }.runOnQueue(.main)
+
+    /**
+     * One finger along a timed path in the window of `tag` (key window when tag < 0): `path` is flat
+     * [x, y, tMs, x, y, tMs, ...] with t from 0, increasing. Down at the first point, up at the last;
+     * moves are interpolated every `stepMs` between points that differ, none while the finger rests
+     * (a hold). Covers taps / long presses at a point, press-and-drag and swipes from a start point.
+     */
+    AsyncFunction("gesture") { (tag: Int, path: [Double], promise: Promise) in
+      if let missing = QSTouchInjector.missingPrivateAPI() {
+        promise.reject("E_UNSUPPORTED", Self.unsupported(missing))
+        return
+      }
+      guard path.count >= 6, path.count % 3 == 0 else {
+        promise.reject("E_BAD_ARGS", "path needs at least two [x, y, tMs] points")
+        return
+      }
+      guard let window = (tag >= 0 ? QSTouchInjector.view(withReactTag: tag)?.window : nil) ?? QSTouchInjector.keyWindow() else {
+        promise.reject("E_NO_VIEW", "no window for view \(tag)")
+        return
+      }
+      let points = stride(from: 0, to: path.count, by: 3).map { (CGPoint(x: path[$0], y: path[$0 + 1]), path[$0 + 2]) }
+      // Expand into timed events: (point, ms from start).
+      var events: [(CGPoint, Double)] = []
+      for i in 1..<points.count {
+        let (a, ta) = points[i - 1]
+        let (b, tb) = points[i]
+        let steps = a == b ? 1 : max(1, Int((tb - ta) / Double(Self.stepMs)))
+        for k in 1...steps {
+          let t = Double(k) / Double(steps)
+          events.append((CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t), ta + (tb - ta) * t))
+        }
+      }
+      let start = DispatchTime.now()
+      var handled = QSTouchInjector.touchDown(at: points[0].0, in: window, tapCount: 1) != nil
+      func fire(_ i: Int) {
+        let (p, _) = events[i]
+        if i == events.count - 1 {
+          handled = QSTouchInjector.touchMove(to: p) && handled
+          handled = QSTouchInjector.touchUp() && handled
+          promise.resolve(["handled": handled])
+          return
+        }
+        handled = QSTouchInjector.touchMove(to: p) && handled
+        DispatchQueue.main.asyncAfter(deadline: start + .milliseconds(Int(events[i + 1].1))) { fire(i + 1) }
+      }
+      DispatchQueue.main.asyncAfter(deadline: start + .milliseconds(Int(events[0].1))) { fire(0) }
+    }.runOnQueue(.main)
+
+    /**
+     * A key of the software keyboard on the text field `tag`: `enter` (the return key: a single-line
+     * field asks its delegate `textFieldShouldReturn`, which is what UIKit does for the return key and
+     * where React Native submits; a multi-line field gets a newline through UIKeyInput, where RN applies
+     * its submit behavior) or `backspace` (UIKeyInput.deleteBackward, which RN reports to onKeyPress).
+     */
+    AsyncFunction("pressKey") { (tag: Int, key: String, promise: Promise) in
+      guard let view = QSTouchInjector.view(withReactTag: tag) else {
+        promise.reject("E_NO_VIEW", "view \(tag) not found")
+        return
+      }
+      guard let field = Self.findTextInput(view) else {
+        promise.reject("E_NOT_TEXT_INPUT", "view \(tag) is not a text field")
+        return
+      }
+      let focused = field.isFirstResponder || field.becomeFirstResponder()
+      switch key {
+      case "enter":
+        if let single = field as? UITextField {
+          _ = single.delegate?.textFieldShouldReturn?(single)
+        } else {
+          field.insertText("\n")
+        }
+      case "backspace":
+        field.deleteBackward()
+      default:
+        promise.reject("E_BAD_ARGS", "unknown key \(key)")
+        return
+      }
+      KeyboardMotion.shared.touch()
+      let current = field.textRange(from: field.beginningOfDocument, to: field.endOfDocument).flatMap { field.text(in: $0) } ?? ""
+      promise.resolve(["text": current, "focused": focused])
     }.runOnQueue(.main)
 
     /**
@@ -209,7 +295,36 @@ public class QuiescoNativeModule: Module {
       "hitClass": top.map { String(describing: type(of: $0)) } ?? "",
       // Diagnostics for ELEMENT_OBSCURED: the hit view up to its window, and the presented controllers.
       "hitChain": top.map(superviewChain) ?? [],
+      // React tags from the hit view up. Fabric does not mount every React child inside its React
+      // parent's native view (children of views that form no stacking context are mounted higher up),
+      // so "is the hit view a native descendant" is not enough: JS compares these tags with the
+      // element's React subtree.
+      "hitTags": top.map(tagChain) ?? [],
       "presented": presentedChain(window),
+    ]
+  }
+
+  /** `tag` of the hit view and its superviews (React tags on Fabric component views; 0 for plain UIKit views). */
+  static func tagChain(_ view: UIView) -> [Int] {
+    var out: [Int] = []
+    var v: UIView? = view
+    while let cur = v, out.count < 40 {
+      out.append(cur.tag)
+      v = cur.superview
+    }
+    return out
+  }
+
+  /** Who would receive a touch at the window point (x, y) of `tag`'s window. */
+  static func hit(tag: Int, x: Double, y: Double) -> [String: Any]? {
+    guard let view = QSTouchInjector.view(withReactTag: tag), let window = view.window else { return nil }
+    let top = topmostHit(window.convert(CGPoint(x: x, y: y), to: nil))
+    let reaches = top.map { $0.isDescendant(of: view) || view.isDescendant(of: $0) } ?? false
+    return [
+      "windowHasFocus": reaches,
+      "hitClass": top.map { String(describing: type(of: $0)) } ?? "",
+      "hitChain": top.map(superviewChain) ?? [],
+      "hitTags": top.map(tagChain) ?? [],
     ]
   }
 

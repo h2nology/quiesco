@@ -4,6 +4,7 @@
  * import of the app entry, so the DevTools hook and scheduler patch precede the renderer).
  */
 import { SyncDefaults } from '@quiesco/protocol';
+import type { Direction, Edge, Point, Speed } from '@quiesco/protocol';
 import type {
   ActionSpec,
   ActionType,
@@ -44,6 +45,15 @@ import { describeMatcher, findAll, getTree, isVisible, structureLines, summarize
 import type { Clock, IdleTracker, TimerGlobals } from './sync';
 import { FrameStableTracker, IdleCallbackTracker, NetworkTracker, ReactTracker, SyncEngine, TimerTracker, realClock } from './sync';
 import { AGENT_VERSION } from './version';
+
+/** drag: hold before moving (long enough to start long-press-activated drags), and move duration. */
+const DRAG_HOLD_MS = 800;
+const DRAG_MS: Record<Speed, number> = { slow: 1200, normal: 600, fast: 250 };
+const LONG_PRESS_AT_MS = 800;
+/** scrollToEdge: at most this many steps; each waits for idle (up to the call timeout), so virtualized lists can grow. */
+const MAX_EDGE_STEPS = 60;
+/** Finger direction of a fling towards an edge (to reach the bottom, the finger moves up). */
+const EDGE_FINGER: Record<Edge, Direction> = { top: 'down', bottom: 'up', left: 'right', right: 'left' };
 
 export interface RuntimeOptions {
   adapter?: FiberAdapterOptions;
@@ -252,7 +262,7 @@ export class AgentRuntime {
    * The single visible element an action targets. Waits (up to the timeout) for it to appear and become
    * visible; several matches fail immediately with MULTIPLE_MATCHES.
    */
-  private async resolveTarget(matcher: Matcher, opts: SyncOption, deadline: number): Promise<HostNode> {
+  private async resolveTarget(matcher: Matcher, opts: SyncOption, deadline: number, requireVisible = true): Promise<HostNode> {
     for (;;) {
       let busy: QuiescoError | null = null;
       try {
@@ -271,7 +281,7 @@ export class AgentRuntime {
         });
       }
       const node = found[0];
-      const visible = node !== undefined && isVisible(node, this.adapter.viewport());
+      const visible = node !== undefined && (!requireVisible || isVisible(node, this.adapter.viewport()));
       if (busy !== null && visible) throw busy;
       if (visible) return node;
       if (busy !== null || this.clock.now() >= deadline) {
@@ -317,34 +327,71 @@ export class AgentRuntime {
         break;
       case 'tap':
         node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
-        hostInput = await perform(spec.matcher).tap(node);
+        hostInput = await perform(spec.matcher).tap(node, this.pointInside(node, spec.point, 'tap'));
         break;
       case 'longPress':
         node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
-        hostInput = await perform(spec.matcher).longPress(node, spec.durationMs);
+        hostInput = await perform(spec.matcher).longPress(node, spec.durationMs, this.pointInside(node, spec.point, 'longPress'));
         break;
       case 'doubleTap':
         node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
-        hostInput = await perform(spec.matcher).doubleTap(node);
+        hostInput = await perform(spec.matcher).multiTap(node, 2);
+        break;
+      case 'multiTap':
+        node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
+        hostInput = await perform(spec.matcher).multiTap(node, spec.count);
         break;
       case 'type':
         node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
         hostInput = await perform(spec.matcher).type(node, spec.text);
         break;
+      case 'replaceText':
+        node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
+        hostInput = await perform(spec.matcher).replaceText(node, spec.text);
+        break;
       case 'clear':
         node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
         hostInput = await perform(spec.matcher).clear(node);
         break;
+      case 'pressKey':
+        // The key goes to the field: it needs to exist, not to be visible or reachable by a touch.
+        node = await this.resolveExisting(spec.matcher, opts, deadline);
+        hostInput = await perform(spec.matcher).pressKey(node, spec.key);
+        break;
       case 'scroll':
         node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
-        hostInput = await perform(spec.matcher).scroll(node, spec.direction, spec.distance);
+        hostInput = await perform(spec.matcher).scroll(node, spec.direction, spec.distance, spec.from);
         break;
       case 'swipe':
         node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
-        hostInput = await perform(spec.matcher).swipe(node, spec.direction, spec.speed);
+        hostInput = await perform(spec.matcher).swipe(node, spec.direction, spec.speed, spec.distance, spec.from);
         break;
       case 'scrollTo':
         node = await this.scrollTo(spec.container, spec.target, opts, deadline, this.loopablePerformer(perform(spec.container)));
+        break;
+      case 'scrollToEdge':
+        ({ node, hostInput } = await this.scrollToEdge(spec.matcher, spec.edge, mode, opts, deadline, perform(spec.matcher)));
+        break;
+      case 'scrollToIndex':
+        node = await this.scrollToIndex(spec.matcher, spec.index, spec.viewPosition, opts, deadline);
+        break;
+      case 'drag': {
+        node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
+        let to: Point;
+        if ('point' in spec.to) {
+          to = spec.to.point;
+        } else {
+          const rect = (await this.resolveTarget(spec.to.matcher, opts, deadline)).measure();
+          if (rect === null) throw new QuiescoError('ELEMENT_NOT_FOUND', `The drop target ${describeMatcher(spec.to.matcher)} cannot be measured`, { matcher: spec.to.matcher });
+          to = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+        }
+        hostInput = await perform(spec.matcher).drag(node, to, spec.holdMs ?? DRAG_HOLD_MS, DRAG_MS[spec.speed ?? 'normal']);
+        break;
+      }
+      case 'tapAt':
+      case 'longPressAt':
+        await this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now()));
+        hostInput = await perform({}).tapAt(spec.point, spec.type === 'longPressAt' ? (spec.durationMs ?? LONG_PRESS_AT_MS) : undefined);
         break;
     }
 
@@ -352,8 +399,122 @@ export class AgentRuntime {
       // The host injects it, then waits for idle itself (Driver).
       return node === undefined ? { hostInput } : { element: this.summarize(node), hostInput };
     }
-    await this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now()));
+    // Multi-step scrolls give each step (and the final settle) the full timeout; others share one deadline.
+    const multiStep = spec.type === 'scrollToEdge' || spec.type === 'scrollToIndex';
+    await this.syncIfNeeded(opts, multiStep ? timeoutMs : Math.max(1, deadline - this.clock.now()));
     return node === undefined ? {} : { element: this.summarize(node) };
+  }
+
+  /** The single element matching `matcher`, visible or not (keys go to a field, not to a point). */
+  private resolveExisting(matcher: Matcher, opts: SyncOption, deadline: number): Promise<HostNode> {
+    return this.resolveTarget(matcher, opts, deadline, false);
+  }
+
+  /** `point` (element coordinates) checked against the element's size. */
+  private pointInside(node: HostNode, point: Point | undefined, action: ActionType): Point | undefined {
+    if (point === undefined) return undefined;
+    const r = node.measure();
+    if (r !== null && (point.x < 0 || point.y < 0 || point.x >= r.width || point.y >= r.height)) {
+      throw new QuiescoError('ACTION_NOT_SUPPORTED', `point (${point.x}, ${point.y}) is outside the element (${Math.round(r.width)}×${Math.round(r.height)})`, {
+        action,
+        platform: this.deps.platform(),
+        hint: 'points are in the element\'s own coordinates, from its top-left corner',
+      });
+    }
+    return point;
+  }
+
+  /**
+   * Scroll until the content offset stops changing at `edge`. Real flings in native mode; otherwise
+   * (js mode, or web where the host injects input and the agent cannot loop) the ScrollView is set to
+   * the edge directly. Every step waits for idle, so virtualized lists render more rows and grow.
+   */
+  private async scrollToEdge(
+    matcher: Matcher,
+    edge: Edge,
+    mode: ParamsOf<AgentMethods['action']>['mode'],
+    opts: SyncOption,
+    deadline: number,
+    performer: ActionPerformer,
+  ): Promise<{ node: HostNode; hostInput: HostInput | void }> {
+    const node = await this.resolveActionTarget(matcher, mode, opts, deadline);
+    const jsCtx = this.jsContext();
+    const scrollable = js.requireScrollable(node, 'scroll', jsCtx);
+    const programmatic = mode === 'js' || performer.viaHost;
+    // Each step gets the full timeout to settle (a long list takes many flings); MAX_EDGE_STEPS bounds the total.
+    for (let step = 0; step < MAX_EDGE_STEPS; step++) {
+      const before = scrollable.offset();
+      if (programmatic) js.scrollToEdge(scrollable, edge);
+      // Real input: fling (a fast swipe with momentum), like a user heading for the end.
+      else await performer.swipe(findAll(this.adapter.getHostRoots(), matcher)[0] ?? node, EDGE_FINGER[edge], 'fast');
+      await this.syncIfNeeded(opts);
+      const after = scrollable.offset();
+      if (Math.abs(after.x - before.x) < 1 && Math.abs(after.y - before.y) < 1) break;
+    }
+    return { node, hostInput: undefined };
+  }
+
+  /**
+   * Bring row `index` of a FlatList / FlashList into view (all modes: a programmatic scroll, like a
+   * user's fling would end). VirtualizedList.scrollToIndex throws (or calls the app's
+   * onScrollToIndexFailed) for rows beyond the measured ones when the list has no getItemLayout
+   * (findings.md 6.2), so Quiesco first scrolls to the last measured row, waits for the list to render
+   * further, and repeats until the row is reachable.
+   */
+  private async scrollToIndex(matcher: Matcher, index: number, viewPosition: number | undefined, opts: SyncOption, deadline: number): Promise<HostNode> {
+    const node = await this.resolveTarget(matcher, opts, deadline);
+    const inst = node.findInstance('scrollToIndex');
+    if (inst === null) {
+      throw new QuiescoError('ACTION_NOT_SUPPORTED', `${describeMatcher(matcher)} is not a FlatList / FlashList (no scrollToIndex)`, {
+        action: 'scrollToIndex',
+        platform: this.deps.platform(),
+        hint: 'match the list itself (its testID) or an element inside it; for other scroll views use scrollTo / scrollToEdge',
+      });
+    }
+    let previous = -1;
+    for (;;) {
+      const raw = inst.raw();
+      const props = (typeof raw['props'] === 'object' && raw['props'] !== null ? raw['props'] : {}) as Record<string, unknown>;
+      const count = listLength(props);
+      if (count !== null && (index < 0 || index >= count)) {
+        throw new QuiescoError('ELEMENT_NOT_FOUND', `Row ${index} is out of range: ${describeMatcher(matcher)} has ${count} rows`, { matcher });
+      }
+      const highest = highestMeasuredRow(raw);
+      if (typeof props['getItemLayout'] === 'function' || highest === null || index <= highest) {
+        try {
+          inst.call({ index, animated: false, ...(viewPosition === undefined ? {} : { viewPosition }) });
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e);
+          // A list whose measurements Quiesco cannot read: scroll a screen further and try again.
+          if (highest === null && message.includes('onScrollToIndexFailed') && (await this.scrollOneScreen(node, opts))) continue;
+          throw new QuiescoError('ACTION_NOT_SUPPORTED', `scrollToIndex(${index}) failed: ${message}`, { action: 'scrollToIndex', platform: this.deps.platform() });
+        }
+        await this.syncIfNeeded(opts);
+        return node;
+      }
+      // Each step gets the full timeout; the loop ends when the list stops growing.
+      if (highest <= previous) {
+        throw new QuiescoError('ELEMENT_NOT_FOUND', `Row ${index} of ${describeMatcher(matcher)} was not rendered (the list stopped at row ${highest})`, { matcher });
+      }
+      previous = highest;
+      inst.call({ index: highest, viewPosition: 0, animated: false });
+      await this.syncIfNeeded(opts);
+    }
+  }
+
+  /** Scroll the list containing `node` down by a screen and wait for idle; false at the end. */
+  private async scrollOneScreen(node: HostNode, opts: SyncOption): Promise<boolean> {
+    const s = js.findScrollable(node);
+    if (s === null) return false;
+    const before = s.offset();
+    js.scrollBy(s, 'down');
+    await this.syncIfNeeded(opts);
+    const after = s.offset();
+    return Math.abs(after.y - before.y) >= 1 || Math.abs(after.x - before.x) >= 1;
+  }
+
+  private jsContext(): js.JsActionContext {
+    return { platform: this.deps.platform(), roots: () => this.adapter.getHostRoots() };
   }
 
   /**
@@ -387,7 +548,7 @@ export class AgentRuntime {
    * input rejects it with ACTION_NOT_SUPPORTED.
    */
   private performer(mode: ParamsOf<AgentMethods['action']>['mode'], action: ActionType, matcher: Matcher, deadline: number): ActionPerformer {
-    if (mode === 'js') return jsPerformer({ platform: this.deps.platform() });
+    if (mode === 'js') return jsPerformer(this.jsContext());
     const roots = (): HostNode[] => this.adapter.getHostRoots();
     const viewport = (): ReturnType<FiberAdapter['viewport']> => this.adapter.viewport();
     const bridge: NativeBridge | null = this.nativeModule();
@@ -397,7 +558,7 @@ export class AgentRuntime {
 
   /** scrollTo loops in the agent; with host-injected input it scrolls with the JS fallback instead. */
   private loopablePerformer(p: ActionPerformer): ActionPerformer {
-    return p.viaHost ? jsPerformer({ platform: this.deps.platform() }) : p;
+    return p.viaHost ? jsPerformer(this.jsContext()) : p;
   }
 
   /**
@@ -478,4 +639,39 @@ export class AgentRuntime {
 /** Whether two rects share some area (touching edges do not count). */
 function overlaps(a: Rect, b: Rect): boolean {
   return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+}
+
+/** Number of rows of a VirtualizedList-like component from its props, or null if unknown. */
+function listLength(props: Record<string, unknown>): number | null {
+  const getItemCount = props['getItemCount'];
+  try {
+    if (typeof getItemCount === 'function') {
+      const n = (getItemCount as (d: unknown) => unknown)(props['data']);
+      if (typeof n === 'number') return n;
+    }
+  } catch {
+    // fall through
+  }
+  const data = props['data'];
+  return Array.isArray(data) ? data.length : null;
+}
+
+/**
+ * Highest row index a VirtualizedList has measured: RN 0.88 `_listMetrics.getHighestMeasuredCellIndex()`,
+ * react-native-web `_highestMeasuredFrameIndex`; FlatList keeps its VirtualizedList in `_listRef`. Null
+ * when unknown (other list implementations: their scrollToIndex is called directly, with a fallback).
+ */
+function highestMeasuredRow(raw: Record<string, unknown>): number | null {
+  const isList = (o: Record<string, unknown>): boolean => typeof o['_listMetrics'] === 'object' || typeof o['_highestMeasuredFrameIndex'] === 'number';
+  const list = (isList(raw) ? raw : raw['_listRef']) as Record<string, unknown> | null | undefined;
+  if (list === null || list === undefined) return null;
+  // react-native-web's vendored VirtualizedList keeps the older field.
+  if (typeof list['_highestMeasuredFrameIndex'] === 'number') return list['_highestMeasuredFrameIndex'];
+  const metrics = list['_listMetrics'] as { getHighestMeasuredCellIndex?: () => unknown } | undefined;
+  try {
+    const n = metrics?.getHighestMeasuredCellIndex?.();
+    return typeof n === 'number' ? n : null;
+  } catch {
+    return null;
+  }
 }
