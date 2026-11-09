@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-6.4 完成并提交（2026-11-09）。下一步：6.5 应用生命周期——先输出详细实施计划交 HU 确认。
+6.4 完成并提交（2026-11-09）。6.5 完成（2026-11-09，三端实跑通过，待提交）。下一步：6.6 设备状态——先输出详细实施计划交 HU 确认。
 
 ## Current Phase
 Phase 6
@@ -107,9 +107,9 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 - [x] 3.3 Web 的 `native` 档位 = Host 注入：agent 在没有 `@quiesco/native` 时，native 档位不报错，而是做完可见 / 稳定 / 命中检查后返回 `hostInput`（tap / type / wheel），由 Driver 交给 provider 注入后再等空闲（agent 内不按平台分支；Android 无原生模块时 provider 不支持 tap 注入 → 明确报错）。协议新增 `HostInput` 的 `wheel`（Web 上滚动用滚轮，鼠标拖动不会让 RNW ScrollView 滚动）
 - [x] 3.4 整页刷新后透明重连（§6.2）：Driver 发现连接已断开时，先等待同一 session 的新连接（连接超时内），再继续当前调用；与平台无关
 - [x] 3.5 示例 App 的 Web：`web.output` 用 `static`（顺带验证 Expo Router 静态渲染的 hydration：QuiescoRoot 挂载后才连接，Host 等连接 = 等 hydration 完成）；`build:web`（e2e 静态导出）、`test:e2e:web`；quiesco.config 加 `apps.web` / `devices.web`；开发服务器方式也跑一次
-- [ ] 3.6 「只测原生端不装 Playwright 也能运行」的验证：用 Node 的 module hook 在加载 `playwright` / `@quiesco/web` 时直接抛错，带着它跑一次 Android 全量 feature
-- [ ] 3.7 验收：同一份 feature 与 step 在 Android Emulator 与 Chromium（手机 / 平板 / 桌面三视口）上都通过；Web 每个视口连续 20 次无随机失败；3.6 通过；`pnpm run check` 通过
-- **Status:** in_progress（HU 2026-11-08 确认计划）
+- [x] 3.6 「只测原生端不装 Playwright 也能运行」的验证：用 Node 的 module hook 在加载 `playwright` / `@quiesco/web` 时直接抛错，带着它跑一次 Android 全量 feature
+- [x] 3.7 验收：同一份 feature 与 step 在 Android Emulator 与 Chromium（手机 / 平板 / 桌面三视口）上都通过；Web 每个视口连续 20 次无随机失败；3.6 通过；`pnpm run check` 通过
+- **Status:** complete（验收记录见 progress.md 3.6 / 3.7；标记于 2026-11-09 补改）
 
 ### Phase 4: iOS 与 Expo 集成
 **范围**：`@quiesco/native` iOS 实现、iOS DeviceProvider、`@quiesco/expo-plugin`（从 native 包迁出并补 iOS）、`eas.json` e2e profile、生产剔除检查、cucumber `--parallel`。环境：Xcode 27.2，iPhone 17 / iOS 27.0（另有 iOS 26.5 runtime）。
@@ -188,12 +188,33 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
   - 已查：SDK 58 自带 react-native-gesture-handler ~3.3.0、reanimated 4.7.1、react-native-maps 1.29.11；示例 App 未装 RNGH；QSTouchInjector 现为单个静态 UITouch + 一个 hand / 一个 finger HID 事件
   - spike：iOS QSTouchInjector 改多指（N 个 UITouch + 一个 hand event 多个 finger child）、Android MotionEvent 多 pointer、Web CDP `Input.dispatchTouchEvent` 两点；验证 RNGH Pinch / Rotation、react-native-maps / 图片查看器
   - `pinch(t, scale, { speed, angle })`、`rotate(t, radians)`，三端（Detox pinch 仅 iOS）
-- [ ] 6.5 应用生命周期（DeviceProvider 扩展 + Driver 设备级 API `app.device.*`）
-  - `relaunch({ newInstance, url, args, clearData, reinstall, permissions })`（扩展 LaunchParams；iOS `-key value`、Android `--es`、Web query / init script）；App 内 `quiesco.launchArgs()` 读取
-  - `terminate()`、`sendToBackground()` / `bringToForeground()`（iOS simctl launch / Home 键注入，Android HOME + am start，Web visibilitychange / page.bringToFront）、`install()` / `uninstall()`
-  - `screenshot(name?)`、元素截图 `screenshot(t)`（按 rect 裁剪）
-  - `reversePort(port)` 运行时（Android）
-  - 运行时开关同步：`app.sync.disable()` / `enable()`、按 tracker 关闭（`disableTracker('timer')`）、运行时 `ignoreUrls` / `ignoreElements` 增删（Detox 只能全关，#1513）
+- [x] 6.5 应用生命周期——详细计划（2026-11-09，HU 已确认），完成（2026-11-09）
+  - **HU 决定（2026-11-09）**：① 启动参数用 JSON 单参数 `quiescoArgs`（base64），保留类型；② `app.sync.*` 运行时覆盖每个场景开始时恢复为 config 值；③ 某平台无法真正以深链接冷启动时，`relaunch({ url })` 降级为启动后再 openUrl，并在 platforms.md 写明差异（getInitialURL 拿不到）
+  - **现状**：`DeviceProvider` 只有 boot / install / launch / terminate / grantPermissions / screenshot / injectInput；`LaunchParams` 只有 port + sessionId；`Session.launch()` 私有；Driver 已能在断线后透明等重连；agent 的 AgentConfig 只在 hello 时下发一次（`runtime.configure`）
+  - **API 形态**：`app.device.*`（新类 `DeviceApi`，由 Session 构造并挂到 Driver 上；Driver 现有的 `pressBack` / `openUrl` 保留，`app.device` 上也有同名别名）；`app.sync.*`（新类 `SyncApi`）
+  - **启动参数**：`relaunch({ args })` 的 args 是任意 JSON 对象，三端都只传一个参数 `quiescoArgs` = base64(JSON)（iOS `-quiescoArgs <b64>`、Android `--es quiescoArgs <b64>`、Web 写进 `window.__QUIESCO__.args`）：类型不丢（Detox 一律转字符串），也不会碰到 Android shell 引号问题。原生模块 `getLaunchParams` 多返回 `args`（Android 的 LaunchParamsStore 一起记住）；App 内 `quiesco.launchArgs()` 同步返回（生产 stub 返回 `{}`）；JS-only 构建在 iOS / Android 读不到 → 返回 `{}` 并打一次警告。config 增加 `launchArgs` 作为每次启动的默认值，relaunch 的 args 与之浅合并
+  - **DeviceProvider 扩展**（可选方法，未实现的报 ACTION_NOT_SUPPORTED + 原因）：`LaunchParams` 加 `args?` / `url?`；新增 `clearData()`、`uninstall()`、`sendToBackground()`、`bringToForeground()`、`reversePort(port)` / `unreversePort(port)`、`screenshot({ clip? })`
+  - **`app.device.relaunch({ args, url, clearData, reinstall, permissions })`**：始终是新进程（等同 Detox `newInstance: true`；回到前台用 `bringToForeground()`）。顺序：terminate →（reinstall：uninstall + install）→（clearData）→ grantPermissions（config 的 + 本次的）→ launch → 等连接。**默认保留数据**；`@hard-reset` 现有行为不变
+    - iOS：clearData = 终止后清空 `simctl get_app_container <bundle> data` 下的内容（Documents / Library / tmp），Keychain 不动（6.6 再议）
+    - Android：clearData = `pm clear`（会撤销权限 → 之后重授 config 中的权限）
+    - Web：terminate 改为只关 page、保留 context（数据保留）；clearData = 新 context；reinstall / uninstall 在 Web 上等于 clearData（无安装概念，写进 platforms.md）
+    - url（以深链接启动）：Android 非 dev client `am start -a VIEW -d <url>` 并带 extras；Web = 打开该路径；iOS 与 Android dev client 先 spike（见下）
+  - **`terminate()`**：之后的元素调用不再空等重连超时，而是立即报 `APP_NOT_RUNNING`（新错误码）并提示 `relaunch()`
+  - **`sendToBackground()` / `bringToForeground()`**（Detox 只有 sendToHome，且 iOS 依赖 XCUITest）：
+    - Android：`input keyevent KEYCODE_HOME` / `am start` 启动器 intent（不带 CLEAR_TASK，进程不变）
+    - iOS：spike —— 原生模块调用 `UIApplication suspend`（私有，Simulator 足够）退到后台，`simctl launch`（不带 `--terminate-running-process`）回前台；验证 AppState 'background' / 'active' 事件与连接是否保持
+    - Web：spike —— CDP `Page.setWebLifecycleState` 或同 context 新开 page + bringToFront，看 `document.visibilityState` / `visibilitychange` 是否真实变化；都不行则报 ACTION_NOT_SUPPORTED（不做伪造事件）
+    - 后台期间：agent 的 waitForIdle 在 AppState≠active 时把 frame-stable / timer / native 视为空闲（spike：Android 后台 RN 定时器暂停、不出帧）；Driver 记录后台状态，元素动作直接报 `APP_IN_BACKGROUND`（iOS 约 20 s 后挂起 JS，请求会无响应）
+    - spike 结论：iOS 用原生 suspend（主屏幕），JS-only 构建退回打开设置 App；Android HOME / 启动器 intent；Web 报 ACTION_NOT_SUPPORTED；以 url 启动：Android dev client 用 `__expo_url` 格式、iOS 用 `-quiescoUrl` + 原生模块交给 expo-linking（均为真实冷启动，无需降级）
+  - **`install()` / `uninstall()`**：iOS `simctl install / uninstall`、Android `adb install -r -g / uninstall`；需要 `binaryPath`，没有时报 CONFIG_ERROR
+  - **`screenshot()` / `screenshot(target)`**：返回 PNG Buffer（保存到文件与命名属于 6.9）。元素截图 = 整屏截图后按元素 rect 裁剪：Web 用 `page.screenshot({ clip })`；iOS / Android 在 core 内用 node:zlib 自写最小 PNG 解码 / 编码（8 位 RGB / RGBA、非隔行，其它格式明确报错），缩放比 = 图片宽 / 窗口逻辑宽（agent 新增 `deviceInfo` 方法返回窗口尺寸与 pixelRatio）。元素被裁剪 / 部分出屏时只截可见部分
+  - **`reversePort(port)` / `unreversePort(port)`**：Android `adb reverse`；iOS Simulator / Web 共享主机网络 → 直接成功（不报错，文档说明）
+  - **运行时同步开关**（Detox 只能全局开关，#1513）：protocol 新增 agent 方法 `configure { sync: Partial }`；`app.sync.disable()` / `enable()`、`disableTracker(name)` / `enableTracker(name)`、`ignoreUrls.add(p)` / `remove(p)`、`ignoreElements.add(m)` / `remove(m)`；host 记住当前覆盖值，重连 / relaunch 后通过 hello 结果重新下发；**每个场景开始时恢复为 config 值**（beforeScenario）
+  - **spike（实现前）**：① iOS 后台 / 前台（suspend + simctl launch，AppState 与 WebSocket 是否存活）；② 以 url 启动：iOS（`simctl launch` 无法传 URL；比较 `simctl openurl` 冷启动是否也弹确认框、由原生模块在启动时把 `-quiescoUrl` 交给 RCTLinkingManager / expo-linking 作为初始 URL 两种方式）与 Android dev client（dev client 自身占用了 VIEW intent），确认 expo-router 首屏是否进到该路由；③ Web 后台方式；④ Android `pm clear` 后 dev client 是否回到启动器页面（需要重新带 dev client URL 启动）
+  - **原生（需重建两端 dev client）**：`getLaunchParams` 加 args / url；iOS `suspend`；iOS 初始 URL（视 spike 结果）
+  - **示例 App**：playground 加「生命周期」区块：显示 `launchArgs()`、AppState 变化次数、一个持久化计数器（AsyncStorage / localStorage）；`features/lifecycle.feature`：带参数重启、保留 / 清除数据、以深链接启动、后台→前台、terminate 后报错、运行时关闭 timer tracker 后可操作一个无限轮询页、元素截图尺寸
+  - **测试**：core 单测（各 provider 命令序列用假 exec 校验、relaunch 步骤顺序、PNG 解码 / 裁剪 / 编码往返、SyncApi 覆盖值与重下发）；agent 单测（launchArgs 解析、configure 合并、后台时 tracker 视为空闲）；三端实跑（iOS / Android native + js 档位、Web 三视口）；`pnpm run check`
+  - **文档**：api.md（app.device / app.sync / launchArgs）、platforms.md（各端实现与差异）
 - [ ] 6.6 设备状态
   - `setOrientation('portrait' | 'landscape')`（iOS 注入方向 / simctl、Android `settings put system user_rotation` + 关自动旋转、Web 视口宽高互换）
   - `setLocation(lat, lon)`（simctl location set、`adb emu geo fix`、Playwright setGeolocation）
@@ -226,7 +247,7 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 - [ ] 6.13 真机：Android 真机（adb，无 emulator 专属命令时逐项降级并报 ACTION_NOT_SUPPORTED + 原因）；iOS 真机（devicectl 安装 / 启动 / 传参、签名配置、网络连接改为局域网或 USB 转发，spike 先行）；**需要 HU 提供并连接真机**，验收前暂停确认
 - [ ] 6.14 LLM 驱动（对标 Detox Pilot）：`app.ai.perform('…')` / `app.ai.expect('…')`，以元素树 + 截图为上下文、Driver API 为工具；实现前先读 claude-api 技能确认当前模型与 SDK 用法；结果可「固化」为普通 step 代码（Detox 没有）；默认关闭，需配置 API key
 - **验收**：对照表中 Detox 的每一项都有对应能力（或写明替代方案）；示例 App 新 features 在 iOS / Android / Chromium 通过；Detox 单平台独占项在 Quiesco 中至少两端可用
-- **Status:** in_progress（6.0–6.4 完成，下一步 6.5）
+- **Status:** in_progress（6.0–6.5 完成，下一步 6.6）
 
 ## 待 HU 决定（requirements.md §11，遇到时暂停询问）
 | # | 事项 | 何时需要 | 状态 |
@@ -363,3 +384,6 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | 6.3 Web 单测：fill 到非表单元素卡 30s | 1 | Playwright 会等待可编辑 → provider 先检查标签（SELECT / INPUT / TEXTAREA），否则立即报错 |
 | 6.4 三端：捏合 / 旋转读数系统性偏小（iOS 1.76、Android 1.46、Web 1.19 对 2 倍） | 1 | 识别器从激活点计量（源码确认阈值）→ 先做与平台阈值相等的 lead-in；阈值放在各 DeviceProvider（gestureSlop），经 hello 下发，可由 actions.gestureSlop 覆盖；实测微调 Android 26 dp、Web 46 px / 旋转 0 |
 | 6.4 Web 单测：两指按下得到 touchstart:1 + touchstart:2 | 1 | CDP 对每个变化触点各发一个 DOM 事件（与真实触摸屏一致），修正测试预期 |
+| 6.5 spike：iOS 原生模块 OnCreate 里创建 LinkingAppDelegateSubscriber 崩溃（EXC_BREAKPOINT） | 1 | app-delegate subscriber 是 @MainActor，OnCreate 不在主线程 → `DispatchQueue.main.async`；实测仍早于 expo-router 首次读取 |
+| 6.5 Web 实跑：terminate 后 tap 等了 30 s 重连才失败 | 1 | action() 先调 mode() 读连接，状态检查在 call() 里太晚 → checkAppRunning 前移到 action()；新增 Driver 直测（连接永不返回），反向测试：去掉修复后超时失败 |
+| 6.5 iOS xcodebuild：「Scanning for @ExpoModule classes didn't complete」 | 1 | 与 Android `prebuild --clean` 同时跑导致；Android 构建结束后重试即成功（两端构建不要并行） |

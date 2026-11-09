@@ -6,6 +6,7 @@
  * 4. DEFAULT_PORT with no session (JS-only mode, single device).
  */
 import { DEFAULT_PORT, WEB_PARAMS_GLOBAL } from '@quiesco/protocol';
+import type { JsonValue } from '@quiesco/protocol';
 
 export interface ConnectionParams {
   port: number;
@@ -36,4 +37,27 @@ export function resolveParams(src: ParamSources): ConnectionParams {
   if (buildPort !== null) return { port: buildPort, session: src.build.session, source: 'build' };
 
   return { port: DEFAULT_PORT, session: null, source: 'default' };
+}
+
+/**
+ * Test launch arguments (Phase 6.5). Native: base64 of an ASCII-only JSON object (LAUNCH_PARAM_ARGS);
+ * web: the object in `window.__QUIESCO__.args`. Anything else → no arguments, with the reason.
+ */
+export function decodeLaunchArgs(
+  native: string | null | undefined,
+  global: Record<string, unknown>,
+  decodeBase64: (b64: string) => string,
+): { args: Record<string, JsonValue>; problem: string | null } {
+  const isObject = (v: unknown): v is Record<string, JsonValue> => typeof v === 'object' && v !== null && !Array.isArray(v);
+  if (typeof native === 'string' && native !== '') {
+    try {
+      const v: unknown = JSON.parse(decodeBase64(native));
+      return isObject(v) ? { args: v, problem: null } : { args: {}, problem: 'launch arguments are not a JSON object' };
+    } catch (e) {
+      return { args: {}, problem: `cannot decode launch arguments (${(e as Error).message})` };
+    }
+  }
+  const web = global[WEB_PARAMS_GLOBAL] as { args?: unknown } | undefined;
+  if (web?.args !== undefined) return isObject(web.args) ? { args: web.args, problem: null } : { args: {}, problem: 'launch arguments are not a JSON object' };
+  return { args: {}, problem: null };
 }

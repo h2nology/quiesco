@@ -35,6 +35,8 @@ import type { ActionOptions, CallOptions } from './options.js';
 import type { VisibleOptions } from './expect.js';
 import { ElementExpectation, checkRatio } from './expect.js';
 import type { AgentConnection } from './server/ws-server.js';
+import type { AppRunState, DeviceApi } from './device.js';
+import type { SyncApi } from './sync-api.js';
 
 export type { ActionOptions, CallOptions } from './options.js';
 
@@ -51,6 +53,8 @@ export interface DriverOptions {
   /** App errors (by message) that are logged instead of failing the call. */
   ignoreAppErrors?: readonly RegExp[];
   logger?: Logger;
+  /** What the test did to the app (Phase 6.5): calls fail fast unless it is `running`. Default: running. */
+  appState?: () => AppRunState;
 }
 
 /** Calls without side effects, repeated once when the connection drops mid-call. */
@@ -67,9 +71,30 @@ export class Driver {
   private watched: AgentConnection | null = null;
   private warnedJsMode = false;
   private readonly logger: Logger;
+  private lifecycle: { device: DeviceApi; sync: SyncApi } | null = null;
 
   constructor(private readonly options: DriverOptions) {
     this.logger = options.logger ?? silentLogger;
+  }
+
+  /** `app.device.*`: relaunch, terminate, background / foreground, install, screenshots (Phase 6.5). */
+  get device(): DeviceApi {
+    return this.requireLifecycle().device;
+  }
+
+  /** `app.sync.*`: switch synchronization (or single trackers) off, ignore URLs / elements at runtime. */
+  get sync(): SyncApi {
+    return this.requireLifecycle().sync;
+  }
+
+  /** Called by the session that owns this driver. */
+  setLifecycle(device: DeviceApi, sync: SyncApi): void {
+    this.lifecycle = { device, sync };
+  }
+
+  private requireLifecycle(): { device: DeviceApi; sync: SyncApi } {
+    if (this.lifecycle === null) throw new QuiescoError('CONFIG_ERROR', 'app.device / app.sync need a Quiesco session (createSession); this driver is attached to a running app');
+    return this.lifecycle;
   }
 
   // ---- actions (§6.3) ----
@@ -361,6 +386,8 @@ export class Driver {
   // ---- internals ----
 
   private async action(spec: ActionSpec, opts: ActionOptions = {}): Promise<ElementSummary | undefined> {
+    // Before mode(): it reads the connection, which would wait for a terminated app to reconnect.
+    this.checkAppRunning(spec.type);
     const params: ParamsOf<AgentMethods['action']> = { action: spec, mode: opts.mode ?? (await this.mode()), ...syncParams(opts) };
     // Multi-step scrolls give every step the full timeout in the agent (bounded number of steps).
     const steps = spec.type === 'scrollToEdge' || spec.type === 'scrollToIndex' ? MAX_SCROLL_STEPS : 1;
@@ -399,6 +426,26 @@ export class Driver {
 
   /** `steps`: the agent may wait up to `timeoutMs` this many times (multi-step actions). */
   private async call<M extends keyof AgentMethods>(method: M, params: ParamsOf<AgentMethods[M]>, timeoutMs?: number, steps = 1): Promise<ResultOf<AgentMethods[M]>> {
+    this.checkAppRunning(method);
+    return this.request(method, params, timeoutMs, steps);
+  }
+
+  /** Fail fast while the test has the app terminated or in the background (no waiting for a reconnect). */
+  private checkAppRunning(what: string): void {
+    const state = this.options.appState?.() ?? 'running';
+    if (state === 'terminated') {
+      throw new QuiescoError('APP_NOT_RUNNING', `${what}: the app is not running (the test terminated or uninstalled it); call app.device.relaunch() first`, { method: what });
+    }
+    if (state === 'background') {
+      throw new QuiescoError('APP_IN_BACKGROUND', `${what}: the app is in the background; call app.device.bringToForeground() first`, { method: what });
+    }
+  }
+
+  /**
+   * An agent call without the app-state check (the session's lifecycle steps: AppState polling while in
+   * the background, suspend, configure). Not part of the test API.
+   */
+  async request<M extends keyof AgentMethods>(method: M, params: ParamsOf<AgentMethods[M]>, timeoutMs?: number, steps = 1): Promise<ResultOf<AgentMethods[M]>> {
     const pending = this.takeAppError();
     if (pending !== null) throw pending;
     const send = async (): Promise<ResultOf<AgentMethods[M]>> => {

@@ -10,12 +10,16 @@
  * - The simulator shares the Mac's network: no port forwarding.
  * - Device input: no system back button on iOS; deep links are opened inside the app by
  *   @quiesco/native, because `simctl openurl` shows a SpringBoard confirmation alert.
+ * - Phase 6.5: launch arguments as `-quiescoArgs <base64 JSON>`; a launch URL as `-quiescoUrl`, which
+ *   @quiesco/native hands to expo-linking; background = `-[UIApplication suspend]` inside the app (home
+ *   screen), or opening the Settings app for apps without @quiesco/native; foreground = `simctl launch`
+ *   without terminating (the running process is activated, its arguments are ignored).
  */
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { LAUNCH_PARAM_PORT, LAUNCH_PARAM_SESSION } from '@quiesco/protocol';
+import { LAUNCH_PARAM_ARGS, LAUNCH_PARAM_PORT, LAUNCH_PARAM_SESSION, LAUNCH_PARAM_URL } from '@quiesco/protocol';
 import type { HostInput } from '@quiesco/protocol';
 
 import type { IosAppConfig, IosDeviceConfig } from '../config.js';
@@ -25,7 +29,7 @@ import { silentLogger } from '../logger.js';
 import type { Exec } from './exec.js';
 import { execCommand } from './exec.js';
 import type { Permission } from './permissions.js';
-import type { DeviceProvider, LaunchParams } from './provider.js';
+import type { DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling } from './provider.js';
 
 /** `simctl privacy` services; camera and notifications have none (Xcode 27). */
 const IOS_PRIVACY: Partial<Record<Permission, string[]>> = {
@@ -186,20 +190,67 @@ export class IosProvider implements DeviceProvider {
     }
   }
 
-  async launch(params: LaunchParams): Promise<void> {
+  async launch(params: LaunchParams): Promise<LaunchUrlHandling | void> {
     const dc = this.options.app.devClient;
     const args = ['launch', '--terminate-running-process', this.udid, this.bundleId];
     if (dc !== undefined) args.push('--initialUrl', dc.metroUrl ?? 'http://localhost:8081', ...IOS_DEV_MENU_ARGS);
     args.push(`-${LAUNCH_PARAM_PORT}`, String(params.port), `-${LAUNCH_PARAM_SESSION}`, params.sessionId);
+    if (params.args !== undefined) args.push(`-${LAUNCH_PARAM_ARGS}`, params.args);
+    if (params.url !== undefined) args.push(`-${LAUNCH_PARAM_URL}`, params.url);
     await this.simctl(args).catch((e: unknown) => {
       throw new QuiescoError('DEVICE_ERROR', `simctl launch failed: ${(e as Error).message}`);
     });
+    if (params.url !== undefined) return 'needs-native';
   }
 
   async terminate(): Promise<void> {
     // Fails when the app is not running; that is the state we want.
     await this.simctl(['terminate', this.udid, this.bundleId]).catch(() => undefined);
   }
+
+  /**
+   * Empty the app's data container (Documents, Library, tmp) and its UserDefaults. UserDefaults go through
+   * `defaults delete` first: cfprefsd caches them, so deleting the plist alone would bring them back.
+   * The keychain is kept (simctl cannot clear one app's keychain items).
+   */
+  async clearData(): Promise<void> {
+    await this.terminate();
+    await this.simctl(['spawn', this.udid, 'defaults', 'delete', this.bundleId]).catch(() => undefined);
+    let data: string;
+    try {
+      data = (await this.simctl(['get_app_container', this.udid, this.bundleId, 'data'])).trim();
+    } catch (e) {
+      throw new QuiescoError('DEVICE_ERROR', `cannot find the data container of ${this.bundleId}: ${(e as Error).message}`);
+    }
+    for (const dir of ['Documents', 'Library', 'tmp']) {
+      const full = path.join(data, dir);
+      const entries = await fs.readdir(full).catch(() => [] as string[]);
+      for (const name of entries) await fs.rm(path.join(full, name), { recursive: true, force: true });
+    }
+  }
+
+  async uninstall(): Promise<void> {
+    await this.terminate();
+    await this.simctl(['uninstall', this.udid, this.bundleId]);
+  }
+
+  async sendToBackground(app: InAppControls): Promise<void> {
+    if (await app.suspend().catch(() => false)) return;
+    // No @quiesco/native (or an older one): another app in front puts ours in the background too.
+    this.logger.debug('sendToBackground: the app cannot suspend itself; opening the Settings app instead');
+    await this.simctl(['launch', this.udid, 'com.apple.Preferences']);
+  }
+
+  async bringToForeground(): Promise<void> {
+    await this.simctl(['launch', this.udid, this.bundleId]).catch((e: unknown) => {
+      throw new QuiescoError('DEVICE_ERROR', `simctl launch failed: ${(e as Error).message}`);
+    });
+  }
+
+  /** The simulator shares the Mac's network: host ports are reachable as they are. */
+  async reversePort(): Promise<void> {}
+
+  async unreversePort(): Promise<void> {}
 
   async grantPermissions(perms: readonly Permission[]): Promise<void> {
     for (const p of perms) {

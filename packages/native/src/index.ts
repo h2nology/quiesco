@@ -104,7 +104,10 @@ export interface TapResult {
 }
 
 export interface QuiescoNativeModule {
-  getLaunchParams(): { port: string | null; session: string | null };
+  /** `args`: base64 of the test's launch arguments as JSON (Phase 6.5). */
+  getLaunchParams(): { port: string | null; session: string | null; args: string | null };
+  /** iOS only: leave for the home screen (private `-[UIApplication suspend]`); false when unavailable. */
+  suspend?(): Promise<boolean>;
   locate(tag: number): Promise<LocateResult>;
   /** iOS: who would receive a touch at the window point (x, y) of `tag`'s window. */
   hitAt?(tag: number, x: number, y: number): Promise<Pick<LocateResult, 'windowHasFocus' | 'hitClass' | 'hitChain' | 'hitTags'>>;

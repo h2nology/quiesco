@@ -329,3 +329,22 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - **注入方式**：iOS 一个 UIEvent 里放 N 个 UITouch（各自 Began / Moved / Stationary / Ended），HID hand 事件下挂 N 个 finger 子事件（index i+1、identity i+2）；Android 多 pointer MotionEvent（ACTION_DOWN → ACTION_POINTER_DOWN(index) → 带全部 pointer 的 ACTION_MOVE → ACTION_POINTER_UP → ACTION_UP）；Web 用 CDP `Input.dispatchTouchEvent`（每帧按「新增 / 移动 / 抬起」分别发 touchStart / touchMove / touchEnd，touchPoints 为该事件之后仍按下的手指；CDP 对每个变化的触点各产生一个 DOM 事件）。三端 RNGH Pinch / Rotation / 双指 Pan 均能识别；iOS UIScrollView 原生双指缩放也能识别。
 - **识别器从激活点开始计量**（无补偿时：iOS 2→1.76、0.5→0.53、90°→83°；Android 2→1.46、0.5→0.60、90°→81°；Web 2→1.19、0.5→0.69、90° 在 ±5° 内）。源码：Android ScaleGestureDetector 跨度变化 2×touchSlop 才开始、RNGH 再过 1×touchSlop 激活并把 scale 重置为 1；RNGH Web 同理（DEFAULT_TOUCH_SLOP 15 → 约 45 px）；旋转 Android / Web 阈值 π/36（Android 激活时重置、Web 不重置）。
 - **补偿（lead-in）**：手指先移动该平台阈值再开始计入的移动。实测阈值：iOS 9 pt / 7°，Android 26 dp / 9°，Web 46 px / 0°。补偿后两次运行读数一致：iOS 2.00 / 0.50 / 1.50 / 90° / ScrollView 2.00；Android 2.02 / 0.50 / 1.51 / 90°；Web 1.98 / 0.50 / 1.51 / 90°。
+
+## 6.5 spike（2026-11-09；脚本在 spikes/lifecycle/）
+**③ Web 后台（web-visibility.mjs，Chromium 158 / Playwright 1.65）**：受 Playwright 控制的页面无法真正进入 hidden。试过：同 context 新开 page + bringToFront、CDP `Page.setWebLifecycleState`（frozen 需先 hidden，不触发 freeze）、`Emulation.setFocusEmulationEnabled`（`setActiveAndFocused` 不存在）、`Browser.setWindowBounds` 最小化；无头 / 有头 × 保留 / 去掉 `--disable-renderer-backgrounding` 等默认参数，`visibilityState` 始终 visible、无 visibilitychange。⇒ Web 的 sendToBackground / bringToForeground 报 ACTION_NOT_SUPPORTED（按计划不伪造事件）。
+
+**② Android 以深链接冷启动（android-lifecycle.mts，dev client，API 37）**：expo-dev-launcher 58.0.18 支持新格式 `quiescotodo://<路由>?__expo_url=<metro>&__expo_disable_onboarding=1&__expo_disable_fab=1&__expo_disable_auto_launch=1`（expo-dev-menu `ExpoLauncherUrl`：去掉 `__expo_*` 后的 strippedUrl 作为 App intent 的 data，extras 保留）。实测 5.8 s 连上，首屏直接是 playground；RN `Linking.getInitialURL()` 与 expo-linking `getLinkingURL()` 都是 `quiescotodo://playground`。非 dev client：`am start -a VIEW -d <url>` + extras。
+- 现有无 url 启动用的是 legacy `expo-development-client/?url=` 格式，此时 App 看到的初始 URL 是 dev client URL 本身（expo-router 当作根路由）。
+
+**① Android 后台**：`input keyevent KEYCODE_HOME` → 启动器在前台；`am start -a MAIN -c LAUNCHER -n <pkg>/.MainActivity` 回前台：同一 pid、路由保留、AppState `background` → `active`。后台期间连接与 JS 都活着（getIdleState 立即返回），但 **frame-stable 不出帧、RN 定时器被暂停（0 ms setTimeout 挂着）** ⇒ 任何等空闲的调用会一直等到回前台。⇒ AppState≠active 时 frame-stable 与 timer 都要视为空闲，元素动作报 APP_IN_BACKGROUND。
+
+**④ Android `pm clear`**：之后用常规 dev client URL 启动能正常连上（23.8 s，缓存被清所以慢），回到首页。运行时权限被撤销 → relaunch 后需重授。
+
+**① iOS 后台（ios-background.mts，iOS 26.5 iPhone 17）**：`simctl launch <udid> com.apple.Preferences` 把 App 挤到后台：AppState `inactive` → `background`；约 20 s 内被挂起（调用无响应），pid 不变；`simctl launch <bundle>`（不带 --terminate-running-process）回前台，同一 pid，连接恢复。无需原生模块。
+
+**② iOS 初始 URL（源码）**：expo-router 58.0.30 在 iOS 读 expo-linking `getLinkingURL()` = `ExpoLinkingRegistry.shared.initialURL`（internal），只由 `LinkingAppDelegateSubscriber.application(_:open:)` 设置（public 类）。dev client 把 `--initialUrl` 当作 bundle URL；`simctl openurl` 有确认框且不能带启动参数。⇒ 方案：原生模块 OnCreate 读 `-quiescoUrl`，用 ObjC runtime 找 `ExpoLinking.LinkingAppDelegateSubscriber` 实例并调用 open（无编译期依赖）。RN `Linking.getInitialURL()`（读 launchOptions）拿不到——写入 platforms.md。
+- **实测（ios-launch-url.mts）**：第一版在 OnCreate 线程直接 `cls.init()` → 崩溃（EXC_BREAKPOINT：app-delegate subscriber 是 @MainActor，`BaseExpoAppDelegateSubscriber.init` 做执行器检查）。改为 `DispatchQueue.main.async` 后 4/4 次冷启动都直接进入 playground（2.3 s 连上），expo-linking = `quiescotodo://playground`，RN Linking = null。注意：原理上是与 expo-router 首次读取的竞态（模块注册早于 JS 执行，目前余量足够）；实现时保留，在 platforms.md 写明。
+- **① iOS 原生 suspend**：`UIApplication.shared.perform("suspend")`（私有，e2e 构建）→ 回到主屏幕（截图确认），AppState `inactive` → `background`；`simctl launch <bundle>`（不 terminate）回前台，同一 pid，连接恢复。
+- **决定（实现）**：iOS sendToBackground 有原生模块时用 suspend（主屏幕，同 Detox sendToHome），JS-only 构建退回「打开设置 App」；bringToForeground 统一 `simctl launch`。后台期间 iOS 约 20 s 后挂起 JS ⇒ Driver 在后台状态下直接报 APP_IN_BACKGROUND，不发请求。
+- spike 脚本问题（非产品问题）：relaunch 后立刻发请求会落在即将关闭的旧连接上 → AGENT_DISCONNECTED；正式 relaunch 必须像 `Session.launch()` 一样传 previous 等新连接。
+- `CI=1` 的 Metro 不监听文件变化：spike 期间新增的 backdoor 需重启 Metro 才生效（已知，再次遇到）。

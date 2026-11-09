@@ -135,9 +135,12 @@ export class QuiescoServer {
   readonly rejected: RejectedHello[] = [];
   private readonly logger: Logger;
   private _port = 0;
+  /** Sent in every `hello` result; replaced at runtime by `app.sync.*` (Phase 6.5). */
+  agentConfig: AgentConfig;
 
   constructor(private readonly options: ServerOptions) {
     this.logger = options.logger ?? silentLogger;
+    this.agentConfig = options.agentConfig;
   }
 
   get port(): number {
@@ -265,7 +268,7 @@ export class QuiescoServer {
     if (s.connection !== null && !s.connection.closed) s.connection.close(CloseCode.REPLACED, 'replaced by a newer connection');
     const connection = new AgentConnection(socket, sessionId, hello);
     s.connection = connection;
-    const result: ResultOf<HostMethods['hello']> = { accepted: true, sessionId, config: this.options.agentConfig };
+    const result: ResultOf<HostMethods['hello']> = { accepted: true, sessionId, config: this.agentConfig };
     socket.send(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result }));
     this.logger.debug(`agent connected: ${hello.platform}, session ${sessionId}, agent ${hello.agentVersion}, native module ${hello.nativeModule}`);
     for (const w of s.waiters.splice(0)) w(connection);

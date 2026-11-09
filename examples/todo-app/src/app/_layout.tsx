@@ -30,6 +30,7 @@ function App() {
       {/* The slider and the wheels are dragged horizontally / vertically; no back swipe either. */}
       <Stack.Screen name="controls" options={{ title: '值控件', gestureEnabled: false }} />
       <Stack.Screen name="gestures" options={{ title: '多指手势', gestureEnabled: false }} />
+      <Stack.Screen name="lifecycle" options={{ title: '生命周期' }} />
     </Stack>
   );
 }

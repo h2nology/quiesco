@@ -7,13 +7,32 @@
  *   (docs/spikes/05), then open the app;
  * - injectInput: real mouse / touch / keyboard / wheel input at the coordinates the agent computed
  *   (CSS pixels, the same coordinate space as Playwright's mouse; docs/spikes/07).
+ * - Phase 6.5: launch arguments in `window.__QUIESCO__.args`; `relaunch({ url })` opens the URL's path
+ *   (`myapp://todos/1` → `/todos/1`); a relaunch that keeps data carries cookies, localStorage and
+ *   IndexedDB over to the new context (Playwright storageState). No background state: a page driven by
+ *   Playwright stays visible whatever is tried (findings 6.5 spike), so sendToBackground is not offered.
  */
 import { LAUNCH_PARAM_PORT, LAUNCH_PARAM_SESSION, WEB_PARAMS_GLOBAL } from '@quiesco/protocol';
 import type { HostInput } from '@quiesco/protocol';
-import type { DeviceProvider, LaunchParams, Logger, Permission, WebAppConfig, WebDeviceConfig } from '@quiesco/core';
+import type { DeviceProvider, LaunchParams, LaunchUrlHandling, Logger, Permission, WebAppConfig, WebDeviceConfig } from '@quiesco/core';
 import { QuiescoError, silentLogger } from '@quiesco/core';
 import { chromium, firefox, webkit } from 'playwright';
 import type { Browser, BrowserContext, BrowserType, Page } from 'playwright';
+
+type StorageState = Awaited<ReturnType<BrowserContext['storageState']>>;
+
+/**
+ * Where a launch URL points on the web: paths and http(s) URLs as they are; an app scheme URL
+ * (`myapp://todos/1?x=1`) becomes its path (`/todos/1?x=1`), the route expo-router gives it natively.
+ */
+export function webPathFor(url: string): string {
+  if (url.startsWith('/') || /^https?:\/\//i.test(url)) return url;
+  const m = /^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)([^?#]*)(.*)$/i.exec(url);
+  if (m === null) return `/${url.replace(/^\/+/, '')}`;
+  const [, host = '', rest = '', tail = ''] = m;
+  const pathPart = `/${[host, rest.replace(/^\/+/, '')].filter((x) => x !== '').join('/')}`;
+  return `${pathPart}${tail}`;
+}
 
 import { isServerExport, startExpoServer } from './expo-server.js';
 import { startStaticServer } from './static-server.js';
@@ -48,6 +67,8 @@ export class WebProvider implements DeviceProvider {
   private server: StaticServer | null = null;
   private baseUrl: string | null = null;
   private permissions: string[] = [];
+  /** Cookies / storage of the last context, kept by terminate({ keepData: true }) for the next launch. */
+  private kept: StorageState | null = null;
   private readonly pageErrors: string[] = [];
   private readonly logger: Logger;
 
@@ -88,21 +109,24 @@ export class WebProvider implements DeviceProvider {
     this.baseUrl = target;
   }
 
-  async launch(params: LaunchParams): Promise<void> {
+  async launch(params: LaunchParams): Promise<LaunchUrlHandling | void> {
     if (this.browser === null || this.baseUrl === null) throw new QuiescoError('DEVICE_ERROR', 'web provider not booted / installed');
-    await this.terminate();
+    if (this.context !== null) await this.terminate({ keepData: true });
+    const kept = this.kept;
+    this.kept = null;
     const vp = this.device.viewport;
     const context = await this.browser.newContext({
       ...(vp !== undefined
         ? { viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: vp.deviceScaleFactor ?? 1, hasTouch: vp.hasTouch ?? false, isMobile: vp.isMobile ?? false }
         : {}),
       permissions: this.permissions,
+      ...(kept !== null ? { storageState: kept } : {}),
     });
     await context.addInitScript(
-      ({ key, port, session }) => {
-        (globalThis as unknown as Record<string, unknown>)[key] = { port, session };
+      ({ key, port, session, args }) => {
+        (globalThis as unknown as Record<string, unknown>)[key] = args === null ? { port, session } : { port, session, args };
       },
-      { key: WEB_PARAMS_GLOBAL, port: params.port, session: params.sessionId },
+      { key: WEB_PARAMS_GLOBAL, port: params.port, session: params.sessionId, args: (params.argsObject ?? null) as never },
     );
     const page = await context.newPage();
     page.on('pageerror', (e) => {
@@ -111,14 +135,21 @@ export class WebProvider implements DeviceProvider {
     });
     this.context = context;
     this.page = page;
-    await page.goto(new URL(this.options.app.path ?? '/', this.baseUrl).href);
+    const target = params.url !== undefined ? webPathFor(params.url) : (this.options.app.path ?? '/');
+    await page.goto(new URL(target, this.baseUrl).href);
+    if (params.url !== undefined) return 'delivered';
   }
 
-  async terminate(): Promise<void> {
+  async terminate(opts: { keepData?: boolean } = {}): Promise<void> {
     const ctx = this.context;
     this.context = null;
     this.page = null;
-    await ctx?.close();
+    if (ctx === null) {
+      if (opts.keepData !== true) this.kept = null;
+      return;
+    }
+    this.kept = opts.keepData === true ? await ctx.storageState({ indexedDB: true }).catch(() => null) : null;
+    await ctx.close();
   }
 
   async grantPermissions(perms: readonly Permission[]): Promise<void> {

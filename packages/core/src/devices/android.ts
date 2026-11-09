@@ -11,10 +11,26 @@
  *   ACCESS_LOCAL_NETWORK (Android 17; ignored where unknown), then `am start` with the connection
  *   parameters as intent extras. The whole device command is one quoted string: the device shell would
  *   otherwise split the dev-client URL at `&`.
+ * - Phase 6.5: launch arguments as `--es quiescoArgs <base64 JSON>`. A launch URL is the intent data;
+ *   for dev clients it carries `__expo_url=<metro>` (expo-dev-launcher strips the `__expo_*` params and
+ *   gives the app the rest, findings 6.5 spike). Background = HOME key, foreground = the launcher intent
+ *   (the running task is resumed, no restart).
  */
+
+/** expo-dev-launcher switches: open the app directly, without onboarding, the tools button or the dev menu. */
+const DEV_LAUNCHER_FLAGS = '__expo_disable_onboarding=1&__expo_disable_fab=1&__expo_disable_auto_launch=1';
+
+/** `url` (the app's deep link) as a dev-client launch URL that loads the bundle from `metroUrl` first. */
+export function devClientLaunchUrl(url: string, metroUrl: string): string {
+  const hash = url.indexOf('#');
+  const base = hash >= 0 ? url.slice(0, hash) : url;
+  const frag = hash >= 0 ? url.slice(hash) : '';
+  const sep = base.includes('?') ? (base.endsWith('?') || base.endsWith('&') ? '' : '&') : '?';
+  return `${base}${sep}__expo_url=${encodeURIComponent(metroUrl)}&${DEV_LAUNCHER_FLAGS}${frag}`;
+}
 import path from 'node:path';
 
-import { LAUNCH_PARAM_PORT, LAUNCH_PARAM_SESSION } from '@quiesco/protocol';
+import { LAUNCH_PARAM_ARGS, LAUNCH_PARAM_PORT, LAUNCH_PARAM_SESSION } from '@quiesco/protocol';
 import type { HostInput } from '@quiesco/protocol';
 
 import type { AndroidAppConfig, AndroidDeviceConfig } from '../config.js';
@@ -24,7 +40,7 @@ import { silentLogger } from '../logger.js';
 import type { Exec, Spawn } from './exec.js';
 import { execCommand, shq, spawnDetached } from './exec.js';
 import type { Permission } from './permissions.js';
-import type { DeviceProvider, LaunchParams } from './provider.js';
+import type { DeviceProvider, LaunchParams, LaunchUrlHandling } from './provider.js';
 
 const ANDROID_PERMISSIONS: Record<Permission, string[]> = {
   camera: ['android.permission.CAMERA'],
@@ -234,25 +250,63 @@ export class AndroidProvider implements DeviceProvider {
     return url.hostname === 'localhost' || url.hostname === '127.0.0.1' ? Number(url.port || 80) : null;
   }
 
-  async launch(params: LaunchParams): Promise<void> {
+  async launch(params: LaunchParams): Promise<LaunchUrlHandling | void> {
     await this.adbRun(['reverse', `tcp:${params.port}`, `tcp:${params.port}`]);
     const metro = this.metroPort();
     if (metro !== null) await this.adbRun(['reverse', `tcp:${metro}`, `tcp:${metro}`]);
     for (const p of this.options.app.reversePorts ?? []) await this.adbRun(['reverse', `tcp:${p}`, `tcp:${p}`]);
     await this.shell(`pm grant ${shq(this.pkg)} android.permission.ACCESS_LOCAL_NETWORK`).catch(() => undefined);
-    const extras = `--es ${LAUNCH_PARAM_PORT} ${params.port} --es ${LAUNCH_PARAM_SESSION} ${shq(params.sessionId)}`;
+    let extras = `--es ${LAUNCH_PARAM_PORT} ${params.port} --es ${LAUNCH_PARAM_SESSION} ${shq(params.sessionId)}`;
+    if (params.args !== undefined) extras += ` --es ${LAUNCH_PARAM_ARGS} ${shq(params.args)}`;
     const dc = this.options.app.devClient;
     let command: string;
     if (dc !== undefined) {
       const metroUrl = dc.metroUrl ?? 'http://localhost:8081';
-      const url = `${dc.scheme}://expo-development-client/?url=${encodeURIComponent(metroUrl)}&__expo_disable_onboarding=1&__expo_disable_fab=1&__expo_disable_auto_launch=1`;
+      const url = params.url !== undefined
+        ? devClientLaunchUrl(params.url, metroUrl)
+        : `${dc.scheme}://expo-development-client/?url=${encodeURIComponent(metroUrl)}&${DEV_LAUNCHER_FLAGS}`;
       command = `am start -W -a android.intent.action.VIEW -d ${shq(url)} ${extras} ${shq(this.pkg)}`;
+    } else if (params.url !== undefined) {
+      command = `am start -W -a android.intent.action.VIEW -d ${shq(params.url)} ${extras} ${shq(this.pkg)}`;
     } else {
-      const activity = this.options.app.activity ?? '.MainActivity';
-      command = `am start -W -n ${shq(`${this.pkg}/${activity}`)} ${extras}`;
+      command = `am start -W -n ${shq(`${this.pkg}/${this.activity}`)} ${extras}`;
     }
     const out = await this.shell(command);
     if (/Error:/.test(out)) throw new QuiescoError('DEVICE_ERROR', `am start failed: ${out.trim()}`);
+    if (params.url !== undefined) return 'delivered';
+  }
+
+  private get activity(): string {
+    return this.options.app.activity ?? '.MainActivity';
+  }
+
+  /** `pm clear`: data, caches and granted runtime permissions; the app is stopped. */
+  async clearData(): Promise<void> {
+    const out = await this.shell(`pm clear ${shq(this.pkg)}`);
+    if (!/Success/.test(out)) throw new QuiescoError('DEVICE_ERROR', `pm clear ${this.pkg} failed: ${out.trim()}`);
+  }
+
+  async uninstall(): Promise<void> {
+    const out = await this.adbRun(['uninstall', this.pkg]).catch((e: unknown) => (e as Error).message);
+    if (!/Success/.test(out)) throw new QuiescoError('DEVICE_ERROR', `adb uninstall ${this.pkg} failed: ${out.trim()}`);
+  }
+
+  async sendToBackground(): Promise<void> {
+    await this.shell('input keyevent KEYCODE_HOME');
+  }
+
+  /** The launcher intent resumes the existing task (dev clients too: the dev launcher ignores MAIN while an app is open). */
+  async bringToForeground(): Promise<void> {
+    const out = await this.shell(`am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n ${shq(`${this.pkg}/${this.activity}`)}`);
+    if (/Error:/.test(out)) throw new QuiescoError('DEVICE_ERROR', `am start failed: ${out.trim()}`);
+  }
+
+  async reversePort(port: number): Promise<void> {
+    await this.adbRun(['reverse', `tcp:${port}`, `tcp:${port}`]);
+  }
+
+  async unreversePort(port: number): Promise<void> {
+    await this.adbRun(['reverse', '--remove', `tcp:${port}`]).catch(() => undefined);
   }
 
   async terminate(): Promise<void> {

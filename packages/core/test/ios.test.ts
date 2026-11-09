@@ -183,3 +183,47 @@ describe('IosProvider', () => {
     expect((await dead.p.diagnose({ port: 7357, sessionId: 's' }))[1]).toMatch(/is NOT running on iPhone 17/);
   });
 });
+
+describe('IosProvider lifecycle (Phase 6.5)', () => {
+  it('passes launch arguments and the launch URL as -key value arguments; the URL needs @quiesco/native', async () => {
+    const { p, calls } = provider([]);
+    await p.boot();
+    await expect(p.launch({ port: 7357, sessionId: 's', args: 'eyJhIjoxfQ==', url: 'todo://playground' })).resolves.toBe('needs-native');
+    expect(calls.at(-1)).toBe('xcrun simctl launch --terminate-running-process NEW-17 com.example.todo -quiescoPort 7357 -quiescoSession s -quiescoArgs eyJhIjoxfQ== -quiescoUrl todo://playground');
+  });
+
+  it('clears the data container and UserDefaults, keeping the container folders', async () => {
+    const data = fs.mkdtempSync(`${fs.realpathSync('/tmp')}/qs-ios-`);
+    for (const d of ['Documents', 'Library/Preferences', 'tmp']) fs.mkdirSync(`${data}/${d}`, { recursive: true });
+    fs.writeFileSync(`${data}/Documents/a.json`, '{}');
+    fs.writeFileSync(`${data}/Library/Preferences/com.example.todo.plist`, 'x');
+    const { p, calls } = provider([[/get_app_container NEW-17 com.example.todo data/, `${data}\n`]]);
+    await p.boot();
+    calls.length = 0;
+    await p.clearData();
+    expect(calls).toEqual([
+      'xcrun simctl terminate NEW-17 com.example.todo',
+      'xcrun simctl spawn NEW-17 defaults delete com.example.todo',
+      'xcrun simctl get_app_container NEW-17 com.example.todo data',
+    ]);
+    expect(fs.readdirSync(data).sort()).toEqual(['Documents', 'Library', 'tmp']);
+    expect(fs.readdirSync(`${data}/Documents`)).toEqual([]);
+    expect(fs.readdirSync(`${data}/Library`)).toEqual([]);
+    fs.rmSync(data, { recursive: true, force: true });
+  });
+
+  it('suspends inside the app, or opens Settings when the app cannot; foreground without terminating', async () => {
+    const { p, calls } = provider([]);
+    await p.boot();
+    calls.length = 0;
+    await p.sendToBackground({ suspend: async () => true });
+    expect(calls).toEqual([]);
+    await p.sendToBackground({ suspend: async () => false });
+    expect(calls).toEqual(['xcrun simctl launch NEW-17 com.apple.Preferences']);
+    await p.bringToForeground();
+    expect(calls.at(-1)).toBe('xcrun simctl launch NEW-17 com.example.todo');
+    await p.uninstall();
+    expect(calls.slice(-2)).toEqual(['xcrun simctl terminate NEW-17 com.example.todo', 'xcrun simctl uninstall NEW-17 com.example.todo']);
+    await p.reversePort();
+  });
+});

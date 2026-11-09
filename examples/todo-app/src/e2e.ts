@@ -45,6 +45,11 @@ quiesco.backdoor('openControls', () => {
   router.push('/controls');
 });
 
+// The hidden app-lifecycle page (src/app/lifecycle.tsx), used by features/lifecycle.feature.
+quiesco.backdoor('openLifecycle', () => {
+  router.push('/lifecycle');
+});
+
 quiesco.onReset(async () => {
   await api.replaceTodos([]);
   store.clear();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { AndroidProvider } from '../src/devices/android';
+import { AndroidProvider, devClientLaunchUrl } from '../src/devices/android';
 import type { AndroidProviderOptions } from '../src/devices/android';
 import type { Exec } from '../src/devices/exec';
 import { shq } from '../src/devices/exec';
@@ -174,5 +174,64 @@ describe('AndroidProvider', () => {
       expect.stringMatching(/adb reverse for tcp:7357 is MISSING/),
       expect.stringMatching(/com.example.todo is NOT running/),
     ]);
+  });
+});
+
+describe('AndroidProvider lifecycle (Phase 6.5)', () => {
+  const booted = async (answers: [RegExp, string | Error][] = [], opts: Partial<AndroidProviderOptions> = {}) => {
+    const r = provider([...BOOTED, ...answers], opts);
+    await r.p.boot();
+    r.calls.length = 0;
+    return r;
+  };
+
+  it('passes launch arguments as one quoted base64 extra', async () => {
+    const { p, calls } = await booted();
+    await p.launch({ port: 7400, sessionId: 's', args: 'eyJhIjoxfQ==' });
+    expect(calls.at(-1)).toBe("adb -s emulator-5554 shell am start -W -n 'com.example.todo/.MainActivity' --es quiescoPort 7400 --es quiescoSession 's' --es quiescoArgs 'eyJhIjoxfQ=='");
+  });
+
+  it('starts with a deep link: the intent data, or for dev clients the link with __expo_url', async () => {
+    const standalone = await booted();
+    await expect(standalone.p.launch({ port: 1, sessionId: 's', url: 'todo://todos/1' })).resolves.toBe('delivered');
+    expect(standalone.calls.at(-1)).toBe("adb -s emulator-5554 shell am start -W -a android.intent.action.VIEW -d 'todo://todos/1' --es quiescoPort 1 --es quiescoSession 's' 'com.example.todo'");
+
+    const dc = await booted([], { app: { package: 'com.example.todo', devClient: { scheme: 'todo', metroUrl: 'http://localhost:8083' } } });
+    await dc.p.launch({ port: 1, sessionId: 's', url: 'todo://todos/1?tab=a#x' });
+    expect(dc.calls.at(-1)).toContain(
+      "-d 'todo://todos/1?tab=a&__expo_url=http%3A%2F%2Flocalhost%3A8083&__expo_disable_onboarding=1&__expo_disable_fab=1&__expo_disable_auto_launch=1#x'",
+    );
+  });
+
+  it('builds dev-client launch URLs', () => {
+    expect(devClientLaunchUrl('app://p', 'http://h:1')).toBe('app://p?__expo_url=http%3A%2F%2Fh%3A1&__expo_disable_onboarding=1&__expo_disable_fab=1&__expo_disable_auto_launch=1');
+    expect(devClientLaunchUrl('app://p?', 'http://h:1')).toMatch(/^app:\/\/p\?__expo_url=/);
+  });
+
+  it('clears data, uninstalls, goes home and back, forwards ports', async () => {
+    const { p, calls } = await booted([
+      [/pm clear/, 'Success\n'],
+      [/ uninstall /, 'Success\n'],
+    ]);
+    await p.clearData();
+    await p.uninstall();
+    await p.sendToBackground();
+    await p.bringToForeground();
+    await p.reversePort(3001);
+    await p.unreversePort(3001);
+    expect(calls).toEqual([
+      "adb -s emulator-5554 shell pm clear 'com.example.todo'",
+      'adb -s emulator-5554 uninstall com.example.todo',
+      'adb -s emulator-5554 shell input keyevent KEYCODE_HOME',
+      "adb -s emulator-5554 shell am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n 'com.example.todo/.MainActivity'",
+      'adb -s emulator-5554 reverse tcp:3001 tcp:3001',
+      'adb -s emulator-5554 reverse --remove tcp:3001',
+    ]);
+  });
+
+  it('reports failed clear / uninstall', async () => {
+    const { p } = await booted([[/pm clear/, 'Failed\n'], [/ uninstall /, new Error('DELETE_FAILED_INTERNAL_ERROR')]]);
+    await expect(p.clearData()).rejects.toMatchObject({ errorName: 'DEVICE_ERROR' });
+    await expect(p.uninstall()).rejects.toThrow(/DELETE_FAILED_INTERNAL_ERROR/);
   });
 });

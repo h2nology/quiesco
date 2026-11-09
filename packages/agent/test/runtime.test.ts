@@ -11,7 +11,7 @@ import type { Spec } from './helpers/fake-fiber';
 const clock: Clock = { setTimeout: (cb, ms) => setTimeout(cb, ms), clearTimeout: (id) => clearTimeout(id as number), now: () => Date.now() };
 const R = (y: number) => ({ __rect: { x: 0, y, width: 100, height: 40 } });
 
-function setup(opts: { busy?: () => boolean; native?: ReturnType<AppDeps['nativeModule']>; keyboard?: () => ReturnType<AppDeps['keyboardFrame']> } = {}) {
+function setup(opts: { busy?: () => boolean; native?: ReturnType<AppDeps['nativeModule']>; keyboard?: () => ReturnType<AppDeps['keyboardFrame']>; appState?: () => ReturnType<AppDeps['appState']> } = {}) {
   const target: Record<string, unknown> = {};
   const sockets: FakeSocket[] = [];
   const deps: AppDeps = {
@@ -25,6 +25,8 @@ function setup(opts: { busy?: () => boolean; native?: ReturnType<AppDeps['native
       return s;
     },
     interactionManager: () => null,
+    appState: () => opts.appState?.() ?? 'active',
+    windowInfo: () => ({ width: 400, height: 800, pixelRatio: 3 }),
   };
   const storageCleared: number[] = [];
   const tracker: IdleTracker = { name: 'fake', isIdle: () => !(opts.busy?.() ?? false), describeBusy: () => ['fake busy'], install() {}, uninstall() {} };
@@ -434,4 +436,52 @@ describe('AgentRuntime', () => {
     await expect(drive(call('action', { action: { type: 'adjustSlider', matcher: { id: 'sw' }, position: 0.5 }, mode: 'js', timeoutMs: 1000 }))).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', message: expect.stringContaining('not a slider (found a switch)') });
   });
 
+});
+
+describe('AgentRuntime lifecycle (Phase 6.5)', () => {
+  beforeEach(() => vi.useFakeTimers({ now: 0, toFake: ['setTimeout', 'clearTimeout', 'Date'] }));
+  afterEach(() => vi.useRealTimers());
+
+  const native = (args?: string | null, suspend?: () => Promise<boolean>) => ({
+    getLaunchParams: () => ({ port: '7401', session: 'sess', ...(args !== undefined ? { args } : {}) }),
+    locate: vi.fn(),
+    tap: vi.fn(),
+    swipe: vi.fn(),
+    typeText: vi.fn(),
+    ...(suspend !== undefined ? { suspend } : {}),
+  });
+
+  it('reads typed launch arguments from @quiesco/native (base64 JSON), once', () => {
+    const json = JSON.stringify({ user: 'ann', retries: 3, flags: { beta: true }, list: [1, null] });
+    const getLaunchParams = vi.fn(() => ({ port: '7401', session: 'sess', args: Buffer.from(json).toString('base64') }));
+    const { rt, target } = setup({ native: { ...native(), getLaunchParams } });
+    target['atob'] = (b: string) => Buffer.from(b, 'base64').toString('binary');
+    expect(rt.launchArgs()).toEqual({ user: 'ann', retries: 3, flags: { beta: true }, list: [1, null] });
+    expect(rt.launchArgs()).toEqual({ user: 'ann', retries: 3, flags: { beta: true }, list: [1, null] });
+    expect(getLaunchParams).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns {} without launch arguments (JS-only build, or a native build launched without them)', () => {
+    expect(setup().rt.launchArgs()).toEqual({});
+    expect(setup({ native: native(null) }).rt.launchArgs()).toEqual({});
+  });
+
+  it('configure replaces the agent config at runtime (tracker switches, ignoreUrls)', async () => {
+    const { rt, call } = setup();
+    await call('configure', { config: { ...CONFIG, sync: { ...CONFIG.sync, trackers: { fake: false } as never, timeoutMs: 777 } } });
+    expect(rt.config.sync.timeoutMs).toBe(777);
+    expect(await call('getIdleState', {})).toEqual({ trackers: [] });
+  });
+
+  it('deviceInfo reports the window, pixel ratio and app state', async () => {
+    const { call } = setup({ appState: () => 'background' });
+    expect(await call('deviceInfo', {})).toEqual({ window: { width: 400, height: 800 }, pixelRatio: 3, appState: 'background' });
+  });
+
+  it('suspend uses @quiesco/native when it can, else reports false', async () => {
+    const suspend = vi.fn(async () => true);
+    expect(await setup({ native: native(undefined, suspend) }).call('suspend', {})).toEqual({ suspended: true });
+    expect(suspend).toHaveBeenCalledTimes(1);
+    expect(await setup().call('suspend', {})).toEqual({ suspended: false });
+  });
 });

@@ -22,10 +22,13 @@ export interface WaitForIdleOptions {
 }
 
 const DEFAULT_POLL_MS = 16;
+const NO_NAMES: ReadonlySet<string> = new Set();
 
 export class SyncEngine {
   private installed = false;
   private disabled = new Set<string>();
+  /** Trackers that cannot settle right now (e.g. no frames while the app is in the background). */
+  private skipped: () => ReadonlySet<string> = () => NO_NAMES;
 
   constructor(
     readonly trackers: readonly IdleTracker[],
@@ -49,8 +52,17 @@ export class SyncEngine {
     this.disabled = new Set(Object.entries(enabled).filter(([, on]) => on === false).map(([name]) => name));
   }
 
+  /**
+   * Trackers named by `fn()` at check time count as idle (Phase 6.5: in the background Android pauses
+   * RN timers and no frames are drawn, so they would never settle).
+   */
+  setSkipped(fn: () => ReadonlySet<string>): void {
+    this.skipped = fn;
+  }
+
   private active(): IdleTracker[] {
-    return this.trackers.filter((t) => !this.disabled.has(t.name));
+    const skipped = safe(() => this.skipped(), NO_NAMES);
+    return this.trackers.filter((t) => !this.disabled.has(t.name) && !skipped.has(t.name));
   }
 
   getIdleState(): TrackerState[] {

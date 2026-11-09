@@ -15,7 +15,7 @@ The same features, steps and `this.app` calls run on all three platforms. What d
 | `drag` | real touches; iOS 26 also pops a screen on a rightward swipe in its content (turn the screen's back gesture off where content is dragged right) | real touches | mouse drag; text under the pointer must not be selectable (a selection ends the web responder gesture) |
 | `openUrl()` | opened inside the app (no system confirmation) | `am start` | navigation |
 | Soft reset clears | AsyncStorage + registered adapters | AsyncStorage + registered adapters | `localStorage`, `sessionStorage`, IndexedDB + registered adapters |
-| `@hard-reset` | terminate and relaunch | force-stop and relaunch | new browser context, reload |
+| `@hard-reset` | terminate and relaunch | force-stop and relaunch | new browser context (data dropped), reload |
 | Screenshot | `simctl io screenshot` | `adb exec-out screencap` | `page.screenshot` |
 | Sync trackers | all, plus `native` (UIKit transitions, keyboard) | all except `native` | all except `native` |
 | Software keyboard covering a target | dismissed before the touch | dismissed before the touch | — |
@@ -24,6 +24,14 @@ The same features, steps and `this.app` calls run on all three platforms. What d
 | `accessibilityAction` | VoiceOver paths (increment / decrement, custom actions) | `performAccessibilityAction` | `onAccessibilityAction` |
 | `pinch`, `rotate`, `multiTouch` | several `UITouch`es in one event (needs `@quiesco/native` ≥ Phase 6.4: `multiGesture`) | multi-pointer `MotionEvent`s (same) | CDP touch events on touch viewports; desktop viewports: `ACTION_NOT_SUPPORTED` |
 | Recognizer activation compensated (`actions.gestureSlop`) | 9 pt, 7° | 26 dp, 9° | 46 px, 0° |
+| `relaunch({ args })` → `quiesco.launchArgs()` | `-quiescoArgs` launch argument (needs `@quiesco/native` ≥ Phase 6.5) | `--es quiescoArgs` extra (same) | init script |
+| `relaunch({ url })` | `-quiescoUrl`, handed to expo-linking by `@quiesco/native` before JS runs (≥ Phase 6.5; without it: opened after the launch) | intent data (dev clients: the link with `__expo_url`) | the URL's path is opened (`myapp://todos/1` → `/todos/1`) |
+| `relaunch({ clearData })` | data container emptied, UserDefaults deleted; keychain kept | `pm clear` (also revokes permissions; the config's are granted again) | a new browser context |
+| `relaunch()` keeps data | yes | yes | cookies, localStorage, IndexedDB carried over (Playwright storage state) |
+| `sendToBackground()` | home screen via `-[UIApplication suspend]` (`@quiesco/native` ≥ Phase 6.5), else the Settings app is opened | HOME key | `ACTION_NOT_SUPPORTED` |
+| `bringToForeground()` | `simctl launch` (same process) | launcher intent (same task) | — |
+| `install()` / `uninstall()` | `simctl install` / `uninstall` | `adb install -r -g` / `uninstall` | no install: `uninstall` is `ACTION_NOT_SUPPORTED`, `relaunch({ reinstall })` acts like `clearData` |
+| `reversePort()` | no-op (shares the Mac's network) | `adb reverse` | no-op |
 | Value controls, accessibility actions (native mode) | need an app built with `@quiesco/native` ≥ Phase 6.3 (`sliderInfo`, `wheelInfo`, `accessibilityAction`) | same (`sliderInfo`, `accessibilityAction`) | — |
 
 ## Permissions
@@ -60,6 +68,12 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
   stops (UIDatePicker reports its date only then), so a date takes a few seconds.
 - iOS 26+ sliders: a short or reversing drag moves the thumb less than the finger; `adjustSlider` drags
   one way with a run-up and corrects from the value read back.
+- `relaunch({ url })`: expo-router reads the start URL from expo-linking (`getLinkingURL()`), which
+  `@quiesco/native` sets from `-quiescoUrl`. React Native's own `Linking.getInitialURL()` only reads
+  launch options and returns `null` for it. The URL is set on the main queue right after the native
+  modules are created; in practice that is before the first render.
+- In the background iOS suspends the app's JS after a few seconds; element calls fail at once with
+  `APP_IN_BACKGROUND` rather than waiting for an answer.
 
 ## Android
 
@@ -73,6 +87,8 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
   reach: `setValue` sets them through their callbacks (the date picker by its testID, as it renders no view).
 - Accessibility actions are performed after reading the node info, like TalkBack: React Native's delegate
   only handles actions it has listed there.
+- In the background Android pauses React Native's timers and nothing is drawn; the agent counts the
+  timer, frame and native trackers as idle while the app is not active.
 - Emulators usually have a hardware keyboard, so the software keyboard does not appear while typing.
   To test keyboard-related behavior: `adb shell settings put secure show_ime_with_hard_keyboard 1`.
 
@@ -82,6 +98,9 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
 - Viewports come from the config (phone, tablet, desktop…); touch viewports get touch input.
 - A full page load reconnects the agent; the host waits for it without failing the step.
 - Testing only native platforms does not require Playwright; the web provider is loaded on demand.
+- No background state: a page driven by Playwright stays `visible` whatever is tried (another tab in
+  front, a minimized window, CDP lifecycle states, with or without Chromium's background switches).
+  Tag background scenarios `@native`.
 - `@react-native-community/datetimepicker` has no web implementation; use `<input type="date">` there
   (`setValue` fills it). `@react-native-segmented-control`'s web / Android implementation does not pass
   `testID` on: put the testID on a wrapping `View` (`setValue` uses the single control inside it).

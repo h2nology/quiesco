@@ -35,6 +35,23 @@ export interface AgentMethods {
   reset: { params: Record<string, never>; result: { durationMs: number } };
   backdoor: { params: { name: string; args: JsonValue[] }; result: { value: JsonValue } };
   getIdleState: { params: Record<string, never>; result: { trackers: TrackerState[] } };
+  /** Replace the agent config at runtime (Phase 6.5 `app.sync.*`); the next `hello` carries it too. */
+  configure: { params: { config: AgentConfig }; result: Record<string, never> };
+  /** Window size, pixel ratio and app state (element screenshots, background detection). */
+  deviceInfo: { params: Record<string, never>; result: DeviceInfo };
+  /** Leave for the home screen from inside the app (iOS @quiesco/native); `false` when not available. */
+  suspend: { params: Record<string, never>; result: { suspended: boolean } };
+}
+
+/** `AppState` as React Native reports it; `unknown` where it cannot be read. */
+export type AppStateName = 'active' | 'background' | 'inactive' | 'unknown';
+
+export interface DeviceInfo {
+  /** The app window in logical units (dp / pt / CSS px), the space of element rects. */
+  window: { width: number; height: number };
+  /** Physical pixels per logical unit. */
+  pixelRatio: number;
+  appState: AppStateName;
 }
 
 /** Methods the AGENT calls on the HOST. */

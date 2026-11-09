@@ -7,7 +7,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { DEFAULT_PORT, SyncDefaults } from '@quiesco/protocol';
-import type { ActionMode, AgentConfig, GestureSlop, LogLevel, Platform, TrackerName } from '@quiesco/protocol';
+import type { ActionMode, AgentConfig, GestureSlop, JsonValue, LogLevel, Platform, TrackerName } from '@quiesco/protocol';
 
 import { QuiescoError } from './errors.js';
 import { toMatcher, toTextMatch } from './matcher.js';
@@ -104,6 +104,11 @@ export interface QuiescoConfig {
     web?: WebDeviceConfig;
   };
   permissions?: Permission[];
+  /**
+   * Launch arguments every launch passes to the app (read there with `quiesco.launchArgs()`), any JSON.
+   * `app.device.relaunch({ args })` merges its own over these (shallow).
+   */
+  launchArgs?: Record<string, JsonValue>;
   sync?: {
     timeoutMs?: number;
     timerThresholdMs?: number;

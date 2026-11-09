@@ -9,6 +9,14 @@ export const PROTOCOL_VERSION = 1;
  */
 export const LAUNCH_PARAM_PORT = 'quiescoPort';
 export const LAUNCH_PARAM_SESSION = 'quiescoSession';
+/**
+ * Test launch arguments (Phase 6.5): one parameter holding base64 of the JSON object, so values keep
+ * their types and no device shell quoting is involved. The JSON is ASCII-only (non-ASCII characters
+ * escaped as \uXXXX), so plain `atob` decodes it. Web: `window.__QUIESCO__.args` holds the object itself.
+ */
+export const LAUNCH_PARAM_ARGS = 'quiescoArgs';
+/** iOS: the URL the app is opened with at launch, handed to expo-linking by @quiesco/native. */
+export const LAUNCH_PARAM_URL = 'quiescoUrl';
 export const WEB_PARAMS_GLOBAL = '__QUIESCO__';
 
 /** Used when no launch parameters are available (JS-only mode, single device). */

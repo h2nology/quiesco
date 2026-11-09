@@ -13,6 +13,7 @@ import type {
   AgentMethods,
   AssertionSpec,
   ElementSummary,
+  JsonValue,
   Matcher,
   ParamsOf,
   Rect,
@@ -33,7 +34,7 @@ import { assertionMessage, evaluate } from './assertions';
 import { BackdoorRegistry } from './backdoor';
 import { buildConfig } from './build-config';
 import { AgentClient, MethodNotFound } from './connection/client';
-import { resolveParams } from './connection/params';
+import { decodeLaunchArgs, resolveParams } from './connection/params';
 import { QuiescoError } from './errors';
 import { EventForwarder } from './events';
 import { FiberAdapter } from './fiber-adapter';
@@ -55,6 +56,12 @@ const LONG_PRESS_AT_MS = 800;
 const MAX_EDGE_STEPS = 60;
 /** Finger direction of a fling towards an edge (to reach the bottom, the finger moves up). */
 const EDGE_FINGER: Record<Edge, Direction> = { top: 'down', bottom: 'up', left: 'right', right: 'left' };
+/**
+ * In the background no frames are drawn and Android pauses React Native's timers, so these trackers
+ * would never settle (Phase 6.5 spike); they count as idle until the app is active again.
+ */
+const BACKGROUND_SKIPPED: ReadonlySet<string> = new Set(['frame-stable', 'timer', 'native']);
+const NONE: ReadonlySet<string> = new Set();
 
 export interface RuntimeOptions {
   adapter?: FiberAdapterOptions;
@@ -97,6 +104,7 @@ export class AgentRuntime {
   private mounted = 0;
   private remount: (() => void) | null = null;
   private native: ReturnType<AppDeps['nativeModule']> | undefined;
+  private launchArgsCache: Record<string, JsonValue> | null = null;
   /** Pending stop after the last QuiescoRoot unmounted (see unmount). */
   private stopTimer: unknown = null;
   /** Original console methods, captured before the event forwarder wraps them. */
@@ -111,6 +119,7 @@ export class AgentRuntime {
     const warn = c?.warn;
     this.log = (m) => warn?.call(c, `[quiesco] ${m}`);
     this.engine = new SyncEngine(options.trackers?.(this) ?? this.defaultTrackers(), this.clock);
+    this.engine.setSkipped(() => (this.deps.appState() === 'background' ? BACKGROUND_SKIPPED : NONE));
     this.resets = new ResetManager(options.storage ?? (() => defaultStorageAdapters()));
     this.events = new EventForwarder({ notify: (e, p) => this.client?.notify(e, p), target: this.global });
   }
@@ -161,6 +170,24 @@ export class AgentRuntime {
   private nativeModule(): ReturnType<AppDeps['nativeModule']> {
     if (this.native === undefined) this.native = this.deps.nativeModule();
     return this.native;
+  }
+
+  /**
+   * The test launch arguments (`app.device.relaunch({ args })` / config `launchArgs`), read once per JS
+   * context. JS-only native builds cannot read them: `{}` with a warning.
+   */
+  launchArgs(): Record<string, JsonValue> {
+    if (this.launchArgsCache !== null) return this.launchArgsCache;
+    const native = this.nativeModule();
+    const atob = this.global['atob'] as ((s: string) => string) | undefined;
+    const { args, problem } = decodeLaunchArgs(native?.getLaunchParams().args, this.global, (b) => {
+      if (atob === undefined) throw new Error('atob is not available');
+      return atob(b);
+    });
+    if (problem !== null) this.log(problem);
+    else if (native === null && this.deps.platform() !== 'web') this.log('launchArgs(): @quiesco/native is not in the app, so launch arguments cannot be read (returning {})');
+    this.launchArgsCache = args;
+    return args;
   }
 
   /** Registered by QuiescoRoot; changes its key so the whole app remounts (soft reset). */
@@ -232,6 +259,19 @@ export class AgentRuntime {
       const value = await this.backdoors.call(p.name, p.args ?? []);
       await this.engine.waitForIdle({ timeoutMs: this.config.sync.timeoutMs });
       return { value };
+    },
+    configure: async (p) => {
+      this.configure(p.config);
+      return {};
+    },
+    deviceInfo: async () => {
+      const w = this.deps.windowInfo();
+      return { window: { width: w.width, height: w.height }, pixelRatio: w.pixelRatio, appState: this.deps.appState() };
+    },
+    suspend: async () => {
+      const suspend = this.nativeModule()?.suspend;
+      if (suspend === undefined) return { suspended: false };
+      return { suspended: await suspend() };
     },
     reset: async () => {
       const start = this.clock.now();

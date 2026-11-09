@@ -18,7 +18,19 @@ public class QuiescoNativeModule: Module {
     OnCreate {
       KeyboardMotion.shared.start()
       DispatchQueue.main.async { NativeSettleMonitor.shared.start() }
+      Self.deliverLaunchUrl()
     }
+
+    /**
+     * `app.device.sendToBackground()` (Phase 6.5): leave for the home screen like the Home button, via
+     * the private `-[UIApplication suspend]` (e2e builds only). `simctl launch` brings the app back.
+     */
+    AsyncFunction("suspend") { () -> Bool in
+      let sel = NSSelectorFromString("suspend")
+      guard UIApplication.shared.responds(to: sel) else { return false }
+      UIApplication.shared.perform(sel)
+      return true
+    }.runOnQueue(.main)
 
     /**
      * Synchronous (JS thread): whether native UI is still settling — a view controller transition in
@@ -32,9 +44,10 @@ public class QuiescoNativeModule: Module {
 
     // docs/spikes/05: `xcrun simctl launch <udid> <bundle> -quiescoPort <p> -quiescoSession <id>`;
     // "-key value" launch arguments land in UserDefaults' NSArgumentDomain.
+    // `quiescoArgs`: base64 of the test's launch arguments as JSON (Phase 6.5).
     Function("getLaunchParams") { () -> [String: String?] in
       let d = UserDefaults.standard
-      return ["port": d.string(forKey: "quiescoPort"), "session": d.string(forKey: "quiescoSession")]
+      return ["port": d.string(forKey: "quiescoPort"), "session": d.string(forKey: "quiescoSession"), "args": d.string(forKey: "quiescoArgs")]
     }
 
     /** Where a view really is, and whether a touch at its center would reach it. */
@@ -376,6 +389,30 @@ public class QuiescoNativeModule: Module {
   }
 
   // MARK: - helpers (main thread)
+
+  /**
+   * `app.device.relaunch({ url })` (Phase 6.5): `-quiescoUrl <url>` at launch becomes the URL the app was
+   * opened with. The dev client takes `--initialUrl` as the bundle URL, and `simctl openurl` shows a
+   * confirmation alert and cannot pass launch arguments, so the link is handed to expo-linking's
+   * app-delegate subscriber (what expo-router reads on iOS: `getLinkingURL()`) before JS renders. Looked up
+   * at runtime: no build dependency on expo-linking. React Native's `Linking.getInitialURL()` reads launch
+   * options and does not see it (platforms.md).
+   */
+  static func deliverLaunchUrl() {
+    guard let raw = UserDefaults.standard.string(forKey: "quiescoUrl"), let url = URL(string: raw) else { return }
+    // App-delegate subscribers are @MainActor (creating one off the main thread traps); OnCreate runs on
+    // the module registry's thread, before the bundle runs. Async to main: in the Phase 6.5 spike it
+    // always landed before expo-router's first read (the main queue is free while JS starts).
+    DispatchQueue.main.async {
+      guard let cls = NSClassFromString("ExpoLinking.LinkingAppDelegateSubscriber") as? NSObject.Type,
+            let subscriber = cls.init() as? UIApplicationDelegate else {
+        NSLog("[quiesco] -quiescoUrl given but expo-linking's LinkingAppDelegateSubscriber was not found")
+        return
+      }
+      _ = subscriber.application?(UIApplication.shared, open: url, options: [:])
+      NSLog("[quiesco] launch URL delivered to expo-linking: \(raw)")
+    }
+  }
 
   static func unsupported(_ missing: String) -> String {
     let version = UIDevice.current.systemVersion

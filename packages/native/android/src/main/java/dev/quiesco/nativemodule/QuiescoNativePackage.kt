@@ -18,12 +18,16 @@ object LaunchParamsStore {
     private set
   @Volatile var session: String? = null
     private set
+  /** Base64 of the test's launch arguments as JSON (`--es quiescoArgs`, Phase 6.5). */
+  @Volatile var args: String? = null
+    private set
 
   /** Remember the parameters of `intent` when it has them (a newer launch replaces older ones). */
   fun capture(intent: Intent?) {
     val p = intent?.getStringExtra("quiescoPort") ?: return
     port = p
     session = intent.getStringExtra("quiescoSession")
+    args = intent.getStringExtra("quiescoArgs")
   }
 }
 

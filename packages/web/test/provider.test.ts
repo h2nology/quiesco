@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { WebProvider } from '../src/provider';
+import { WebProvider, webPathFor } from '../src/provider';
 
 const PAGE = `<!doctype html><html><body style="margin:0">
 <button id="b" style="position:absolute;left:10px;top:10px;width:100px;height:40px">tap</button>
@@ -116,5 +116,28 @@ describe('WebProvider (real Chromium)', () => {
 
   it('requires distDir or url', () => {
     expect(() => new WebProvider({ app: {} })).toThrow(/distDir.*url/);
+  });
+
+  it('relaunch keeps cookies and storage only when asked, passes launch arguments, opens a launch URL path (Phase 6.5)', async () => {
+    await evaluate("localStorage.setItem('k', 'v'); document.cookie = 'c=1'");
+    await provider.terminate({ keepData: true });
+    await expect(provider.launch({ port: 7357, sessionId: 'sess-1', argsObject: { n: 1, o: { a: 'x' } } })).resolves.toBeUndefined();
+    expect(await evaluate("[localStorage.getItem('k'), document.cookie]")).toEqual(['v', 'c=1']);
+    expect(await evaluate('window.__QUIESCO__')).toEqual({ port: 7357, session: 'sess-1', args: { n: 1, o: { a: 'x' } } });
+
+    await provider.terminate();
+    await expect(provider.launch({ port: 7357, sessionId: 'sess-1', url: 'todo://index.html?x=1' })).resolves.toBe('delivered');
+    expect(await evaluate("[localStorage.getItem('k'), document.cookie, location.pathname + location.search]")).toEqual([null, '', '/index.html?x=1']);
+  });
+});
+
+describe('webPathFor', () => {
+  it('turns app scheme URLs into paths and keeps paths / http URLs', () => {
+    expect(webPathFor('todo://todos/1?tab=a#h')).toBe('/todos/1?tab=a#h');
+    expect(webPathFor('todo://playground')).toBe('/playground');
+    expect(webPathFor('todo:///settings')).toBe('/settings');
+    expect(webPathFor('/a/b')).toBe('/a/b');
+    expect(webPathFor('https://example.com/x')).toBe('https://example.com/x');
+    expect(webPathFor('relative/path')).toBe('/relative/path');
   });
 });

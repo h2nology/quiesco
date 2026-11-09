@@ -1,7 +1,8 @@
 import type { LogLevel } from './events.js';
 import type { Matcher, TextMatch } from './matcher.js';
 
-export type TrackerName = 'network' | 'timer' | 'react' | 'idle-callback' | 'frame-stable' | 'native';
+export const TRACKER_NAMES = ['network', 'timer', 'react', 'idle-callback', 'frame-stable', 'native'] as const;
+export type TrackerName = (typeof TRACKER_NAMES)[number];
 
 /**
  * Agent-side settings derived from `quiesco.config.ts` (requirements.md §6.2, §6.13).

@@ -5,14 +5,19 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import type { Platform, TrackerState, TreeNode } from '@quiesco/protocol';
+import type { AgentConfig, Platform, TrackerState, TreeNode } from '@quiesco/protocol';
 
 import type { QuiescoConfig } from './config.js';
 import { DEFAULT_CONNECT_TIMEOUT_MS, ignoredAppErrors, serverPort, toAgentConfig } from './config.js';
 import { AndroidProvider } from './devices/android.js';
 import { IosProvider } from './devices/ios.js';
-import type { DeviceProvider, LaunchParams } from './devices/provider.js';
+import type { DeviceProvider, LaunchParams, LaunchUrlHandling } from './devices/provider.js';
+import { DeviceApi } from './device.js';
+import type { AppRunState, DeviceHost } from './device.js';
 import { Driver } from './driver.js';
+import { checkLaunchArgs, encodeLaunchArgs } from './launch-args.js';
+import type { LaunchArgs } from './launch-args.js';
+import { SyncApi } from './sync-api.js';
 import { QuiescoError } from './errors.js';
 import type { Logger } from './logger.js';
 import { consoleLogger } from './logger.js';
@@ -78,7 +83,12 @@ export async function createProvider(platform: Platform, config: QuiescoConfig, 
 
 export class Session {
   readonly driver: Driver;
+  readonly device: DeviceApi;
+  readonly sync: SyncApi;
   private connection: AgentConnection | null = null;
+  /** What the test did to the app (Phase 6.5); element calls need `running`. */
+  private appState: AppRunState = 'running';
+  private readonly defaultArgs: LaunchArgs;
 
   private constructor(
     readonly config: QuiescoConfig,
@@ -87,6 +97,7 @@ export class Session {
     readonly launchParams: LaunchParams,
     private readonly logger: Logger,
   ) {
+    this.defaultArgs = config.launchArgs === undefined ? {} : checkLaunchArgs(config.launchArgs, 'config launchArgs');
     this.driver = new Driver({
       provider,
       connection: () => this.currentConnection(),
@@ -94,7 +105,15 @@ export class Session {
       ...(config.actions?.mode !== undefined ? { mode: config.actions.mode } : {}),
       ignoreAppErrors: ignoredAppErrors(config),
       logger,
+      appState: () => this.appState,
     });
+    const baseAgentConfig = server.agentConfig;
+    this.sync = new SyncApi({
+      base: () => baseAgentConfig,
+      apply: (c) => this.applyAgentConfig(c),
+    });
+    this.device = new DeviceApi(this.deviceHost());
+    this.driver.setLifecycle(this.device, this.sync);
   }
 
   /** Start the server, boot the device, install and launch the app, and wait until the agent connects. */
@@ -126,14 +145,22 @@ export class Session {
     return session;
   }
 
-  /** Before each scenario: soft reset, or terminate + relaunch for `@hard-reset` (or `reset.default: 'hard'`). */
+  /**
+   * Before each scenario: undo the previous scenario's `app.sync.*` changes, bring a backgrounded app
+   * back / start a terminated one, then soft reset — or terminate + relaunch for `@hard-reset` (or
+   * `reset.default: 'hard'`).
+   */
   async beforeScenario(info: ScenarioInfo = {}): Promise<void> {
+    await this.sync.reset();
     const hard = info.tags?.includes(tagNames(this.config.tags).hardReset) === true || this.config.reset?.default === 'hard';
-    if (hard) {
+    if (hard || this.appState === 'terminated') {
       await this.provider.terminate();
+      this.appState = 'terminated';
       await this.launch();
+      this.appState = 'running';
       return;
     }
+    if (this.appState === 'background') await this.device.bringToForeground();
     await this.driver.reset();
   }
 
@@ -187,21 +214,82 @@ export class Session {
     this.driver.attach(conn);
   }
 
-  private async launch(): Promise<void> {
+  /** The session's connection parameters plus this launch's arguments (merged over the config's) and URL. */
+  private paramsFor(extra: { args?: LaunchArgs; url?: string }): LaunchParams {
+    const args = { ...this.defaultArgs, ...extra.args };
+    const out: LaunchParams = { ...this.launchParams };
+    if (Object.keys(args).length > 0) {
+      out.args = encodeLaunchArgs(args);
+      out.argsObject = args;
+    }
+    if (extra.url !== undefined) out.url = extra.url;
+    return out;
+  }
+
+  private deviceHost(): DeviceHost {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias -- the host object reads live session state
+    const session = this;
+    return {
+      provider: this.provider,
+      logger: this.logger,
+      permissions: this.config.permissions ?? [],
+      get appState() {
+        return session.appState;
+      },
+      set appState(s: AppRunState) {
+        session.appState = s;
+      },
+      launch: async (extra) => {
+        const urlHandling = await this.launch(extra);
+        return { nativeModule: (await this.currentConnection()).info.nativeModule, urlHandling };
+      },
+      deviceInfo: (timeoutMs) => this.driver.request('deviceInfo', {}, timeoutMs),
+      suspendInApp: async () => (await this.driver.request('suspend', {}, 3_000)).suspended,
+      reapplyConfig: () => this.pushAgentConfig(),
+      waitForIdle: async () => {
+        await this.driver.waitForIdle();
+      },
+      elementRect: async (target) => {
+        const el = await this.driver.attributes(target);
+        if (el.rect === null || el.rect.width <= 0 || el.rect.height <= 0) {
+          throw new QuiescoError('DEVICE_ERROR', `cannot take a screenshot of an element without a size (${el.testID ?? el.type})`);
+        }
+        return el.rect;
+      },
+      openUrl: (url) => this.driver.openUrl(url),
+      pressBack: () => this.driver.pressBack(),
+    };
+  }
+
+  /** `app.sync.*`: the next hello carries `config`; a connected, running app gets it now. */
+  private async applyAgentConfig(config: AgentConfig): Promise<void> {
+    this.server.agentConfig = config;
+    if (this.appState === 'running') await this.pushAgentConfig();
+  }
+
+  private async pushAgentConfig(): Promise<void> {
+    const c = this.connection;
+    if (c === null || c.closed) return; // the reconnect's hello carries it
+    await this.driver.request('configure', { config: this.server.agentConfig });
+  }
+
+  private async launch(extra: { args?: LaunchArgs; url?: string } = {}): Promise<LaunchUrlHandling | void> {
     const previous = this.connection;
-    await this.provider.launch(this.launchParams);
+    const params = this.paramsFor(extra);
+    const urlHandling = await this.provider.launch(params);
     const timeoutMs = this.config.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
     let conn: AgentConnection;
     try {
       conn = await this.server.waitForConnection(this.launchParams.sessionId, timeoutMs, () => '', previous);
     } catch (e) {
       if (!(e instanceof QuiescoError) || e.errorName !== 'CONNECT_TIMEOUT') throw e;
-      const extra = this.provider.diagnose === undefined
+      const diag = this.provider.diagnose === undefined
         ? []
-        : await this.provider.diagnose(this.launchParams).catch((d: unknown) => [`(diagnostics failed: ${(d as Error).message})`]);
-      throw new QuiescoError('CONNECT_TIMEOUT', this.timeoutMessage(timeoutMs, extra), e.data);
+        : await this.provider.diagnose(params).catch((d: unknown) => [`(diagnostics failed: ${(d as Error).message})`]);
+      throw new QuiescoError('CONNECT_TIMEOUT', this.timeoutMessage(timeoutMs, diag), e.data);
     }
     this.adopt(conn);
+    return urlHandling;
   }
 
   private timeoutMessage(timeoutMs: number, extra: string[]): string {

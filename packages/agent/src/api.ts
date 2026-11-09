@@ -6,4 +6,5 @@ export const quiesco: QuiescoApi = {
   backdoor: (name, fn) => getRuntime().backdoors.register(name, fn),
   onReset: (hook) => getRuntime().resets.onReset(hook),
   registerStorage: (adapter) => getRuntime().resets.registerStorage(adapter),
+  launchArgs: () => getRuntime().launchArgs(),
 };

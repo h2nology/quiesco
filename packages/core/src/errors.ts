@@ -1,7 +1,17 @@
 import type { ErrorName, JsonRpcErrorObject, JsonValue } from '@quiesco/protocol';
 
 /** Errors raised only on the host side. */
-export type HostErrorName = 'CONNECT_TIMEOUT' | 'AGENT_TIMEOUT' | 'AGENT_DISCONNECTED' | 'DEVICE_ERROR' | 'CONFIG_ERROR' | 'AGENT_ERROR';
+export type HostErrorName =
+  | 'CONNECT_TIMEOUT'
+  | 'AGENT_TIMEOUT'
+  | 'AGENT_DISCONNECTED'
+  | 'DEVICE_ERROR'
+  | 'CONFIG_ERROR'
+  | 'AGENT_ERROR'
+  /** The app was terminated / uninstalled by the test (`app.device.*`); relaunch it first. */
+  | 'APP_NOT_RUNNING'
+  /** The app was sent to the background by the test; bring it to the foreground first. */
+  | 'APP_IN_BACKGROUND';
 
 /**
  * Every failure surfaced by @quiesco/core. Agent errors keep their protocol code and structured data

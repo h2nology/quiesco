@@ -36,7 +36,7 @@ class QuiescoNativeModule : Module() {
     // have lost the extras (dev client relaunch), so fall back to what QuiescoNativePackage captured.
     Function("getLaunchParams") {
       LaunchParamsStore.capture(appContext.currentActivity?.intent)
-      mapOf("port" to LaunchParamsStore.port, "session" to LaunchParamsStore.session)
+      mapOf("port" to LaunchParamsStore.port, "session" to LaunchParamsStore.session, "args" to LaunchParamsStore.args)
     }
 
     /** Where a view really is, and whether its window is the one receiving input. */

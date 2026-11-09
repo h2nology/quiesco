@@ -180,6 +180,52 @@ with `.not`. A negated single-element assertion (`not.toHaveText`, ...) still ne
 An element summary has `type` (host component), `semanticType`, `testID`, `text`, `label`, `role`,
 `value`, `checked`, `enabled`, `focused`, `rect`, `visible`, `visibleRatio` and the serializable `props`.
 
+### App lifecycle (`this.app.device`)
+
+```ts
+// A new process with typed launch arguments and a deep link (a real cold start: getInitialURL sees it).
+await this.app.device.relaunch({ args: { user: 'ann', retries: 3 }, url: 'myapp://todos/1' });
+await this.app.device.relaunch({ clearData: true });              // app data deleted first
+await this.app.device.relaunch({ reinstall: true, permissions: ['camera'] });
+await this.app.device.sendToBackground();                         // Home button; the process keeps running
+await this.app.device.bringToForeground();                        // same process, waits until active and idle
+await this.app.device.terminate();
+const png = await this.app.device.screenshot('avatar');           // one element; no argument: the screen
+await this.app.device.reversePort(3001);                          // Android: adb reverse; elsewhere a no-op
+```
+
+| Method | What it does |
+|---|---|
+| `relaunch({ args, url, clearData, reinstall, permissions })` | Terminate and start the app again — always a new process. Keeps the app's data unless `clearData` / `reinstall`. `args` (any JSON) are merged over the config's `launchArgs`; `url` opens the app with that deep link; `permissions` are granted before the launch besides the config's (after `clearData` / `reinstall` the config's are granted again). Resolves once the app has connected |
+| `terminate()` | Stop the app. Until `relaunch()`, every element call fails at once with `APP_NOT_RUNNING` (no waiting) |
+| `sendToBackground()` / `bringToForeground()` | Home screen and back without restarting. In between, element calls fail with `APP_IN_BACKGROUND`. Not on the web (`ACTION_NOT_SUPPORTED`) |
+| `install()` / `uninstall()` | Install `binaryPath` / remove the app |
+| `screenshot(target?)` | PNG (`Buffer`) of the screen, or of one element cut out of it (only its part on the screen) |
+| `reversePort(port)` / `unreversePort(port)` | Make a host port reachable as `localhost:port` from an Android device; a no-op on the iOS simulator and the web |
+| `openUrl(url)` / `pressBack()` | Same as `this.app.openUrl` / `this.app.pressBack` |
+| `appState` | `'running'`, `'background'` or `'terminated'` — what the test did to the app |
+
+Before each scenario Quiesco starts an app a previous scenario left terminated, and brings a
+backgrounded one back, so scenarios stay independent.
+
+### Runtime synchronization (`this.app.sync`)
+
+Change what Quiesco waits for, for the rest of the scenario — instead of switching synchronization off
+altogether:
+
+```ts
+await this.app.sync.disableTracker('timer');            // e.g. a screen that polls every 200 ms
+await this.app.sync.ignoreElements.add('poll-count');   // its text changes with every poll
+await this.app.sync.ignoreUrls.add(/\/analytics/);      // a request that never finishes
+await this.app.sync.disable();                          // all trackers off (Detox disableSynchronization)
+await this.app.sync.enable();
+```
+
+`disableTracker` / `enableTracker` take `network`, `timer`, `react`, `idle-callback`, `frame-stable`,
+`native`. `ignoreUrls` and `ignoreElements` add to / remove from the config's lists. The changes
+survive relaunches and reconnects, and are undone before the next scenario. For a single call,
+`{ sync: false }` still works.
+
 ## Matchers
 
 A plain string is a **testID**: `tap('add-todo')`. An object combines conditions:
@@ -258,6 +304,11 @@ quiesco.onReset(async () => {
 // Storage cleared on soft reset in addition to the built-in ones
 // (AsyncStorage's default store on iOS / Android; localStorage, sessionStorage, IndexedDB on the web).
 quiesco.registerStorage({ name: 'mmkv', clear: () => storage.clearAll() });
+
+// The launch arguments of this launch (config `launchArgs` + `app.device.relaunch({ args })`), with
+// their JSON types. Synchronous, so it can be read at startup. `{}` in production and in builds
+// without @quiesco/native on iOS / Android.
+const { user } = quiesco.launchArgs() as { user?: string };
 ```
 
 Register backdoors and hooks in a module that is only imported in e2e builds
@@ -346,6 +397,7 @@ Failures are `QuiescoError`s with `errorName`, a message that says what to do, a
 | `CONNECT_TIMEOUT` | The app did not connect after launch (the message has a checklist) |
 | `AGENT_TIMEOUT` | The app stopped answering — usually its JS thread is blocked |
 | `AGENT_DISCONNECTED`, `DEVICE_ERROR`, `CONFIG_ERROR` | Lost connection, device tooling failure (adb / simctl / Playwright), invalid config |
+| `APP_NOT_RUNNING` / `APP_IN_BACKGROUND` | The test terminated the app / sent it to the background (`this.app.device`); relaunch it / bring it back first |
 
 When a scenario fails, `@quiesco/cucumber` attaches a screenshot, the element tree and the tracker
 states to the report.

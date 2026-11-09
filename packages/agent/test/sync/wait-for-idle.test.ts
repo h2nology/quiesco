@@ -131,3 +131,17 @@ describe('SyncEngine.waitForIdle', () => {
     expect(a.calls).toEqual(['install', 'uninstall']);
   });
 });
+
+describe('SyncEngine.setSkipped (Phase 6.5: background)', () => {
+  it('treats skipped trackers as idle and leaves them out of getIdleState, re-evaluated on every check', async () => {
+    const busy: IdleTracker = { name: 'frame-stable', isIdle: () => false, describeBusy: () => ['no frame'], install() {}, uninstall() {} };
+    const ok: IdleTracker = { name: 'network', isIdle: () => true, describeBusy: () => [], install() {}, uninstall() {} };
+    const engine = new SyncEngine([busy, ok], { setTimeout: (cb, ms) => setTimeout(cb, ms), clearTimeout: (id) => clearTimeout(id as number), now: () => Date.now() });
+    let background = true;
+    engine.setSkipped(() => (background ? new Set(['frame-stable']) : new Set()));
+    expect(engine.getIdleState().map((s) => s.name)).toEqual(['network']);
+    await expect(engine.waitForIdle({ timeoutMs: 200 })).resolves.toMatchObject({});
+    background = false;
+    await expect(engine.waitForIdle({ timeoutMs: 50 })).rejects.toMatchObject({ errorName: 'SYNC_TIMEOUT' });
+  });
+});
