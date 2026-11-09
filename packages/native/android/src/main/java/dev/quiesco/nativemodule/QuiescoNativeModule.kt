@@ -1,5 +1,8 @@
 package dev.quiesco.nativemodule
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -38,6 +41,21 @@ class QuiescoNativeModule : Module() {
       LaunchParamsStore.capture(appContext.currentActivity?.intent)
       mapOf("port" to LaunchParamsStore.port, "session" to LaunchParamsStore.session, "args" to LaunchParamsStore.args)
     }
+
+    /**
+     * `app.device.clipboard` (Phase 6.6): adb has no clipboard command, so the app's process reads and
+     * writes it (Android 10+ lets only the focused app read it: the app under test is in front).
+     */
+    AsyncFunction("getClipboard") {
+      val cm = clipboard() ?: return@AsyncFunction ""
+      val clip = cm.primaryClip
+      if (clip == null || clip.itemCount == 0) "" else clip.getItemAt(0).coerceToText(appContext.reactContext).toString()
+    }.runOnQueue(Queues.MAIN)
+
+    AsyncFunction("setClipboard") { text: String ->
+      clipboard()?.setPrimaryClip(ClipData.newPlainText("quiesco", text))
+      Unit
+    }.runOnQueue(Queues.MAIN)
 
     /** Where a view really is, and whether its window is the one receiving input. */
     AsyncFunction("locate") { tag: Int ->
@@ -300,6 +318,9 @@ class QuiescoNativeModule : Module() {
     if (view is ViewGroup) for (i in 0 until view.childCount) findSeekBar(view.getChildAt(i))?.let { return it }
     return null
   }
+
+  private fun clipboard(): ClipboardManager? =
+    appContext.reactContext?.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
 
   private fun density(): Float = appContext.reactContext?.resources?.displayMetrics?.density ?: 1f
 

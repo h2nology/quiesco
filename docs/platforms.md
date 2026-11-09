@@ -38,6 +38,9 @@ The same features, steps and `this.app` calls run on all three platforms. What d
 | `setLocale()` | relaunch with `-AppleLanguages` / `-AppleLocale` (needs `CFBundleLocalizations`) | per-app language, `cmd locale set-app-locales` (Android 13+), then the app is started again | a new browser context with that locale (data kept) |
 | `setLocation()` | `simctl location set` (reset: `clear`) | `adb emu geo fix` (emulators only) | `context.setGeolocation` |
 | `setPermission()` | `simctl privacy grant / revoke` (no camera / notifications); the app keeps running | `pm grant / revoke`; a revoke kills the app → started again | `grantPermissions` / `clearPermissions` |
+| `setNetwork('offline')` | the agent fails the app's new connections; no device switch (NetInfo stays online) | the agent, plus `svc wifi / data disable` (NetInfo sees it; `adb reverse` keeps working) | the agent, plus aborted page requests and CDP `Network.overrideNetworkState` (`navigator.onLine`, `offline` / `connection` `change` events; Chromium) |
+| `clipboard.set()` / `get()` | `UIPasteboard` in the app (`@quiesco/native` ≥ Phase 6.6); `get` without it: `simctl pbpaste` | `ClipboardManager` in the app (same; without it `ACTION_NOT_SUPPORTED`) | `navigator.clipboard` (clipboard permissions granted to the page) |
+| `setStatusBar()` | `simctl status_bar override` (reset: `clear`) | SystemUI demo mode (`sysui_demo_allowed`, notification icons hidden; reset: `exit`) | no status bar: nothing to do |
 | Value controls, accessibility actions (native mode) | need an app built with `@quiesco/native` ≥ Phase 6.3 (`sliderInfo`, `wheelInfo`, `accessibilityAction`) | same (`sliderInfo`, `accessibilityAction`) | — |
 
 ## Permissions
@@ -80,6 +83,12 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
   modules are created; in practice that is before the first render.
 - In the background iOS suspends the app's JS after a few seconds; element calls fail at once with
   `APP_IN_BACKGROUND` rather than waiting for an answer.
+- Clipboard: text put there by another process (`simctl pbcopy`) makes iOS ask the user before the app
+  may paste it, and the app's read hangs until someone answers. `clipboard.set()` therefore writes from
+  inside the app (`@quiesco/native` ≥ Phase 6.6); the app reads what it wrote itself without asking.
+- `setNetwork('offline')`: the simulator shares the Mac's network and has no switch of its own. Only the
+  agent fails the app's connections (sent to an `.invalid` host, so they fail with React Native's own
+  "Network request failed"); NetInfo keeps reporting the Mac's network.
 
 ## Android
 
@@ -102,6 +111,10 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
   timer, frame and native trackers as idle while the app is not active.
 - Emulators usually have a hardware keyboard, so the software keyboard does not appear while typing.
   To test keyboard-related behavior: `adb shell settings put secure show_ime_with_hard_keyboard 1`.
+- `setNetwork('offline')` turns Wi-Fi and mobile data off for the whole emulator; `adb reverse` keeps
+  working, so Quiesco, Metro and a mock backend on the host stay reachable — the app's requests to them
+  fail through the agent. The previous Wi-Fi / data state is restored before the next scenario.
+- adb has no clipboard command: `clipboard.*` needs `@quiesco/native` ≥ Phase 6.6 in the app.
 
 ## Web
 
@@ -109,6 +122,11 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
 - Viewports come from the config (phone, tablet, desktop…); touch viewports get touch input.
 - A full page load reconnects the agent; the host waits for it without failing the step.
 - Testing only native platforms does not require Playwright; the web provider is loaded on demand.
+- `setNetwork('offline')` does not use Playwright's `context.setOffline()`: it also stops Quiesco's own
+  WebSocket (the socket stays open but no message arrives). Instead the page's requests are aborted
+  (routes do not see WebSockets) and CDP `Network.overrideNetworkState` sets `navigator.onLine` with real
+  `offline` / `online` events; zero throughput also fires `navigator.connection`'s `change`, the event
+  NetInfo listens to in Chromium. A relaunch while offline loads the page first, then goes offline.
 - Device-state read-backs never touch the app's own `MediaQueryList`: reading `matches` on the list that
   react-native-web's `Appearance` listens to makes Chromium skip the change event, and
   `useColorScheme()` would never update.

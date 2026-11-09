@@ -45,7 +45,7 @@ import { ResetManager } from './reset';
 import { defaultStorageAdapters } from './reset/storage-defaults';
 import { describeMatcher, findAll, getTree, isVisible, structureLines, summarize, toRegExp } from './query';
 import type { Clock, IdleTracker, TimerGlobals } from './sync';
-import { FrameStableTracker, IdleCallbackTracker, NetworkTracker, ReactTracker, SyncEngine, TimerTracker, realClock } from './sync';
+import { FrameStableTracker, IdleCallbackTracker, NetworkTracker, OfflineGate, ReactTracker, SyncEngine, TimerTracker, ownConnection, realClock } from './sync';
 import { AGENT_VERSION } from './version';
 
 /** drag: hold before moving (long enough to start long-press-activated drags), and move duration. */
@@ -95,6 +95,8 @@ export class AgentRuntime {
     logLevel: 'warn',
   };
   private readonly deps: AppDeps;
+  /** `app.device.setNetwork('offline')` (Phase 6.6). */
+  private readonly offline: OfflineGate;
   private readonly clock: Clock;
   private readonly global: Record<string, unknown>;
   private network: NetworkTracker | null = null;
@@ -115,6 +117,7 @@ export class AgentRuntime {
     this.deps = options.deps ?? defaultAppDeps;
     this.clock = options.clock ?? realClock;
     this.adapter = new FiberAdapter({ target: this.global, ...options.adapter });
+    this.offline = new OfflineGate(this.global);
     const c = this.global['console'] as { warn?: (...a: unknown[]) => void } | undefined;
     const warn = c?.warn;
     this.log = (m) => warn?.call(c, `[quiesco] ${m}`);
@@ -127,6 +130,8 @@ export class AgentRuntime {
   /** Called at import time: everything that must precede the renderer and the app's first effects. */
   installEarly(): void {
     this.adapter.install();
+    // Before the network tracker, which then wraps it (and reports the URLs the app asked for).
+    this.offline.install();
     this.engine.install();
     this.events.install();
   }
@@ -154,6 +159,7 @@ export class AgentRuntime {
         global: this.global,
         build: buildConfig,
       });
+      this.offline.setExempt(ownConnection(params.port));
       this.client = new AgentClient({
         params,
         hello: { platform: this.deps.platform(), agentVersion: AGENT_VERSION, nativeModule: native !== null },
@@ -215,6 +221,7 @@ export class AgentRuntime {
 
   configure(config: AgentConfig): void {
     this.config = config;
+    this.offline.setOffline(config.network?.offline === true);
     this.network?.setIgnoreUrls(config.sync.ignoreUrls.map(toRegExp));
     this.timer?.configure({ thresholdMs: config.sync.timerThresholdMs, countIntervals: config.sync.countIntervals });
     this.frames?.setFrames(config.sync.stableFrames);
@@ -273,6 +280,17 @@ export class AgentRuntime {
       if (rotate === undefined) return { supported: false };
       const error = await rotate(p.orientation === 'landscape');
       return error === '' ? { supported: true } : { supported: true, error };
+    },
+    getClipboard: async () => {
+      const get = this.nativeModule()?.getClipboard;
+      if (get === undefined) return { supported: false };
+      return { supported: true, text: await get() };
+    },
+    setClipboard: async (p) => {
+      const set = this.nativeModule()?.setClipboard;
+      if (set === undefined) return { supported: false };
+      await set(p.text);
+      return { supported: true };
     },
     suspend: async () => {
       const suspend = this.nativeModule()?.suspend;

@@ -1,17 +1,27 @@
 /**
  * Hidden device-state page (opened by the `openDevice` backdoor), for features/device.feature (Phase 6.6):
- * what the app sees of orientation, color scheme, text size, language, location and its permission.
+ * what the app sees of orientation, color scheme, text size, language, location and its permission, the
+ * network (NetInfo and a request to the mock backend) and the clipboard.
  */
+import { useNetInfo } from '@react-native-community/netinfo';
+import * as Clipboard from 'expo-clipboard';
 import * as Location from 'expo-location';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 
+import { api } from '../api';
 import { ScreenTransition } from '../components/ScreenTransition';
+
+/** What the "复制" button puts on the clipboard. */
+export const COPIED_TEXT = '来自 App 的文字';
 
 export default function Device() {
   const { width, height, fontScale } = useWindowDimensions();
   const scheme = useColorScheme();
   const [position, setPosition] = useState('');
+  const [request, setRequest] = useState('');
+  const [clipboard, setClipboard] = useState('');
+  const net = useNetInfo();
   const dark = scheme === 'dark';
 
   const readLocation = async () => {
@@ -27,6 +37,22 @@ export default function Device() {
     const p = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High, mayShowUserSettingsDialog: false });
     setPosition(`${p.coords.latitude.toFixed(2)},${p.coords.longitude.toFixed(2)}`);
   };
+
+  const sendRequest = async () => {
+    setRequest('…');
+    try {
+      await api.listTodos();
+      setRequest('成功');
+    } catch {
+      setRequest('失败');
+    }
+  };
+
+  const button = (testID: string, title: string, onPress: () => void) => (
+    <Pressable testID={testID} style={styles.button} onPress={onPress}>
+      <Text>{title}</Text>
+    </Pressable>
+  );
 
   const row = (label: string, testID: string, value: string) => (
     <View style={styles.row}>
@@ -46,11 +72,23 @@ export default function Device() {
         {row('字号倍数', 'font-scale', fontScale.toFixed(3))}
         {row('语言', 'locale', Intl.DateTimeFormat().resolvedOptions().locale)}
         <View style={styles.row}>
-          <Pressable testID="read-location" style={styles.button} onPress={() => void readLocation()}>
-            <Text>读取位置</Text>
-          </Pressable>
+          {button('read-location', '读取位置', () => void readLocation())}
           <Text testID="position" style={dark && styles.darkText}>
             {position}
+          </Text>
+        </View>
+        {row('网络', 'net-state', net.isConnected === null ? 'unknown' : net.isConnected ? 'online' : 'offline')}
+        <View style={styles.row}>
+          {button('send-request', '发送请求', () => void sendRequest())}
+          <Text testID="request-result" style={dark && styles.darkText}>
+            {request}
+          </Text>
+        </View>
+        <View style={styles.row}>
+          {button('read-clipboard', '读取剪贴板', () => void Clipboard.getStringAsync().then(setClipboard))}
+          {button('copy-text', '复制', () => void Clipboard.setStringAsync(COPIED_TEXT).then(() => setClipboard('已复制')))}
+          <Text testID="clipboard-text" style={dark && styles.darkText}>
+            {clipboard}
           </Text>
         </View>
       </View>

@@ -40,7 +40,7 @@ import { silentLogger } from '../logger.js';
 import type { Exec, Spawn } from './exec.js';
 import { execCommand, shq, spawnDetached } from './exec.js';
 import type { Permission } from './permissions.js';
-import type { ColorScheme, DeviceProvider, LaunchParams, LaunchUrlHandling, StateChange } from './provider.js';
+import type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, StateChange, StatusBarOptions } from './provider.js';
 
 const ANDROID_PERMISSIONS: Record<Permission, string[]> = {
   camera: ['android.permission.CAMERA'],
@@ -366,6 +366,67 @@ export class AndroidProvider implements DeviceProvider {
     return { relaunch: true };
   }
 
+  /**
+   * SystemUI demo mode (the status bar of Android screenshots): allowed in settings, entered once, with
+   * notification icons hidden; each option is one `com.android.systemui.demo` broadcast.
+   */
+  async setStatusBar(o: StatusBarOptions): Promise<void> {
+    if (!this.restore.has('statusBar')) {
+      const allowed = await this.settingValue('global', 'sysui_demo_allowed', '0');
+      this.restore.set('statusBar', [demoBroadcast('exit'), `settings put global sysui_demo_allowed ${allowed}`]);
+      await this.shell('settings put global sysui_demo_allowed 1');
+      await this.demo('enter');
+      await this.demo('notifications', ['visible', 'false']);
+    }
+    if (o.time !== undefined) await this.demo('clock', ['hhmm', o.time.replace(':', '').padStart(4, '0')]);
+    if (o.batteryLevel !== undefined || o.charging !== undefined) {
+      await this.demo('battery', [...(o.batteryLevel !== undefined ? ['level', String(o.batteryLevel)] : []), ...(o.charging !== undefined ? ['plugged', String(o.charging)] : [])]);
+    }
+    // Android draws 0-4 Wi-Fi levels where iOS has 0-3 bars.
+    if (o.wifiBars !== undefined) await this.demo('network', ['wifi', 'show', 'level', String(Math.round((o.wifiBars * 4) / 3))]);
+    if (o.dataNetwork === 'hide') await this.demo('network', ['mobile', 'hide']);
+    else if (o.cellularBars !== undefined || o.dataNetwork !== undefined) {
+      await this.demo('network', [
+        'mobile',
+        'show',
+        ...(o.cellularBars !== undefined ? ['level', String(o.cellularBars)] : []),
+        ...(o.dataNetwork !== undefined ? ['datatype', o.dataNetwork === 'wifi' ? 'null' : o.dataNetwork] : []),
+      ]);
+    }
+  }
+
+  async resetStatusBar(): Promise<void> {
+    for (const c of this.restore.get('statusBar') ?? []) await this.shell(c).catch(() => undefined);
+    this.restore.delete('statusBar');
+  }
+
+  private async demo(command: string, extras: string[] = []): Promise<void> {
+    const out = await this.shell(demoBroadcast(command, extras));
+    if (!/Broadcast completed/.test(out)) throw new QuiescoError('DEVICE_ERROR', `status bar demo mode (${command}) failed: ${out.trim()}`);
+  }
+
+  /** Wi-Fi and mobile data off (`svc`); `adb reverse` keeps working (spike 6.6), so Quiesco stays connected. */
+  async setNetwork(offline: boolean): Promise<void> {
+    if (!this.restore.has('network')) {
+      const wifi = await this.settingValue('global', 'wifi_on', '1');
+      const data = await this.settingValue('global', 'mobile_data', '1');
+      this.restore.set('network', [`svc wifi ${wifi === '0' ? 'disable' : 'enable'}`, `svc data ${data === '0' ? 'disable' : 'enable'}`]);
+    }
+    await this.shell(`svc wifi ${offline ? 'disable' : 'enable'}`);
+    await this.shell(`svc data ${offline ? 'disable' : 'enable'}`);
+  }
+
+  /** adb has no clipboard command: @quiesco/native reads and writes it in the app's process. */
+  async setClipboard(text: string, app: InAppControls): Promise<void> {
+    if (!(await app.setClipboard(text)).supported) throw clipboardNeedsNative('clipboard.set');
+  }
+
+  async getClipboard(app: InAppControls): Promise<string> {
+    const r = await app.getClipboard();
+    if (!r.supported) throw clipboardNeedsNative('clipboard.get');
+    return r.text ?? '';
+  }
+
   async resetDeviceState(): Promise<StateChange> {
     // Restoring the font scale or the language recreates the activity again (see setFontScale).
     const relaunch = this.restore.has('fontScale') || this.restore.has('locale');
@@ -444,4 +505,19 @@ export class AndroidProvider implements DeviceProvider {
     lines.push(pid.trim() !== '' ? `${this.pkg} is running (pid ${pid.trim()}).` : `${this.pkg} is NOT running — did it crash on start? Check \`adb logcat\`.`);
     return lines;
   }
+}
+
+/** `am broadcast` to SystemUI's demo mode; `extras` are key / value pairs. */
+function demoBroadcast(command: string, extras: string[] = []): string {
+  const pairs: string[] = [];
+  for (let i = 0; i + 1 < extras.length; i += 2) pairs.push(`-e ${extras[i] as string} ${shq(extras[i + 1] as string)}`);
+  return ['am broadcast -a com.android.systemui.demo -e command', command, ...pairs].join(' ');
+}
+
+function clipboardNeedsNative(action: string): QuiescoError {
+  return new QuiescoError('ACTION_NOT_SUPPORTED', `${action} on Android needs @quiesco/native ≥ Phase 6.6 in the app (adb has no clipboard command)`, {
+    action,
+    platform: 'android',
+    hint: 'rebuild the app with EXPO_PUBLIC_QUIESCO=1 and @quiesco/expo-plugin',
+  });
 }

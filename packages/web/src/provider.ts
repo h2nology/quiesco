@@ -14,10 +14,10 @@
  */
 import { LAUNCH_PARAM_PORT, LAUNCH_PARAM_SESSION, WEB_PARAMS_GLOBAL } from '@quiesco/protocol';
 import type { HostInput, Orientation } from '@quiesco/protocol';
-import type { ColorScheme, DeviceProvider, LaunchParams, LaunchUrlHandling, Logger, Permission, StateChange, WebAppConfig, WebDeviceConfig } from '@quiesco/core';
+import type { ColorScheme, DeviceProvider, LaunchParams, LaunchUrlHandling, Logger, Permission, StateChange, StatusBarOptions, WebAppConfig, WebDeviceConfig } from '@quiesco/core';
 import { QuiescoError, silentLogger } from '@quiesco/core';
 import { chromium, firefox, webkit } from 'playwright';
-import type { Browser, BrowserContext, BrowserType, Page } from 'playwright';
+import type { Browser, BrowserContext, BrowserType, CDPSession, Page, Route } from 'playwright';
 
 type StorageState = Awaited<ReturnType<BrowserContext['storageState']>>;
 
@@ -74,6 +74,10 @@ export class WebProvider implements DeviceProvider {
   private geolocation: { latitude: number; longitude: number } | null = null;
   private colorScheme: ColorScheme | null = null;
   private locale: string | null = null;
+  /** setNetwork('offline'): requests aborted, and (Chromium) `navigator.onLine` false; see applyNetwork. */
+  private offline = false;
+  private networkCdp: CDPSession | null = null;
+  private readonly abortRoute = (route: Route): Promise<void> => route.abort('internetdisconnected');
   /** Permissions granted at runtime beyond / revoked from the configured ones. */
   private permissionsAtStart: string[] | null = null;
   private readonly pageErrors: string[] = [];
@@ -148,10 +152,13 @@ export class WebProvider implements DeviceProvider {
     this.page = page;
     const target = params.url !== undefined ? webPathFor(params.url) : (this.options.app.path ?? '/');
     await page.goto(new URL(target, this.baseUrl).href);
+    // After loading: an installed app starts offline too, a web page could not.
+    if (this.offline) await this.applyNetwork();
     if (params.url !== undefined) return 'delivered';
   }
 
   async terminate(opts: { keepData?: boolean } = {}): Promise<void> {
+    this.networkCdp = null; // detached with its page
     const ctx = this.context;
     this.context = null;
     this.page = null;
@@ -301,7 +308,69 @@ export class WebProvider implements DeviceProvider {
     return { relaunch: changed };
   }
 
+  /** A browser page has no status bar: nothing to override. */
+  async setStatusBar(_opts: StatusBarOptions): Promise<void> {}
+
+  async resetStatusBar(): Promise<void> {}
+
+  /**
+   * Offline: every request of the page is aborted (`net::ERR_INTERNET_DISCONNECTED`) and, on Chromium,
+   * `navigator.onLine` turns false with real `offline` and `navigator.connection` `change` events (CDP
+   * `Network.overrideNetworkState`).
+   * Not `context.setOffline()`: it also stops Quiesco's own WebSocket (messages no longer arrive; checked
+   * in Phase 6.6). Request routes do not see WebSockets, so the connection keeps working; the agent fails
+   * the app's new WebSockets.
+   */
+  async setNetwork(offline: boolean): Promise<void> {
+    if (this.offline === offline) return;
+    this.offline = offline;
+    if (this.page !== null) await this.applyNetwork();
+  }
+
+  private async applyNetwork(): Promise<void> {
+    const page = this.requirePage();
+    const ctx = page.context();
+    if (this.offline) await ctx.route('**/*', this.abortRoute);
+    else await ctx.unroute('**/*', this.abortRoute);
+    if ((this.device.browser ?? 'chromium') !== 'chromium') {
+      if (this.offline) this.logger.warn(`setNetwork('offline'): ${this.device.browser ?? ''} cannot report navigator.onLine === false (Chromium only); requests fail all the same`);
+      return;
+    }
+    // The override lasts while its CDP session is attached: keep it until online.
+    this.networkCdp ??= await ctx.newCDPSession(page);
+    // Throughput 0 while offline also changes navigator.connection (downlink 0), so `change` fires there
+    // too: NetInfo listens to that event instead of `offline` where the API exists (Chromium).
+    const throughput = this.offline ? 0 : -1;
+    await this.networkCdp.send('Network.overrideNetworkState', { offline: this.offline, latency: 0, downloadThroughput: throughput, uploadThroughput: throughput });
+    if (!this.offline) {
+      await this.networkCdp.detach().catch(() => undefined);
+      this.networkCdp = null;
+    }
+  }
+
+  /** `navigator.clipboard` with the clipboard permissions granted to the page's origin (Chromium; others may refuse). */
+  async setClipboard(text: string): Promise<void> {
+    const page = await this.clipboardPage();
+    await page.evaluate((t) => navigator.clipboard.writeText(t), text);
+  }
+
+  async getClipboard(): Promise<string> {
+    const page = await this.clipboardPage();
+    return page.evaluate(() => navigator.clipboard.readText());
+  }
+
+  private async clipboardPage(): Promise<Page> {
+    const page = this.requirePage();
+    // Again each time: setPermission() clears all permissions.
+    await page
+      .context()
+      .grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(page.url()).origin })
+      .catch((e: unknown) => this.logger.debug(`clipboard permissions: ${(e as Error).message}`));
+    return page;
+  }
+
   async resetDeviceState(): Promise<StateChange> {
+    if (this.offline) await this.setNetwork(false);
     const page = this.page;
     if (this.orientation !== null) {
       this.orientation = null;

@@ -32,6 +32,12 @@ export interface AgentConfig {
    * Logical units and radians. Optional for older hosts (no compensation).
    */
   gestures?: GestureSlop;
+  /**
+   * Simulated offline mode (Phase 6.6 `app.device.setNetwork('offline')`): the agent fails the app's new
+   * fetch / XMLHttpRequest / WebSocket connections, except its own connection and the dev server. Optional
+   * for older hosts (online).
+   */
+  network?: { offline: boolean };
 }
 
 export interface GestureSlop {

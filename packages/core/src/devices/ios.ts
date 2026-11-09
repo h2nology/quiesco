@@ -29,7 +29,7 @@ import { silentLogger } from '../logger.js';
 import type { Exec } from './exec.js';
 import { execCommand } from './exec.js';
 import type { Permission } from './permissions.js';
-import type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, StateChange } from './provider.js';
+import type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, StateChange, StatusBarOptions } from './provider.js';
 
 /** `simctl privacy` services; camera and notifications have none (Xcode 27). */
 const IOS_PRIVACY: Partial<Record<Permission, string[]>> = {
@@ -141,7 +141,7 @@ export class IosProvider implements DeviceProvider {
   /** Locale the app is launched with (setLocale); null = the simulator's. */
   private locale: string | null = null;
   /** Device settings changed by setX, with the value to restore (resetDeviceState). */
-  private readonly changed = new Map<'appearance' | 'contentSize' | 'location' | 'orientation', string>();
+  private readonly changed = new Map<'appearance' | 'contentSize' | 'location' | 'orientation' | 'statusBar', string>();
   private readonly exec: Exec;
   private readonly logger: Logger;
 
@@ -338,6 +338,45 @@ export class IosProvider implements DeviceProvider {
     return { relaunch: changed };
   }
 
+  async setStatusBar(o: StatusBarOptions): Promise<void> {
+    const args = ['status_bar', this.udid, 'override'];
+    if (o.time !== undefined) args.push('--time', o.time);
+    if (o.batteryLevel !== undefined) args.push('--batteryLevel', String(o.batteryLevel));
+    if (o.charging !== undefined) args.push('--batteryState', o.charging ? 'charging' : 'discharging');
+    if (o.wifiBars !== undefined) args.push('--wifiMode', 'active', '--wifiBars', String(o.wifiBars));
+    if (o.cellularBars !== undefined) args.push('--cellularMode', 'active', '--cellularBars', String(o.cellularBars));
+    if (o.dataNetwork !== undefined) args.push('--dataNetwork', o.dataNetwork);
+    this.changed.set('statusBar', 'clear');
+    await this.simctl(args);
+  }
+
+  async resetStatusBar(): Promise<void> {
+    await this.simctl(['status_bar', this.udid, 'clear']);
+    this.changed.delete('statusBar');
+  }
+
+  /**
+   * Written by @quiesco/native inside the app: after `simctl pbcopy` iOS asks the user before the app may
+   * read the text (spike 6.6), and the read hangs until someone answers.
+   */
+  async setClipboard(text: string, app: InAppControls): Promise<void> {
+    const r = await app.setClipboard(text);
+    if (!r.supported) {
+      throw new QuiescoError('ACTION_NOT_SUPPORTED', 'clipboard.set on iOS needs @quiesco/native ≥ Phase 6.6 in the app (text from simctl pbcopy makes iOS ask the user before the app may paste it)', {
+        action: 'clipboard.set',
+        platform: 'ios',
+        hint: 'rebuild the app with EXPO_PUBLIC_QUIESCO=1 and @quiesco/expo-plugin',
+      });
+    }
+  }
+
+  /** Through the app when it can; else `simctl pbpaste` (reading from the Mac asks nobody). */
+  async getClipboard(app: InAppControls): Promise<string> {
+    const r = await app.getClipboard();
+    if (r.supported) return r.text ?? '';
+    return this.simctl(['pbpaste', this.udid]);
+  }
+
   async resetDeviceState(app: InAppControls): Promise<StateChange> {
     for (const [what, value] of this.changed) {
       switch (what) {
@@ -352,6 +391,9 @@ export class IosProvider implements DeviceProvider {
           break;
         case 'contentSize':
           await this.simctl(['ui', this.udid, 'content_size', value]);
+          break;
+        case 'statusBar':
+          await this.simctl(['status_bar', this.udid, 'clear']).catch(() => undefined);
           break;
       }
     }

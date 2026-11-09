@@ -302,6 +302,83 @@ describe('AndroidProvider device state (Phase 6.6)', () => {
     await expect(device.p.setLocation({ latitude: 1, longitude: 2 })).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED' });
   });
 
+  it('status bar: demo mode entered once (notifications hidden), one broadcast per option, restored on reset', async () => {
+    const { p, calls } = await booted([
+      [/settings get global sysui_demo_allowed/, 'null\n'],
+      [/am broadcast/, 'Broadcasting: Intent { act=com.android.systemui.demo flg=0x400000 (has extras) }\nBroadcast completed: result=0\n'],
+    ]);
+    await p.setStatusBar({ time: '9:41', batteryLevel: 100, charging: false, wifiBars: 3, cellularBars: 2, dataNetwork: 'lte' });
+    await p.setStatusBar({ dataNetwork: 'hide' });
+    const s = (c: string) => `adb -s emulator-5554 shell ${c}`;
+    const demo = (c: string) => s(`am broadcast -a com.android.systemui.demo -e command ${c}`);
+    expect(calls).toEqual([
+      s('settings get global sysui_demo_allowed'),
+      s('settings put global sysui_demo_allowed 1'),
+      demo('enter'),
+      demo("notifications -e visible 'false'"),
+      demo("clock -e hhmm '0941'"),
+      demo("battery -e level '100' -e plugged 'false'"),
+      demo("network -e wifi 'show' -e level '4'"),
+      demo("network -e mobile 'show' -e level '2' -e datatype 'lte'"),
+      demo("network -e mobile 'hide'"),
+    ]);
+    calls.length = 0;
+    await expect(p.resetDeviceState()).resolves.toEqual({ relaunch: false });
+    expect(calls).toEqual([demo('exit'), s('settings put global sysui_demo_allowed 0')]);
+    calls.length = 0;
+    await p.resetStatusBar();
+    expect(calls).toEqual([]);
+  });
+
+  it('a failed demo broadcast is reported', async () => {
+    const { p } = await booted([[/am broadcast/, 'Error: no receiver\n']]);
+    await expect(p.setStatusBar({ time: '10:30' })).rejects.toThrow(/demo mode \(enter\) failed/);
+  });
+
+  it('offline: Wi-Fi and mobile data off with svc, restored to what they were', async () => {
+    const { p, calls } = await booted([
+      [/settings get global wifi_on/, '1\n'],
+      [/settings get global mobile_data/, '0\n'],
+    ]);
+    await p.setNetwork(true);
+    await p.setNetwork(false);
+    await p.setNetwork(true);
+    const s = (c: string) => `adb -s emulator-5554 shell ${c}`;
+    expect(calls).toEqual([
+      s('settings get global wifi_on'),
+      s('settings get global mobile_data'),
+      s('svc wifi disable'),
+      s('svc data disable'),
+      s('svc wifi enable'),
+      s('svc data enable'),
+      s('svc wifi disable'),
+      s('svc data disable'),
+    ]);
+    calls.length = 0;
+    await p.resetDeviceState();
+    expect(calls).toEqual([s('svc wifi enable'), s('svc data disable')]);
+  });
+
+  it('clipboard goes through the app; without @quiesco/native it is not supported', async () => {
+    const { p, calls } = await booted();
+    let clip = 'x';
+    const app = {
+      suspend: async () => false,
+      setOrientation: async () => ({ supported: false }),
+      getClipboard: async () => ({ supported: true, text: clip }),
+      setClipboard: async (t: string) => {
+        clip = t;
+        return { supported: true };
+      },
+    };
+    await p.setClipboard('hello', app);
+    await expect(p.getClipboard(app)).resolves.toBe('hello');
+    expect(calls).toEqual([]);
+    const without = { ...app, getClipboard: async () => ({ supported: false }), setClipboard: async () => ({ supported: false }) };
+    await expect(p.setClipboard('x', without)).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { action: 'clipboard.set', platform: 'android' } });
+    await expect(p.getClipboard(without)).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED' });
+  });
+
   it('reports a permission the app does not declare', async () => {
     const { p } = await booted([[/pm grant .* android.permission.CAMERA/, 'Exception occurred: has not requested permission android.permission.CAMERA']]);
     await expect(p.setPermission('camera', true)).rejects.toThrow(/declared in the app manifest/);

@@ -28,6 +28,24 @@ export interface InAppControls {
   suspend(): Promise<boolean>;
   /** Ask @quiesco/native to rotate the window (Phase 6.6). */
   setOrientation(orientation: Orientation): Promise<{ supported: boolean; error?: string }>;
+  /** The clipboard through @quiesco/native (Phase 6.6); `supported: false` without it. */
+  getClipboard(): Promise<{ supported: boolean; text?: string }>;
+  setClipboard(text: string): Promise<{ supported: boolean }>;
+}
+
+/** Status bar overrides for clean screenshots (Phase 6.6); unset fields keep the real value. */
+export interface StatusBarOptions {
+  /** The clock, `H:MM` / `HH:MM` (e.g. `9:41`). */
+  time?: string;
+  /** 0–100. */
+  batteryLevel?: number;
+  charging?: boolean;
+  /** Wi-Fi signal, 0–3 bars. */
+  wifiBars?: number;
+  /** Cellular signal, 0–4 bars. */
+  cellularBars?: number;
+  /** The data network shown next to the bars; `hide` hides the cellular indicator. */
+  dataNetwork?: 'wifi' | '3g' | '4g' | 'lte' | '5g' | 'hide';
 }
 
 export type ColorScheme = 'light' | 'dark';
@@ -87,6 +105,16 @@ export interface DeviceProvider {
   setFontScale?(scale: number): Promise<StateChange & { scale: number }>;
   /** BCP 47 locale, e.g. `ja-JP`; `null` = the device default. */
   setLocale?(locale: string | null): Promise<StateChange>;
+  /** Override the status bar (validated by the caller); a no-op where there is none (web). */
+  setStatusBar?(opts: StatusBarOptions): Promise<void>;
+  resetStatusBar?(): Promise<void>;
+  /**
+   * Cut / restore the device's own network where the platform can (Android `svc`, the web's network
+   * emulation). The agent blocks the app's connections in any case (HU 2026-11-09).
+   */
+  setNetwork?(offline: boolean): Promise<void>;
+  getClipboard?(app: InAppControls): Promise<string>;
+  setClipboard?(text: string, app: InAppControls): Promise<void>;
   /**
    * Undo every device-state change made since the last call (before each scenario, HU 2026-11-09).
    * Permissions are restored by the caller (it knows the configured ones).

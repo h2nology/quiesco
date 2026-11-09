@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-6.4 完成并提交（2026-11-09）。6.5 完成并提交（c5a4200，2026-11-09）。6.6 批次 A 完成（2026-11-09，三端实跑通过，待提交）。下一步：6.6 批次 B（状态栏、离线、剪贴板）。
+6.5 完成并提交（c5a4200）。6.6 批次 A 已提交（b899531）；6.6 批次 B 完成并提交（2026-11-09，三端全量实跑通过）⇒ 6.6 完成。下一步：6.7 系统集成（先出实施计划，经 HU 确认）。
 
 ## Current Phase
 Phase 6
@@ -215,7 +215,7 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
   - **示例 App**：playground 加「生命周期」区块：显示 `launchArgs()`、AppState 变化次数、一个持久化计数器（AsyncStorage / localStorage）；`features/lifecycle.feature`：带参数重启、保留 / 清除数据、以深链接启动、后台→前台、terminate 后报错、运行时关闭 timer tracker 后可操作一个无限轮询页、元素截图尺寸
   - **测试**：core 单测（各 provider 命令序列用假 exec 校验、relaunch 步骤顺序、PNG 解码 / 裁剪 / 编码往返、SyncApi 覆盖值与重下发）；agent 单测（launchArgs 解析、configure 合并、后台时 tracker 视为空闲）；三端实跑（iOS / Android native + js 档位、Web 三视口）；`pnpm run check`
   - **文档**：api.md（app.device / app.sync / launchArgs）、platforms.md（各端实现与差异）
-- [ ] 6.6 设备状态——详细计划（2026-11-09，HU 已确认）
+- [x] 6.6 设备状态——详细计划（2026-11-09，HU 已确认）
   - **HU 决定（2026-11-09）**：① iOS / Android 撤销权限后系统杀进程 → Quiesco 自动保留数据重启并等连接后返回（页面回到初始路由，文档写明）；② 离线用混合方案：三端 agent 拦截 fetch / XHR / WebSocket（不含 Quiesco 自身连接），Android 另用 `svc wifi/data disable` 真断网（NetInfo 可感知）、Web 另用 `context.setOffline`，iOS 的 NetInfo 感知不到（文档写明）；③ 设备状态改动在每个场景开始时恢复，只恢复本会话改过的项
   - **API**：全部挂在 `app.device.*`，每项三端；做不到的报 ACTION_NOT_SUPPORTED + 原因并写进 platforms.md。设备状态在会话结束 / 场景开始时恢复默认（见决策点）
   - **已有，不再重复**：Detox `setURLBlacklist` = 6.5 的 `app.sync.ignoreUrls.add()`（文档补一行对照）
@@ -231,6 +231,7 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
   - **批次 B（同一子阶段，A 实跑通过后再做）**
     - `setStatusBar({ time, battery, wifi, ... })` / `resetStatusBar()`：simctl `status_bar override`；Android SystemUI demo mode（`sysui_demo_allowed` + broadcast）；Web 无状态栏 → 直接成功
     - `setNetwork('offline' | 'online')`：见决策点
+      - 实现变更（2026-11-09）：Web 不用 `context.setOffline`（会掐断 Quiesco 自身 WebSocket），改为 route 中止 + CDP `Network.overrideNetworkState`（findings「6.6 批次 B 发现」）
     - `clipboard.set(text)` / `clipboard.get()`：Android 无 shell 命令 → 原生模块在 App 进程内读写 ClipboardManager；iOS simctl `pbcopy / pbpaste`（spike：App 读取时 iOS 16+ 是否弹「允许粘贴」，弹则改为原生模块进程内写）；Web `grantPermissions(['clipboard-read','clipboard-write'])` + `navigator.clipboard`
   - **spike（实现前）**：① iOS `requestGeometryUpdate` 从原生模块调用是否生效、RN `Dimensions` / `useWindowDimensions` 是否更新；Android user_rotation 对 dev client 的 Activity 是否生效；② Android `set-app-locales` / `font_scale` 后 RN 是重建 Activity 还是整个 JS 重载（连接是否断开、AppState）；③ `simctl privacy revoke` / `pm revoke` 杀进程的确认；④ iOS `pbcopy` 后 App 读剪贴板是否弹框；⑤ 离线方案（见决策点）在 RN `fetch` 与 `@react-native-community/netinfo` 上的表现
   - **原生（需重建两端 dev client）**：iOS `setOrientation`；两端剪贴板读写（视 spike）

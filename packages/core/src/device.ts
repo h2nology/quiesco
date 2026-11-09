@@ -7,7 +7,7 @@
 import type { DeviceInfo, Orientation, Rect } from '@quiesco/protocol';
 
 import type { Permission } from './devices/permissions.js';
-import type { ColorScheme, DeviceProvider, InAppControls, LaunchUrlHandling, StateChange } from './devices/provider.js';
+import type { ColorScheme, DeviceProvider, InAppControls, LaunchUrlHandling, StateChange, StatusBarOptions } from './devices/provider.js';
 import { QuiescoError } from './errors.js';
 import { checkLaunchArgs } from './launch-args.js';
 import type { LaunchArgs } from './launch-args.js';
@@ -44,6 +44,10 @@ export interface DeviceHost {
   deviceInfo(timeoutMs?: number): Promise<DeviceInfo>;
   suspendInApp(): Promise<boolean>;
   setOrientationInApp(orientation: Orientation): Promise<{ supported: boolean; error?: string }>;
+  getClipboardInApp(): Promise<{ supported: boolean; text?: string }>;
+  setClipboardInApp(text: string): Promise<{ supported: boolean }>;
+  /** Simulated offline mode in the agent (Phase 6.6): sent now when running, and with every later hello. */
+  setOffline(offline: boolean): Promise<void>;
   /** Re-send the current agent config (after the app was in the background). */
   reapplyConfig(): Promise<void>;
   waitForIdle(): Promise<void>;
@@ -62,6 +66,27 @@ const SETTLE_MS = 8_000;
 export class DeviceApi {
   /** Permissions changed this scenario, restored before the next one (HU 2026-11-09). */
   private readonly permissionChanges = new Set<Permission>();
+  /** setNetwork('offline') and clipboard.set() this scenario, undone before the next one. */
+  private offline = false;
+  private clipboardSet = false;
+
+  /** The device clipboard (plain text), as the app sees it. Cleared before the next scenario when set. */
+  readonly clipboard = {
+    set: async (text: string): Promise<void> => {
+      if (typeof text !== 'string') throw new TypeError('clipboard.set(text) needs a string');
+      const p = this.host.provider;
+      if (p.setClipboard === undefined) throw notSupported('clipboard.set', p.platform);
+      this.requireRunning('clipboard.set');
+      await p.setClipboard(text, this.inApp);
+      this.clipboardSet = true;
+    },
+    get: async (): Promise<string> => {
+      const p = this.host.provider;
+      if (p.getClipboard === undefined) throw notSupported('clipboard.get', p.platform);
+      this.requireRunning('clipboard.get');
+      return p.getClipboard(this.inApp);
+    },
+  };
 
   constructor(private readonly host: DeviceHost) {}
 
@@ -70,6 +95,8 @@ export class DeviceApi {
       suspend: () => this.host.suspendInApp(),
       // Not while the app is down: a terminated app starts in portrait, and a request would wait for a reconnect.
       setOrientation: async (o) => (this.host.appState === 'running' ? this.host.setOrientationInApp(o) : { supported: false }),
+      getClipboard: () => this.host.getClipboardInApp(),
+      setClipboard: (text) => this.host.setClipboardInApp(text),
     };
   }
 
@@ -260,6 +287,37 @@ export class DeviceApi {
   }
 
   /**
+   * Override the status bar (clock, battery, signal) for clean screenshots; undone before the next
+   * scenario. The web has no status bar: nothing to do there.
+   */
+  async setStatusBar(opts: StatusBarOptions): Promise<void> {
+    checkStatusBar(opts);
+    await this.provider('setStatusBar').setStatusBar(opts);
+  }
+
+  /** Back to the real status bar. */
+  async resetStatusBar(): Promise<void> {
+    await this.provider('resetStatusBar').resetStatusBar();
+  }
+
+  /**
+   * Offline / online (HU 2026-11-09). On every platform the app's new fetch / XMLHttpRequest / WebSocket
+   * connections fail while offline (Quiesco's own connection keeps working); Android also turns Wi-Fi and
+   * mobile data off and the web reports `navigator.onLine === false`, so NetInfo and `offline` events see
+   * it there. The iOS simulator has no network switch: NetInfo keeps reporting the Mac's network. Lasts
+   * across relaunches until online or the next scenario.
+   */
+  async setNetwork(state: 'offline' | 'online'): Promise<void> {
+    if (state !== 'offline' && state !== 'online') throw new RangeError(`state must be 'offline' or 'online', got ${String(state)}`);
+    const offline = state === 'offline';
+    // Online: the device first, so the app's first new request finds a network.
+    if (offline) await this.host.setOffline(true);
+    await this.host.provider.setNetwork?.(offline);
+    if (!offline) await this.host.setOffline(false);
+    this.offline = offline;
+  }
+
+  /**
    * Undo this scenario's device-state changes (called by the session before each scenario, and at the
    * end without starting the app again).
    */
@@ -271,14 +329,23 @@ export class DeviceApi {
       relaunch ||= change?.relaunch === true;
     }
     this.permissionChanges.clear();
+    if (this.clipboardSet) {
+      this.clipboardSet = false;
+      if (this.host.appState === 'running') await p.setClipboard?.('', this.inApp).catch(() => undefined);
+    }
     if (p.resetDeviceState !== undefined) {
       const change = await p.resetDeviceState(this.inApp);
       relaunch ||= change.relaunch;
     }
+    if (this.offline) {
+      // The provider brought the device's network back above.
+      this.offline = false;
+      await this.host.setOffline(false).catch(() => undefined);
+    }
     if (relaunch && opts.relaunch !== false && this.host.appState !== 'terminated') await this.relaunch();
   }
 
-  private provider<K extends 'setOrientation' | 'setLocation' | 'setPermission' | 'setAppearance' | 'setFontScale' | 'setLocale'>(method: K): Required<Pick<DeviceProvider, K>> {
+  private provider<K extends 'setOrientation' | 'setLocation' | 'setPermission' | 'setAppearance' | 'setFontScale' | 'setLocale' | 'setStatusBar' | 'resetStatusBar'>(method: K): Required<Pick<DeviceProvider, K>> {
     const p = this.host.provider;
     if (p[method] === undefined) throw notSupported(method, p.platform, STATE_HINT[method]?.[p.platform]);
     return p as unknown as Required<Pick<DeviceProvider, K>>;
@@ -359,6 +426,25 @@ function notSupported(action: string, platform: string, hint?: string): QuiescoE
 
 function notRunning(what: string): QuiescoError {
   return new QuiescoError('APP_NOT_RUNNING', `${what}: the app is not running (terminated or uninstalled by the test); call app.device.relaunch() first`, { action: what });
+}
+
+function checkStatusBar(o: StatusBarOptions): void {
+  if (typeof o !== 'object' || o === null) throw new TypeError('setStatusBar(options) needs an object');
+  const known = ['time', 'batteryLevel', 'charging', 'wifiBars', 'cellularBars', 'dataNetwork'];
+  const unknown = Object.keys(o).filter((k) => !known.includes(k));
+  if (unknown.length > 0) throw new RangeError(`setStatusBar: unknown option ${unknown.join(', ')} (${known.join(', ')})`);
+  if (Object.keys(o).length === 0) throw new RangeError('setStatusBar needs at least one option');
+  if (o.time !== undefined && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(o.time)) throw new RangeError(`setStatusBar: time must be H:MM or HH:MM, got ${o.time}`);
+  const int = (v: number | undefined, max: number, name: string): void => {
+    if (v !== undefined && !(Number.isInteger(v) && v >= 0 && v <= max)) throw new RangeError(`setStatusBar: ${name} must be an integer 0-${max}, got ${v}`);
+  };
+  int(o.batteryLevel, 100, 'batteryLevel');
+  int(o.wifiBars, 3, 'wifiBars');
+  int(o.cellularBars, 4, 'cellularBars');
+  if (o.charging !== undefined && typeof o.charging !== 'boolean') throw new RangeError('setStatusBar: charging must be a boolean');
+  if (o.dataNetwork !== undefined && !['wifi', '3g', '4g', 'lte', '5g', 'hide'].includes(o.dataNetwork)) {
+    throw new RangeError(`setStatusBar: dataNetwork must be wifi, 3g, 4g, lte, 5g or hide, got ${String(o.dataNetwork)}`);
+  }
 }
 
 function checkPort(port: number): void {

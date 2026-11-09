@@ -217,6 +217,10 @@ await this.app.device.setFontScale(1.3);                 // iOS: nearest Dynamic
 await this.app.device.setLocale('ja-JP');                // iOS / web: the app is started again with it
 await this.app.device.setLocation(35.68, 139.76);
 await this.app.device.setPermission('location', 'revoke');
+await this.app.device.setNetwork('offline');             // the app's requests fail; Quiesco stays connected
+await this.app.device.clipboard.set('hello');            // what the app pastes
+const copied = await this.app.device.clipboard.get();    // what the app copied
+await this.app.device.setStatusBar({ time: '9:41', batteryLevel: 100 }); // for screenshots
 ```
 
 | Method | What it does |
@@ -227,6 +231,9 @@ await this.app.device.setPermission('location', 'revoke');
 | `setLocale(tag \| null)` | The app's language and region (BCP 47); `null` = device default. The app is started again with it (data kept). iOS needs the language in `CFBundleLocalizations` |
 | `setLocation(lat, lon)` | Simulated GPS position (Android: emulators only) |
 | `setPermission(name, 'grant' \| 'revoke')` | Change a permission while the app runs. Android kills the app on a revoke: Quiesco starts it again (data kept) before resolving, so the app is back on its first screen |
+| `setNetwork('offline' \| 'online')` | Offline: the app's new `fetch` / `XMLHttpRequest` / `WebSocket` connections fail as they do without a network (Quiesco's own connection keeps working; connections already open stay open). Android also turns Wi-Fi and mobile data off, the web reports `navigator.onLine === false`, so NetInfo sees it there; the iOS simulator has no network switch, NetInfo keeps reporting online. Lasts across relaunches |
+| `clipboard.set(text)` / `clipboard.get()` | The device clipboard, written / read inside the app (iOS / Android need `@quiesco/native` ≥ Phase 6.6; iOS reads fall back to `simctl pbpaste`). Cleared before the next scenario when set |
+| `setStatusBar({ time, batteryLevel, charging, wifiBars, cellularBars, dataNetwork })` / `resetStatusBar()` | Status bar for clean screenshots: `time` `'9:41'`, `batteryLevel` 0–100, `wifiBars` 0–3, `cellularBars` 0–4, `dataNetwork` `'wifi' \| '3g' \| '4g' \| 'lte' \| '5g' \| 'hide'`. Nothing to do on the web |
 
 Every change is undone before the next scenario, and when the session ends: permissions go back to the
 configured ones, the rest to what the device had (only what was changed is touched). A call that starts

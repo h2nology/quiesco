@@ -363,3 +363,9 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 ## 6.6 实现发现（2026-11-09）
 - **Chromium MediaQueryList 的观察者效应**：对某个 MediaQueryList 读 `matches` 会更新它记住的匹配状态；之后媒体特性变化时 Chromium 比较「上次状态」与当前值，没有差异就不派发 change 事件。react-native-web 的 `Appearance` 在模块作用域保存一个 MediaQueryList，`getColorScheme()` 与 `addChangeListener` 共用它 ⇒ 测试工具在 emulateMedia 之后立即调用 `Appearance.getColorScheme()` 会吞掉 App 的 change 事件（useColorScheme 不更新）。新建的 MediaQueryList 互不影响。⇒ 读回一律用新建的 MediaQueryList。
 - RN 0.88 iOS 字号倍数表（RCTAccessibilityManager.mm `multipliers`）：xs 0.823、s 0.882、m 0.941、l 1.0、xl 1.118、xxl 1.235、xxxl 1.353、a-m 1.786、a-l 2.143、a-xl 2.643、a-xxl 3.143、a-xxxl 3.571（与 spike 实测一致）。
+
+## 6.6 批次 B 发现（2026-11-09；脚本 spikes/device-state/offline-*.mjs）
+- **Web 离线不能用 `context.setOffline(true)`**：它把 Quiesco 自己到 localhost 的已建立 WebSocket 也掐断（readyState 仍是 OPEN，但消息双向都不到达，恢复在线后才补发），新建 WebSocket / fetch 也全部失败。CDP `Network.emulateNetworkConditionsByRule` 的规则同样作用于已建立的 WebSocket。⇒ 与 HU 决定 ② 的「Web 另用 context.setOffline」不同，改为：`context.route('**/*')` 中止页面请求（route 看不到 WebSocket）+ CDP `Network.overrideNetworkState`（只改 `navigator.onLine` 并派发真实 offline / online 事件，不拦请求）+ agent 拦截。目的（浏览器感知离线 + 请求失败）不变。
+- **NetInfo web 在 Chromium 上只监听 `navigator.connection` 的 `change`**（有该 API 时不监听 online / offline）。`overrideNetworkState` 吞吐量用 -1 时只有 offline / online 事件；离线时吞吐量设为 0 → downlink 变化 → 真实的 `change` 事件，NetInfo 随之读 `navigator.onLine`。恢复时吞吐量 -1 同样触发 change。
+- Android SystemUI demo mode（API 37）：`settings put global sysui_demo_allowed 1` + `am broadcast -a com.android.systemui.demo -e command enter / clock -e hhmm 0941 / battery / network / notifications`，立即生效（截图确认 9:41）；`-e command exit` 退出。
+- agent 离线拦截：把新建的 fetch / XHR / WebSocket 指向 `offline.quiesco.invalid`（RFC 6761），失败形式与各平台无网时一致（RN「Network request failed」、浏览器「Failed to fetch」），不伪造错误；装在 network tracker 之前，tracker 报告的仍是 App 请求的原 URL。

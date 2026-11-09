@@ -77,3 +77,54 @@ Then('设备状态页显示的语言是日语', async function (this: QuiescoWor
 Then('设备状态页显示位置 {string}', async function (this: QuiescoWorld, position: string) {
   await this.app.expectText('position', position);
 });
+
+When('把设备切换到离线', async function (this: QuiescoWorld) {
+  await this.app.device.setNetwork('offline');
+});
+
+When('把设备切换到在线', async function (this: QuiescoWorld) {
+  await this.app.device.setNetwork('online');
+});
+
+When('发送请求', async function (this: QuiescoWorld) {
+  await this.app.tap('send-request');
+});
+
+Then('设备状态页显示请求结果 {string}', async function (this: QuiescoWorld, result: string) {
+  await this.app.expectText('request-result', result);
+});
+
+Then('设备状态页显示网络 {string}', async function (this: QuiescoWorld, state: string) {
+  await this.app.expectText('net-state', state);
+});
+
+When('把剪贴板设为 {string}', async function (this: QuiescoWorld, text: string) {
+  await this.app.device.clipboard.set(text);
+});
+
+When('读取剪贴板', async function (this: QuiescoWorld) {
+  await this.app.tap('read-clipboard');
+});
+
+Then('设备状态页显示剪贴板 {string}', async function (this: QuiescoWorld, text: string) {
+  await this.app.expectText('clipboard-text', text);
+});
+
+When('在 App 里点击复制', async function (this: QuiescoWorld) {
+  await this.app.tap('copy-text');
+  await this.app.expectText('clipboard-text', '已复制'); // written (asynchronously) by then
+});
+
+Then('剪贴板内容是 {string}', async function (this: QuiescoWorld, text: string) {
+  assert.equal(await this.app.device.clipboard.get(), text);
+});
+
+When('把状态栏设为 9:41、满电、信号满格', async function (this: QuiescoWorld) {
+  await this.app.device.setStatusBar({ time: '9:41', batteryLevel: 100, charging: false, wifiBars: 3, cellularBars: 4 });
+});
+
+Then('截图附到报告', async function (this: QuiescoWorld) {
+  const png = await this.app.device.screenshot();
+  assert.ok(png.length > 0);
+  this.attach(png, 'image/png');
+});

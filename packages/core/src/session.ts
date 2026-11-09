@@ -88,6 +88,8 @@ export class Session {
   private connection: AgentConnection | null = null;
   /** What the test did to the app (Phase 6.5); element calls need `running`. */
   private appState: AppRunState = 'running';
+  /** `app.device.setNetwork('offline')`: merged into every agent config sent (Phase 6.6). */
+  private offline = false;
   private readonly defaultArgs: LaunchArgs;
 
   private constructor(
@@ -251,6 +253,12 @@ export class Session {
       deviceInfo: (timeoutMs) => this.driver.request('deviceInfo', {}, timeoutMs),
       suspendInApp: async () => (await this.driver.request('suspend', {}, 3_000)).suspended,
       setOrientationInApp: (orientation) => this.driver.request('setOrientation', { orientation }, 5_000),
+      getClipboardInApp: () => this.driver.request('getClipboard', {}, 5_000),
+      setClipboardInApp: (text) => this.driver.request('setClipboard', { text }, 5_000),
+      setOffline: async (offline) => {
+        this.offline = offline;
+        await this.applyAgentConfig(this.sync.current());
+      },
       reapplyConfig: () => this.pushAgentConfig(),
       waitForIdle: async () => {
         await this.driver.waitForIdle();
@@ -269,7 +277,7 @@ export class Session {
 
   /** `app.sync.*`: the next hello carries `config`; a connected, running app gets it now. */
   private async applyAgentConfig(config: AgentConfig): Promise<void> {
-    this.server.agentConfig = config;
+    this.server.agentConfig = this.offline ? { ...config, network: { offline: true } } : config;
     if (this.appState === 'running') await this.pushAgentConfig();
   }
 

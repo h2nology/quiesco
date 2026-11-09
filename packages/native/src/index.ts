@@ -110,6 +110,10 @@ export interface QuiescoNativeModule {
   suspend?(): Promise<boolean>;
   /** iOS only: rotate the window scene; resolves with "" or iOS's error message (Phase 6.6). */
   setOrientation?(landscape: boolean): Promise<string>;
+  /** The clipboard's text ('' when none), read in the app's process (Phase 6.6; absent in older builds). */
+  getClipboard?(): Promise<string>;
+  /** Put plain text on the clipboard from the app's process (Phase 6.6). */
+  setClipboard?(text: string): Promise<void>;
   locate(tag: number): Promise<LocateResult>;
   /** iOS: who would receive a touch at the window point (x, y) of `tag`'s window. */
   hitAt?(tag: number, x: number, y: number): Promise<Pick<LocateResult, 'windowHasFocus' | 'hitClass' | 'hitChain' | 'hitTags'>>;

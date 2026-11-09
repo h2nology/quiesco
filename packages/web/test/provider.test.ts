@@ -3,7 +3,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import type { AddressInfo } from 'node:net';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { WebSocketServer } from 'ws';
 
 import { WebProvider, webPathFor } from '../src/provider';
 
@@ -161,6 +164,68 @@ describe('WebProvider device state (Phase 6.6, real Chromium)', () => {
       await p.terminate({ keepData: true });
       await p.launch({ port: 7357, sessionId: 's' });
       expect(await page().evaluate("Promise.all([navigator.language === 'ja-JP', navigator.permissions.query({ name: 'geolocation' }).then((s) => s.state)])")).toEqual([false, 'granted']);
+    } finally {
+      await p.shutdown();
+    }
+  });
+});
+
+describe('WebProvider network, clipboard and status bar (Phase 6.6, real Chromium)', () => {
+  it('offline: page requests fail and navigator.onLine is false, while a WebSocket like Quiesco’s keeps working; reset brings it back', async () => {
+    // Stands in for Quiesco's server: an echo WebSocket on localhost.
+    const echo = new WebSocketServer({ port: 0, host: '127.0.0.1' });
+    echo.on('connection', (ws) => ws.on('message', (m) => ws.send(`echo:${String(m)}`)));
+    await new Promise((r) => echo.once('listening', r));
+    const port = (echo.address() as AddressInfo).port;
+    const p = new WebProvider({ app: { distDir: dir } });
+    await p.boot();
+    await p.install();
+    await p.launch({ port, sessionId: 's' });
+    const page = () => (p as unknown as { page: { evaluate<T>(f: string): Promise<T> } }).page;
+    const probe = () =>
+      page().evaluate<[boolean, string, string]>(`(async () => {
+        const fetched = await fetch(location.href, { cache: 'no-store' }).then(() => 'ok', (e) => 'failed: ' + e.message);
+        const echoed = await new Promise((r) => { window.sock.onmessage = (e) => r(e.data); window.sock.send('ping'); });
+        return [navigator.onLine, fetched, echoed];
+      })()`);
+    try {
+      await page().evaluate(`new Promise((r) => { window.events = []; addEventListener('offline', () => events.push('offline')); addEventListener('online', () => events.push('online')); navigator.connection.addEventListener('change', () => events.push('change')); window.sock = new WebSocket('ws://localhost:${port}'); sock.onopen = r; })`);
+      await p.setNetwork(true);
+      expect(await probe()).toEqual([false, 'failed: Failed to fetch', 'echo:ping']);
+      await p.setNetwork(false);
+      expect(await probe()).toEqual([true, 'ok', 'echo:ping']);
+      expect(await page().evaluate('events')).toEqual(['change', 'offline', 'change', 'online']);
+
+      // A relaunch while offline loads the page, then goes offline.
+      await p.setNetwork(true);
+      await p.terminate({ keepData: true });
+      await p.launch({ port, sessionId: 's' });
+      await page().evaluate(`new Promise((r) => { window.sock = new WebSocket('ws://localhost:${port}'); sock.onopen = r; })`);
+      expect(await probe()).toEqual([false, 'failed: Failed to fetch', 'echo:ping']);
+      await p.resetDeviceState();
+      expect(await probe()).toEqual([true, 'ok', 'echo:ping']);
+    } finally {
+      await p.shutdown();
+      echo.close();
+    }
+  });
+
+  it('clipboard through navigator.clipboard, also after permissions were changed; the status bar is a no-op', async () => {
+    const p = new WebProvider({ app: { distDir: dir } });
+    await p.boot();
+    await p.install();
+    await p.launch({ port: 1, sessionId: 's' });
+    const page = () => (p as unknown as { page: { evaluate<T>(f: string): Promise<T> } }).page;
+    try {
+      await p.setClipboard('こんにちは');
+      expect(await page().evaluate('navigator.clipboard.readText()')).toBe('こんにちは');
+      await page().evaluate("navigator.clipboard.writeText('from the app')");
+      await expect(p.getClipboard()).resolves.toBe('from the app');
+      await p.setPermission('location', true); // clears and re-grants the configured permissions
+      await p.setClipboard('again');
+      await expect(p.getClipboard()).resolves.toBe('again');
+      await expect(p.setStatusBar({ time: '9:41' })).resolves.toBeUndefined();
+      await expect(p.resetStatusBar()).resolves.toBeUndefined();
     } finally {
       await p.shutdown();
     }

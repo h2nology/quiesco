@@ -46,6 +46,13 @@ export interface AgentMethods {
    * when the app cannot (no native module, other platforms); `error` when iOS refused the request.
    */
   setOrientation: { params: { orientation: Orientation }; result: { supported: boolean; error?: string } };
+  /**
+   * The clipboard, read / written from inside the app (@quiesco/native; Phase 6.6). Inside the app because
+   * iOS asks the user before an app reads text another process (simctl pbcopy) put there, and Android
+   * has no shell command for it. `supported: false` without the native module.
+   */
+  getClipboard: { params: Record<string, never>; result: { supported: boolean; text?: string } };
+  setClipboard: { params: { text: string }; result: { supported: boolean } };
 }
 
 export type Orientation = 'portrait' | 'landscape';

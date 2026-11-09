@@ -4,7 +4,7 @@ import type { Orientation } from '@quiesco/protocol';
 
 import type { QuiescoConfig } from '../src/config';
 import type { Permission } from '../src/devices/permissions';
-import type { ColorScheme, InAppControls, LaunchParams, StateChange } from '../src/devices/provider';
+import type { ColorScheme, InAppControls, LaunchParams, StateChange, StatusBarOptions } from '../src/devices/provider';
 import { silentLogger } from '../src/logger';
 import { Session } from '../src/session';
 import { connectAgent } from './helpers/fake-agent';
@@ -62,6 +62,21 @@ class StateProvider extends FakeProvider {
     this.locale = l;
     return { relaunch: true };
   }
+  async setStatusBar(o: StatusBarOptions) {
+    this.calls.push(`statusBar:${JSON.stringify(o)}`);
+  }
+  async resetStatusBar() {
+    this.calls.push('statusBar:clear');
+  }
+  async setNetwork(offline: boolean) {
+    this.calls.push(`network:${offline ? 'offline' : 'online'}`);
+  }
+  async setClipboard(text: string, app: InAppControls) {
+    this.calls.push(`clipboard:${text}:${(await app.setClipboard(text)).supported}`);
+  }
+  async getClipboard(app: InAppControls) {
+    return (await app.getClipboard()).text ?? '';
+  }
   async resetDeviceState(): Promise<StateChange> {
     this.calls.push('reset');
     const relaunch = this.locale !== null;
@@ -79,15 +94,21 @@ afterEach(async () => {
 
 async function start(extra: Partial<QuiescoConfig> = {}) {
   const agents: FakeAgent[] = [];
+  let clip = '';
   const provider: StateProvider = new StateProvider((p) =>
     agents.push(
       connectAgent(p.port, {
         sessionId: p.sessionId,
         nativeModule: true,
-        handler: (m) => {
+        handler: (m, p) => {
           const a = provider.app;
           if (m === 'deviceInfo') return { window: { width: a.width, height: a.height }, pixelRatio: 2, appState: 'active', colorScheme: a.colorScheme, fontScale: a.fontScale, locale: a.locale };
           if (m === 'setOrientation') return { supported: true };
+          if (m === 'getClipboard') return { supported: true, text: clip };
+          if (m === 'setClipboard') {
+            clip = (p as { text: string }).text;
+            return { supported: true };
+          }
           if (m === 'reset') return { durationMs: 1 };
           return {};
         },
@@ -179,6 +200,65 @@ describe('app.device state (Phase 6.6)', () => {
     expect(provider.calls).toEqual(['reset', 'shutdown']);
   });
 
+  it('setNetwork: the agent blocks first going offline, the device network comes back first going online; the next hello carries it', async () => {
+    const { provider, agents } = await start();
+    const device = session!.driver.device;
+    const configures = () => agents[0]?.requests.filter((r) => r.method === 'configure').map((r) => (r.params['config'] as { network?: unknown }).network ?? 'online');
+    await device.setNetwork('offline');
+    expect(provider.calls).toEqual(['network:offline']);
+    expect(configures()).toEqual([{ offline: true }]);
+    expect(session!.server.agentConfig.network).toEqual({ offline: true });
+    // app.sync changes keep the offline mode.
+    await session!.sync.disableTracker('timer');
+    expect(configures()).toEqual([{ offline: true }, { offline: true }]);
+    await device.setNetwork('online');
+    expect(provider.calls).toEqual(['network:offline', 'network:online']);
+    expect(configures()?.at(-1)).toBe('online');
+    await expect(device.setNetwork('airplane' as never)).rejects.toThrow(RangeError);
+  });
+
+  it('before the next scenario: back online (the provider restores the device network in its reset)', async () => {
+    const { provider, agents } = await start();
+    await session!.driver.device.setNetwork('offline');
+    provider.calls.length = 0;
+    await session!.beforeScenario({});
+    expect(provider.calls).toEqual(['reset']);
+    expect(session!.server.agentConfig.network).toBeUndefined();
+    const last = agents[0]?.requests.filter((r) => r.method === 'configure').at(-1);
+    expect((last?.params['config'] as { network?: unknown }).network).toBeUndefined();
+  });
+
+  it('clipboard: set / get through the app; cleared before the next scenario', async () => {
+    const { provider, agents } = await start();
+    const device = session!.driver.device;
+    await device.clipboard.set('こんにちは');
+    expect(await device.clipboard.get()).toBe('こんにちは');
+    expect(provider.calls).toEqual(['clipboard:こんにちは:true']);
+    provider.calls.length = 0;
+    await session!.beforeScenario({});
+    expect(provider.calls).toEqual(['clipboard::true', 'reset']);
+    expect(methods(agents[0])).toContain('setClipboard');
+    provider.calls.length = 0;
+    await session!.beforeScenario({});
+    expect(provider.calls).toEqual(['reset']);
+    await device.terminate();
+    await expect(device.clipboard.get()).rejects.toMatchObject({ errorName: 'APP_NOT_RUNNING' });
+  });
+
+  it('setStatusBar validates its options before reaching the provider', async () => {
+    const { provider } = await start();
+    const device = session!.driver.device;
+    await device.setStatusBar({ time: '9:41', batteryLevel: 100, charging: false, wifiBars: 3, cellularBars: 4, dataNetwork: 'lte' });
+    await device.resetStatusBar();
+    expect(provider.calls).toEqual(['statusBar:{"time":"9:41","batteryLevel":100,"charging":false,"wifiBars":3,"cellularBars":4,"dataNetwork":"lte"}', 'statusBar:clear']);
+    await expect(device.setStatusBar({})).rejects.toThrow(/at least one/);
+    await expect(device.setStatusBar({ time: '25:00' })).rejects.toThrow(/H:MM/);
+    await expect(device.setStatusBar({ wifiBars: 4 })).rejects.toThrow(/0-3/);
+    await expect(device.setStatusBar({ batteryLevel: 50.5 })).rejects.toThrow(/0-100/);
+    await expect(device.setStatusBar({ dataNetwork: '6g' as never })).rejects.toThrow(/dataNetwork/);
+    await expect(device.setStatusBar({ clock: '9:41' } as never)).rejects.toThrow(/unknown option clock/);
+  });
+
   it('validates locations; platforms without a method say so', async () => {
     const { device } = await start();
     await expect(device.setLocation(91, 0)).rejects.toThrow(RangeError);
@@ -193,5 +273,10 @@ describe('app.device state on a provider without it', () => {
     const provider = new FakeProvider((p) => agents.push(connectAgent(p.port, { sessionId: p.sessionId })));
     session = await Session.create({ config: { apps: { android: { package: 'p' } }, server: { port: 0, host: '127.0.0.1' }, connectTimeoutMs: 2000 }, platform: 'android', provider, logger: silentLogger });
     await expect(session.driver.device.setFontScale(1.2)).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { action: 'setFontScale', platform: 'android' } });
+    await expect(session.driver.device.clipboard.get()).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { action: 'clipboard.get' } });
+    await expect(session.driver.device.setStatusBar({ time: '9:41' })).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED' });
+    // The agent alone can still simulate offline mode.
+    await session.driver.device.setNetwork('offline');
+    expect(session.server.agentConfig.network).toEqual({ offline: true });
   });
 });

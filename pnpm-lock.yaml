@@ -367,9 +367,15 @@ importers:
         specifier: workspace:*
         version: link:../protocol
     devDependencies:
+      '@types/ws':
+        specifier: 8.18.2
+        version: 8.18.2
       playwright:
         specifier: 1.65.0
         version: 1.65.0
+      ws:
+        specifier: 8.22.1
+        version: 8.22.1
 
 packages:
 

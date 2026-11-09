@@ -28,6 +28,8 @@
     "playwright": ">=1.50"
   },
   "devDependencies": {
-    "playwright": "1.65.0"
+    "@types/ws": "8.18.2",
+    "playwright": "1.65.0",
+    "ws": "8.22.1"
   }
 }

@@ -229,7 +229,12 @@ describe('IosProvider lifecycle (Phase 6.5)', () => {
 });
 
 describe('IosProvider device state (Phase 6.6)', () => {
-  const inApp = (r: { supported: boolean; error?: string }) => ({ suspend: async () => false, setOrientation: async () => r });
+  const inApp = (r: { supported: boolean; error?: string }) => ({
+    suspend: async () => false,
+    setOrientation: async () => r,
+    getClipboard: async () => ({ supported: false }),
+    setClipboard: async () => ({ supported: false }),
+  });
 
   it('maps a font scale to the nearest Dynamic Type size (React Native multipliers) and builds locale arguments', () => {
     expect(nearestContentSize(1)).toEqual(['large', 1]);
@@ -238,6 +243,44 @@ describe('IosProvider device state (Phase 6.6)', () => {
     expect(nearestContentSize(2.6)).toEqual(['accessibility-extra-large', 2.643]);
     expect(nearestContentSize(9)).toEqual(['accessibility-extra-extra-extra-large', 3.571]);
     expect(iosLocaleArgs('ja-JP')).toEqual(['-AppleLanguages', '(ja-JP)', '-AppleLocale', 'ja_JP']);
+  });
+
+  it('overrides the status bar with simctl and clears it on reset', async () => {
+    const { p, calls } = provider([]);
+    await p.boot();
+    calls.length = 0;
+    await p.setStatusBar({ time: '9:41', batteryLevel: 100, charging: true, wifiBars: 3, cellularBars: 4, dataNetwork: '5g' });
+    await p.resetStatusBar();
+    await p.setStatusBar({ time: '10:30' });
+    await p.resetDeviceState(inApp({ supported: true }));
+    expect(calls).toEqual([
+      'xcrun simctl status_bar NEW-17 override --time 9:41 --batteryLevel 100 --batteryState charging --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 --dataNetwork 5g',
+      'xcrun simctl status_bar NEW-17 clear',
+      'xcrun simctl status_bar NEW-17 override --time 10:30',
+      'xcrun simctl status_bar NEW-17 clear',
+    ]);
+  });
+
+  it('clipboard: written through the app (never pbcopy); read through the app, else pbpaste', async () => {
+    const { p, calls } = provider([[/pbpaste/, 'from the Mac']]);
+    await p.boot();
+    calls.length = 0;
+    let clip = '';
+    const app = {
+      ...inApp({ supported: true }),
+      getClipboard: async () => ({ supported: true, text: clip }),
+      setClipboard: async (t: string) => {
+        clip = t;
+        return { supported: true };
+      },
+    };
+    await p.setClipboard('hello', app);
+    await expect(p.getClipboard(app)).resolves.toBe('hello');
+    expect(calls).toEqual([]);
+    const without = { ...app, getClipboard: async () => ({ supported: false }), setClipboard: async () => ({ supported: false }) };
+    await expect(p.setClipboard('x', without)).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { action: 'clipboard.set', platform: 'ios' } });
+    await expect(p.getClipboard(without)).resolves.toBe('from the Mac');
+    expect(calls).toEqual(['xcrun simctl pbpaste NEW-17']);
   });
 
   it('rotates through the app, and says why when it cannot', async () => {

@@ -11,8 +11,10 @@ import type { Spec } from './helpers/fake-fiber';
 const clock: Clock = { setTimeout: (cb, ms) => setTimeout(cb, ms), clearTimeout: (id) => clearTimeout(id as number), now: () => Date.now() };
 const R = (y: number) => ({ __rect: { x: 0, y, width: 100, height: 40 } });
 
-function setup(opts: { busy?: () => boolean; native?: ReturnType<AppDeps['nativeModule']>; keyboard?: () => ReturnType<AppDeps['keyboardFrame']>; appState?: () => ReturnType<AppDeps['appState']> } = {}) {
-  const target: Record<string, unknown> = {};
+function setup(
+  opts: { busy?: () => boolean; native?: ReturnType<AppDeps['nativeModule']>; keyboard?: () => ReturnType<AppDeps['keyboardFrame']>; appState?: () => ReturnType<AppDeps['appState']>; globals?: Record<string, unknown> } = {},
+) {
+  const target: Record<string, unknown> = { ...opts.globals };
   const sockets: FakeSocket[] = [];
   const deps: AppDeps = {
     platform: () => 'android',
@@ -486,6 +488,37 @@ describe('AgentRuntime lifecycle (Phase 6.5)', () => {
     expect(await s.call('setOrientation', { orientation: 'portrait' })).toEqual({ supported: true, error: 'The requested orientation is not supported' });
     expect(rotate.mock.calls).toEqual([[true], [false]]);
     expect(await setup().call('setOrientation', { orientation: 'landscape' })).toEqual({ supported: false });
+  });
+
+  it('getClipboard / setClipboard go through @quiesco/native; unsupported without it', async () => {
+    let clip = 'before';
+    const s = setup({
+      native: {
+        ...native(),
+        getClipboard: async () => clip,
+        setClipboard: async (t: string) => {
+          clip = t;
+        },
+      },
+    });
+    expect(await s.call('getClipboard', {})).toEqual({ supported: true, text: 'before' });
+    expect(await s.call('setClipboard', { text: 'こんにちは' })).toEqual({ supported: true });
+    expect(clip).toBe('こんにちは');
+    expect(await setup().call('getClipboard', {})).toEqual({ supported: false });
+    expect(await setup().call('setClipboard', { text: 'x' })).toEqual({ supported: false });
+  });
+
+  it('configure switches simulated offline mode; the agent’s own connection stays exempt', async () => {
+    const opened: string[] = [];
+    const s = setup({ globals: { fetch: async (url: string) => void opened.push(url) } });
+    const fetch = s.target['fetch'] as (u: string) => Promise<void>;
+    s.rt.mount({});
+    await s.call('configure', { config: { ...CONFIG, network: { offline: true } } });
+    await fetch('http://localhost:3001/todos');
+    await fetch(`http://localhost:${s.rt.client?.url.split(':').pop() ?? ''}/own`);
+    await s.call('configure', { config: CONFIG });
+    await fetch('http://localhost:3001/todos');
+    expect(opened).toEqual(['http://offline.quiesco.invalid/', expect.stringMatching(/^http:\/\/localhost:\d+\/own$/), 'http://localhost:3001/todos']);
   });
 
   it('suspend uses @quiesco/native when it can, else reports false', async () => {

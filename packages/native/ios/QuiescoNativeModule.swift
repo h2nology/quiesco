@@ -60,6 +60,19 @@ public class QuiescoNativeModule: Module {
     }.runOnQueue(.main)
 
     /**
+     * `app.device.clipboard` (Phase 6.6). Written from inside the app: text another process put on the
+     * pasteboard (`simctl pbcopy`) makes iOS ask the user before the app may read it (spike 6.6), while
+     * the app reads what it wrote itself without asking. "" when the pasteboard holds no text.
+     */
+    AsyncFunction("getClipboard") { () -> String in
+      return UIPasteboard.general.string ?? ""
+    }.runOnQueue(.main)
+
+    AsyncFunction("setClipboard") { (text: String) in
+      UIPasteboard.general.string = text
+    }.runOnQueue(.main)
+
+    /**
      * Synchronous (JS thread): whether native UI is still settling — a view controller transition in
      * a window (navigation push / pop, Modal presentation) or the keyboard moving / just used. Sampled
      * on the main thread every frame; read by the agent's `native` idle tracker.
