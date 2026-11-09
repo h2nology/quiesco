@@ -21,6 +21,21 @@ public class QuiescoNativeModule: Module {
       Self.deliverLaunchUrl()
     }
 
+    /** Phase 6.6 spike: rotate the app's window scene (iOS 16+ geometry request). */
+    AsyncFunction("spikeOrientation") { (landscape: Bool, promise: Promise) in
+      guard let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else {
+        promise.resolve("no window scene")
+        return
+      }
+      scene.keyWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+      let mask: UIInterfaceOrientationMask = landscape ? .landscapeRight : .portrait
+      var failure: String? = nil
+      scene.requestGeometryUpdate(.iOS(interfaceOrientations: mask)) { error in failure = error.localizedDescription }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+        promise.resolve(failure.map { "error: \($0)" } ?? "requested; interface orientation \(scene.interfaceOrientation.rawValue)")
+      }
+    }.runOnQueue(.main)
+
     /**
      * `app.device.sendToBackground()` (Phase 6.5): leave for the home screen like the Home button, via
      * the private `-[UIApplication suspend]` (e2e builds only). `simctl launch` brings the app back.

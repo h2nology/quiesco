@@ -3,14 +3,18 @@
     "name": "Quiesco Todo",
     "slug": "quiesco-todo",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "dev.quiesco.todo",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Quiesco example: shows that test runs pre-grant permissions (quiesco.config.mts permissions)."
+        "NSLocationWhenInUseUsageDescription": "Quiesco example: shows that test runs pre-grant permissions (quiesco.config.mts permissions).",
+        "CFBundleLocalizations": [
+          "en",
+          "ja"
+        ]
       }
     },
     "android": {

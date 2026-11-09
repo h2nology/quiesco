@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-6.4 完成并提交（2026-11-09）。6.5 完成（2026-11-09，三端实跑通过，待提交）。下一步：6.6 设备状态——先输出详细实施计划交 HU 确认。
+6.4 完成并提交（2026-11-09）。6.5 完成并提交（c5a4200，2026-11-09）。6.6 spike 完成（2026-11-09，findings.md「6.6 spike」）。下一步：6.6 实现批次 A。
 
 ## Current Phase
 Phase 6
@@ -215,14 +215,28 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
   - **示例 App**：playground 加「生命周期」区块：显示 `launchArgs()`、AppState 变化次数、一个持久化计数器（AsyncStorage / localStorage）；`features/lifecycle.feature`：带参数重启、保留 / 清除数据、以深链接启动、后台→前台、terminate 后报错、运行时关闭 timer tracker 后可操作一个无限轮询页、元素截图尺寸
   - **测试**：core 单测（各 provider 命令序列用假 exec 校验、relaunch 步骤顺序、PNG 解码 / 裁剪 / 编码往返、SyncApi 覆盖值与重下发）；agent 单测（launchArgs 解析、configure 合并、后台时 tracker 视为空闲）；三端实跑（iOS / Android native + js 档位、Web 三视口）；`pnpm run check`
   - **文档**：api.md（app.device / app.sync / launchArgs）、platforms.md（各端实现与差异）
-- [ ] 6.6 设备状态
-  - `setOrientation('portrait' | 'landscape')`（iOS 注入方向 / simctl、Android `settings put system user_rotation` + 关自动旋转、Web 视口宽高互换）
-  - `setLocation(lat, lon)`（simctl location set、`adb emu geo fix`、Playwright setGeolocation）
-  - `setPermission(name, 'grant' | 'revoke')` 运行时（三端，Detox 只能 launch 时且仅 iOS）
-  - `setAppearance('light' | 'dark')`、`setFontScale(n)`（Dynamic Type / font_scale）、`setLocale('ja-JP')`（iOS 重启带 -AppleLanguages、Android per-app locale、Web context locale）——Detox 仅 iOS 有 locale，其余没有
-  - `setStatusBar(...)`（simctl status_bar、Android SystemUI demo mode）
-  - 网络：`setUrlBlacklist`（运行时，进 network tracker 的忽略表）、`setNetwork('offline' | 'online')`（agent 层拦截 fetch / XHR 返回网络错误，三端一致；Web 另用 context.setOffline）
-  - `clipboard.set / get`（simctl pbcopy / pbpaste、Android `cmd clipboard`（spike）、Web context clipboard）
+- [ ] 6.6 设备状态——详细计划（2026-11-09，HU 已确认）
+  - **HU 决定（2026-11-09）**：① iOS / Android 撤销权限后系统杀进程 → Quiesco 自动保留数据重启并等连接后返回（页面回到初始路由，文档写明）；② 离线用混合方案：三端 agent 拦截 fetch / XHR / WebSocket（不含 Quiesco 自身连接），Android 另用 `svc wifi/data disable` 真断网（NetInfo 可感知）、Web 另用 `context.setOffline`，iOS 的 NetInfo 感知不到（文档写明）；③ 设备状态改动在每个场景开始时恢复，只恢复本会话改过的项
+  - **API**：全部挂在 `app.device.*`，每项三端；做不到的报 ACTION_NOT_SUPPORTED + 原因并写进 platforms.md。设备状态在会话结束 / 场景开始时恢复默认（见决策点）
+  - **已有，不再重复**：Detox `setURLBlacklist` = 6.5 的 `app.sync.ignoreUrls.add()`（文档补一行对照）
+  - **工具实测（2026-11-09）**：simctl 有 `location`、`privacy grant/revoke/reset`、`ui appearance`、`ui content_size`、`status_bar`、`pbcopy/pbpaste`；Android API 37 有 `cmd locale set-app-locales`、`cmd uimode night`，**没有** `cmd clipboard`；示例 App 锁竖屏（app.json `orientation: portrait`，Android `screenOrientation="portrait"`），Android `configChanges` 含 orientation / uiMode，不含 locale / fontScale
+  - **spike 结论（2026-11-09）**：旋转三端可行（iOS 原生 geometry 请求）；外观 / 语言要求 App 不锁定（userInterfaceStyle automatic、iOS 声明 CFBundleLocalizations）——设置后读回校验，不一致就报错说明；Android 改字号 / 语言会重建 Activity（同进程同 JS，根组件重挂载），设置后等空闲即可；iOS 语言靠带参重启；撤销权限只有 Android 杀进程 → provider 声明 `revokeRestartsApp`，仅此时自动重启；剪贴板两端都走原生模块（iOS 外部写入会弹「允许粘贴」）；Android 离线真断网不影响 adb reverse
+  - **批次 A（本子阶段先做）**
+    - `setOrientation('portrait' | 'landscape')`：iOS 原生模块 `UIWindowScene.requestGeometryUpdate`（simctl 无旋转命令）；Android `settings put system accelerometer_rotation 0` + `user_rotation 0/1`；Web 视口宽高互换（`page.setViewportSize`）。之后等 `Dimensions` 变化再等空闲。App 锁方向时报错说明（示例 App 改为 `orientation: default`）
+    - `setLocation({ lat, lon })`：simctl `location set`；Android `adb emu geo fix`（仅模拟器，真机 6.13 再议）；Web `context.setGeolocation`
+    - `setPermission(name, 'grant' | 'revoke')`：iOS `simctl privacy`；Android `pm grant / revoke`；Web `grantPermissions` / `clearPermissions` 后重授其余。**iOS / Android 撤销权限时系统会杀掉 App**（见决策点）
+    - `setAppearance('light' | 'dark')`：simctl `ui appearance`；`cmd uimode night yes/no`；Web `page.emulateMedia({ colorScheme })`
+    - `setFontScale(n)`：iOS `ui content_size`（取最接近的 Dynamic Type 档位，文档列映射）；Android `settings put system font_scale`；Web 无系统字号 → ACTION_NOT_SUPPORTED
+    - `setLocale('ja-JP')`：iOS 带 `-AppleLanguages (ja) -AppleLocale ja_JP` 重启；Android `cmd locale set-app-locales`（spike：是否重建 Activity / 重载 JS）；Web context `locale` 只能新建 context → 重启（保留数据）
+  - **批次 B（同一子阶段，A 实跑通过后再做）**
+    - `setStatusBar({ time, battery, wifi, ... })` / `resetStatusBar()`：simctl `status_bar override`；Android SystemUI demo mode（`sysui_demo_allowed` + broadcast）；Web 无状态栏 → 直接成功
+    - `setNetwork('offline' | 'online')`：见决策点
+    - `clipboard.set(text)` / `clipboard.get()`：Android 无 shell 命令 → 原生模块在 App 进程内读写 ClipboardManager；iOS simctl `pbcopy / pbpaste`（spike：App 读取时 iOS 16+ 是否弹「允许粘贴」，弹则改为原生模块进程内写）；Web `grantPermissions(['clipboard-read','clipboard-write'])` + `navigator.clipboard`
+  - **spike（实现前）**：① iOS `requestGeometryUpdate` 从原生模块调用是否生效、RN `Dimensions` / `useWindowDimensions` 是否更新；Android user_rotation 对 dev client 的 Activity 是否生效；② Android `set-app-locales` / `font_scale` 后 RN 是重建 Activity 还是整个 JS 重载（连接是否断开、AppState）；③ `simctl privacy revoke` / `pm revoke` 杀进程的确认；④ iOS `pbcopy` 后 App 读剪贴板是否弹框；⑤ 离线方案（见决策点）在 RN `fetch` 与 `@react-native-community/netinfo` 上的表现
+  - **原生（需重建两端 dev client）**：iOS `setOrientation`；两端剪贴板读写（视 spike）
+  - **示例 App**：新的隐藏页 `device`（backdoor openDevice）：显示窗口宽高与方向、当前位置（expo-location，已有 location 权限）、外观（`useColorScheme`）、`PixelRatio.getFontScale()`、`Intl` / expo-localization 的语言、剪贴板读取按钮、一个 fetch 请求结果；`features/device.feature`；app.json `orientation: default`（现有场景全量回归，确认不受影响）
+  - **测试**：core 单测（各 provider 命令序列、Dynamic Type 档位映射、权限撤销后的重启流程、状态恢复）；agent 单测（离线拦截如采用）；三端实跑（iOS / Android native + js 档位、Web 三视口）；`pnpm run check`
+  - **文档**：api.md（app.device 新方法）、platforms.md（各端实现与限制）
 - [ ] 6.7 系统集成（spike → 实现，逐项可降级）
   - 推送：`sendNotification(payload)`（iOS simctl push 到前台 / 后台、点击通知进入；Android `cmd notification post` 或经 agent 调 expo-notifications 的接收路径——spike 决定）
   - 生物识别：`biometrics.enroll(bool)` / `match()` / `fail()`（iOS notifyutil `com.apple.BiometricKit_Sim.*`；Android `adb emu finger touch`）——Detox 仅 iOS
