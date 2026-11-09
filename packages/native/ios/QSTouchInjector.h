@@ -28,6 +28,16 @@ NS_ASSUME_NONNULL_BEGIN
 /** End the current touch. */
 + (BOOL)touchUp;
 
+/**
+ * Several fingers at once. `points[i]` is an NSValue (CGPoint in `window`) while finger i touches, or
+ * NSNull while it does not; a finger that appears goes down, one that disappears lifts, one that moves
+ * moves (the others are stationary). One UIEvent carries every touching finger. Returns NO when
+ * nothing was sent (no change).
+ */
++ (BOOL)sendFingers:(NSArray *)points inWindow:(UIWindow *)window;
+/** Lift every finger still down (end of a multi-finger gesture). */
++ (void)liftAllFingers;
+
 @end
 
 NS_ASSUME_NONNULL_END

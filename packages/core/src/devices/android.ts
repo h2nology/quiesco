@@ -56,6 +56,12 @@ function sdkTool(rel: string, fallback: string): string {
 
 export class AndroidProvider implements DeviceProvider {
   readonly platform = 'android' as const;
+  /**
+   * react-native-gesture-handler on Android: ScaleGestureDetector starts after the span changes by
+   * 2 × touchSlop and the pinch activates (resetting its scale) after one more touchSlop (8 dp); the
+   * rotation activates at 5° and resets. Measured (Phase 6.4): about 26 dp and 9°.
+   */
+  readonly gestureSlop = { pinch: 26, rotation: (9 * Math.PI) / 180 };
   private serial: string | null = null;
   private bootedByUs = false;
   private readonly exec: Exec;

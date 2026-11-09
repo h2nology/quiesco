@@ -152,6 +152,46 @@ public class QuiescoNativeModule: Module {
     }.runOnQueue(.main)
 
     /**
+     * Several fingers along timed paths in the window of `tag` (key window when tag < 0). `frames` is flat:
+     * per frame [tMs, down0, x0, y0, down1, x1, y1, ...] for `fingerCount` fingers (down = 1 while the
+     * finger touches), t from 0 and increasing. A finger goes down in the first frame it is down, lifts
+     * in the first frame it is not; every finger is lifted after the last frame.
+     */
+    AsyncFunction("multiGesture") { (tag: Int, fingerCount: Int, frames: [Double], promise: Promise) in
+      if let missing = QSTouchInjector.missingPrivateAPI() {
+        promise.reject("E_UNSUPPORTED", Self.unsupported(missing))
+        return
+      }
+      let stride = 1 + 3 * fingerCount
+      guard fingerCount >= 1, frames.count >= stride, frames.count % stride == 0 else {
+        promise.reject("E_BAD_ARGS", "frames must be [t, down, x, y, ...] for \(fingerCount) fingers")
+        return
+      }
+      guard let window = (tag >= 0 ? QSTouchInjector.view(withReactTag: tag)?.window : nil) ?? QSTouchInjector.keyWindow() else {
+        promise.reject("E_NO_VIEW", "no window for view \(tag)")
+        return
+      }
+      let count = frames.count / stride
+      let start = DispatchTime.now()
+      func fire(_ f: Int) {
+        let base = f * stride
+        var points: [Any] = []
+        for i in 0..<fingerCount {
+          let o = base + 1 + 3 * i
+          points.append(frames[o] > 0.5 ? NSValue(cgPoint: CGPoint(x: frames[o + 1], y: frames[o + 2])) : NSNull())
+        }
+        QSTouchInjector.sendFingers(points, in: window)
+        if f + 1 < count {
+          DispatchQueue.main.asyncAfter(deadline: start + .milliseconds(Int(frames[(f + 1) * stride]))) { fire(f + 1) }
+        } else {
+          QSTouchInjector.liftAllFingers()
+          promise.resolve(["handled": true])
+        }
+      }
+      DispatchQueue.main.asyncAfter(deadline: start + .milliseconds(Int(frames[0]))) { fire(0) }
+    }.runOnQueue(.main)
+
+    /**
      * A key of the software keyboard on the text field `tag`: `enter` (the return key: a single-line
      * field asks its delegate `textFieldShouldReturn`, which is what UIKit does for the return key and
      * where React Native submits; a multi-line field gets a newline through UIKeyInput, where RN applies

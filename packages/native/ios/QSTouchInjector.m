@@ -63,6 +63,8 @@ extern void IOHIDEventSetIntegerValue(IOHIDEventRef event, uint32_t field, int v
 #pragma mark - Implementation
 
 static UITouch *qsCurrentTouch;
+/** Multi-finger state: a UITouch or NSNull per finger. */
+static NSMutableArray *qsFingers;
 
 static IOHIDEventRef QSCreateHIDEvent(UITouch *touch) {
   uint64_t ts = mach_absolute_time();
@@ -89,6 +91,49 @@ static void QSSend(UITouch *touch) {
   [event _clearTouches];
   [event _setHIDEvent:hid];
   [event _addTouch:touch forDelayedDelivery:NO];
+  CFRelease(hid);
+  [UIApplication.sharedApplication sendEvent:event];
+}
+
+/**
+ * One HID hand event with a finger child per touch (index i+1, identity i+2), like a real multi-finger
+ * report: began / ended fingers carry range + touch, moved ones position.
+ */
+static IOHIDEventRef QSCreateMultiHIDEvent(NSArray<UITouch *> *touches, NSArray<NSNumber *> *indexes) {
+  uint64_t ts = mach_absolute_time();
+  BOOL any = NO;
+  for (UITouch *t in touches) any = any || (t.phase != UITouchPhaseEnded && t.phase != UITouchPhaseCancelled);
+  IOHIDEventRef hand = IOHIDEventCreateDigitizerEvent(kCFAllocatorDefault, ts, kQSTransducerHand, 0, 0,
+                                                      kQSDigitizerEventTouch, 0, 0, 0, 0, 0, 0, false, any, 0);
+  IOHIDEventSetIntegerValue(hand, kQSFieldDigitizerIsDisplayIntegrated, 1);
+  for (NSUInteger k = 0; k < touches.count; k++) {
+    UITouch *touch = touches[k];
+    uint32_t i = (uint32_t)indexes[k].unsignedIntegerValue;
+    BOOL touching = touch.phase != UITouchPhaseEnded && touch.phase != UITouchPhaseCancelled;
+    uint32_t mask = touch.phase == UITouchPhaseMoved      ? kQSDigitizerEventPosition
+                    : touch.phase == UITouchPhaseStationary ? 0
+                                                            : (kQSDigitizerEventRange | kQSDigitizerEventTouch);
+    CGPoint p = [touch locationInView:touch.window];
+    IOHIDEventRef finger = IOHIDEventCreateDigitizerFingerEventWithQuality(
+        kCFAllocatorDefault, ts, i + 1, i + 2, mask, p.x, p.y, 0, 0, 0, 5, 5, 1, 1, 1, touching, touching, 0);
+    IOHIDEventSetIntegerValue(finger, kQSFieldDigitizerIsDisplayIntegrated, 1);
+    IOHIDEventAppendEvent(hand, finger);
+    CFRelease(finger);
+  }
+  return hand;
+}
+
+static void QSSendMany(NSArray<UITouch *> *touches, NSArray<NSNumber *> *indexes) {
+  NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+  for (UITouch *t in touches) [t setTimestamp:now];
+  IOHIDEventRef hid = QSCreateMultiHIDEvent(touches, indexes);
+  UIEvent *event = [UIApplication.sharedApplication _touchesEvent];
+  [event _clearTouches];
+  [event _setHIDEvent:hid];
+  for (UITouch *t in touches) {
+    [t _setHidEvent:hid];
+    [event _addTouch:t forDelayedDelivery:NO];
+  }
   CFRelease(hid);
   [UIApplication.sharedApplication sendEvent:event];
 }
@@ -183,6 +228,66 @@ static void QSSend(UITouch *touch) {
   QSSend(touch);
   qsCurrentTouch = nil;
   return YES;
+}
+
++ (BOOL)sendFingers:(NSArray *)points inWindow:(UIWindow *)window {
+  if (qsFingers == nil) qsFingers = [NSMutableArray array];
+  while (qsFingers.count < points.count) [qsFingers addObject:NSNull.null];
+  NSMutableArray<UITouch *> *touches = [NSMutableArray array];
+  NSMutableArray<NSNumber *> *indexes = [NSMutableArray array];
+  NSMutableIndexSet *lifted = [NSMutableIndexSet indexSet];
+  BOOL changed = NO;
+  for (NSUInteger i = 0; i < qsFingers.count; i++) {
+    id p = i < points.count ? points[i] : NSNull.null;
+    id current = qsFingers[i];
+    BOOL down = [p isKindOfClass:NSValue.class];
+    if (down && current == NSNull.null) {
+      CGPoint point = [(NSValue *)p CGPointValue];
+      UIView *hit = [window hitTest:point withEvent:nil];
+      UITouch *touch = [[UITouch alloc] init];
+      [touch setWindow:window];  // must be first: resets the other fields
+      [touch setTapCount:1];
+      [touch _setLocationInWindow:point resetPrevious:YES];
+      [touch setView:hit];
+      [touch setPhase:UITouchPhaseBegan];
+      if ([touch respondsToSelector:@selector(setGestureView:)]) [touch setGestureView:hit];
+      if ([touch respondsToSelector:@selector(_setIsFirstTouchForView:)]) [touch _setIsFirstTouchForView:YES];
+      qsFingers[i] = touch;
+      changed = YES;
+    } else if (down) {
+      UITouch *touch = current;
+      CGPoint point = [(NSValue *)p CGPointValue];
+      CGPoint before = [touch locationInView:touch.window];
+      if (CGPointEqualToPoint(before, point)) {
+        [touch setPhase:UITouchPhaseStationary];
+      } else {
+        [touch _setLocationInWindow:point resetPrevious:NO];
+        [touch setPhase:UITouchPhaseMoved];
+        changed = YES;
+      }
+    } else if (current != NSNull.null) {
+      [(UITouch *)current setPhase:UITouchPhaseEnded];
+      [lifted addIndex:i];
+      changed = YES;
+    }
+    if (qsFingers[i] != NSNull.null) {
+      [touches addObject:qsFingers[i]];
+      [indexes addObject:@(i)];
+    }
+  }
+  if (changed && touches.count > 0) QSSendMany(touches, indexes);
+  [lifted enumerateIndexesUsingBlock:^(NSUInteger i, BOOL *stop) { qsFingers[i] = NSNull.null; }];
+  return changed;
+}
+
++ (void)liftAllFingers {
+  if (qsFingers == nil) return;
+  NSMutableArray *none = [NSMutableArray array];
+  for (NSUInteger i = 0; i < qsFingers.count; i++) [none addObject:NSNull.null];
+  UIWindow *window = nil;
+  for (id t in qsFingers) if (t != NSNull.null) window = ((UITouch *)t).window;
+  if (window) [self sendFingers:none inWindow:window];
+  [qsFingers removeAllObjects];
 }
 
 @end

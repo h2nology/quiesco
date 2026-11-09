@@ -13,6 +13,8 @@ import { summarize } from '../query';
 import type { Clock } from '../sync';
 import { center, describe, hitTest, isAncestor } from './hit-test';
 import type { ActionPerformer } from './performer';
+import type { FingerPath } from './multitouch';
+import { framesForSequence, pinchGestures, rotateGesture } from './multitouch';
 import * as value from './value';
 
 export interface HostContext {
@@ -156,7 +158,28 @@ export function hostPerformer(ctx: HostContext): ActionPerformer {
 
     // The DOM has no accessibility actions (react-native-web drops accessibilityActions): callbacks.
     accessibilityAction: async (target, name) => value.jsAccessibilityAction(target, name, 'web'),
+
+    // Touch events with several touch points; the host rejects them on viewports without touch.
+    async pinch(node, scale, angle, speed, slop) {
+      const rect = await ready(node);
+      let gestures: FingerPath[][];
+      try {
+        gestures = pinchGestures(rect, scale, angle, speed, ctx.viewport(), slop);
+      } catch (e) {
+        throw new QuiescoError('ACTION_NOT_SUPPORTED', e instanceof Error ? e.message : String(e), { action: 'pinch', platform: 'web' });
+      }
+      return touches(gestures);
+    },
+    rotate: async (node, radians, speed, slop) => touches([rotateGesture(await ready(node), radians, speed, slop)]),
+    async multiTouch(node, fingers) {
+      if (node !== null) await ready(node);
+      return touches([fingers]);
+    },
   };
+}
+
+function touches(gestures: FingerPath[][]): HostInput {
+  return { kind: 'touches', fingers: Math.max(...gestures.map((g) => g.length)), frames: framesForSequence(gestures) };
 }
 
 /** A square descendant narrower than half the slider: the thumb. */

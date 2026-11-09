@@ -62,7 +62,7 @@ function pressEvent(node: HostNode, type: string, at?: Point): Record<string, un
   };
 }
 
-type JsAction = 'tap' | 'longPress' | 'doubleTap' | 'multiTap' | 'type' | 'replaceText' | 'clear' | 'pressKey' | 'scroll' | 'swipe' | 'scrollTo' | 'drag' | 'tapAt';
+type JsAction = 'tap' | 'longPress' | 'doubleTap' | 'multiTap' | 'type' | 'replaceText' | 'clear' | 'pressKey' | 'scroll' | 'swipe' | 'scrollTo' | 'drag' | 'tapAt' | 'pinch' | 'rotate' | 'multiTouch';
 
 export function notSupported(action: JsAction, ctx: JsActionContext, hint: string): QuiescoError {
   return new QuiescoError('ACTION_NOT_SUPPORTED', `${action} is not possible in js mode: ${hint}`, { action, platform: ctx.platform, hint });

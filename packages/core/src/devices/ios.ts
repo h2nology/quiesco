@@ -96,6 +96,11 @@ export function chooseSimulator(devices: readonly SimDevice[], cfg: IosDeviceCon
 
 export class IosProvider implements DeviceProvider {
   readonly platform = 'ios' as const;
+  /**
+   * UIPinchGestureRecognizer / UIRotationGestureRecognizer (also behind react-native-gesture-handler on
+   * iOS) report from where they activate; measured on iOS 27 (Phase 6.4): about 9 pt and 7°.
+   */
+  readonly gestureSlop = { pinch: 9, rotation: (7 * Math.PI) / 180 };
   private sim: SimDevice | null = null;
   private bootedByUs = false;
   private readonly exec: Exec;

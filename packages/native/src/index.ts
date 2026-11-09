@@ -118,6 +118,12 @@ export interface QuiescoNativeModule {
    * Equal consecutive points are a hold.
    */
   gesture?(tag: number, path: number[]): Promise<{ handled: boolean }>;
+  /**
+   * Several fingers along timed paths in the window of `tag` (main window when tag < 0): `frames` is flat,
+   * per frame `[tMs, down0, x0, y0, down1, x1, y1, ...]` for `fingerCount` fingers (down 1 / 0). Absent in
+   * apps built before Phase 6.4.
+   */
+  multiGesture?(tag: number, fingerCount: number, frames: number[]): Promise<{ handled: boolean }>;
   /** `enter` (return / IME action) or `backspace` on the text field `tag`, the way the software keyboard sends them. */
   pressKey?(tag: number, key: 'enter' | 'backspace'): Promise<{ text: string; focused: boolean }>;
   /**

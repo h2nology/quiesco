@@ -46,6 +46,9 @@ All calls take an optional last argument:
 | `setValue(target, value)` | Set a value control: slider (number), switch / checkbox (boolean), picker (an item's value or label), segmented control (a segment's value or index), date / time picker or date input (`Date`). See [Value controls](#value-controls) |
 | `adjustSlider(target, position)` | Drag a slider's thumb to `position` (0 = minimum, 1 = maximum) with a real finger / mouse; lands within one step of it |
 | `accessibilityAction(target, name)` | Perform an action the element declares in `accessibilityActions`, as a screen reader does |
+| `pinch(target, scale, { angle, speed })` | Two fingers move apart (`scale` > 1) or together (< 1) on the element, on a line at `angle` radians (0 = horizontal). See [Multi-finger gestures](#multi-finger-gestures) |
+| `rotate(target, radians, { speed })` | Two fingers turn around the element's center (positive: clockwise on screen) |
+| `multiTouch(fingers, { within })` | Any fingers along timed paths: `fingers[i]` is finger i's `{ x, y, t }` points (t in ms, non-decreasing); element coordinates with `within`, else window coordinates |
 
 Coordinates are logical units (pt on iOS, dp on Android, CSS px on the web). `scrollToEdge` and
 `scrollToIndex` take several steps; each step may wait up to the call timeout for the app to settle.
@@ -100,6 +103,30 @@ error lists the declared ones). iOS: `increment` / `decrement` through `accessib
 the view's custom actions (VoiceOver's Actions rotor). Android: `performAccessibilityAction` with the id
 React Native gave the action. Web (`accessibilityActions` do not reach the DOM) and `js`:
 `onAccessibilityAction({ nativeEvent: { actionName } })`.
+
+### Multi-finger gestures
+
+`pinch`, `rotate` and `multiTouch` inject several real touches at once: iOS synthesized `UITouch`es in one
+event, Android multi-pointer `MotionEvent`s, the web CDP `Input.dispatchTouchEvent` (touch viewports
+only; a viewport without touch fails with `ACTION_NOT_SUPPORTED`). `js` mode cannot run them (gesture
+recognizers need real touches).
+
+Gesture recognizers start measuring only once they activate, after the fingers have moved a little, so a
+plain "fingers twice as far apart" shows up in the app as less than 2. Quiesco moves the fingers by that
+activation distance first, so the app's recognizer reports the requested scale / angle (measured within
+about 2% and 1°). The defaults are the platforms' standard recognizers:
+
+| | Pinch | Rotation |
+|---|---|---|
+| iOS (UIKit recognizers, also behind react-native-gesture-handler and `ScrollView` zooming) | 9 pt | 7° |
+| Android (react-native-gesture-handler: 3 × touch slop) | 26 dp | 9° |
+| Web (react-native-gesture-handler web: 3 × 15 px) | 46 px | 0° |
+
+For another recognizer set `actions.gestureSlop: { pinch, rotation }` (logical units, radians; `0`: move
+the fingers exactly by `scale` / `radians`). A pinch that does not fit on the screen in one go (e.g.
+`pinch(t, 10)`) is done as several pinches, as a user would; the fingers go down on the element and stay in
+the window. Tag scenarios that need several fingers so viewports without touch can skip them (the
+example uses `@multi-touch` and runs the desktop viewport with `--tags 'not @multi-touch'`).
 
 An action needs exactly one **visible** element: it waits until the target exists and is visible (or
 fails with `ELEMENT_NOT_FOUND`, saying whether it is missing or hidden) and fails at once with
@@ -279,6 +306,7 @@ export default defineConfig({
 | `sync.trackers` | all on | e.g. `{ 'frame-stable': false }` |
 | `sync.ignoreElements` | `[]` | Matchers of elements (with their subtrees) left out of the frame-stable check, e.g. a decorative animation: `['logo-glow']` |
 | `actions.mode` | `native` if the app has `@quiesco/native`, else `js` | Real input or callbacks |
+| `actions.gestureSlop` | per platform (see [Multi-finger gestures](#multi-finger-gestures)) | `{ pinch, rotation }`: how far fingers move before the app's recognizers activate |
 | `reset.default` | `soft` | `hard` relaunches the app before every scenario |
 | `server.port` / `server.host` | `7357` / all interfaces | The host's WebSocket server |
 | `connectTimeoutMs` | `30000` | How long to wait for the app after launch |

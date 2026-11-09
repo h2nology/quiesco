@@ -288,3 +288,66 @@ Then('对数量执行无障碍动作 {string} 会失败，并列出 {string}', a
   );
   if (error === null || !error.message.includes(listed)) throw new Error(`expected a failure listing "${listed}", got: ${error?.message ?? 'success'}`);
 });
+
+// ---- multi-finger gestures (Phase 6.4) ----
+
+/** A gesture recognizer measures from where it activates, a little after the fingers start: allow 5%. */
+function expectAbout(actual: string, expected: number, tolerance: number, what: string): void {
+  const v = Number(actual);
+  if (!(Math.abs(v - expected) <= tolerance)) throw new Error(`${what} is ${actual}, expected ${expected} ± ${tolerance}`);
+}
+
+Given('打开手势页', async function (this: QuiescoWorld) {
+  await this.app.backdoor('openGestures');
+  await this.app.expectVisible({ id: 'gestures' });
+});
+
+When('在捏合方块上双指放大到 {float} 倍', async function (this: QuiescoWorld, scale: number) {
+  await this.app.pinch({ id: 'pinch-box' }, scale);
+});
+
+When('在捏合方块上双指缩小到 {float} 倍', async function (this: QuiescoWorld, scale: number) {
+  await this.app.pinch({ id: 'pinch-box' }, scale);
+});
+
+When('在捏合方块上沿 {int} 度方向双指放大到 {float} 倍', async function (this: QuiescoWorld, degrees: number, scale: number) {
+  await this.app.pinch({ id: 'pinch-box' }, scale, { angle: (degrees * Math.PI) / 180 });
+});
+
+Then('捏合倍数约为 {float}', async function (this: QuiescoWorld, scale: number) {
+  const { text } = await this.app.attributes({ id: 'pinch-scale' });
+  expectAbout(text, scale, scale * 0.05, 'pinch scale');
+});
+
+When('把捏合方块顺时针旋转 {int} 度', async function (this: QuiescoWorld, degrees: number) {
+  await this.app.rotate({ id: 'pinch-box' }, (degrees * Math.PI) / 180);
+});
+
+Then('旋转角度约为 {int} 度', async function (this: QuiescoWorld, degrees: number) {
+  const { text } = await this.app.attributes({ id: 'pinch-rotation' });
+  expectAbout(text, degrees, 5, 'rotation');
+});
+
+When('在双指区域上双指向上滑动', async function (this: QuiescoWorld) {
+  // Two fingers 60 apart, from the lower part of the 200 × 160 area to the upper part (element coordinates).
+  const finger = (x: number) => [
+    { x, y: 130, t: 0 },
+    { x, y: 130, t: 80 },
+    { x, y: 30, t: 480 },
+    { x, y: 30, t: 600 },
+  ];
+  await this.app.multiTouch([finger(70), finger(130)], { within: { id: 'two-finger-area' } });
+});
+
+Then('双指滑动的方向是 {string}', async function (this: QuiescoWorld, direction: string) {
+  await this.app.expectText({ id: 'two-finger-result' }, direction);
+});
+
+When('在可缩放区域上双指放大到 {float} 倍', async function (this: QuiescoWorld, scale: number) {
+  await this.app.pinch({ id: 'zoomable' }, scale);
+});
+
+Then('缩放倍数约为 {float}', async function (this: QuiescoWorld, scale: number) {
+  const { text } = await this.app.attributes({ id: 'zoom-scale' });
+  expectAbout(text, scale, scale * 0.1, 'zoom scale');
+});

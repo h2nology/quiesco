@@ -7,7 +7,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { DEFAULT_PORT, SyncDefaults } from '@quiesco/protocol';
-import type { ActionMode, AgentConfig, LogLevel, Platform, TrackerName } from '@quiesco/protocol';
+import type { ActionMode, AgentConfig, GestureSlop, LogLevel, Platform, TrackerName } from '@quiesco/protocol';
 
 import { QuiescoError } from './errors.js';
 import { toMatcher, toTextMatch } from './matcher.js';
@@ -120,7 +120,15 @@ export interface QuiescoConfig {
     ignoreElements?: MatcherInput[];
   };
   /** `native` needs @quiesco/native; when omitted, `native` is used if the app has it, else `js`. */
-  actions?: { mode?: ActionMode };
+  actions?: {
+    mode?: ActionMode;
+    /**
+     * How far fingers move before the app's pinch / rotation recognizers activate (logical units,
+     * radians); pinch / rotate move this much first. Defaults per platform for the standard recognizers
+     * (UIKit, react-native-gesture-handler); set it for others, or 0 for no compensation.
+     */
+    gestureSlop?: Partial<GestureSlop>;
+  };
   reset?: { default?: 'soft' | 'hard' };
   server?: {
     /** Port of the Quiesco WebSocket server. Default 7357. */
@@ -168,8 +176,14 @@ export function serverPort(config: QuiescoConfig): number {
   return config.server?.port ?? DEFAULT_PORT;
 }
 
-export function toAgentConfig(config: QuiescoConfig): AgentConfig {
+/**
+ * The agent's settings. `gestureSlop`: the provider's recognizer thresholds (pinch / rotate compensate
+ * for them), overridden per field by `actions.gestureSlop`.
+ */
+export function toAgentConfig(config: QuiescoConfig, gestureSlop?: GestureSlop): AgentConfig {
   const s = config.sync ?? {};
+  const own = config.actions?.gestureSlop;
+  const gestures = gestureSlop === undefined && own === undefined ? undefined : { pinch: own?.pinch ?? gestureSlop?.pinch ?? 0, rotation: own?.rotation ?? gestureSlop?.rotation ?? 0 };
   return {
     sync: {
       timeoutMs: s.timeoutMs ?? SyncDefaults.timeoutMs,
@@ -181,6 +195,7 @@ export function toAgentConfig(config: QuiescoConfig): AgentConfig {
       ignoreElements: (s.ignoreElements ?? []).map(toMatcher),
     },
     logLevel: config.logLevel ?? 'warn',
+    ...(gestures !== undefined ? { gestures } : {}),
   };
 }
 

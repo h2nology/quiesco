@@ -119,6 +119,42 @@ class QuiescoNativeModule : Module() {
     }.runOnQueue(Queues.MAIN)
 
     /**
+     * Several fingers along timed paths in dp of the window of `tag` (activity window when tag < 0).
+     * `frames` is flat: per frame [tMs, down0, x0, y0, down1, x1, y1, ...] for `fingerCount` fingers
+     * (down = 1 while the finger touches), t from 0 and increasing. Per frame, as a touchscreen reports
+     * it: new fingers go down (ACTION_DOWN, then ACTION_POINTER_DOWN), moved fingers move (one
+     * ACTION_MOVE with every pointer), lifted fingers go up (ACTION_POINTER_UP, the last ACTION_UP).
+     * Every finger is lifted after the last frame.
+     */
+    AsyncFunction("multiGesture") { tag: Int, fingerCount: Int, frames: List<Double>, promise: Promise ->
+      val stride = 1 + 3 * fingerCount
+      if (fingerCount < 1 || frames.size < stride || frames.size % stride != 0) {
+        return@AsyncFunction promise.reject("E_BAD_ARGS", "frames must be [t, down, x, y, ...] for $fingerCount fingers", null)
+      }
+      val root = (if (tag >= 0) findView(tag)?.rootView else null) ?: appContext.currentActivity?.window?.decorView
+        ?: return@AsyncFunction promise.reject("E_NO_VIEW", "no window for view $tag", null)
+      val d = density()
+      val count = frames.size / stride
+      val down = SystemClock.uptimeMillis()
+      val touch = MultiTouch(root, down)
+      fun fire(f: Int) {
+        val base = f * stride
+        val points = (0 until fingerCount).map { i ->
+          val o = base + 1 + 3 * i
+          if (frames[o] > 0.5) Pair((frames[o + 1] * d).toFloat(), (frames[o + 2] * d).toFloat()) else null
+        }
+        touch.frame(points)
+        if (f + 1 < count) {
+          main.postAtTime({ fire(f + 1) }, down + frames[(f + 1) * stride].toLong())
+        } else {
+          touch.frame(points.map { null })
+          promise.resolve(mapOf("handled" to touch.handled))
+        }
+      }
+      main.postAtTime({ fire(0) }, down + frames[0].toLong())
+    }.runOnQueue(Queues.MAIN)
+
+    /**
      * A key of the soft keyboard on the text field `tag`, through its InputConnection: `enter` performs
      * the field's IME action (where React Native submits), or commits a newline when the field asks for
      * no enter action (multi-line); `backspace` sends KEYCODE_DEL (RN reports it to onKeyPress).
@@ -206,6 +242,57 @@ class QuiescoNativeModule : Module() {
       val performed = view.performAccessibilityAction(id, null)
       promise.resolve(mapOf("performed" to performed, "via" to "performAccessibilityAction", "actionId" to id))
     }.runOnQueue(Queues.MAIN)
+  }
+
+  /** Multi-pointer MotionEvents for one gesture, in px of `root`'s window. Pointer id = finger index. */
+  private class MultiTouch(private val root: View, private val downTime: Long) {
+    /** Fingers currently down, in pointer-index order (ascending id), with their positions. */
+    private val active = sortedMapOf<Int, Pair<Float, Float>>()
+    var handled = true
+
+    fun frame(points: List<Pair<Float, Float>?>) {
+      // 1. New fingers go down, each with the others at their previous positions.
+      for ((i, p) in points.withIndex()) {
+        if (p == null || active.containsKey(i)) continue
+        active[i] = p
+        val index = active.keys.indexOf(i)
+        val action = if (active.size == 1) MotionEvent.ACTION_DOWN else MotionEvent.ACTION_POINTER_DOWN or (index shl MotionEvent.ACTION_POINTER_INDEX_SHIFT)
+        send(action)
+      }
+      // 2. Fingers that stay down and moved: one move with every pointer.
+      var moved = false
+      for ((i, p) in points.withIndex()) {
+        val cur = active[i] ?: continue
+        if (p != null && p != cur) {
+          active[i] = p
+          moved = true
+        }
+      }
+      if (moved) send(MotionEvent.ACTION_MOVE)
+      // 3. Lifted fingers go up; the last one ends the gesture.
+      for ((i, p) in points.withIndex()) {
+        if (p != null || !active.containsKey(i)) continue
+        val index = active.keys.indexOf(i)
+        val action = if (active.size == 1) MotionEvent.ACTION_UP else MotionEvent.ACTION_POINTER_UP or (index shl MotionEvent.ACTION_POINTER_INDEX_SHIFT)
+        send(action)
+        active.remove(i)
+      }
+    }
+
+    private fun send(action: Int) {
+      val ids = active.keys.toList()
+      val props = Array(ids.size) { k -> MotionEvent.PointerProperties().apply { id = ids[k]; toolType = MotionEvent.TOOL_TYPE_FINGER } }
+      val coords = Array(ids.size) { k ->
+        val (x, y) = active.getValue(ids[k])
+        MotionEvent.PointerCoords().apply { this.x = x; this.y = y; pressure = 1f; size = 1f }
+      }
+      val ev = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), action, ids.size, props, coords, 0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0)
+      try {
+        handled = root.dispatchTouchEvent(ev) && handled
+      } finally {
+        ev.recycle()
+      }
+    }
   }
 
   private fun findSeekBar(view: View): AbsSeekBar? {

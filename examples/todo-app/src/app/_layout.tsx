@@ -1,5 +1,6 @@
 import { QuiescoRoot } from '@quiesco/agent';
 import { Stack } from 'expo-router';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useEffect, useState } from 'react';
 
 import { store } from '../store';
@@ -28,14 +29,17 @@ function App() {
       <Stack.Screen name="playground" options={{ title: '能力演示', gestureEnabled: false }} />
       {/* The slider and the wheels are dragged horizontally / vertically; no back swipe either. */}
       <Stack.Screen name="controls" options={{ title: '值控件', gestureEnabled: false }} />
+      <Stack.Screen name="gestures" options={{ title: '多指手势', gestureEnabled: false }} />
     </Stack>
   );
 }
 
 export default function RootLayout() {
   return (
-    <QuiescoRoot>
-      <App />
-    </QuiescoRoot>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <QuiescoRoot>
+        <App />
+      </QuiescoRoot>
+    </GestureHandlerRootView>
   );
 }

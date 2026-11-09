@@ -35,6 +35,11 @@ quiesco.backdoor('openPlayground', () => {
   router.push('/playground');
 });
 
+// The hidden multi-finger gesture page (src/app/gestures.tsx), used by features/gestures.feature.
+quiesco.backdoor('openGestures', () => {
+  router.push('/gestures');
+});
+
 // The hidden value-control playground (src/app/controls.tsx), used by features/values.feature.
 quiesco.backdoor('openControls', () => {
   router.push('/controls');

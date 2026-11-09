@@ -22,6 +22,8 @@ The same features, steps and `this.app` calls run on all three platforms. What d
 | `setValue` on a picker / date picker | wheels turned by a finger (`display="spinner"` for dates; compact / inline: callbacks) | callbacks (dropdowns and date dialogs are separate windows) | `<select>` / date inputs filled by Playwright; other components: callbacks |
 | `adjustSlider` | real drag, read back and corrected | real drag, read back and corrected | mouse drag (not read back) |
 | `accessibilityAction` | VoiceOver paths (increment / decrement, custom actions) | `performAccessibilityAction` | `onAccessibilityAction` |
+| `pinch`, `rotate`, `multiTouch` | several `UITouch`es in one event (needs `@quiesco/native` ≥ Phase 6.4: `multiGesture`) | multi-pointer `MotionEvent`s (same) | CDP touch events on touch viewports; desktop viewports: `ACTION_NOT_SUPPORTED` |
+| Recognizer activation compensated (`actions.gestureSlop`) | 9 pt, 7° | 26 dp, 9° | 46 px, 0° |
 | Value controls, accessibility actions (native mode) | need an app built with `@quiesco/native` ≥ Phase 6.3 (`sliderInfo`, `wheelInfo`, `accessibilityAction`) | same (`sliderInfo`, `accessibilityAction`) | — |
 
 ## Permissions

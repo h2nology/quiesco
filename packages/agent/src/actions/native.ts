@@ -19,6 +19,8 @@ import { describeMatcher, summarize } from '../query';
 import type { Clock } from '../sync';
 import { center, describe, hitTest, isAncestor } from './hit-test';
 import type { ActionPerformer } from './performer';
+import type { FingerPath } from './multitouch';
+import { framesForSequence, pinchGestures, rotateGesture } from './multitouch';
 import * as value from './value';
 import type { WheelContext, WheelState } from './wheel';
 import { selectDate, selectRow } from './wheel';
@@ -56,6 +58,8 @@ export interface NativeBridge {
   sliderInfo?(tag: number): Promise<{ found: boolean; minX?: number; maxX?: number; thumbX?: number; y?: number; value?: number; minimum?: number; maximum?: number }>;
   /** iOS only: wheel picker state (columns, selection, date). Absent before Phase 6.3 and on Android. */
   wheelInfo?(tag: number): Promise<WheelState>;
+  /** Several fingers along timed paths (frames, see actions/multitouch.ts). Absent before Phase 6.4. */
+  multiGesture?(tag: number, fingerCount: number, frames: number[]): Promise<{ handled: boolean }>;
   /** Perform a declared accessibility action as a screen reader does. Absent before Phase 6.3. */
   accessibilityAction?(tag: number, name: string, label: string, index: number, customIndex: number): Promise<{ performed: boolean; via: string }>;
 }
@@ -151,6 +155,7 @@ function guarded(bridge: NativeBridge, action: ActionType, matcher: Matcher): Na
     ...(bridge.sliderInfo !== undefined ? { sliderInfo: wrap('sliderInfo', bridge.sliderInfo.bind(bridge)) } : {}),
     ...(bridge.wheelInfo !== undefined ? { wheelInfo: wrap('wheelInfo', bridge.wheelInfo.bind(bridge)) } : {}),
     ...(bridge.accessibilityAction !== undefined ? { accessibilityAction: wrap('accessibilityAction', bridge.accessibilityAction.bind(bridge)) } : {}),
+    ...(bridge.multiGesture !== undefined ? { multiGesture: wrap('multiGesture', bridge.multiGesture.bind(bridge)) } : {}),
   };
 }
 
@@ -270,8 +275,30 @@ export function nativePerformer(ctx: NativeContext): ActionPerformer {
   /** Content direction → finger direction (scroll down = finger moves up). */
   const fingerFor = (content: Direction): Direction => ({ up: 'down', down: 'up', left: 'right', right: 'left' } as const)[content];
 
+  const tooSmall = (e: unknown): never => {
+    throw new QuiescoError('ACTION_NOT_SUPPORTED', e instanceof Error ? e.message : String(e), { action: ctx.action, platform: 'native' });
+  };
+
   return {
     viaHost: false,
+    async pinch(node, scale, angle, speed, slop) {
+      const { tag, rect } = await ready(node);
+      let gestures: FingerPath[][] = [];
+      try {
+        gestures = pinchGestures(rect, scale, angle, speed, ctx.viewport(), slop);
+      } catch (e) {
+        tooSmall(e);
+      }
+      await playFingers(tag, gestures);
+    },
+    async rotate(node, radians, speed, slop) {
+      const { tag, rect } = await ready(node);
+      await playFingers(tag, [rotateGesture(rect, radians, speed, slop)]);
+    },
+    async multiTouch(node, fingers) {
+      const tag = node === null ? -1 : (await ready(node)).tag;
+      await playFingers(tag, [fingers]);
+    },
     async tap(node, point) {
       if (point !== undefined) return pressAt(node, point, TAP_HOLD_MS);
       const { tag } = await ready(node);
@@ -450,6 +477,13 @@ export function nativePerformer(ctx: NativeContext): ActionPerformer {
       await bridge.accessibilityAction(tag, name, declared.label, declared.index, declared.customIndex);
     },
   };
+
+  /** Gestures one after another (fingers up in between) in the window of `tag`. */
+  async function playFingers(tag: number, gestures: FingerPath[][]): Promise<void> {
+    if (bridge.multiGesture === undefined) throw needsRebuild('multiGesture', ctx.action);
+    const fingers = Math.max(...gestures.map((g) => g.length));
+    await bridge.multiGesture(tag, fingers, framesForSequence(gestures));
+  }
 
   function wheelContext(tag: number): WheelContext {
     const wheelInfo = bridge.wheelInfo as NonNullable<NativeBridge['wheelInfo']>;

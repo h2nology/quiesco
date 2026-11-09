@@ -19,6 +19,7 @@ import type {
   Point,
   ResultOf,
   Speed,
+  TimedPoint,
   TrackerState,
   TreeNode,
 } from '@quiesco/protocol';
@@ -174,6 +175,45 @@ export class Driver {
   }
   async dismissKeyboard(opts?: ActionOptions): Promise<void> {
     await this.action({ type: 'dismissKeyboard' }, opts);
+  }
+
+  // ---- multi-finger gestures (Phase 6.4) ----
+
+  /**
+   * Two fingers on the element move apart (`scale` > 1) or together (< 1) until their distance has
+   * changed by `scale`, on a line at `angle` radians (0 = horizontal). A scale that does not fit in one
+   * pinch is done in several, as a user would. Needs real touches (native mode; on the web a touch viewport).
+   */
+  pinch(target: MatcherInput, scale: number, opts: ActionOptions & { angle?: number; speed?: Speed } = {}): Promise<ElementSummary | undefined> {
+    if (!(Number.isFinite(scale) && scale > 0)) throw new RangeError(`scale must be a positive number, got ${scale}`);
+    const spec: Extract<ActionSpec, { type: 'pinch' }> = { type: 'pinch', matcher: toMatcher(target), scale };
+    if (opts.angle !== undefined) spec.angle = checkFinite(opts.angle, 'angle');
+    if (opts.speed !== undefined) spec.speed = opts.speed;
+    return this.action(spec, opts);
+  }
+  /** Two fingers turn `radians` around the element's center (positive: clockwise on screen). */
+  rotate(target: MatcherInput, radians: number, opts: ActionOptions & { speed?: Speed } = {}): Promise<ElementSummary | undefined> {
+    const spec: Extract<ActionSpec, { type: 'rotate' }> = { type: 'rotate', matcher: toMatcher(target), radians: checkFinite(radians, 'radians') };
+    if (opts.speed !== undefined) spec.speed = opts.speed;
+    return this.action(spec, opts);
+  }
+  /**
+   * Any fingers along timed paths: `fingers[i]` is finger i's `{ x, y, t }` points (t in ms from the
+   * start, non-decreasing); a finger is down from its first point to its last. Coordinates are the
+   * element's own when `within` is given (it must be visible), else window coordinates.
+   */
+  async multiTouch(fingers: TimedPoint[][], opts: ActionOptions & { within?: MatcherInput } = {}): Promise<void> {
+    if (!Array.isArray(fingers) || fingers.length === 0 || fingers.length > 10) throw new RangeError('fingers must hold 1 to 10 paths');
+    fingers.forEach((path, i) => {
+      if (!Array.isArray(path) || path.length === 0) throw new RangeError(`finger ${i} has no points`);
+      path.forEach((p, k) => {
+        checkPoint(p, `finger ${i} point ${k}`);
+        if (!(Number.isFinite(p.t) && p.t >= 0) || (k > 0 && p.t < (path[k - 1] as TimedPoint).t)) throw new RangeError(`finger ${i}: times must be non-negative and non-decreasing`);
+      });
+    });
+    const spec: Extract<ActionSpec, { type: 'multiTouch' }> = { type: 'multiTouch', fingers: fingers.map((f) => f.map((p) => ({ x: p.x, y: p.y, t: p.t }))) };
+    if (opts.within !== undefined) spec.matcher = toMatcher(opts.within);
+    await this.action(spec, opts);
   }
 
   // ---- value controls (Phase 6.3) ----
@@ -418,6 +458,11 @@ export function toControlValue(v: number | boolean | string | Date): ControlValu
   }
   if (typeof v === 'number' && !Number.isFinite(v)) throw new RangeError(`setValue got ${v}`);
   if (typeof v !== 'number' && typeof v !== 'boolean' && typeof v !== 'string') throw new RangeError(`setValue takes a number, boolean, string or Date, got ${typeof v}`);
+  return v;
+}
+
+function checkFinite(v: number, name: string): number {
+  if (!Number.isFinite(v)) throw new RangeError(`${name} must be a finite number, got ${v}`);
   return v;
 }
 

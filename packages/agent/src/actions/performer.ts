@@ -7,6 +7,7 @@ import type { ControlValue, Direction, HostInput, KeyName, Point, Speed } from '
 
 import type { HostNode } from '../fiber-adapter';
 import * as js from './js';
+import type { FingerPath } from './multitouch';
 import type { A11yTarget, Control } from './value';
 import * as value from './value';
 
@@ -41,7 +42,18 @@ export interface ActionPerformer {
   adjustSlider(node: HostNode, control: Control, position: number): Performed;
   /** Perform a declared accessibility action. */
   accessibilityAction(target: A11yTarget, name: string): Performed;
+  /**
+   * Two fingers pinch on the element: distance × `scale`, on a line at `angle` radians, after a lead-in
+   * of `slop` (the recognizer's activation distance, AgentConfig.gestures).
+   */
+  pinch(node: HostNode, scale: number, angle: number, speed: Speed, slop: number): Performed;
+  /** Two fingers turn `radians` (clockwise positive) around the element's center, plus `slop` radians first. */
+  rotate(node: HostNode, radians: number, speed: Speed, slop: number): Performed;
+  /** Fingers along timed window paths; `node` (when given) must be ready for touches first. */
+  multiTouch(node: HostNode | null, fingers: FingerPath[]): Performed;
 }
+
+const MULTI_FINGER_HINT = 'multi-finger gestures need real touches (gesture recognizers); use native mode';
 
 export function jsPerformer(ctx: js.JsActionContext): ActionPerformer {
   return {
@@ -62,5 +74,14 @@ export function jsPerformer(ctx: js.JsActionContext): ActionPerformer {
     setValue: async (control, v) => value.jsSetValue(control, v, ctx.platform),
     adjustSlider: async (_node, control, position) => value.jsSetValue(control, value.sliderValueAt(value.sliderRange(control.props), position), ctx.platform),
     accessibilityAction: async (target, name) => value.jsAccessibilityAction(target, name, ctx.platform),
+    pinch: async () => {
+      throw js.notSupported('pinch', ctx, MULTI_FINGER_HINT);
+    },
+    rotate: async () => {
+      throw js.notSupported('rotate', ctx, MULTI_FINGER_HINT);
+    },
+    multiTouch: async () => {
+      throw js.notSupported('multiTouch', ctx, MULTI_FINGER_HINT);
+    },
   };
 }

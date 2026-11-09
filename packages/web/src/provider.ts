@@ -36,6 +36,12 @@ export interface WebProviderOptions {
 
 export class WebProvider implements DeviceProvider {
   readonly platform = 'web' as const;
+  /**
+   * react-native-gesture-handler on the web: span slop 2 × 15 px before the scale detector starts, then
+   * 15 px more before the pinch activates (resetting its scale); measured about 46 px. Its rotation keeps
+   * the angle turned before activating (measured: 90° reported for 90° turned), so no rotation slop.
+   */
+  readonly gestureSlop = { pinch: 46, rotation: 0 };
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
   private page: Page | null = null;
@@ -172,6 +178,9 @@ export class WebProvider implements DeviceProvider {
       case 'key':
         await page.keyboard.press(input.key);
         return;
+      case 'touches':
+        await this.playTouches(page, input.fingers, input.frames);
+        return;
       case 'select':
       case 'fill': {
         // The form control at the point (the agent checked that nothing covers it).
@@ -211,6 +220,60 @@ export class WebProvider implements DeviceProvider {
     lines.push(`The bundle must be an e2e build (EXPO_PUBLIC_QUIESCO=1) so it reads ${LAUNCH_PARAM_PORT} / ${LAUNCH_PARAM_SESSION} from there.`);
     if (this.pageErrors.length > 0) lines.push(`Page errors: ${this.pageErrors.slice(-3).join(' | ')}`);
     return lines;
+  }
+
+  /**
+   * Multi-finger touches through CDP `Input.dispatchTouchEvent` (Playwright has no multi-touch API):
+   * per frame the fingers that went down (touchStart), moved (touchMove) and lifted (touchEnd), each
+   * event listing the fingers touching after it, as CDP expects. Touch viewports only: a page on a
+   * viewport without touch does not expect touch events (HU 2026-11-09).
+   */
+  private async playTouches(page: Page, fingers: number, frames: number[]): Promise<void> {
+    if (this.device.viewport?.hasTouch !== true) {
+      throw new QuiescoError('ACTION_NOT_SUPPORTED', 'multi-finger gestures (pinch, rotate, multiTouch) need a touch viewport on the web', {
+        action: 'multiTouch',
+        platform: 'web',
+        hint: 'run the scenario with a viewport that has hasTouch: true (phone / tablet), or tag it for touch platforms only',
+      });
+    }
+    const cdp = await page.context().newCDPSession(page);
+    const stride = 1 + 3 * fingers;
+    const down = new Map<number, { x: number; y: number }>();
+    const send = (type: 'touchStart' | 'touchMove' | 'touchEnd'): Promise<unknown> =>
+      cdp.send('Input.dispatchTouchEvent', { type, touchPoints: [...down].map(([id, p]) => ({ id, x: p.x, y: p.y, radiusX: 5, radiusY: 5, force: 1 })) });
+    const start = Date.now();
+    try {
+      for (let k = 0; k + stride <= frames.length; k += stride) {
+        const wait = start + (frames[k] as number) - Date.now();
+        if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+        const now = new Map<number, { x: number; y: number }>();
+        for (let i = 0; i < fingers; i++) {
+          const o = k + 1 + 3 * i;
+          if ((frames[o] as number) > 0.5) now.set(i, { x: frames[o + 1] as number, y: frames[o + 2] as number });
+        }
+        const started = [...now.keys()].filter((i) => !down.has(i));
+        const lifted = [...down.keys()].filter((i) => !now.has(i));
+        const moved = [...now].some(([i, p]) => down.has(i) && (down.get(i)?.x !== p.x || down.get(i)?.y !== p.y));
+        if (started.length > 0) {
+          for (const i of started) down.set(i, now.get(i) as { x: number; y: number });
+          await send('touchStart');
+        }
+        if (moved) {
+          for (const [i, p] of now) if (down.has(i)) down.set(i, p);
+          await send('touchMove');
+        }
+        if (lifted.length > 0) {
+          for (const i of lifted) down.delete(i);
+          await send('touchEnd');
+        }
+      }
+      if (down.size > 0) {
+        down.clear();
+        await send('touchEnd');
+      }
+    } finally {
+      await cdp.detach().catch(() => undefined);
+    }
   }
 
   private requirePage(): Page {

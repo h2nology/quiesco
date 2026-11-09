@@ -13,6 +13,7 @@ const PAGE = `<!doctype html><html><body style="margin:0">
 <div id="s" style="position:absolute;left:0;top:150px;width:300px;height:100px;overflow:auto"><div style="height:1000px">x</div></div>
 <select id="sel" style="position:absolute;left:10px;top:300px;width:120px;height:30px"><option value="a">A</option><option value="b">B</option></select>
 <input id="d" type="date" style="position:absolute;left:10px;top:350px;width:160px;height:30px">
+<div id="t" style="position:absolute;left:0;top:400px;width:300px;height:200px"></div>
 <script>
   window.log = [];
   const b = document.getElementById('b');
@@ -22,6 +23,10 @@ const PAGE = `<!doctype html><html><body style="margin:0">
   b.addEventListener('pointerup', () => log.push('up'));
   document.getElementById('sel').addEventListener('change', (e) => log.push('select:' + e.target.value));
   document.getElementById('d').addEventListener('input', (e) => log.push('date:' + e.target.value));
+  window.touchLog = [];
+  for (const type of ['touchstart', 'touchmove', 'touchend']) {
+    document.getElementById('t').addEventListener(type, (e) => touchLog.push(type + ':' + e.touches.length));
+  }
 </script></body></html>`;
 
 let dir: string;
@@ -91,6 +96,21 @@ describe('WebProvider (real Chromium)', () => {
     await touch.injectInput({ kind: 'tap', x: 60, y: 30 });
     const page = (touch as unknown as { page: { evaluate(f: string): Promise<string[]> } }).page;
     expect(await page.evaluate('log')).toContain('touch');
+    await touch.shutdown();
+  });
+
+  it('plays multi-finger frames as touch events on touch viewports only (Phase 6.4)', async () => {
+    // Two fingers: down together, finger 0 moves, finger 1 lifts first, then finger 0.
+    const frames = [0, 1, 50, 450, 1, 150, 450, 16, 1, 60, 450, 1, 150, 450, 32, 1, 60, 450, 0, 0, 0, 48, 0, 0, 0, 0, 0, 0];
+    await expect(provider.injectInput({ kind: 'touches', fingers: 2, frames })).rejects.toThrow(/touch viewport/);
+    const touch = new WebProvider({ app: { distDir: dir }, device: { viewport: { width: 390, height: 844, hasTouch: true, isMobile: true } } });
+    await touch.boot();
+    await touch.install();
+    await touch.launch({ port: 1, sessionId: 's' });
+    await touch.injectInput({ kind: 'touches', fingers: 2, frames });
+    const page = (touch as unknown as { page: { evaluate(f: string): Promise<string[]> } }).page;
+    // CDP reports each changed point as its own DOM event, as a touch screen does.
+    expect(await page.evaluate('touchLog')).toEqual(['touchstart:1', 'touchstart:2', 'touchmove:2', 'touchend:1', 'touchend:0']);
     await touch.shutdown();
   });
 

@@ -101,20 +101,15 @@ export class Session {
   static async create(options: SessionOptions): Promise<Session> {
     const logger = options.logger ?? consoleLogger;
     const { config } = options;
+    // The provider first: the agent config carries its gesture thresholds.
+    const provider: DeviceProvider = options.provider ?? (await createProvider(options.platform, config, logger));
     const server = new QuiescoServer({
       port: serverPort(config),
-      agentConfig: toAgentConfig(config),
+      agentConfig: toAgentConfig(config, provider.gestureSlop),
       logger,
       ...(config.server?.host !== undefined ? { host: config.server.host } : {}),
     });
     const port = await server.start();
-    let provider: DeviceProvider;
-    try {
-      provider = options.provider ?? (await createProvider(options.platform, config, logger));
-    } catch (e) {
-      await server.stop();
-      throw e;
-    }
     const sessionId = randomUUID();
     // JS-only builds cannot read launch parameters and say `sessionId: null`; accept them for this session.
     server.expectSession(sessionId, { acceptAnonymous: true });

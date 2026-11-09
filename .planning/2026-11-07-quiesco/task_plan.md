@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-6.3 完成并提交（2026-11-09）。下一步：6.4 多指手势（spike → 实现）——先输出详细实施计划交 HU 确认。
+6.4 完成并提交（2026-11-09）。下一步：6.5 应用生命周期——先输出详细实施计划交 HU 确认。
 
 ## Current Phase
 Phase 6
@@ -182,7 +182,10 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
   - `setValue(t, value)` 统一入口：Slider（onValueChange + onSlidingComplete）、Switch（onValueChange）、Picker（@react-native-picker/picker：onValueChange + selectedValue 校验）、DateTimePicker（@react-native-community/datetimepicker：onChange(event, date)，三端）、SegmentedControl；未知组件报 ACTION_NOT_SUPPORTED 并列出找到的回调
   - native 档位：Slider 用真实拖动到比例位置（`adjustSlider(t, ratio)`）；iOS 原生 Picker / DatePicker 列滚动作为可选（spike 决定）
   - `accessibilityAction(t, name)`（onAccessibilityAction，三端）
-- [ ] 6.4 多指手势（spike → 实现）
+- [x] 6.4 多指手势（spike → 实现）——详细计划（2026-11-09），完成（2026-11-09）
+  - **HU 决定（2026-11-09）**：① 示例 App 加 react-native-gesture-handler（GestureHandlerRootView，回调 runOnJS(true)，不加 reanimated）；② 不用地图做验证对象（Android 需 API key），RNGH + iOS ScrollView 原生缩放覆盖两类识别器；③ Web：触摸视口用 CDP Input.dispatchTouchEvent，桌面视口 pinch / rotate 报 ACTION_NOT_SUPPORTED；④ 加通用 `multiTouch(fingers)`
+  - 计划要点：原生 `multiGesture(tag, fingers)`（单指 gesture 改为其特例）；Driver `pinch(t, scale, { speed, angle })`（大倍数自动分次）、`rotate(t, radians, { speed })`、`multiTouch(fingers)`；js 档位 ACTION_NOT_SUPPORTED；示例 playground 加 RNGH Pinch+Rotation 方块、iOS 可缩放 ScrollView、双指滑动目标，`features/gestures.feature`（@needs-touch）
+  - 已查：SDK 58 自带 react-native-gesture-handler ~3.3.0、reanimated 4.7.1、react-native-maps 1.29.11；示例 App 未装 RNGH；QSTouchInjector 现为单个静态 UITouch + 一个 hand / 一个 finger HID 事件
   - spike：iOS QSTouchInjector 改多指（N 个 UITouch + 一个 hand event 多个 finger child）、Android MotionEvent 多 pointer、Web CDP `Input.dispatchTouchEvent` 两点；验证 RNGH Pinch / Rotation、react-native-maps / 图片查看器
   - `pinch(t, scale, { speed, angle })`、`rotate(t, radians)`，三端（Detox pinch 仅 iOS）
 - [ ] 6.5 应用生命周期（DeviceProvider 扩展 + Driver 设备级 API `app.device.*`）
@@ -223,7 +226,7 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 - [ ] 6.13 真机：Android 真机（adb，无 emulator 专属命令时逐项降级并报 ACTION_NOT_SUPPORTED + 原因）；iOS 真机（devicectl 安装 / 启动 / 传参、签名配置、网络连接改为局域网或 USB 转发，spike 先行）；**需要 HU 提供并连接真机**，验收前暂停确认
 - [ ] 6.14 LLM 驱动（对标 Detox Pilot）：`app.ai.perform('…')` / `app.ai.expect('…')`，以元素树 + 截图为上下文、Driver API 为工具；实现前先读 claude-api 技能确认当前模型与 SDK 用法；结果可「固化」为普通 step 代码（Detox 没有）；默认关闭，需配置 API key
 - **验收**：对照表中 Detox 的每一项都有对应能力（或写明替代方案）；示例 App 新 features 在 iOS / Android / Chromium 通过；Detox 单平台独占项在 Quiesco 中至少两端可用
-- **Status:** in_progress（6.0–6.3 完成，下一步 6.4）
+- **Status:** in_progress（6.0–6.4 完成，下一步 6.5）
 
 ## 待 HU 决定（requirements.md §11，遇到时暂停询问）
 | # | 事项 | 何时需要 | 状态 |
@@ -358,3 +361,5 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | 6.3 Android：increment 不触发 | 2 | performAccessibilityAction 返回值不可靠（adjustable 走 super → false），且 RN 的 id→名称表只在 onInitializeAccessibilityNodeInfo 时填充 → 先 createAccessibilityNodeInfo，不再看返回值（JS 侧确认有 onAccessibilityAction） |
 | 6.3 Web js 档位：App 崩溃（e.getFullYear） | 1 | DOM date input 外层的 App 自有包装组件（value: Date + onChange(date)）被当成 datetimepicker 调用 → DOM `<input>` 一律按 DOM 控件处理 |
 | 6.3 Web 单测：fill 到非表单元素卡 30s | 1 | Playwright 会等待可编辑 → provider 先检查标签（SELECT / INPUT / TEXTAREA），否则立即报错 |
+| 6.4 三端：捏合 / 旋转读数系统性偏小（iOS 1.76、Android 1.46、Web 1.19 对 2 倍） | 1 | 识别器从激活点计量（源码确认阈值）→ 先做与平台阈值相等的 lead-in；阈值放在各 DeviceProvider（gestureSlop），经 hello 下发，可由 actions.gestureSlop 覆盖；实测微调 Android 26 dp、Web 46 px / 旋转 0 |
+| 6.4 Web 单测：两指按下得到 touchstart:1 + touchstart:2 | 1 | CDP 对每个变化触点各发一个 DOM 事件（与真实触摸屏一致），修正测试预期 |

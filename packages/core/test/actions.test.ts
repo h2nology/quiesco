@@ -100,3 +100,26 @@ describe('Driver value controls (Phase 6.3)', () => {
     expect(actions()).toEqual([]);
   });
 });
+
+describe('Driver multi-finger gestures (Phase 6.4)', () => {
+  it('converts pinch / rotate / multiTouch into specs', async () => {
+    const { driver, actions } = await setup();
+    await driver.pinch('box', 2, { angle: 0.5, speed: 'slow' });
+    await driver.rotate('box', -1);
+    await driver.multiTouch([[{ x: 1, y: 2, t: 0 }, { x: 1, y: 9, t: 100 }]], { within: 'area' });
+    expect(actions()).toEqual([
+      { type: 'pinch', matcher: { id: 'box' }, scale: 2, angle: 0.5, speed: 'slow' },
+      { type: 'rotate', matcher: { id: 'box' }, radians: -1 },
+      { type: 'multiTouch', matcher: { id: 'area' }, fingers: [[{ x: 1, y: 2, t: 0 }, { x: 1, y: 9, t: 100 }]] },
+    ]);
+  });
+
+  it('rejects bad arguments before sending anything', async () => {
+    const { driver, actions } = await setup();
+    expect(() => driver.pinch('a', 0)).toThrow(RangeError);
+    expect(() => driver.rotate('a', Number.NaN)).toThrow(RangeError);
+    await expect(driver.multiTouch([])).rejects.toThrow(RangeError);
+    await expect(driver.multiTouch([[{ x: 0, y: 0, t: 10 }, { x: 0, y: 0, t: 5 }]])).rejects.toThrow(/non-decreasing/);
+    expect(actions()).toEqual([]);
+  });
+});

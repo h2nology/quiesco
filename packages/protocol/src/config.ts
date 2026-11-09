@@ -25,4 +25,17 @@ export interface AgentConfig {
   };
   /** Minimum console level forwarded as `log` events; `off` disables forwarding. */
   logLevel: LogLevel | 'off';
+  /**
+   * How far fingers move before the platform's gesture recognizers activate (they measure from there):
+   * pinch / rotate move this much first, so the app sees the requested scale / angle (Phase 6.4).
+   * Logical units and radians. Optional for older hosts (no compensation).
+   */
+  gestures?: GestureSlop;
+}
+
+export interface GestureSlop {
+  /** Change of the distance between two fingers before a pinch recognizer activates. */
+  pinch: number;
+  /** Rotation before a rotation recognizer activates, in radians. */
+  rotation: number;
 }

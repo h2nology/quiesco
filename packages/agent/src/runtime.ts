@@ -461,6 +461,28 @@ export class AgentRuntime {
         hostInput = await perform(spec.matcher).accessibilityAction(a11y, spec.name);
         break;
       }
+      case 'pinch':
+        node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
+        hostInput = await perform(spec.matcher).pinch(node, spec.scale, spec.angle ?? 0, spec.speed ?? 'normal', this.config.gestures?.pinch ?? 0);
+        break;
+      case 'rotate':
+        node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
+        hostInput = await perform(spec.matcher).rotate(node, spec.radians, spec.speed ?? 'normal', this.config.gestures?.rotation ?? 0);
+        break;
+      case 'multiTouch': {
+        // Element coordinates when a target is given (it must be visible and reachable), else window coordinates.
+        let origin: Point = { x: 0, y: 0 };
+        if (spec.matcher !== undefined) {
+          node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
+          const r = node.measure();
+          if (r !== null) origin = { x: r.x, y: r.y };
+        } else {
+          await this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now()));
+        }
+        const fingers = spec.fingers.map((f) => f.map((p): [Point, number] => [{ x: origin.x + p.x, y: origin.y + p.y }, p.t]));
+        hostInput = await perform(spec.matcher ?? {}).multiTouch(node ?? null, fingers);
+        break;
+      }
       case 'tapAt':
       case 'longPressAt':
         await this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now()));

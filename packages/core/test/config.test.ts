@@ -34,6 +34,12 @@ describe('config', () => {
     ]);
   });
 
+  it('passes the provider gesture thresholds, overridden per field by actions.gestureSlop', () => {
+    expect(toAgentConfig({ apps: {} }).gestures).toBeUndefined();
+    expect(toAgentConfig({ apps: {} }, { pinch: 9, rotation: 0.1 }).gestures).toEqual({ pinch: 9, rotation: 0.1 });
+    expect(toAgentConfig({ apps: {}, actions: { gestureSlop: { pinch: 0 } } }, { pinch: 9, rotation: 0.1 }).gestures).toEqual({ pinch: 0, rotation: 0.1 });
+  });
+
   it('uses server.port or 7357', () => {
     expect(serverPort({ apps: {} })).toBe(7357);
     expect(serverPort({ apps: {}, server: { port: 8000 } })).toBe(8000);

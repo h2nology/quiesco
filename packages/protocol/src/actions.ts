@@ -16,6 +16,13 @@ export type KeyName = 'enter' | 'backspace';
 /** Edges for `scrollToEdge`. */
 export type Edge = 'top' | 'bottom' | 'left' | 'right';
 
+/** A finger's position at a time: ms from the start of the gesture. */
+export interface TimedPoint {
+  x: number;
+  y: number;
+  t: number;
+}
+
 /** A date in JSON: ISO 8601 (`Date.prototype.toISOString()`). */
 export interface DateValue {
   date: string;
@@ -59,6 +66,15 @@ export type ActionSpec =
   | { type: 'adjustSlider'; matcher: Matcher; position: number }
   /** Perform a declared accessibility action (`accessibilityActions`) — Detox performAccessibilityAction. */
   | { type: 'accessibilityAction'; matcher: Matcher; name: string }
+  /** Two fingers change their distance by `scale` (> 1 apart, < 1 together) on a line at `angle` radians (0 = horizontal). */
+  | { type: 'pinch'; matcher: Matcher; scale: number; angle?: number; speed?: Speed }
+  /** Two fingers turn `radians` (positive: clockwise on screen) around the element's center. */
+  | { type: 'rotate'; matcher: Matcher; radians: number; speed?: Speed }
+  /**
+   * Fingers along timed paths (each finger is down from its first to its last point). Window
+   * coordinates, or the element's own coordinates when `matcher` is given.
+   */
+  | { type: 'multiTouch'; matcher?: Matcher; fingers: TimedPoint[][] }
   | { type: 'pressBack' }
   | { type: 'openUrl'; url: string }
   | { type: 'dismissKeyboard' };
@@ -78,6 +94,11 @@ export type HostInput =
   | { kind: 'wheel'; x: number; y: number; dx: number; dy: number }
   /** Press a key on the focused element (Playwright key name, e.g. `Enter`, `Backspace`). */
   | { kind: 'key'; key: string }
+  /**
+   * Several fingers (touch screens): flat frames `[tMs, down0, x0, y0, down1, x1, y1, ...]` for
+   * `fingers` fingers, played back as touch events (web: CDP Input.dispatchTouchEvent).
+   */
+  | { kind: 'touches'; fingers: number; frames: number[] }
   /** Choose the option with this value in the `<select>` at (x, y) (Playwright selectOption). */
   | { kind: 'select'; x: number; y: number; value: string }
   /** Set the value of the `<input>` at (x, y) as a user would (Playwright fill: date / time inputs). */
