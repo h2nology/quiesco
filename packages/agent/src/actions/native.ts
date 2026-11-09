@@ -19,6 +19,9 @@ import { describeMatcher, summarize } from '../query';
 import type { Clock } from '../sync';
 import { center, describe, hitTest, isAncestor } from './hit-test';
 import type { ActionPerformer } from './performer';
+import * as value from './value';
+import type { WheelContext, WheelState } from './wheel';
+import { selectDate, selectRow } from './wheel';
 
 /** The parts of @quiesco/native used here (see packages/native/src/index.ts). */
 export interface NativeBridge {
@@ -49,6 +52,12 @@ export interface NativeBridge {
   openUrl?(url: string): Promise<{ opened: boolean }>;
   /** iOS: native UI settling, sampled every frame (see sync/native-settle.ts). */
   idleState?(): { settling: boolean; reasons: string[] };
+  /** Slider geometry (window x of the thumb at min / max, current thumb). Absent before Phase 6.3. */
+  sliderInfo?(tag: number): Promise<{ found: boolean; minX?: number; maxX?: number; thumbX?: number; y?: number; value?: number; minimum?: number; maximum?: number }>;
+  /** iOS only: wheel picker state (columns, selection, date). Absent before Phase 6.3 and on Android. */
+  wheelInfo?(tag: number): Promise<WheelState>;
+  /** Perform a declared accessibility action as a screen reader does. Absent before Phase 6.3. */
+  accessibilityAction?(tag: number, name: string, label: string, index: number, customIndex: number): Promise<{ performed: boolean; via: string }>;
 }
 
 export interface NativeContext {
@@ -71,6 +80,10 @@ const SCROLL_DRAG_MS = 500;
 const DRAG_FRACTION = 0.35;
 /** Rest at the drop point before releasing, so drop targets see the finger arrive. */
 const DROP_HOLD_MS = 100;
+/** Press on the slider thumb before moving, so the slider (not a scroll view) takes the drag. */
+const SLIDER_PRESS_MS = 80;
+/** Every slider drag ends with a straight move of this length onto the aim (beyond the touch slop). */
+const SLIDER_RUN_UP = 80;
 
 /** The current @quiesco/native lacks `fn` (the app was built before it existed). */
 function needsRebuild(fn: string, action: ActionType): QuiescoError {
@@ -112,6 +125,8 @@ export function fromNativeError(e: unknown, call: string, action: ActionType, ma
       return new QuiescoError('ELEMENT_NOT_FOUND', `The element's native view disappeared during ${action} (native ${call}; unmounted?)`, { matcher });
     case 'E_NOT_TEXT_INPUT':
       return new QuiescoError('ACTION_NOT_SUPPORTED', `${describeMatcher(matcher)} is not a text field: ${message}`, { action, platform: 'native' });
+    case 'E_NO_ACTION':
+      return new QuiescoError('ACTION_NOT_SUPPORTED', `${describeMatcher(matcher)}: ${message}`, { action, platform: 'native' });
     default:
       return e;
   }
@@ -133,6 +148,9 @@ function guarded(bridge: NativeBridge, action: ActionType, matcher: Matcher): Na
     typeText: wrap('typeText', bridge.typeText.bind(bridge)),
     ...(bridge.gesture !== undefined ? { gesture: wrap('gesture', bridge.gesture.bind(bridge)) } : {}),
     ...(bridge.pressKey !== undefined ? { pressKey: wrap('pressKey', bridge.pressKey.bind(bridge)) } : {}),
+    ...(bridge.sliderInfo !== undefined ? { sliderInfo: wrap('sliderInfo', bridge.sliderInfo.bind(bridge)) } : {}),
+    ...(bridge.wheelInfo !== undefined ? { wheelInfo: wrap('wheelInfo', bridge.wheelInfo.bind(bridge)) } : {}),
+    ...(bridge.accessibilityAction !== undefined ? { accessibilityAction: wrap('accessibilityAction', bridge.accessibilityAction.bind(bridge)) } : {}),
   };
 }
 
@@ -304,5 +322,144 @@ export function nativePerformer(ctx: NativeContext): ActionPerformer {
     async tapAt(point, holdMs) {
       await bridge.tap(-1, point.x, point.y, holdMs ?? TAP_HOLD_MS, 1);
     },
+
+    /**
+     * Real input where the control has it: a switch is tapped (when it must change), a segment is
+     * tapped, an iOS wheel (Picker, DatePicker in wheels style) is turned. Sliders get their exact
+     * value through their callbacks (a drag lands on a pixel, not a value: use adjustSlider for a real
+     * drag); Android's picker dialogs / date dialogs, iOS compact / inline date pickers and components
+     * without a native view are set through their callbacks too (docs/api.md, value controls).
+     */
+    async setValue(control, v) {
+      const node = control.node;
+      const viaCallbacks = (): void => value.jsSetValue(control, v, 'native');
+      if (node === null || node.nativeTag() === null || value.isDisabledControl(control)) return viaCallbacks();
+      switch (control.kind) {
+        case 'switch':
+          if (typeof v !== 'boolean' || value.switchState(control) === v) return viaCallbacks();
+          return this.tap(node);
+        case 'segmented': {
+          const i = value.segmentIndex(control, v, 'native');
+          const n = value.segmentValues(control).length;
+          const r = node.measure();
+          if (i === control.props['selectedIndex'] || r === null || n === 0) return viaCallbacks();
+          return pressAt(node, { x: ((i + 0.5) * r.width) / n, y: r.height / 2 }, TAP_HOLD_MS);
+        }
+        case 'picker':
+        case 'date': {
+          if (bridge.wheelInfo === undefined) return viaCallbacks();
+          const { tag } = await ready(node);
+          const wheels = wheelContext(tag);
+          if (!(await wheels.read()).found) return viaCallbacks();
+          if (control.kind === 'picker') {
+            await selectRow(wheels, 0, value.pickerIndex(control, v, 'native'));
+          } else {
+            const d = value.toDate(v, 'native');
+            value.checkDate(control.props, d, 'native');
+            await selectDate(wheels, d);
+          }
+          return;
+        }
+        default:
+          return viaCallbacks();
+      }
+    },
+
+    /** A real drag of the thumb, then the slider's value is read back (a drag lands on a pixel). */
+    async adjustSlider(node, control, position) {
+      if (bridge.sliderInfo === undefined) throw needsRebuild('sliderInfo', ctx.action);
+      const sliderInfo = bridge.sliderInfo;
+      const { tag } = await ready(node);
+      const range = value.sliderRange(control.props);
+      const expected = value.sliderValueAt(range, position);
+      const span = range.max - range.min;
+      const want = span === 0 ? 0 : (expected - range.min) / span;
+      // Native sliders keep their own units (Android: SeekBar progress steps): compare positions.
+      // A finger lands on a point, not a value: within one step (1% of a continuous slider) of the
+      // position. setValue sets an exact value.
+      const tolerance = span > 0 && range.step > 0 ? range.step / span + 1e-6 : 0.01;
+      const ratio = (i: { value?: number; minimum?: number; maximum?: number }): number | null =>
+        i.value === undefined || i.minimum === undefined || i.maximum === undefined || i.maximum === i.minimum ? null : (i.value - i.minimum) / (i.maximum - i.minimum);
+      let info = await sliderInfo(tag);
+      const valid = (i: typeof info): i is Required<typeof info> =>
+        i.found && i.minX !== undefined && i.maxX !== undefined && i.thumbX !== undefined && i.y !== undefined;
+      /** Drag the thumb straight to window x `x`, then read until the native value stops changing. */
+      const dragTo = async (x: number): Promise<void> => {
+        if (!valid(info)) return;
+        const from = { x: info.thumbX, y: info.y };
+        const to = { x, y: info.y };
+        const moveMs = 150 + Math.abs(to.x - from.x) * 2;
+        await gesture(tag, [
+          [from, 0],
+          [from, SLIDER_PRESS_MS],
+          [to, SLIDER_PRESS_MS + moveMs],
+          [to, SLIDER_PRESS_MS + moveMs + DROP_HOLD_MS],
+        ]);
+        let prev: number | undefined;
+        for (;;) {
+          info = await sliderInfo(tag);
+          if (info.value === prev || clock.now() >= ctx.deadline) break;
+          prev = info.value;
+          await sleep(STABLE_POLL_MS * 2);
+        }
+      };
+      // The thumb moves with the finger, minus the touch slop at the start of a drag (measured on iOS
+      // 27: ~9 pt; a drag that reverses loses much more). So every drag goes one way, at least
+      // SLIDER_RUN_UP long (a separate drag away from the target first when it is closer), and the slop
+      // read back after a drag is added to the next one.
+      let slop = 0;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        if (!valid(info)) {
+          throw new QuiescoError('ACTION_NOT_SUPPORTED', `${describe(node)} has no native slider to drag`, { action: 'adjustSlider', platform: 'native', hint: 'pass { mode: "js" }' });
+        }
+        const r0 = ratio(info);
+        if (attempt > 0 && r0 !== null && Math.abs(r0 - want) <= tolerance) return;
+        const target = info.minX + position * (info.maxX - info.minX);
+        if (Math.abs(target - info.thumbX) < SLIDER_RUN_UP) {
+          let away = target >= info.thumbX ? -1 : 1;
+          const out = target + away * SLIDER_RUN_UP * 1.5;
+          if (out < info.minX || out > info.maxX) away = -away;
+          await dragTo(target + away * SLIDER_RUN_UP * 1.5);
+          if (!valid(info)) continue;
+        }
+        const dir = Math.sign(target - info.thumbX) || 1;
+        await dragTo(target + dir * slop);
+        const r = ratio(info);
+        if (r !== null && valid(info)) slop += (want - r) * (info.maxX - info.minX) * dir;
+      }
+      const r = ratio(info);
+      if (r !== null && Math.abs(r - want) <= tolerance) return;
+      throw new QuiescoError('ACTION_NOT_SUPPORTED', `adjustSlider(${position}) left the slider at ${r === null ? '?' : r.toFixed(3)} of its range (wanted ${want.toFixed(3)})`, {
+        action: 'adjustSlider',
+        platform: 'native',
+        hint: 'the thumb did not follow the drag; check that nothing covers the slider, or pass { mode: "js" }',
+      });
+    },
+
+    /** As a screen reader does (iOS: increment / decrement / custom actions; Android: performAccessibilityAction). */
+    async accessibilityAction(target, name) {
+      const declared = value.declaredAction(target, name, 'native');
+      const tag = target.host?.nativeTag() ?? null;
+      if (tag === null) return value.jsAccessibilityAction(target, name, 'native');
+      if (bridge.accessibilityAction === undefined) throw needsRebuild('accessibilityAction', ctx.action);
+      // The native "performed" flag is not reliable (Android's RN delegate dispatches increment /
+      // decrement and then returns View's default, false), so the handler is checked here instead.
+      if (target.handler === null) {
+        throw value.unsupported('accessibilityAction', 'the element declares accessibilityActions but has no onAccessibilityAction', 'native');
+      }
+      await bridge.accessibilityAction(tag, name, declared.label, declared.index, declared.customIndex);
+    },
   };
+
+  function wheelContext(tag: number): WheelContext {
+    const wheelInfo = bridge.wheelInfo as NonNullable<NativeBridge['wheelInfo']>;
+    return {
+      read: () => wheelInfo(tag),
+      gesture: (path) => gesture(tag, path),
+      clock,
+      deadline: ctx.deadline,
+      viewportHeight: ctx.viewport()?.height ?? null,
+      platform: 'native',
+    };
+  }
 }

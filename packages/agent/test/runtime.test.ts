@@ -405,4 +405,33 @@ describe('AgentRuntime', () => {
     await drive(call('action', { action: { type: 'tap', matcher: { id: 'save' } }, mode: 'js' })).catch(() => undefined);
     expect(deps.dismissKeyboard).toHaveBeenCalledOnce();
   });
+
+  it('setValue on a component without a host of its own (Android DateTimePicker) calls its onChange', async () => {
+    const { target, call } = setup();
+    const commit = sameRoot(target);
+    const onChange = vi.fn();
+    function DateTimePicker() {
+      return null;
+    }
+    commit(host('RCTView', { testID: 'screen', ...R(0) }), { tag: 0, type: DateTimePicker, props: { testID: 'when', value: new Date(0), onChange }, children: [] });
+    const d = new Date(2027, 2, 8, 12);
+    await expect(drive(call('action', { action: { type: 'setValue', matcher: { id: 'when' }, value: { date: d.toISOString() } }, mode: 'native', timeoutMs: 1000 }))).resolves.toEqual({});
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ type: 'set' }), d);
+    // Only id / type / index matchers reach such components.
+    await expect(drive(call('action', { action: { type: 'setValue', matcher: { id: 'when', text: 'x' }, value: 1 }, mode: 'js', timeoutMs: 300 }), 400)).rejects.toMatchObject({ errorName: 'ELEMENT_NOT_FOUND' });
+  });
+
+  it('accessibilityAction reaches an element that is not on screen; adjustSlider rejects non-sliders', async () => {
+    const { target, call } = setup();
+    const commit = sameRoot(target);
+    const onAccessibilityAction = vi.fn();
+    commit(
+      host('RCTView', { testID: 'stepper', accessibilityActions: [{ name: 'increment' }], onAccessibilityAction, __rect: { x: 0, y: 5000, width: 10, height: 10 } }),
+      { tag: 0, type: 'Switch', props: { value: false, onValueChange: () => {} }, children: [host('RCTSwitch', { testID: 'sw', ...R(0) })] },
+    );
+    await drive(call('action', { action: { type: 'accessibilityAction', matcher: { id: 'stepper' }, name: 'increment' }, mode: 'js', timeoutMs: 1000 }));
+    expect(onAccessibilityAction).toHaveBeenCalledWith({ nativeEvent: { actionName: 'increment' } });
+    await expect(drive(call('action', { action: { type: 'adjustSlider', matcher: { id: 'sw' }, position: 0.5 }, mode: 'js', timeoutMs: 1000 }))).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', message: expect.stringContaining('not a slider (found a switch)') });
+  });
+
 });

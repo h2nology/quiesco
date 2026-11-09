@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-6.2 完成并提交。下一步：6.3 值控件与无障碍动作——先输出详细实施计划交 HU 确认。
+6.3 完成并提交（2026-11-09）。下一步：6.4 多指手势（spike → 实现）——先输出详细实施计划交 HU 确认。
 
 ## Current Phase
 Phase 6
@@ -174,7 +174,11 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
   - **测试**：agent 单测（三档位各动作、坐标换算、scrollToEdge 循环、scrollToIndex 失败分支）；core 单测（参数转换）；三端实跑（iOS / Android 真实触摸 + js 档位各一次、Web 三视口）；`pnpm run check`
   - **文档**：api.md 动作表、坐标约定、各档位支持表；platforms.md 差异
   - **HU 决定（2026-11-09）**：① 原生新增 gesture / pressKey 并重建两端 dev client（iOS 回车先实验确认）；② 原生实跑时临时在空闲端口起干净 Metro（--clear）、用 QUIESCO_METRO_URL 指向、跑完立即停掉，不碰 8082；③ 示例 App 新增隐藏的 playground 页（backdoor 打开），后续子阶段的测试控件都放这里
-- [ ] 6.3 值控件与无障碍动作
+- [x] 6.3 值控件与无障碍动作——详细计划（2026-11-09），完成（2026-11-09）
+  - **HU 决定（2026-11-09）**：① 无宿主组件（Android DateTimePicker 渲染 null）：仅 setValue / accessibilityAction 在无宿主匹配时按 testID / 组件名回退到复合组件（不参与可见性判定，报错注明）；② accessibilityAction 的 native 档位走真实无障碍路径（iOS accessibilityActivate / Increment / Decrement / 自定义动作；Android performAccessibilityAction），Web 走 JS；③ iOS Picker / DatePicker 滚轮做**真实滚动**（native 档位，真实拖动 + 读回选中行校正；spike 先行）
+  - 计划要点：protocol 加 setValue / adjustSlider / accessibilityAction，HostInput 加 select / fill；agent `actions/value.ts` 适配器表（Slider / Switch / Picker / SegmentedControl / DateTimePicker / DOM select·input date·range / 兜底报错列出回调）；native：Switch 状态不同时真实点击、adjustSlider 真实拖动并读回校验、Segmented 真实点分段、iOS 滚轮真实滚动；host：select→selectOption、date→fill、Switch→click、adjustSlider→drag；Driver setValue / adjustSlider / accessibilityAction；示例 App 装 4 包 + playground 控件 + features/values.feature；三端实跑 + pnpm run check + api.md / platforms.md
+  - spike：① Android 从 JS 调 onChange 后卸载组件，原生日期对话框是否关闭；② 三端 slider 拇指位置换算；③ slider Web DOM；④ iOS UIPickerView / UIDatePicker（wheels）真实拖动：行高、无惯性拖动、列与目标值对应（UIDatePicker 列顺序随 locale）
+  - 已查：SDK 58 自带版本 slider 5.2.1 / picker 2.11.4 / datetimepicker 9.2.1 / segmented-control 2.5.7；datetimepicker 无 Web 实现（渲染 null + warn），Android 版渲染 null（命令式对话框，无宿主节点）；segmented-control 在 Android / Web 是纯 JS 实现，iOS 是原生 UISegmentedControl
   - `setValue(t, value)` 统一入口：Slider（onValueChange + onSlidingComplete）、Switch（onValueChange）、Picker（@react-native-picker/picker：onValueChange + selectedValue 校验）、DateTimePicker（@react-native-community/datetimepicker：onChange(event, date)，三端）、SegmentedControl；未知组件报 ACTION_NOT_SUPPORTED 并列出找到的回调
   - native 档位：Slider 用真实拖动到比例位置（`adjustSlider(t, ratio)`）；iOS 原生 Picker / DatePicker 列滚动作为可选（spike 决定）
   - `accessibilityAction(t, name)`（onAccessibilityAction，三端）
@@ -219,7 +223,7 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 - [ ] 6.13 真机：Android 真机（adb，无 emulator 专属命令时逐项降级并报 ACTION_NOT_SUPPORTED + 原因）；iOS 真机（devicectl 安装 / 启动 / 传参、签名配置、网络连接改为局域网或 USB 转发，spike 先行）；**需要 HU 提供并连接真机**，验收前暂停确认
 - [ ] 6.14 LLM 驱动（对标 Detox Pilot）：`app.ai.perform('…')` / `app.ai.expect('…')`，以元素树 + 截图为上下文、Driver API 为工具；实现前先读 claude-api 技能确认当前模型与 SDK 用法；结果可「固化」为普通 step 代码（Detox 没有）；默认关闭，需配置 API key
 - **验收**：对照表中 Detox 的每一项都有对应能力（或写明替代方案）；示例 App 新 features 在 iOS / Android / Chromium 通过；Detox 单平台独占项在 Quiesco 中至少两端可用
-- **Status:** in_progress（6.0–6.2 完成，下一步 6.3）
+- **Status:** in_progress（6.0–6.3 完成，下一步 6.4）
 
 ## 待 HU 决定（requirements.md §11，遇到时暂停询问）
 | # | 事项 | 何时需要 | 状态 |
@@ -347,3 +351,10 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | 6.2 iOS / Android：scrollToEdge 超时 | 2 | 慢速拖动 → 快速甩动；每步独立超时 + 最终等待独立超时 + Host 等待放宽 |
 | 6.2 iOS：修复后仍是旧行为 | 1 | 临时 Metro 带 CI=1 → 无文件监听；去掉 CI=1 重启并确认 bundle |
 | 6.2 Android：一次 BeforeAll 17 分钟后失败 | 1 | 未复现（紧接着重跑 15/15，1m58s）；发生在 Metro 重启后首次打包 Android bundle 期间，原因未确认 |
+| 6.3 iOS：滚轮各列 x 范围互相重叠 | 2 | UIPickerColumnView 铺满整个 picker 且用 3D 变换排布，frame / convert 不可用 → 沿选中带逐点 hitTest 归属到列 |
+| 6.3 iOS：日期列拖 8 行无反应 | 1 | 拖动距离超过 picker 高度，起点落在 picker 外 → 起点固定在滚轮内靠边，终点可出界 |
+| 6.3 iOS：adjustSlider 不收敛（0.72 → 0.88 → 0.78…） | 3 | iOS 26+ 滑块：短距离 / 反向拖动丢失位移（触摸 slop）→ 每次单向拖动 + 助跑（不足时先单独拉开），按读回误差学习 slop；容差定为一档（拖动落在像素上，精确值用 setValue） |
+| 6.3 Android：分段控件找不到 testID | 1 | segmented-control 的 JS 实现（Android / Web）不传 testID → 示例用 View 包 testID；detectControl 增加「容器内唯一控件」 |
+| 6.3 Android：increment 不触发 | 2 | performAccessibilityAction 返回值不可靠（adjustable 走 super → false），且 RN 的 id→名称表只在 onInitializeAccessibilityNodeInfo 时填充 → 先 createAccessibilityNodeInfo，不再看返回值（JS 侧确认有 onAccessibilityAction） |
+| 6.3 Web js 档位：App 崩溃（e.getFullYear） | 1 | DOM date input 外层的 App 自有包装组件（value: Date + onChange(date)）被当成 datetimepicker 调用 → DOM `<input>` 一律按 DOM 控件处理 |
+| 6.3 Web 单测：fill 到非表单元素卡 30s | 1 | Playwright 会等待可编辑 → provider 先检查标签（SELECT / INPUT / TEXTAREA），否则立即报错 |

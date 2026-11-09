@@ -43,6 +43,9 @@ All calls take an optional last argument:
 | `pressBack()` | Android back button; browser back on the web; not available on iOS |
 | `openUrl(url)` | Open a deep link (in the app on iOS, `am start` on Android, the address bar on the web) |
 | `dismissKeyboard()` | Hide the software keyboard |
+| `setValue(target, value)` | Set a value control: slider (number), switch / checkbox (boolean), picker (an item's value or label), segmented control (a segment's value or index), date / time picker or date input (`Date`). See [Value controls](#value-controls) |
+| `adjustSlider(target, position)` | Drag a slider's thumb to `position` (0 = minimum, 1 = maximum) with a real finger / mouse; lands within one step of it |
+| `accessibilityAction(target, name)` | Perform an action the element declares in `accessibilityActions`, as a screen reader does |
 
 Coordinates are logical units (pt on iOS, dp on Android, CSS px on the web). `scrollToEdge` and
 `scrollToIndex` take several steps; each step may wait up to the call timeout for the app to settle.
@@ -51,6 +54,52 @@ In `js` mode (callbacks instead of real input), a tap at a point presses the top
 tap on a switch without `onPress` toggles it through `onValueChange`, `pressKey` calls
 `onSubmitEditing` / `onKeyPress`, `scrollToEdge` sets the scroll offset, `from` is ignored, and `drag` is
 not supported (it needs real touches).
+
+### Value controls
+
+`setValue` finds the control by the props of the component around the target (the element and a few
+levels up; if there is none, the single control inside the element, e.g. a `View` carrying the testID
+around a component that drops it):
+
+| Control | Recognized by | `value` |
+|---|---|---|
+| `@react-native-community/slider` | `onValueChange` / `onSlidingComplete` with a numeric `value` or `minimumValue` / `maximumValue` | a number within the range and on a `step` |
+| `Switch`, `expo-checkbox` | a boolean `value` and `onValueChange` | `true` / `false` |
+| `@react-native-picker/picker` | `onValueChange` and `selectedValue` | an item's value (also as a string), or its label |
+| `@react-native-segmented-control/segmented-control` | a `values` array and `onChange` / `onValueChange` | a segment's value, or its index |
+| `@react-native-community/datetimepicker` | a `Date` `value` and `onChange` / `onValueChange` | a `Date` (checked against `minimumDate` / `maximumDate`) |
+| DOM `<select>`, `<input type="date" / "time" / "datetime-local" / "month" / "week" / "range" / "number">`, checkbox | the element itself (web) | an option's value or label; a `Date` (written in local time) or the input's own string |
+
+Anything else fails with `ACTION_NOT_SUPPORTED` naming the callbacks that were found. Setting the
+current value sends no event, and a disabled control is left alone (as with a user's attempt).
+
+How the value gets in, per mode:
+
+| | `native` (iOS / Android) | web (real input) | `js` |
+|---|---|---|---|
+| Switch / checkbox | a real tap when the value must change | a click | `onChange` + `onValueChange` |
+| Segmented control | a real tap on the segment | a click on the segment | `onChange` (native event) + `onValueChange` |
+| Picker | iOS: the wheel is turned by a finger (slow drags that rest before lifting, read back and corrected); Android: callbacks (the dropdown / dialog is a separate window) | `<select>`: `selectOption` | `onValueChange(value, index)` |
+| Date picker | iOS wheels (`display="spinner"`): every column is turned by a finger — which unit a column turns is found by turning it one row, so any locale and order works; compact / inline style and Android (a system dialog): callbacks | date inputs: `fill` | `onValueChange` / `onChange` with `{ type: 'set', nativeEvent: { timestamp, utcOffset } }` |
+| Slider | callbacks (exact value; use `adjustSlider` for a real drag) | callbacks | `onSlidingStart`, `onValueChange`, `onSlidingComplete` |
+
+Android's `DateTimePicker` renders no view (it opens a dialog), so after the app shows it, `setValue({ id })`
+finds the component itself by its testID (or `{ type: 'DateTimePicker' }` by name); the app closes the
+dialog when it handles the change, as it would for the user's choice. Only `id`, `type` and `index`
+reach such components.
+
+`adjustSlider` drags the thumb in `native` mode and reads the value back: the thumb follows the finger
+less the touch slop, so it drags again (always one way, with a run-up) until the slider is within one
+step (1% of a continuous slider's range) of the position. Web: a mouse drag of the thumb. `js`: the value
+at that position, through the callbacks.
+
+`accessibilityAction(target, name)` acts on the target or the nearest ancestor declaring
+`accessibilityActions`; the target does not have to be on screen. `name` must be declared (otherwise the
+error lists the declared ones). iOS: `increment` / `decrement` through `accessibilityIncrement` /
+`accessibilityDecrement`, `magicTap` / `escape` through their perform methods, every other name through
+the view's custom actions (VoiceOver's Actions rotor). Android: `performAccessibilityAction` with the id
+React Native gave the action. Web (`accessibilityActions` do not reach the DOM) and `js`:
+`onAccessibilityAction({ nativeEvent: { actionName } })`.
 
 An action needs exactly one **visible** element: it waits until the target exists and is visible (or
 fails with `ELEMENT_NOT_FOUND`, saying whether it is missing or hidden) and fails at once with

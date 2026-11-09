@@ -221,6 +221,118 @@ public class QuiescoNativeModule: Module {
       }
       UIApplication.shared.open(u, options: [:]) { opened in promise.resolve(["opened": opened]) }
     }.runOnQueue(.main)
+
+    /**
+     * Geometry of the UISlider in `tag`'s view: window x of the thumb center at the minimum and at the
+     * maximum value (UISlider insets its track by half a thumb), the thumb's current x and its y.
+     * UISlider only starts tracking on a touch near the thumb, so a drag must start at `thumbX`.
+     */
+    AsyncFunction("sliderInfo") { (tag: Int) -> [String: Any] in
+      guard let view = QSTouchInjector.view(withReactTag: tag), let window = view.window,
+            let slider = Self.find(UISlider.self, in: view) else { return ["found": false] }
+      let track = slider.trackRect(forBounds: slider.bounds)
+      func center(_ value: Float) -> CGPoint {
+        let r = slider.thumbRect(forBounds: slider.bounds, trackRect: track, value: value)
+        return slider.convert(CGPoint(x: r.midX, y: r.midY), to: window)
+      }
+      let lo = center(slider.minimumValue)
+      let hi = center(slider.maximumValue)
+      let cur = center(slider.value)
+      return [
+        "found": true, "minX": lo.x, "maxX": hi.x, "y": cur.y, "thumbX": cur.x,
+        "value": slider.value, "minimum": slider.minimumValue, "maximum": slider.maximumValue,
+      ]
+    }.runOnQueue(.main)
+
+    /**
+     * The wheels (UIPickerView, also the one inside a UIDatePicker in wheels style) in `tag`'s view: per
+     * component the selected row, row count, row height, the column's window rect and the selected row's
+     * title; for a UIDatePicker also its date (ms since epoch). `tree` lists the picker's view hierarchy
+     * (diagnostics: column views are private UIKit classes).
+     */
+    AsyncFunction("wheelInfo") { (tag: Int) -> [String: Any] in
+      guard let view = QSTouchInjector.view(withReactTag: tag), let window = view.window else { return ["found": false] }
+      guard let picker = Self.find(UIPickerView.self, in: view) else {
+        return ["found": false, "tree": Self.viewTree(view, depth: 0, maxDepth: 8)]
+      }
+      let columns = Self.columnViews(picker, in: window)
+      var components: [[String: Any]] = []
+      for c in 0..<picker.numberOfComponents {
+        let row = picker.selectedRow(inComponent: c)
+        var item: [String: Any] = [
+          "selectedRow": row,
+          "rows": picker.numberOfRows(inComponent: c),
+          "rowHeight": picker.rowSize(forComponent: c).height,
+          "title": Self.title(picker, row: row, component: c) ?? NSNull(),
+        ]
+        if c < columns.count {
+          let r = columns[c]
+          item["x"] = r.origin.x; item["y"] = r.origin.y; item["width"] = r.size.width; item["height"] = r.size.height
+        }
+        components.append(item)
+      }
+      let pr = picker.convert(picker.bounds, to: window)
+      // A wheel is moving while one of its scroll views is tracking a finger, dragging or decelerating
+      // (UIDatePicker.date and selectedRow update only once it stops).
+      var moving = false
+      var queue: [UIView] = [picker]
+      while let v = queue.popLast() {
+        if let sv = v as? UIScrollView, sv.isTracking || sv.isDragging || sv.isDecelerating || !(sv.layer.animationKeys() ?? []).isEmpty { moving = true; break }
+        queue.append(contentsOf: v.subviews)
+      }
+      var out: [String: Any] = [
+        "found": true, "components": components, "columnCount": columns.count, "moving": moving,
+        "x": pr.origin.x, "y": pr.origin.y, "width": pr.size.width, "height": pr.size.height,
+        "tree": Self.viewTree(picker, depth: 0, maxDepth: 6),
+      ]
+      if let dp = Self.ancestor(UIDatePicker.self, of: picker) {
+        out["date"] = dp.date.timeIntervalSince1970 * 1000
+        out["datePickerMode"] = dp.datePickerMode.rawValue
+        out["locale"] = (dp.locale ?? Locale.current).identifier
+      }
+      return out
+    }.runOnQueue(.main)
+
+    /**
+     * Perform the accessibility action `name` on `tag`'s view the way VoiceOver does: `increment` /
+     * `decrement` through UIAccessibilityAction (the adjustable swipe), `magicTap` / `escape` through
+     * their perform methods, any other through the view's accessibilityCustomActions (the VoiceOver
+     * "Actions" rotor) at `index` — React Native lists every declared action there, named by its label
+     * (`label`, or the name when it has none).
+     */
+    AsyncFunction("accessibilityAction") { (tag: Int, name: String, label: String, index: Int, _customIndex: Int, promise: Promise) in
+      guard let view = QSTouchInjector.view(withReactTag: tag) else {
+        promise.reject("E_NO_VIEW", "view \(tag) not found")
+        return
+      }
+      switch name {
+      case "increment":
+        view.accessibilityIncrement()
+        promise.resolve(["performed": true, "via": "accessibilityIncrement"])
+      case "decrement":
+        view.accessibilityDecrement()
+        promise.resolve(["performed": true, "via": "accessibilityDecrement"])
+      case "magicTap":
+        promise.resolve(["performed": view.accessibilityPerformMagicTap(), "via": "accessibilityPerformMagicTap"])
+      case "escape":
+        promise.resolve(["performed": view.accessibilityPerformEscape(), "via": "accessibilityPerformEscape"])
+      default:
+        let actions = view.accessibilityCustomActions ?? []
+        let byIndex = index >= 0 && index < actions.count && actions[index].name == label ? actions[index] : nil
+        guard let action = byIndex ?? actions.first(where: { $0.name == label }) else {
+          promise.reject("E_NO_ACTION", "view \(tag) has no accessibility custom action \"\(label)\" (has: \(actions.map { $0.name }))")
+          return
+        }
+        var performed = false
+        if let handler = action.actionHandler {
+          performed = handler(action)
+        } else if let target = action.target as? NSObject, target.responds(to: action.selector) {
+          _ = target.perform(action.selector, with: action)
+          performed = true
+        }
+        promise.resolve(["performed": performed, "via": "accessibilityCustomActions"])
+      }
+    }.runOnQueue(.main)
   }
 
   // MARK: - helpers (main thread)
@@ -391,6 +503,91 @@ public class QuiescoNativeModule: Module {
         out.append("\(String(describing: type(of: cur))): \(keys.joined(separator: ","))")
       }
       v = cur.superview
+    }
+    return out
+  }
+
+  /** The first view of class `T` in `view`'s subtree, breadth first (the view itself included). */
+  static func find<T: UIView>(_ type: T.Type, in view: UIView) -> T? {
+    var queue: [UIView] = [view]
+    var i = 0
+    while i < queue.count {
+      if let hit = queue[i] as? T { return hit }
+      queue.append(contentsOf: queue[i].subviews)
+      i += 1
+    }
+    return nil
+  }
+
+  static func ancestor<T: UIView>(_ type: T.Type, of view: UIView) -> T? {
+    var v: UIView? = view
+    while let cur = v {
+      if let hit = cur as? T { return hit }
+      v = cur.superview
+    }
+    return nil
+  }
+
+  /**
+   * Where each column of a picker takes touches, left to right in component order: window rects whose
+   * x range is found by hit testing along the selection band. The column views are private
+   * (`UIPickerColumnView`), all span the whole picker and are laid out with 3D transforms, so their
+   * frames do not tell where a column is (measured on iOS 27); a hit test does. `.zero` when a column
+   * takes no touch at any x.
+   */
+  static func columnViews(_ picker: UIPickerView, in window: UIWindow) -> [CGRect] {
+    var columns: [UIView] = []
+    func walk(_ v: UIView) {
+      for sub in v.subviews {
+        if String(describing: type(of: sub)).contains("PickerColumnView") { columns.append(sub) } else { walk(sub) }
+      }
+    }
+    walk(picker)
+    let pr = picker.convert(picker.bounds, to: window)
+    var lo = [CGFloat](repeating: .infinity, count: columns.count)
+    var hi = [CGFloat](repeating: -.infinity, count: columns.count)
+    var x = pr.minX + 1
+    while x < pr.maxX {
+      if let hit = window.hitTest(CGPoint(x: x, y: pr.midY), with: nil) {
+        var v: UIView? = hit
+        while let cur = v, cur !== picker {
+          if let i = columns.firstIndex(where: { $0 === cur }) {
+            lo[i] = min(lo[i], x)
+            hi[i] = max(hi[i], x)
+            break
+          }
+          v = cur.superview
+        }
+      }
+      x += 2
+    }
+    return columns.indices.map { i in
+      lo[i] <= hi[i] ? CGRect(x: lo[i], y: pr.minY, width: hi[i] - lo[i], height: pr.height) : .zero
+    }
+  }
+
+  /** Title of a row: the delegate's title, else the text of the labels in the row's view. */
+  static func title(_ picker: UIPickerView, row: Int, component: Int) -> String? {
+    if row < 0 { return nil }
+    if let d = picker.delegate {
+      if let t = d.pickerView?(picker, titleForRow: row, forComponent: component) { return t }
+      if let t = d.pickerView?(picker, attributedTitleForRow: row, forComponent: component) { return t.string }
+    }
+    guard let rowView = picker.view(forRow: row, forComponent: component) else { return nil }
+    var texts: [String] = []
+    func walk(_ v: UIView) {
+      if let l = v as? UILabel, let t = l.text, !t.isEmpty { texts.append(t) }
+      v.subviews.forEach(walk)
+    }
+    walk(rowView)
+    return texts.isEmpty ? nil : texts.joined(separator: " ")
+  }
+
+  static func viewTree(_ view: UIView, depth: Int, maxDepth: Int) -> [String] {
+    let f = view.frame
+    var out = ["\(String(repeating: "  ", count: depth))\(String(describing: type(of: view)))(\(Int(f.minX)),\(Int(f.minY)),\(Int(f.width))x\(Int(f.height)))"]
+    if depth < maxDepth {
+      for sub in view.subviews.prefix(12) { out.append(contentsOf: viewTree(sub, depth: depth + 1, maxDepth: maxDepth)) }
     }
     return out
   }

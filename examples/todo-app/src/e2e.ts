@@ -35,6 +35,11 @@ quiesco.backdoor('openPlayground', () => {
   router.push('/playground');
 });
 
+// The hidden value-control playground (src/app/controls.tsx), used by features/values.feature.
+quiesco.backdoor('openControls', () => {
+  router.push('/controls');
+});
+
 quiesco.onReset(async () => {
   await api.replaceTodos([]);
   store.clear();

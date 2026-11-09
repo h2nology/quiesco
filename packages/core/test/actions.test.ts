@@ -69,3 +69,34 @@ describe('Driver actions (Phase 6.2)', () => {
     expect(actions()).toEqual([]);
   });
 });
+
+describe('Driver value controls (Phase 6.3)', () => {
+  it('setValue sends dates as ISO strings; adjustSlider and accessibilityAction pass through', async () => {
+    const { driver, actions } = await setup();
+    const d = new Date(Date.UTC(2027, 2, 8, 3));
+    await driver.setValue('slider', 35);
+    await driver.setValue('switch', true);
+    await driver.setValue('picker', 'Durian');
+    await driver.setValue('when', d);
+    await driver.adjustSlider('slider', 0.75);
+    await driver.accessibilityAction('stepper', 'increment');
+    expect(actions()).toEqual([
+      { type: 'setValue', matcher: { id: 'slider' }, value: 35 },
+      { type: 'setValue', matcher: { id: 'switch' }, value: true },
+      { type: 'setValue', matcher: { id: 'picker' }, value: 'Durian' },
+      { type: 'setValue', matcher: { id: 'when' }, value: { date: '2027-03-08T03:00:00.000Z' } },
+      { type: 'adjustSlider', matcher: { id: 'slider' }, position: 0.75 },
+      { type: 'accessibilityAction', matcher: { id: 'stepper' }, name: 'increment' },
+    ]);
+  });
+
+  it('rejects bad arguments before sending anything', async () => {
+    const { driver, actions } = await setup();
+    expect(() => driver.setValue('a', new Date(Number.NaN))).toThrow(RangeError);
+    expect(() => driver.setValue('a', Number.POSITIVE_INFINITY)).toThrow(RangeError);
+    expect(() => driver.setValue('a', { x: 1 } as never)).toThrow(RangeError);
+    expect(() => driver.adjustSlider('a', 1.2)).toThrow(RangeError);
+    expect(() => driver.accessibilityAction('a', '')).toThrow(RangeError);
+    expect(actions()).toEqual([]);
+  });
+});

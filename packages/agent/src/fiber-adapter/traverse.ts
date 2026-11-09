@@ -12,7 +12,7 @@ import type { Rect } from '@quiesco/protocol';
 import type { Fiber } from './fiber';
 import { WorkTag, isObject, walkSiblings } from './fiber';
 import type { HostPlatform } from './host';
-import type { HandlerRef, HostNode, InstanceRef } from './types';
+import type { CompositeNode, HandlerRef, HostNode, InstanceRef, PropsRef } from './types';
 
 class Node implements HostNode {
   readonly type: string;
@@ -97,6 +97,10 @@ class Node implements HostNode {
     return null;
   }
 
+  findProps(test: (props: Readonly<Record<string, unknown>>) => boolean, maxDepth = DEFAULT_PROPS_DEPTH): PropsRef | null {
+    return findPropsFrom(this.fiber, test, maxDepth);
+  }
+
   findInstance(method: string): InstanceRef | null {
     for (let f = this.fiber.return; f !== null && f.tag !== WorkTag.HostRoot; f = f.return) {
       const inst = f.stateNode;
@@ -111,6 +115,66 @@ class Node implements HostNode {
     }
     return null;
   }
+}
+
+/** How far up `findProps` looks by default: the components wrapping a control, not the whole screen. */
+const DEFAULT_PROPS_DEPTH = 12;
+
+function findPropsFrom(start: Fiber, test: (props: Readonly<Record<string, unknown>>) => boolean, maxDepth: number): PropsRef | null {
+  let depth = 0;
+  for (let f: Fiber | null = start; f !== null && f.tag !== WorkTag.HostRoot && depth <= maxDepth; f = f.return, depth++) {
+    if (f.tag === WorkTag.HostText || !isObject(f.memoizedProps)) continue;
+    if (test(f.memoizedProps)) return { props: f.memoizedProps, name: COMPONENT_TAGS.has(f.tag) ? componentName(f.type) : null };
+  }
+  return null;
+}
+
+class Composite implements CompositeNode {
+  readonly name: string | null;
+  readonly props: Readonly<Record<string, unknown>>;
+  readonly testID: string | undefined;
+  readonly rendersHost: boolean;
+
+  constructor(private readonly fiber: Fiber) {
+    this.name = componentName(fiber.type);
+    this.props = isObject(fiber.memoizedProps) ? fiber.memoizedProps : {};
+    this.testID = typeof this.props['testID'] === 'string' ? this.props['testID'] : undefined;
+    this.rendersHost = hasHost(fiber.child);
+  }
+
+  findProps(test: (props: Readonly<Record<string, unknown>>) => boolean, maxDepth = DEFAULT_PROPS_DEPTH): PropsRef | null {
+    return findPropsFrom(this.fiber, test, maxDepth);
+  }
+}
+
+function hasHost(first: Fiber | null): boolean {
+  for (const f of walkSiblings(first)) if (f.tag === WorkTag.HostComponent || f.tag === WorkTag.HostText) return true;
+  return false;
+}
+
+/**
+ * Component fibers under `fiber` (pre-order) that render no host element and satisfy `test`. A match's
+ * descendants are not searched: a wrapper passing its testID down to an inner component is one target.
+ */
+export function findHostlessComposites(fiber: Fiber, test: (c: CompositeNode) => boolean): CompositeNode[] {
+  const out: CompositeNode[] = [];
+  const stack: Fiber[] = [];
+  let f: Fiber | null = fiber.child;
+  while (f !== null || stack.length > 0) {
+    if (f === null) f = stack.pop() ?? null;
+    if (f === null) break;
+    if (f.sibling !== null) stack.push(f.sibling);
+    if (COMPONENT_TAGS.has(f.tag) && !hasHost(f.child)) {
+      const c = new Composite(f);
+      if (test(c)) {
+        out.push(c);
+        f = null;
+        continue;
+      }
+    }
+    f = f.child;
+  }
+  return out;
 }
 
 /** Display name of a component type: function / class, forwardRef, memo. Null for anonymous ones. */

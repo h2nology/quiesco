@@ -26,6 +26,8 @@ function App() {
       {/* iOS 26 pops a screen on a rightward swipe anywhere in its content; the playground's drag box
           moves right, so its back gesture is off (a real user dragging it would leave the screen too). */}
       <Stack.Screen name="playground" options={{ title: '能力演示', gestureEnabled: false }} />
+      {/* The slider and the wheels are dragged horizontally / vertically; no back swipe either. */}
+      <Stack.Screen name="controls" options={{ title: '值控件', gestureEnabled: false }} />
     </Stack>
   );
 }

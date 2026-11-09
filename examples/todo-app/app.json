@@ -34,7 +34,8 @@
     "plugins": [
       "expo-router",
       "expo-dev-client",
-      "@quiesco/expo-plugin"
+      "@quiesco/expo-plugin",
+      "@react-native-community/datetimepicker"
     ],
     "scheme": "quiescotodo"
   }

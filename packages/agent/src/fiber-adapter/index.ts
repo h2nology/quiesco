@@ -3,17 +3,17 @@
  * Everything above it works with `HostNode` and plain strings.
  */
 import { defaultPlatformDeps, loadScheduler } from './default-deps';
-import type { FiberRoot } from './fiber';
+import type { Fiber, FiberRoot } from './fiber';
 import type { HookState } from './hook';
 import { installHook } from './hook';
 import type { HostPlatform, PlatformDeps } from './host';
 import { nativePlatform, webPlatform } from './host';
 import type { SchedulerState } from './scheduler';
 import { patchScheduler } from './scheduler';
-import { buildHostTree, findFiberByType } from './traverse';
-import type { AdapterDiagnostics, HostNode, RendererKind, Viewport } from './types';
+import { buildHostTree, findFiberByType, findHostlessComposites } from './traverse';
+import type { AdapterDiagnostics, CompositeNode, HostNode, RendererKind, Viewport } from './types';
 
-export type { AdapterDiagnostics, HandlerRef, HostNode, InstanceRef, RendererInfo, RendererKind, Viewport } from './types';
+export type { AdapterDiagnostics, CompositeNode, HandlerRef, HostNode, InstanceRef, PropsRef, RendererInfo, RendererKind, Viewport } from './types';
 export { flattenStyle } from './host';
 
 /** React Native's `noTimeout` / react-dom's `noTimeout`: no pending suspended-commit timeout. */
@@ -96,6 +96,16 @@ export class FiberAdapter {
     return out;
   }
 
+  /**
+   * Components within the scope that render no host element and satisfy `test` (value actions on e.g.
+   * Android's DateTimePicker, which renders null and opens a system dialog).
+   */
+  findHostlessComposites(test: (c: CompositeNode) => boolean): CompositeNode[] {
+    const out: CompositeNode[] = [];
+    for (const start of this.scopedStarts()) out.push(...findHostlessComposites(start, test));
+    return out;
+  }
+
   /** Window size of the (first) renderer in use, in the same units as `HostNode.measure()`. */
   viewport(): Viewport | null {
     const first = this.requireHook().roots.keys().next();
@@ -174,6 +184,17 @@ export class FiberAdapter {
       'Wrap metro.config.js with withQuiesco() from @quiesco/agent/metro (it runs the hook before React Native ' +
       'starts) and import @quiesco/agent on the first line of the app entry file.'
     );
+  }
+
+  private scopedStarts(): Fiber[] {
+    const out: Fiber[] = [];
+    for (const roots of this.requireHook().roots.values()) {
+      for (const root of roots) {
+        const start = this.scopeType === null ? root.current : findFiberByType(root.current, this.scopeType);
+        if (start !== null) out.push(start);
+      }
+    }
+    return out;
   }
 
   private allRoots(): FiberRoot[] {

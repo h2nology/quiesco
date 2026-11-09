@@ -19,6 +19,10 @@ The same features, steps and `this.app` calls run on all three platforms. What d
 | Screenshot | `simctl io screenshot` | `adb exec-out screencap` | `page.screenshot` |
 | Sync trackers | all, plus `native` (UIKit transitions, keyboard) | all except `native` | all except `native` |
 | Software keyboard covering a target | dismissed before the touch | dismissed before the touch | — |
+| `setValue` on a picker / date picker | wheels turned by a finger (`display="spinner"` for dates; compact / inline: callbacks) | callbacks (dropdowns and date dialogs are separate windows) | `<select>` / date inputs filled by Playwright; other components: callbacks |
+| `adjustSlider` | real drag, read back and corrected | real drag, read back and corrected | mouse drag (not read back) |
+| `accessibilityAction` | VoiceOver paths (increment / decrement, custom actions) | `performAccessibilityAction` | `onAccessibilityAction` |
+| Value controls, accessibility actions (native mode) | need an app built with `@quiesco/native` ≥ Phase 6.3 (`sliderInfo`, `wheelInfo`, `accessibilityAction`) | same (`sliderInfo`, `accessibilityAction`) | — |
 
 ## Permissions
 
@@ -49,6 +53,11 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
   reported as covered (`ELEMENT_OBSCURED`). Use the header height (`useHeaderHeight()`) or an opaque
   header.
 - After keyboard activity iOS ignores touches for a moment; the `native` tracker waits for it.
+- Wheel pickers: the column views are private UIKit classes laid out with 3D transforms; Quiesco finds
+  where each column takes touches by hit testing along the selection band. A turn waits until the wheel
+  stops (UIDatePicker reports its date only then), so a date takes a few seconds.
+- iOS 26+ sliders: a short or reversing drag moves the thumb less than the finger; `adjustSlider` drags
+  one way with a run-up and corrects from the value read back.
 
 ## Android
 
@@ -58,6 +67,10 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
   connection parameters).
 - `ACCESS_LOCAL_NETWORK` (Android 17) is granted before launch so the app can reach the host.
 - Ports the app calls on `localhost` (a mock backend) need `apps.android.reversePorts`.
+- `DateTimePicker` and the picker's dialog / dropdown live in separate windows that in-app touches do not
+  reach: `setValue` sets them through their callbacks (the date picker by its testID, as it renders no view).
+- Accessibility actions are performed after reading the node info, like TalkBack: React Native's delegate
+  only handles actions it has listed there.
 - Emulators usually have a hardware keyboard, so the software keyboard does not appear while typing.
   To test keyboard-related behavior: `adb shell settings put secure show_ime_with_hard_keyboard 1`.
 
@@ -67,3 +80,6 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
 - Viewports come from the config (phone, tablet, desktop…); touch viewports get touch input.
 - A full page load reconnects the agent; the host waits for it without failing the step.
 - Testing only native platforms does not require Playwright; the web provider is loaded on demand.
+- `@react-native-community/datetimepicker` has no web implementation; use `<input type="date">` there
+  (`setValue` fills it). `@react-native-segmented-control`'s web / Android implementation does not pass
+  `testID` on: put the testID on a wrapping `View` (`setValue` uses the single control inside it).

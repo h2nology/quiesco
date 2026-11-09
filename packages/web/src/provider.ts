@@ -172,6 +172,23 @@ export class WebProvider implements DeviceProvider {
       case 'key':
         await page.keyboard.press(input.key);
         return;
+      case 'select':
+      case 'fill': {
+        // The form control at the point (the agent checked that nothing covers it).
+        const handle = await page.evaluateHandle(({ x, y }) => document.elementFromPoint(x, y), { x: input.x, y: input.y });
+        const el = handle.asElement();
+        try {
+          const tag = el === null ? null : await el.evaluate((e) => e.tagName);
+          const fits = input.kind === 'select' ? tag === 'SELECT' : tag === 'INPUT' || tag === 'TEXTAREA';
+          // Otherwise Playwright would wait for the element to become editable until its own timeout.
+          if (el === null || !fits) throw new QuiescoError('DEVICE_ERROR', `no ${input.kind === 'select' ? '<select>' : 'form field'} at (${Math.round(input.x)}, ${Math.round(input.y)}) (found ${tag ?? 'nothing'})`);
+          if (input.kind === 'select') await el.selectOption(input.value);
+          else await el.fill(input.value);
+        } finally {
+          await handle.dispose();
+        }
+        return;
+      }
       case 'navigate':
         await page.goto(new URL(input.url, this.baseUrl ?? undefined).href);
         return;

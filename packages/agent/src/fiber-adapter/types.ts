@@ -68,6 +68,12 @@ export interface HostNode {
   isFocused(): boolean;
   /** Nearest component (this host or an ancestor, up to the root) with a function prop `name`. */
   findHandler(name: string): HandlerRef | null;
+  /**
+   * Nearest fiber (this host, then its ancestors, at most `maxDepth` fibers up) whose props satisfy
+   * `test`, with the name of its component (null for hosts and anonymous components). Used to find the
+   * component behind a control (Slider, Picker, ...) by the shape of its props.
+   */
+  findProps(test: (props: Readonly<Record<string, unknown>>) => boolean, maxDepth?: number): PropsRef | null;
   /** Nearest ancestor class component instance with a method `name` (e.g. ScrollView's `scrollTo`). */
   findInstance(method: string): InstanceRef | null;
 }
@@ -76,6 +82,24 @@ export interface HandlerRef {
   fn: (...args: unknown[]) => unknown;
   /** All props of the component that owns the handler (for `disabled`, sibling handlers, ...). */
   props: Readonly<Record<string, unknown>>;
+}
+
+export interface PropsRef {
+  props: Readonly<Record<string, unknown>>;
+  name: string | null;
+}
+
+/**
+ * A component that renders no host element of its own (e.g. Android's DateTimePicker, which opens a
+ * system dialog imperatively and renders null). Only value actions can target it (Phase 6.3).
+ */
+export interface CompositeNode {
+  readonly name: string | null;
+  readonly props: Readonly<Record<string, unknown>>;
+  readonly testID: string | undefined;
+  /** Whether it renders any host element. */
+  readonly rendersHost: boolean;
+  findProps(test: (props: Readonly<Record<string, unknown>>) => boolean, maxDepth?: number): PropsRef | null;
 }
 
 export interface InstanceRef {

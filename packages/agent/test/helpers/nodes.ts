@@ -1,7 +1,7 @@
 /** Build HostNode trees directly (query-layer tests do not need fibers). */
 import type { Rect } from '@quiesco/protocol';
 
-import type { HandlerRef, HostNode, InstanceRef } from '../../src/fiber-adapter';
+import type { HandlerRef, HostNode, InstanceRef, PropsRef } from '../../src/fiber-adapter';
 
 export interface NodeSpec {
   type?: string;
@@ -16,6 +16,8 @@ export interface NodeSpec {
   owner?: Record<string, unknown>;
   /** Handlers found on ancestors (findHandler falls back to these). */
   ancestorHandlers?: Record<string, unknown>;
+  /** Props of components further up, nearest first (findProps searches props → owner → these). */
+  ancestors?: { props: Record<string, unknown>; name?: string }[];
   /** findInstance(method) result. */
   instance?: InstanceRef | null;
   tag?: number | null;
@@ -73,6 +75,15 @@ export function node(spec: NodeSpec, parent: MutableNode | null = null): Mutable
       for (const p of [spec.props ?? {}, spec.owner ?? {}, spec.ancestorHandlers ?? {}]) {
         if (typeof p[name] === 'function') return { fn: p[name] as HandlerRef['fn'], props: p };
       }
+      return null;
+    },
+    findProps(test, maxDepth = 12): PropsRef | null {
+      const chain: { props: Record<string, unknown>; name: string | null }[] = [
+        { props: spec.props ?? {}, name: null },
+        ...(spec.owner !== undefined ? [{ props: spec.owner, name: spec.ownerNames?.[0] ?? null }] : []),
+        ...(spec.ancestors ?? []).map((a) => ({ props: a.props, name: a.name ?? null })),
+      ];
+      for (const c of chain.slice(0, maxDepth + 1)) if (test(c.props)) return c;
       return null;
     },
     findInstance: () => spec.instance ?? null,

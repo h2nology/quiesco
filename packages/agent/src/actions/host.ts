@@ -13,6 +13,7 @@ import { summarize } from '../query';
 import type { Clock } from '../sync';
 import { center, describe, hitTest, isAncestor } from './hit-test';
 import type { ActionPerformer } from './performer';
+import * as value from './value';
 
 export interface HostContext {
   clock: Clock;
@@ -102,5 +103,69 @@ export function hostPerformer(ctx: HostContext): ActionPerformer {
       return { kind: 'drag', from, to, durationMs, holdMs };
     },
     tapAt: async (point, holdMs) => ({ kind: 'tap', x: point.x, y: point.y, ...(holdMs === undefined ? {} : { holdMs }) }),
+
+    /**
+     * Real browser input where the DOM has it: `<select>` → selectOption, date / time inputs → fill,
+     * a switch / checkbox → click (when it must change), a segment → click. Sliders, and components
+     * that are not DOM form controls, are set through their callbacks (docs/api.md, value controls).
+     */
+    async setValue(control, v) {
+      const node = control.node;
+      if (node === null || value.isDisabledControl(control)) return value.jsSetValue(control, v, 'web');
+      if (node.type === 'select' && (control.kind === 'picker' || control.kind === 'select')) {
+        const i = value.pickerIndex(control, v, 'web');
+        const c = center(await ready(node));
+        return { kind: 'select', x: c.x, y: c.y, value: String((value.pickerItems(control)[i] as value.PickerItem).value) };
+      }
+      const inputType = node.type === 'input' ? String(node.props['type'] ?? 'text') : '';
+      if (control.dom === 'input' && inputType !== 'range') {
+        const c = center(await ready(node));
+        return { kind: 'fill', x: c.x, y: c.y, value: value.inputString(inputType, v, 'web') };
+      }
+      if (control.kind === 'switch' || control.kind === 'checkbox') {
+        if (typeof v !== 'boolean' || value.switchState(control) === v) return value.jsSetValue(control, v, 'web');
+        return tapAt(node);
+      }
+      if (control.kind === 'segmented') {
+        const i = value.segmentIndex(control, v, 'web');
+        const n = value.segmentValues(control).length;
+        const r = node.measure();
+        if (i === control.props['selectedIndex'] || r === null || n === 0) return value.jsSetValue(control, v, 'web');
+        return tapAt(node, { point: { x: ((i + 0.5) * r.width) / n, y: r.height / 2 } });
+      }
+      return value.jsSetValue(control, v, 'web');
+    },
+
+    /**
+     * Mouse drag of the thumb. The thumb is the square child of the slider (react-native-community
+     * slider's web implementation insets its track by half a thumb); the host injects the drag, so the
+     * result is not read back here (the step's assertion does that).
+     */
+    async adjustSlider(node, control, position) {
+      const rect = await ready(node);
+      const thumb = findThumb(node, rect);
+      const t = thumb?.width ?? 0;
+      const lo = rect.x + t / 2;
+      const hi = rect.x + rect.width - t / 2;
+      const range = value.sliderRange(control.props);
+      const current = typeof control.props['value'] === 'number' && range.max > range.min ? (control.props['value'] - range.min) / (range.max - range.min) : 0;
+      const y = thumb === null ? rect.y + rect.height / 2 : thumb.y + thumb.height / 2;
+      const from = thumb === null ? { x: lo + current * (hi - lo), y } : { x: thumb.x + thumb.width / 2, y };
+      return { kind: 'drag', from, to: { x: lo + position * (hi - lo), y }, durationMs: 300, holdMs: 0 };
+    },
+
+    // The DOM has no accessibility actions (react-native-web drops accessibilityActions): callbacks.
+    accessibilityAction: async (target, name) => value.jsAccessibilityAction(target, name, 'web'),
   };
+}
+
+/** A square descendant narrower than half the slider: the thumb. */
+function findThumb(node: HostNode, rect: Rect): Rect | null {
+  for (const c of node.children) {
+    const r = c.measure();
+    if (r !== null && r.width > 4 && Math.abs(r.width - r.height) < 1 && r.width < rect.width / 2) return r;
+    const deeper = findThumb(c, rect);
+    if (deeper !== null) return deeper;
+  }
+  return null;
 }

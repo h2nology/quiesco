@@ -189,3 +189,102 @@ When('把长列表滚动到 {string}', async function (this: QuiescoWorld, edge:
 Then('第 {int} 行可见', async function (this: QuiescoWorld, row: number) {
   await this.app.expectVisible({ id: `row-${row}` });
 });
+
+// ---- value controls (Phase 6.3) ----
+
+Given('打开值控件页', async function (this: QuiescoWorld) {
+  await this.app.backdoor('openControls');
+  await this.app.expectVisible({ id: 'controls' });
+});
+
+When('把音量设为 {int}', async function (this: QuiescoWorld, n: number) {
+  await this.app.setValue({ id: 'volume' }, n);
+});
+
+When('把音量滑块拖到 {int}% 的位置', async function (this: QuiescoWorld, percent: number) {
+  await this.app.adjustSlider({ id: 'volume' }, percent / 100);
+});
+
+Then('音量是 {string}', async function (this: QuiescoWorld, v: string) {
+  await this.app.expectText({ id: 'volume-value' }, v);
+});
+
+// A real drag lands on a pixel: within one step of the position (docs/api.md, adjustSlider).
+Then('音量约为 {int}（误差不超过一档）', async function (this: QuiescoWorld, n: number) {
+  const { text } = await this.app.attributes({ id: 'volume-value' });
+  const v = Number(text);
+  if (!(Math.abs(v - n) <= 1)) throw new Error(`volume is ${text}, expected ${n} ± 1`);
+});
+
+Then('音量调整结束于 {string}', async function (this: QuiescoWorld, v: string) {
+  await this.app.expectText({ id: 'volume-done' }, v);
+});
+
+When('打开通知开关', async function (this: QuiescoWorld) {
+  await this.app.setValue({ id: 'notify' }, true);
+});
+
+When('关闭通知开关', async function (this: QuiescoWorld) {
+  await this.app.setValue({ id: 'notify' }, false);
+});
+
+Then('通知是 {string}', async function (this: QuiescoWorld, v: string) {
+  await this.app.expectText({ id: 'notify-value' }, v);
+});
+
+Then('通知开关已打开', async function (this: QuiescoWorld) {
+  await this.app.expectChecked({ id: 'notify' });
+});
+
+When('在水果选择器中选择 {string}', async function (this: QuiescoWorld, item: string) {
+  await this.app.setValue({ id: 'fruit' }, item);
+});
+
+Then('选中的水果是 {string}', async function (this: QuiescoWorld, v: string) {
+  await this.app.expectText({ id: 'fruit-value' }, v);
+});
+
+Then('在水果选择器中选择 {string} 会失败，并列出 {string}', async function (this: QuiescoWorld, item: string, listed: string) {
+  const error = await this.app.setValue({ id: 'fruit' }, item).then(
+    () => null,
+    (e: unknown) => e as Error,
+  );
+  if (error === null || !error.message.includes(listed)) throw new Error(`expected a failure listing "${listed}", got: ${error?.message ?? 'success'}`);
+});
+
+When('把尺寸设为 {string}', async function (this: QuiescoWorld, size: string) {
+  await this.app.setValue({ id: 'size' }, size);
+});
+
+Then('尺寸是 {string}', async function (this: QuiescoWorld, v: string) {
+  await this.app.expectText({ id: 'size-value' }, v);
+});
+
+When('把生日设为 {string}', async function (this: QuiescoWorld, iso: string) {
+  const [y, m, d] = iso.split('-').map(Number) as [number, number, number];
+  // Android opens the date dialog from a button; the picker exists while the dialog is open.
+  if ((await this.app.query({ id: 'birthday-open' })).length > 0) await this.app.tap({ id: 'birthday-open' });
+  // Noon local time: the same calendar day whatever the device's time zone.
+  await this.app.setValue({ id: 'birthday' }, new Date(y, m - 1, d, 12));
+});
+
+Then('生日是 {string}', async function (this: QuiescoWorld, iso: string) {
+  await this.app.expectText({ id: 'birthday-value' }, iso);
+});
+
+When('对数量执行无障碍动作 {string}', async function (this: QuiescoWorld, name: string) {
+  await this.app.accessibilityAction({ id: 'stepper' }, name);
+});
+
+Then('数量显示 {string}，最近的动作是 {string}', async function (this: QuiescoWorld, text: string, last: string) {
+  await this.app.expectText({ id: 'stepper' }, text);
+  await this.app.expectText({ id: 'stepper-last' }, last);
+});
+
+Then('对数量执行无障碍动作 {string} 会失败，并列出 {string}', async function (this: QuiescoWorld, name: string, listed: string) {
+  const error = await this.app.accessibilityAction({ id: 'stepper' }, name).then(
+    () => null,
+    (e: unknown) => e as Error,
+  );
+  if (error === null || !error.message.includes(listed)) throw new Error(`expected a failure listing "${listed}", got: ${error?.message ?? 'success'}`);
+});

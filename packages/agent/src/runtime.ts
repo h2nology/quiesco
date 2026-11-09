@@ -27,6 +27,7 @@ import type { NativeBridge } from './actions/native';
 import { hostPerformer } from './actions/host';
 import { jsPerformer } from './actions/performer';
 import type { ActionPerformer } from './actions/performer';
+import * as value from './actions/value';
 import type { StorageAdapter } from './api-types';
 import { assertionMessage, evaluate } from './assertions';
 import { BackdoorRegistry } from './backdoor';
@@ -36,7 +37,7 @@ import { resolveParams } from './connection/params';
 import { QuiescoError } from './errors';
 import { EventForwarder } from './events';
 import { FiberAdapter } from './fiber-adapter';
-import type { FiberAdapterOptions, HostNode } from './fiber-adapter';
+import type { CompositeNode, FiberAdapterOptions, HostNode } from './fiber-adapter';
 import type { AppDeps } from './platform';
 import { defaultAppDeps } from './platform';
 import { ResetManager } from './reset';
@@ -263,6 +264,41 @@ export class AgentRuntime {
    * visible; several matches fail immediately with MULTIPLE_MATCHES.
    */
   private async resolveTarget(matcher: Matcher, opts: SyncOption, deadline: number, requireVisible = true): Promise<HostNode> {
+    return (await this.resolveLoop(matcher, opts, deadline, requireVisible, null)) as HostNode;
+  }
+
+  /**
+   * Like resolveTarget, but when no host element matches, a component that renders none (Android's
+   * DateTimePicker) matched by `id` (its testID) or `type` (its name) is the target (HU 2026-11-09).
+   * Such a target has no position: only value actions take it.
+   */
+  private resolveControlTarget(matcher: Matcher, opts: SyncOption, deadline: number): Promise<HostNode | CompositeNode> {
+    return this.resolveLoop(matcher, opts, deadline, true, () => this.hostlessMatches(matcher));
+  }
+
+  /** Components without a host element matching the `id` / `type` / `index` of `matcher` (other fields: none). */
+  private hostlessMatches(matcher: Matcher): CompositeNode[] {
+    const { id, type, index, ...rest } = matcher;
+    if (Object.keys(rest).length > 0 || (id === undefined && type === undefined)) return [];
+    const idRe = id === undefined ? null : toRegExp(id);
+    const all = this.adapter.findHostlessComposites((c) => {
+      if (type !== undefined && c.name !== type) return false;
+      if (idRe === null) return true;
+      if (c.testID === undefined) return false;
+      return typeof idRe === 'string' ? c.testID === idRe : idRe.test(c.testID);
+    });
+    if (index === undefined) return all;
+    const one = all[index];
+    return one === undefined ? [] : [one];
+  }
+
+  private async resolveLoop(
+    matcher: Matcher,
+    opts: SyncOption,
+    deadline: number,
+    requireVisible: boolean,
+    fallback: (() => CompositeNode[]) | null,
+  ): Promise<HostNode | CompositeNode> {
     for (;;) {
       let busy: QuiescoError | null = null;
       try {
@@ -281,6 +317,17 @@ export class AgentRuntime {
         });
       }
       const node = found[0];
+      if (node === undefined && fallback !== null) {
+        const composites = fallback();
+        if (composites.length > 1) {
+          throw new QuiescoError('MULTIPLE_MATCHES', `${composites.length} components without a view of their own match ${describeMatcher(matcher)}; add \`index\``, { matcher, matches: [] });
+        }
+        const only = composites[0];
+        if (only !== undefined) {
+          if (busy !== null) throw busy;
+          return only;
+        }
+      }
       const visible = node !== undefined && (!requireVisible || isVisible(node, this.adapter.viewport()));
       if (busy !== null && visible) throw busy;
       if (visible) return node;
@@ -386,6 +433,32 @@ export class AgentRuntime {
           to = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
         }
         hostInput = await perform(spec.matcher).drag(node, to, spec.holdMs ?? DRAG_HOLD_MS, DRAG_MS[spec.speed ?? 'normal']);
+        break;
+      }
+      case 'setValue': {
+        const target = await this.resolveControlTarget(spec.matcher, opts, deadline);
+        if ('measure' in target) node = target;
+        const control = value.detectControl(target, this.deps.platform());
+        hostInput = await perform(spec.matcher).setValue(control, spec.value);
+        break;
+      }
+      case 'adjustSlider': {
+        if (!(spec.position >= 0 && spec.position <= 1)) throw value.unsupported('adjustSlider', `position must be between 0 and 1, got ${spec.position}`, this.deps.platform());
+        node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
+        const control = value.detectControl(node, this.deps.platform());
+        if (control.kind !== 'slider') throw value.unsupported('adjustSlider', `${describeMatcher(spec.matcher)} is not a slider (found a ${control.kind})`, this.deps.platform());
+        hostInput = await perform(spec.matcher).adjustSlider(node, control, spec.position);
+        break;
+      }
+      case 'accessibilityAction': {
+        // A screen reader acts on the element wherever it is: it needs to exist, not to be on screen.
+        const target = await this.resolveLoop(spec.matcher, opts, deadline, false, () => this.hostlessMatches(spec.matcher));
+        if ('measure' in target) node = target;
+        const a11y = value.a11yTarget(target);
+        if (a11y === null) {
+          throw value.unsupported('accessibilityAction', `${describeMatcher(spec.matcher)} declares no accessibilityActions (nor does an ancestor)`, this.deps.platform());
+        }
+        hostInput = await perform(spec.matcher).accessibilityAction(a11y, spec.name);
         break;
       }
       case 'tapAt':

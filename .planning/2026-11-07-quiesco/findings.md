@@ -316,3 +316,11 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - react-native-web ResponderSystem：出现文本选择（selectionchange）时终止当前 responder ⇒ 鼠标拖过文字时 PanResponder 收到 terminate 而非 release。
 - react-native-web 自带的 VirtualizedList（dist/vendor）用 `_highestMeasuredFrameIndex`，RN 0.88 用 `_listMetrics.getHighestMeasuredCellIndex()`。
 - `expo start` 在 `CI=1` 时不监听文件变化。
+
+## 6.3 spike（2026-11-09，iOS 27 Simulator iPhone 17，示例 App 值控件页）
+- **库源码确认**：datetimepicker 9.2.1 Android 版组件渲染 null，在 effect 中命令式 `DateTimePickerAndroid.open()`，卸载 cleanup 调 `dismiss()`（⇒ 从 JS 调 onChange 后 App 卸载组件即关闭对话框）；Web 无实现（渲染 null + warn）；iOS 版把 onChange 包成 `{type:'set', nativeEvent:{timestamp, utcOffset}}` 再调 onValueChange(event, date) 或 onChange(event, date)。Picker web 渲染 `<select>`，option value = String(item.value)。slider web 为 JS 实现（可用宽度 = 容器宽 − THUMB_SIZE）。
+- **iOS 滑块几何**：`UISlider.thumbRect(forBounds:trackRect:value:)` 取最小 / 最大值时拇指中心（示例：minX 34.5、maxX 326.5，value 20 → thumbX 92.5），精确，不用估算。
+- **iOS 滚轮列位置**：`UIPickerColumnView` 每列都铺满整个 picker，靠 3D 变换排布，frame / convert 得到的 x 互相重叠，不可用；改为沿选中带每 2pt 做一次 hitTest，归属到哪个 column view ⇒ 各列可触摸的 x 范围（日期：月 17–187、日 189–237、年 239–345）。
+- **iOS 滚轮真实拖动**：慢速拖动 + 终点停留 ≥200ms 再抬起，没有惯性；Picker 上拖 3×行高（45pt）⇒ 选中第 3 行，RN onValueChange 触发；DatePicker 日列上拖 3 行 15→18，月列下拖 1 行 January→December（各列独立循环，年不变）。**拖完立刻读会读到中间状态**（selectedRow 还是 2；`UIDatePicker.date` 在停下后才更新）⇒ 必须轮询到稳定。日期列：rows 10000（月 / 日循环，年 row = 年份 − 1）；标题经 delegate / 行视图 UILabel 可读。
+- **iOS 无障碍动作**：RN Fabric 把**每个**声明的 action 都放进 `accessibilityCustomActions`（name = label ?? name），`accessibilityActivate` 走 onAccessibilityTap（不是 onAccessibilityAction）；`accessibilityIncrement/Decrement` 发 increment / decrement。实测 increment / 自定义「重置」/ activate 都触发 onAccessibilityAction，未声明的名字原生报错并列出已有动作。
+- **Android 无障碍动作**（源码）：ReactAccessibilityDelegate 标准名 → ACTION_CLICK / LONG_CLICK / SCROLL_FORWARD / SCROLL_BACKWARD / EXPAND / COLLAPSE，其余按名字从 0x3f000000 起全局分配 id，按声明顺序 addAction ⇒ 按「非标准动作中的序号」从 `createAccessibilityNodeInfo().actionList` 取 id。

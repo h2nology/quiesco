@@ -11,6 +11,8 @@ const PAGE = `<!doctype html><html><body style="margin:0">
 <button id="b" style="position:absolute;left:10px;top:10px;width:100px;height:40px">tap</button>
 <input id="i" style="position:absolute;left:10px;top:80px;width:200px;height:30px" value="old">
 <div id="s" style="position:absolute;left:0;top:150px;width:300px;height:100px;overflow:auto"><div style="height:1000px">x</div></div>
+<select id="sel" style="position:absolute;left:10px;top:300px;width:120px;height:30px"><option value="a">A</option><option value="b">B</option></select>
+<input id="d" type="date" style="position:absolute;left:10px;top:350px;width:160px;height:30px">
 <script>
   window.log = [];
   const b = document.getElementById('b');
@@ -18,6 +20,8 @@ const PAGE = `<!doctype html><html><body style="margin:0">
   b.addEventListener('touchstart', () => log.push('touch'));
   b.addEventListener('pointerdown', () => log.push('down'));
   b.addEventListener('pointerup', () => log.push('up'));
+  document.getElementById('sel').addEventListener('change', (e) => log.push('select:' + e.target.value));
+  document.getElementById('d').addEventListener('input', (e) => log.push('date:' + e.target.value));
 </script></body></html>`;
 
 let dir: string;
@@ -55,6 +59,13 @@ describe('WebProvider (real Chromium)', () => {
     expect(await evaluate('document.getElementById("i").value')).toBe('买牛奶');
     await provider.injectInput({ kind: 'type', x: 100, y: 95, text: '!', clearFirst: false });
     expect(await evaluate('document.getElementById("i").value')).toBe('买牛奶!');
+  });
+
+  it('chooses an option of a <select> and fills a date input at a point (Phase 6.3)', async () => {
+    await provider.injectInput({ kind: 'select', x: 60, y: 315, value: 'b' });
+    await provider.injectInput({ kind: 'fill', x: 60, y: 365, value: '2027-03-08' });
+    expect(await evaluate<string[]>('log.filter((e) => !e.startsWith("click") && e !== "down" && e !== "up")')).toEqual(['select:b', 'date:2027-03-08']);
+    await expect(provider.injectInput({ kind: 'fill', x: 380, y: 830, value: 'x' })).rejects.toThrow();
   });
 
   it('scrolls with the wheel', async () => {

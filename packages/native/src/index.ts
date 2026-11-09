@@ -18,7 +18,55 @@ export type NativeErrorCode =
   /** openUrl with an unparsable URL. */
   | 'E_BAD_URL'
   /** gesture / pressKey with malformed arguments. */
-  | 'E_BAD_ARGS';
+  | 'E_BAD_ARGS'
+  /** accessibilityAction: the view does not offer the action. */
+  | 'E_NO_ACTION';
+
+/** Slider geometry in the window of the view (see sliderInfo). */
+export interface SliderInfo {
+  found: boolean;
+  /** x of the thumb center at the minimum / maximum value. */
+  minX?: number;
+  maxX?: number;
+  /** Current thumb center. */
+  thumbX?: number;
+  y?: number;
+  value?: number;
+  minimum?: number;
+  maximum?: number;
+}
+
+/** One column of a wheel picker (see wheelInfo). */
+export interface WheelComponent {
+  selectedRow: number;
+  rows: number;
+  rowHeight: number;
+  /** Title of the selected row, when it can be read. */
+  title: string | null;
+  /** The column's rect in the window, when its view was found. */
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+}
+
+export interface WheelInfo {
+  found: boolean;
+  components?: WheelComponent[];
+  columnCount?: number;
+  /** A wheel is still tracking a finger, dragging or decelerating (values update once it stops). */
+  moving?: boolean;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  /** UIDatePicker: its date (ms since epoch), mode (0 time, 1 date, 2 date and time) and locale. */
+  date?: number;
+  datePickerMode?: number;
+  locale?: string;
+  /** Diagnostics: the picker's view hierarchy. */
+  tree?: string[];
+}
 
 export interface LocateResult {
   found: boolean;
@@ -82,6 +130,16 @@ export interface QuiescoNativeModule {
    * just used), sampled every frame. Used by the agent's `native` idle tracker.
    */
   idleState?(): { settling: boolean; reasons: string[] };
+  /** Slider geometry (iOS UISlider, Android SeekBar) inside `tag`'s view. Absent in apps built before Phase 6.3. */
+  sliderInfo?(tag: number): Promise<SliderInfo>;
+  /** iOS only: the wheel picker (UIPickerView / UIDatePicker wheels) inside `tag`'s view. Absent before Phase 6.3. */
+  wheelInfo?(tag: number): Promise<WheelInfo>;
+  /**
+   * Perform the declared accessibility action `name` as the screen reader does. `label`: its label (or
+   * the name); `index`: its position in accessibilityActions (iOS custom actions); `customIndex`: its
+   * position among the non-standard actions (Android generated ids). Absent before Phase 6.3.
+   */
+  accessibilityAction?(tag: number, name: string, label: string, index: number, customIndex: number): Promise<{ performed: boolean; via: string }>;
 }
 
 export const QuiescoNative: QuiescoNativeModule | null = requireOptionalNativeModule<QuiescoNativeModule>('QuiescoNative');

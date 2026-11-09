@@ -9,6 +9,7 @@ import type {
   AgentEvents,
   AgentMethods,
   AssertionSpec,
+  ControlValue,
   Direction,
   Edge,
   ElementSummary,
@@ -173,6 +174,37 @@ export class Driver {
   }
   async dismissKeyboard(opts?: ActionOptions): Promise<void> {
     await this.action({ type: 'dismissKeyboard' }, opts);
+  }
+
+  // ---- value controls (Phase 6.3) ----
+
+  /**
+   * Set a value control: a slider (number), a switch / checkbox (boolean), a picker (an item's value or
+   * label), a segmented control (a segment's value or index), a date / time picker or a date input
+   * (Date). Real input where the control has it — a tap on a switch or segment, iOS wheels turned by a
+   * finger, a browser `<select>` / date input — otherwise the component's callbacks, with the events
+   * the native component sends (docs/api.md, "Value controls"). A component that renders no view of its
+   * own (Android's DateTimePicker, which opens a system dialog) is found by its testID or name.
+   */
+  setValue(target: MatcherInput, value: number | boolean | string | Date, opts?: ActionOptions): Promise<ElementSummary | undefined> {
+    return this.action({ type: 'setValue', matcher: toMatcher(target), value: toControlValue(value) }, opts);
+  }
+  /**
+   * Drag a slider's thumb to `position` (0 = minimum, 1 = maximum) with a real finger / mouse, then
+   * (in-app native mode) read the value back and correct the drag if it missed. `js` mode sets the
+   * corresponding value through the callbacks.
+   */
+  adjustSlider(target: MatcherInput, position: number, opts?: ActionOptions): Promise<ElementSummary | undefined> {
+    return this.action({ type: 'adjustSlider', matcher: toMatcher(target), position: checkUnit(position, 'position') }, opts);
+  }
+  /**
+   * Perform an accessibility action the element declares (`accessibilityActions`), as a screen reader
+   * does: iOS through VoiceOver's increment / decrement and custom actions, Android through
+   * performAccessibilityAction; the web (no such DOM API) through onAccessibilityAction.
+   */
+  accessibilityAction(target: MatcherInput, name: string, opts?: ActionOptions): Promise<ElementSummary | undefined> {
+    if (typeof name !== 'string' || name === '') throw new RangeError('name must be a non-empty string');
+    return this.action({ type: 'accessibilityAction', matcher: toMatcher(target), name }, opts);
   }
 
   // ---- assertions (§6.4) ----
@@ -376,6 +408,17 @@ export class Driver {
 function checkPoint(p: Point, name: string): Point {
   if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) throw new RangeError(`${name} must have finite x and y, got ${JSON.stringify(p)}`);
   return { x: p.x, y: p.y };
+}
+
+/** A setValue argument in JSON: dates as ISO strings. */
+export function toControlValue(v: number | boolean | string | Date): ControlValue {
+  if (v instanceof Date) {
+    if (Number.isNaN(v.getTime())) throw new RangeError('setValue got an invalid Date');
+    return { date: v.toISOString() };
+  }
+  if (typeof v === 'number' && !Number.isFinite(v)) throw new RangeError(`setValue got ${v}`);
+  if (typeof v !== 'number' && typeof v !== 'boolean' && typeof v !== 'string') throw new RangeError(`setValue takes a number, boolean, string or Date, got ${typeof v}`);
+  return v;
 }
 
 function checkUnit(v: number, name: string): number {

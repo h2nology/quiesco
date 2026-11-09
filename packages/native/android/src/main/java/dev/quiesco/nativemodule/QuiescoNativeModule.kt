@@ -9,7 +9,9 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.accessibility.AccessibilityNodeInfo
 import android.view.inputmethod.EditorInfo
+import android.widget.AbsSeekBar
 import android.widget.EditText
 import com.facebook.react.uimanager.UIManagerHelper
 import expo.modules.kotlin.Promise
@@ -164,6 +166,52 @@ class QuiescoNativeModule : Module() {
       }
       promise.resolve(mapOf("text" to (edit.text?.toString() ?: ""), "inputConnection" to (ic != null), "focused" to edit.isFocused))
     }.runOnQueue(Queues.MAIN)
+
+    /**
+     * Geometry of the SeekBar in `tag`'s view, in dp of its window: x of the thumb center at the minimum
+     * and at the maximum (the track spans the view minus its horizontal padding), the current thumb x and y.
+     */
+    AsyncFunction("sliderInfo") { tag: Int ->
+      val view = findView(tag) ?: return@AsyncFunction mapOf("found" to false)
+      val bar = findSeekBar(view) ?: return@AsyncFunction mapOf("found" to false)
+      val d = density()
+      val loc = IntArray(2)
+      bar.getLocationInWindow(loc)
+      val lo = loc[0] + bar.paddingLeft
+      val hi = loc[0] + bar.width - bar.paddingRight
+      val min = if (Build.VERSION.SDK_INT >= 26) bar.min else 0
+      val ratio = if (bar.max > min) (bar.progress - min).toFloat() / (bar.max - min) else 0f
+      mapOf(
+        "found" to true, "minX" to lo / d, "maxX" to hi / d, "y" to (loc[1] + bar.height / 2f) / d,
+        "thumbX" to (lo + (hi - lo) * ratio) / d, "value" to bar.progress, "minimum" to min, "maximum" to bar.max,
+      )
+    }.runOnQueue(Queues.MAIN)
+
+    /**
+     * Perform the accessibility action `name` on `tag`'s view the way TalkBack does
+     * (View.performAccessibilityAction). React Native's ReactAccessibilityDelegate maps the standard
+     * names to framework actions and gives every other declared action a generated id (from 0x3f000000)
+     * in declaration order: `customIndex` is the action's index among those.
+     */
+    AsyncFunction("accessibilityAction") { tag: Int, name: String, _label: String, _index: Int, customIndex: Int, promise: Promise ->
+      val view = findView(tag) ?: return@AsyncFunction promise.reject("E_NO_VIEW", "view $tag not found", null)
+      // Like TalkBack, read the node info first: ReactAccessibilityDelegate fills its id → name map there,
+      // and only performs actions it has listed.
+      val info = view.createAccessibilityNodeInfo()
+      val id = STANDARD_ACTIONS[name] ?: info.actionList.filter { it.id >= CUSTOM_ACTION_BASE }.getOrNull(customIndex)?.id
+        ?: return@AsyncFunction promise.reject("E_NO_ACTION", "view $tag has no accessibility action \"$name\"", null)
+      if (info.actionList.none { it.id == id }) {
+        return@AsyncFunction promise.reject("E_NO_ACTION", "view $tag does not offer the accessibility action \"$name\" (offers ${info.actionList.map { it.id }})", null)
+      }
+      val performed = view.performAccessibilityAction(id, null)
+      promise.resolve(mapOf("performed" to performed, "via" to "performAccessibilityAction", "actionId" to id))
+    }.runOnQueue(Queues.MAIN)
+  }
+
+  private fun findSeekBar(view: View): AbsSeekBar? {
+    if (view is AbsSeekBar) return view
+    if (view is ViewGroup) for (i in 0 until view.childCount) findSeekBar(view.getChildAt(i))?.let { return it }
+    return null
   }
 
   private fun density(): Float = appContext.reactContext?.resources?.displayMetrics?.density ?: 1f
@@ -231,6 +279,16 @@ class QuiescoNativeModule : Module() {
   }
 
   companion object {
+    /** ReactAccessibilityDelegate: standard action names → framework action ids. */
+    val STANDARD_ACTIONS = mapOf(
+      "activate" to AccessibilityNodeInfo.ACTION_CLICK,
+      "longpress" to AccessibilityNodeInfo.ACTION_LONG_CLICK,
+      "increment" to AccessibilityNodeInfo.ACTION_SCROLL_FORWARD,
+      "decrement" to AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD,
+      "expand" to AccessibilityNodeInfo.ACTION_EXPAND,
+      "collapse" to AccessibilityNodeInfo.ACTION_COLLAPSE,
+    )
+    const val CUSTOM_ACTION_BASE = 0x3f000000
     const val DOUBLE_TAP_GAP_MS = 80L
     const val STEP_MS = 16
   }

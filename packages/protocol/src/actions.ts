@@ -16,6 +16,17 @@ export type KeyName = 'enter' | 'backspace';
 /** Edges for `scrollToEdge`. */
 export type Edge = 'top' | 'bottom' | 'left' | 'right';
 
+/** A date in JSON: ISO 8601 (`Date.prototype.toISOString()`). */
+export interface DateValue {
+  date: string;
+}
+
+/**
+ * What `setValue` sets (Phase 6.3): a number (slider), a boolean (switch, checkbox), a string (picker item
+ * value or label, segment value) or a date (date / time picker, `<input type="date">`).
+ */
+export type ControlValue = number | boolean | string | DateValue;
+
 /**
  * Actions from requirements.md §6.3 (extended in Phase 6.2).
  * - `point`: where to touch inside the element (default: its center).
@@ -42,6 +53,12 @@ export type ActionSpec =
   /** Window coordinates, no element (Detox `device.tap(point)`). */
   | { type: 'tapAt'; point: Point }
   | { type: 'longPressAt'; point: Point; durationMs?: number }
+  /** Set a value control (slider, switch, picker, segmented control, date picker) to `value`. */
+  | { type: 'setValue'; matcher: Matcher; value: ControlValue }
+  /** Move a slider's thumb to `position` (0 = minimum, 1 = maximum) — Detox adjustSliderToPosition. */
+  | { type: 'adjustSlider'; matcher: Matcher; position: number }
+  /** Perform a declared accessibility action (`accessibilityActions`) — Detox performAccessibilityAction. */
+  | { type: 'accessibilityAction'; matcher: Matcher; name: string }
   | { type: 'pressBack' }
   | { type: 'openUrl'; url: string }
   | { type: 'dismissKeyboard' };
@@ -61,5 +78,9 @@ export type HostInput =
   | { kind: 'wheel'; x: number; y: number; dx: number; dy: number }
   /** Press a key on the focused element (Playwright key name, e.g. `Enter`, `Backspace`). */
   | { kind: 'key'; key: string }
+  /** Choose the option with this value in the `<select>` at (x, y) (Playwright selectOption). */
+  | { kind: 'select'; x: number; y: number; value: string }
+  /** Set the value of the `<input>` at (x, y) as a user would (Playwright fill: date / time inputs). */
+  | { kind: 'fill'; x: number; y: number; value: string }
   | { kind: 'navigate'; url: string }
   | { kind: 'back' };

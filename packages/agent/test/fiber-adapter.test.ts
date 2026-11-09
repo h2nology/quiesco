@@ -390,3 +390,42 @@ describe('HostNode: owner names, focus, clipping, input value (Phase 6.1)', () =
     expect(checkbox?.isFocused()).toBe(false);
   });
 });
+
+describe('component lookup (Phase 6.3)', () => {
+  it('findProps returns the nearest fiber whose props match, with its component name, within a depth', () => {
+    const { adapter, target } = setup();
+    function Slider() {
+      return null;
+    }
+    renderWith(
+      target,
+      makeRoot({ tag: WorkTag.FunctionComponent, type: Slider, props: { value: 3, onValueChange: () => {} }, children: [host('RCTSlider', { testID: 's', onChange: () => {} })] }),
+    );
+    const [s] = adapter.getHostRoots();
+    expect(s?.findProps((p) => typeof p['onChange'] === 'function')).toMatchObject({ name: null }); // the host itself
+    expect(s?.findProps((p) => typeof p['onValueChange'] === 'function')).toMatchObject({ name: 'Slider', props: { value: 3 } });
+    expect(s?.findProps((p) => typeof p['onValueChange'] === 'function', 0)).toBeNull();
+  });
+
+  it('findHostlessComposites finds components rendering no host, outermost only', () => {
+    const { adapter, target } = setup();
+    function Picker() {
+      return null;
+    }
+    function Inner() {
+      return null;
+    }
+    renderWith(
+      target,
+      makeRoot(
+        host('RCTView', {},
+          { tag: WorkTag.FunctionComponent, type: Picker, props: { testID: 'when' }, children: [{ tag: WorkTag.FunctionComponent, type: Inner, props: { testID: 'when' }, children: [] }] },
+          { tag: WorkTag.FunctionComponent, type: Picker, props: { testID: 'other' }, children: [host('RCTView', { testID: 'rendered' })] },
+        ),
+      ),
+    );
+    const found = adapter.findHostlessComposites((c) => c.testID === 'when');
+    expect(found.map((c) => [c.name, c.rendersHost])).toEqual([['Picker', false]]);
+    expect(adapter.findHostlessComposites((c) => c.testID === 'other')).toEqual([]);
+  });
+});
