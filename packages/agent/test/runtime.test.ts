@@ -27,6 +27,7 @@ function setup(opts: { busy?: () => boolean; native?: ReturnType<AppDeps['native
     interactionManager: () => null,
     appState: () => opts.appState?.() ?? 'active',
     windowInfo: () => ({ width: 400, height: 800, pixelRatio: 3 }),
+    settings: () => ({ colorScheme: 'dark', fontScale: 1.235, locale: 'ja-JP' }),
   };
   const storageCleared: number[] = [];
   const tracker: IdleTracker = { name: 'fake', isIdle: () => !(opts.busy?.() ?? false), describeBusy: () => ['fake busy'], install() {}, uninstall() {} };
@@ -475,7 +476,16 @@ describe('AgentRuntime lifecycle (Phase 6.5)', () => {
 
   it('deviceInfo reports the window, pixel ratio and app state', async () => {
     const { call } = setup({ appState: () => 'background' });
-    expect(await call('deviceInfo', {})).toEqual({ window: { width: 400, height: 800 }, pixelRatio: 3, appState: 'background' });
+    expect(await call('deviceInfo', {})).toEqual({ window: { width: 400, height: 800 }, pixelRatio: 3, appState: 'background', colorScheme: 'dark', fontScale: 1.235, locale: 'ja-JP' });
+  });
+
+  it('setOrientation asks @quiesco/native (iOS) and reports what it said; unsupported without it', async () => {
+    const rotate = vi.fn(async (landscape: boolean) => (landscape ? '' : 'The requested orientation is not supported'));
+    const s = setup({ native: { ...native(), setOrientation: rotate } });
+    expect(await s.call('setOrientation', { orientation: 'landscape' })).toEqual({ supported: true });
+    expect(await s.call('setOrientation', { orientation: 'portrait' })).toEqual({ supported: true, error: 'The requested orientation is not supported' });
+    expect(rotate.mock.calls).toEqual([[true], [false]]);
+    expect(await setup().call('setOrientation', { orientation: 'landscape' })).toEqual({ supported: false });
   });
 
   it('suspend uses @quiesco/native when it can, else reports false', async () => {

@@ -4,10 +4,10 @@
  * Platform differences live in the DeviceProviders; this class only orders the steps and keeps track of
  * whether the app is running, so element calls fail fast instead of waiting for a reconnect.
  */
-import type { DeviceInfo, Rect } from '@quiesco/protocol';
+import type { DeviceInfo, Orientation, Rect } from '@quiesco/protocol';
 
 import type { Permission } from './devices/permissions.js';
-import type { DeviceProvider, LaunchUrlHandling } from './devices/provider.js';
+import type { ColorScheme, DeviceProvider, InAppControls, LaunchUrlHandling, StateChange } from './devices/provider.js';
 import { QuiescoError } from './errors.js';
 import { checkLaunchArgs } from './launch-args.js';
 import type { LaunchArgs } from './launch-args.js';
@@ -43,6 +43,7 @@ export interface DeviceHost {
   /** Agent calls that bypass the "app is running" check. */
   deviceInfo(timeoutMs?: number): Promise<DeviceInfo>;
   suspendInApp(): Promise<boolean>;
+  setOrientationInApp(orientation: Orientation): Promise<{ supported: boolean; error?: string }>;
   /** Re-send the current agent config (after the app was in the background). */
   reapplyConfig(): Promise<void>;
   waitForIdle(): Promise<void>;
@@ -55,8 +56,22 @@ export interface DeviceHost {
 const STATE_WAIT_MS = 5_000;
 const STATE_POLL_MS = 100;
 
+/** How long a device-state change may take to reach the app (it is read back from the app). */
+const SETTLE_MS = 8_000;
+
 export class DeviceApi {
+  /** Permissions changed this scenario, restored before the next one (HU 2026-11-09). */
+  private readonly permissionChanges = new Set<Permission>();
+
   constructor(private readonly host: DeviceHost) {}
+
+  private get inApp(): InAppControls {
+    return {
+      suspend: () => this.host.suspendInApp(),
+      // Not while the app is down: a terminated app starts in portrait, and a request would wait for a reconnect.
+      setOrientation: async (o) => (this.host.appState === 'running' ? this.host.setOrientationInApp(o) : { supported: false }),
+    };
+  }
 
   get platform(): DeviceProvider['platform'] {
     return this.host.provider.platform;
@@ -107,7 +122,7 @@ export class DeviceApi {
     const p = this.host.provider;
     if (p.sendToBackground === undefined) throw notSupported('sendToBackground', p.platform, BACKGROUND_HINT[p.platform]);
     this.requireRunning('sendToBackground');
-    await p.sendToBackground({ suspend: () => this.host.suspendInApp() });
+    await p.sendToBackground(this.inApp);
     this.host.appState = 'background';
     // Best effort: iOS may suspend the app's JS right away, then there is no answer.
     await this.waitForAppState((s) => s === 'background', false);
@@ -169,6 +184,126 @@ export class DeviceApi {
     await this.host.provider.unreversePort?.(port);
   }
 
+  // ---- device state (Phase 6.6); each change is undone before the next scenario ----
+
+  /** Rotate the app. Resolves once the app's window has the new shape and the app is idle. */
+  async setOrientation(orientation: Orientation): Promise<void> {
+    if (orientation !== 'portrait' && orientation !== 'landscape') throw new RangeError(`orientation must be 'portrait' or 'landscape', got ${String(orientation)}`);
+    const p = this.provider('setOrientation');
+    this.requireRunning('setOrientation');
+    await p.setOrientation(orientation, this.inApp);
+    await this.waitForApp(
+      (i) => (orientation === 'landscape' ? i.window.width > i.window.height : i.window.height >= i.window.width),
+      (i) => `the app's window is still ${i.window.width}×${i.window.height}: does the app lock its orientation? (app.json "orientation": "default")`,
+    );
+  }
+
+  /** Simulated GPS position. */
+  async setLocation(latitude: number, longitude: number): Promise<void> {
+    if (!(Math.abs(latitude) <= 90) || !(Math.abs(longitude) <= 180)) throw new RangeError(`invalid location ${latitude}, ${longitude}`);
+    await this.provider('setLocation').setLocation({ latitude, longitude });
+  }
+
+  /**
+   * Grant or revoke a permission while the app runs. Where the system kills the app on revoke
+   * (Android), the app is started again (data kept) before this resolves (HU 2026-11-09).
+   */
+  async setPermission(permission: Permission, state: 'grant' | 'revoke'): Promise<void> {
+    if (state !== 'grant' && state !== 'revoke') throw new RangeError(`state must be 'grant' or 'revoke', got ${String(state)}`);
+    const change = await this.provider('setPermission').setPermission(permission, state === 'grant');
+    this.permissionChanges.add(permission);
+    await this.afterChange(change, `setPermission(${permission}, revoke)`);
+  }
+
+  /** Light / dark mode. The app must follow the system (app.json "userInterfaceStyle": "automatic"). */
+  async setAppearance(scheme: ColorScheme): Promise<void> {
+    if (scheme !== 'light' && scheme !== 'dark') throw new RangeError(`scheme must be 'light' or 'dark', got ${String(scheme)}`);
+    this.requireRunning('setAppearance');
+    await this.provider('setAppearance').setAppearance(scheme);
+    await this.waitForApp(
+      (i) => i.colorScheme === undefined || i.colorScheme === scheme,
+      (i) => `the app still reports colorScheme ${String(i.colorScheme)}: does it force one? (app.json "userInterfaceStyle": "automatic")`,
+    );
+  }
+
+  /**
+   * System text size. iOS uses the nearest Dynamic Type size and applies it live; Android starts the app
+   * again (data kept), as it would recreate the activity. Resolves with the scale applied.
+   */
+  async setFontScale(scale: number): Promise<number> {
+    if (!(scale >= 0.5 && scale <= 4)) throw new RangeError(`font scale must be between 0.5 and 4, got ${scale}`);
+    this.requireRunning('setFontScale');
+    const { scale: applied, ...change } = await this.provider('setFontScale').setFontScale(scale);
+    await this.afterChange(change, 'setFontScale');
+    await this.waitForApp(
+      (i) => i.fontScale === undefined || Math.abs(i.fontScale - applied) < 0.01,
+      (i) => `the app still reports font scale ${String(i.fontScale)} (expected ${applied})`,
+    );
+    return applied;
+  }
+
+  /**
+   * The app's language and region (BCP 47, e.g. `ja-JP`); `null` for the device default. The app is
+   * started again with it (data kept): iOS and the web apply a locale at launch, and Android recreates
+   * the activity, which the JS app does not survive cleanly.
+   */
+  async setLocale(locale: string | null): Promise<void> {
+    if (locale !== null && !/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(locale)) throw new RangeError(`locale must be a BCP 47 tag like 'ja-JP', got ${locale}`);
+    const change = await this.provider('setLocale').setLocale(locale);
+    await this.afterChange(change, 'setLocale');
+    if (locale === null) return;
+    const lang = (locale.split('-')[0] as string).toLowerCase();
+    await this.waitForApp(
+      (i) => i.locale === undefined || i.locale.toLowerCase().split('-')[0] === lang,
+      (i) => `the app still uses locale ${String(i.locale)}: does it support ${locale}? (iOS: CFBundleLocalizations in Info.plist, expo.ios.infoPlist)`,
+    );
+  }
+
+  /**
+   * Undo this scenario's device-state changes (called by the session before each scenario, and at the
+   * end without starting the app again).
+   */
+  async resetDeviceState(configured: readonly Permission[], opts: { relaunch?: boolean } = {}): Promise<void> {
+    const p = this.host.provider;
+    let relaunch = false;
+    for (const perm of this.permissionChanges) {
+      const change = await p.setPermission?.(perm, configured.includes(perm)).catch(() => undefined);
+      relaunch ||= change?.relaunch === true;
+    }
+    this.permissionChanges.clear();
+    if (p.resetDeviceState !== undefined) {
+      const change = await p.resetDeviceState(this.inApp);
+      relaunch ||= change.relaunch;
+    }
+    if (relaunch && opts.relaunch !== false && this.host.appState !== 'terminated') await this.relaunch();
+  }
+
+  private provider<K extends 'setOrientation' | 'setLocation' | 'setPermission' | 'setAppearance' | 'setFontScale' | 'setLocale'>(method: K): Required<Pick<DeviceProvider, K>> {
+    const p = this.host.provider;
+    if (p[method] === undefined) throw notSupported(method, p.platform, STATE_HINT[method]?.[p.platform]);
+    return p as unknown as Required<Pick<DeviceProvider, K>>;
+  }
+
+  /** The app must be started again (or the system killed it): relaunch keeping data. */
+  private async afterChange(change: StateChange, what: string): Promise<void> {
+    if (!change.relaunch || this.host.appState === 'terminated') return;
+    this.host.logger.info(`${what}: starting the app again`);
+    await this.relaunch();
+  }
+
+  /** Wait until the app reports `ok`, then for idle; fail with `why` after SETTLE_MS. */
+  private async waitForApp(ok: (i: DeviceInfo) => boolean, why: (i: DeviceInfo) => string): Promise<void> {
+    const deadline = Date.now() + SETTLE_MS;
+    let last: DeviceInfo | null = null;
+    for (;;) {
+      last = await this.host.deviceInfo(Math.max(1000, deadline - Date.now())).catch(() => last);
+      if (last !== null && ok(last)) break;
+      if (Date.now() >= deadline) throw new QuiescoError('DEVICE_ERROR', last === null ? 'the app did not answer' : why(last));
+      await new Promise((r) => setTimeout(r, STATE_POLL_MS));
+    }
+    await this.host.waitForIdle();
+  }
+
   /** Same as `app.openUrl(url)`. */
   openUrl(url: string): Promise<void> {
     return this.host.openUrl(url);
@@ -203,6 +338,10 @@ export class DeviceApi {
     if (required) throw new QuiescoError('DEVICE_ERROR', `the app did not become active within ${STATE_WAIT_MS}ms (AppState: ${last})`);
   }
 }
+
+const STATE_HINT: Partial<Record<string, Partial<Record<DeviceProvider['platform'], string>>>> = {
+  setFontScale: { web: 'browsers have no system text size' },
+};
 
 const BACKGROUND_HINT: Record<DeviceProvider['platform'], string> = {
   ios: '',

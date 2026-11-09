@@ -33,6 +33,8 @@ export interface AppDeps {
   appState(): AppStateName;
   /** The window in logical units and physical pixels per unit. */
   windowInfo(): { width: number; height: number; pixelRatio: number };
+  /** What the app sees of the device settings (Phase 6.6 read-backs). */
+  settings(): { colorScheme: 'light' | 'dark' | null; fontScale: number; locale: string };
 }
 
 /** What the agent uses of @quiesco/native besides the action bridge. */
@@ -41,6 +43,8 @@ export type NativeModuleLike = NativeBridge & {
   getLaunchParams(): { port: string | null; session: string | null; args?: string | null };
   /** iOS: leave for the home screen. Missing on Android and in older native builds. */
   suspend?(): Promise<boolean>;
+  /** iOS: rotate the window scene; resolves with an error message, or '' when requested (Phase 6.6). */
+  setOrientation?(landscape: boolean): Promise<string>;
 };
 
 interface RN {
@@ -54,10 +58,25 @@ interface RN {
   InteractionManager?: InteractionManagerLike;
   AppState: { currentState: string | null | undefined };
   Dimensions: { get(dim: 'window'): { width: number; height: number } };
-  PixelRatio: { get(): number };
+  PixelRatio: { get(): number; getFontScale(): number };
+  Appearance: { getColorScheme(): string | null | undefined };
 }
 
 const rn = (): RN => require('react-native') as RN;
+
+type MatchMedia = (query: string) => { matches: boolean };
+
+/**
+ * The color scheme the app sees, read without disturbing it. Where `matchMedia` exists (the web), a
+ * fresh MediaQueryList is asked: reading `matches` on react-native-web's own list (Appearance) updates
+ * its remembered state, and Chromium then dispatches no change event to the app's listeners
+ * (useColorScheme never updates; found in Phase 6.6). Native: React Native's Appearance.
+ */
+export function readColorScheme(matchMedia: MatchMedia | undefined, appearance: () => string | null | undefined): 'light' | 'dark' | null {
+  if (typeof matchMedia === 'function') return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  const s = appearance();
+  return s === 'light' || s === 'dark' ? s : null;
+}
 
 export const defaultAppDeps: AppDeps = {
   platform() {
@@ -94,6 +113,14 @@ export const defaultAppDeps: AppDeps = {
   windowInfo() {
     const { width, height } = rn().Dimensions.get('window');
     return { width, height, pixelRatio: rn().PixelRatio.get() };
+  },
+  settings() {
+    const mm = (globalThis as { matchMedia?: MatchMedia }).matchMedia;
+    return {
+      colorScheme: readColorScheme(mm?.bind(globalThis), () => rn().Appearance.getColorScheme()),
+      fontScale: rn().PixelRatio.getFontScale(),
+      locale: Intl.DateTimeFormat().resolvedOptions().locale,
+    };
   },
   interactionManager() {
     try {

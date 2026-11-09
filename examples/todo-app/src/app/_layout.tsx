@@ -31,6 +31,7 @@ function App() {
       <Stack.Screen name="controls" options={{ title: '值控件', gestureEnabled: false }} />
       <Stack.Screen name="gestures" options={{ title: '多指手势', gestureEnabled: false }} />
       <Stack.Screen name="lifecycle" options={{ title: '生命周期' }} />
+      <Stack.Screen name="device" options={{ title: '设备状态' }} />
     </Stack>
   );
 }

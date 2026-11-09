@@ -32,6 +32,12 @@ The same features, steps and `this.app` calls run on all three platforms. What d
 | `bringToForeground()` | `simctl launch` (same process) | launcher intent (same task) | — |
 | `install()` / `uninstall()` | `simctl install` / `uninstall` | `adb install -r -g` / `uninstall` | no install: `uninstall` is `ACTION_NOT_SUPPORTED`, `relaunch({ reinstall })` acts like `clearData` |
 | `reversePort()` | no-op (shares the Mac's network) | `adb reverse` | no-op |
+| `setOrientation()` | the window scene is rotated by `@quiesco/native` ≥ Phase 6.6 (simctl cannot rotate) | auto-rotate off, `user_rotation` | viewport sides swapped |
+| `setAppearance()` | `simctl ui appearance` | `cmd uimode night` | `emulateMedia({ colorScheme })` |
+| `setFontScale()` | `simctl ui content_size`, nearest Dynamic Type size (0.823 … 3.571), live | `settings put system font_scale`, then the app is started again (data kept) | `ACTION_NOT_SUPPORTED` |
+| `setLocale()` | relaunch with `-AppleLanguages` / `-AppleLocale` (needs `CFBundleLocalizations`) | per-app language, `cmd locale set-app-locales` (Android 13+), then the app is started again | a new browser context with that locale (data kept) |
+| `setLocation()` | `simctl location set` (reset: `clear`) | `adb emu geo fix` (emulators only) | `context.setGeolocation` |
+| `setPermission()` | `simctl privacy grant / revoke` (no camera / notifications); the app keeps running | `pm grant / revoke`; a revoke kills the app → started again | `grantPermissions` / `clearPermissions` |
 | Value controls, accessibility actions (native mode) | need an app built with `@quiesco/native` ≥ Phase 6.3 (`sliderInfo`, `wheelInfo`, `accessibilityAction`) | same (`sliderInfo`, `accessibilityAction`) | — |
 
 ## Permissions
@@ -87,6 +93,11 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
   reach: `setValue` sets them through their callbacks (the date picker by its testID, as it renders no view).
 - Accessibility actions are performed after reading the node info, like TalkBack: React Native's delegate
   only handles actions it has listed there.
+- A font-scale or language change recreates the activity (React Native's default `configChanges` do not
+  include `fontScale` / `locale`). React's root then remounts inside the same JS context, and expo-router
+  58's imperative router stops working ("unavailable before the first render has finished") until the
+  app restarts. So `setFontScale` / `setLocale` start the app again (data kept), and so does undoing
+  them before the next scenario.
 - In the background Android pauses React Native's timers and nothing is drawn; the agent counts the
   timer, frame and native trackers as idle while the app is not active.
 - Emulators usually have a hardware keyboard, so the software keyboard does not appear while typing.
@@ -98,6 +109,9 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
 - Viewports come from the config (phone, tablet, desktop…); touch viewports get touch input.
 - A full page load reconnects the agent; the host waits for it without failing the step.
 - Testing only native platforms does not require Playwright; the web provider is loaded on demand.
+- Device-state read-backs never touch the app's own `MediaQueryList`: reading `matches` on the list that
+  react-native-web's `Appearance` listens to makes Chromium skip the change event, and
+  `useColorScheme()` would never update.
 - No background state: a page driven by Playwright stays `visible` whatever is tried (another tab in
   front, a minimized window, CDP lifecycle states, with or without Chromium's background switches).
   Tag background scenarios `@native`.

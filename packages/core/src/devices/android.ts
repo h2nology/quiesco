@@ -31,7 +31,7 @@ export function devClientLaunchUrl(url: string, metroUrl: string): string {
 import path from 'node:path';
 
 import { LAUNCH_PARAM_ARGS, LAUNCH_PARAM_PORT, LAUNCH_PARAM_SESSION } from '@quiesco/protocol';
-import type { HostInput } from '@quiesco/protocol';
+import type { HostInput, Orientation } from '@quiesco/protocol';
 
 import type { AndroidAppConfig, AndroidDeviceConfig } from '../config.js';
 import { QuiescoError } from '../errors.js';
@@ -40,7 +40,7 @@ import { silentLogger } from '../logger.js';
 import type { Exec, Spawn } from './exec.js';
 import { execCommand, shq, spawnDetached } from './exec.js';
 import type { Permission } from './permissions.js';
-import type { DeviceProvider, LaunchParams, LaunchUrlHandling } from './provider.js';
+import type { ColorScheme, DeviceProvider, LaunchParams, LaunchUrlHandling, StateChange } from './provider.js';
 
 const ANDROID_PERMISSIONS: Record<Permission, string[]> = {
   camera: ['android.permission.CAMERA'],
@@ -80,6 +80,8 @@ export class AndroidProvider implements DeviceProvider {
   readonly gestureSlop = { pinch: 26, rotation: (9 * Math.PI) / 180 };
   private serial: string | null = null;
   private bootedByUs = false;
+  /** Shell commands that undo device-state changes (resetDeviceState), by setting. */
+  private readonly restore = new Map<string, string[]>();
   private readonly exec: Exec;
   private readonly spawn: Spawn;
   private readonly logger: Logger;
@@ -299,6 +301,83 @@ export class AndroidProvider implements DeviceProvider {
   async bringToForeground(): Promise<void> {
     const out = await this.shell(`am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n ${shq(`${this.pkg}/${this.activity}`)}`);
     if (/Error:/.test(out)) throw new QuiescoError('DEVICE_ERROR', `am start failed: ${out.trim()}`);
+  }
+
+  // ---- Phase 6.6 device state ----
+
+  /** Fixed rotation: auto-rotate off, `user_rotation` 0 (portrait) / 1 (landscape). */
+  async setOrientation(orientation: Orientation): Promise<void> {
+    if (!this.restore.has('rotation')) {
+      const auto = await this.settingValue('system', 'accelerometer_rotation', '1');
+      const user = await this.settingValue('system', 'user_rotation', '0');
+      this.restore.set('rotation', [`settings put system accelerometer_rotation ${auto}`, `settings put system user_rotation ${user}`]);
+    }
+    await this.shell('settings put system accelerometer_rotation 0');
+    await this.shell(`settings put system user_rotation ${orientation === 'landscape' ? 1 : 0}`);
+  }
+
+  /** Emulator console `geo fix` (longitude first); real devices cannot fake a location from adb. */
+  async setLocation(location: { latitude: number; longitude: number }): Promise<void> {
+    if (this.serial === null || !this.serial.startsWith('emulator-')) {
+      throw new QuiescoError('ACTION_NOT_SUPPORTED', `setLocation needs an Android emulator (${this.serial ?? 'no device'} is not one)`, { action: 'setLocation', platform: 'android' });
+    }
+    const out = await this.adbRun(['emu', 'geo', 'fix', String(location.longitude), String(location.latitude)]);
+    if (/KO/.test(out)) throw new QuiescoError('DEVICE_ERROR', `adb emu geo fix failed: ${out.trim()}`);
+  }
+
+  /** `pm grant` / `pm revoke`. Android kills the app when a permission is revoked (spike 6.6). */
+  async setPermission(permission: Permission, grant: boolean): Promise<StateChange> {
+    const names = ANDROID_PERMISSIONS[permission];
+    for (const n of names) {
+      const out = await this.shell(`pm ${grant ? 'grant' : 'revoke'} ${shq(this.pkg)} ${n}`).catch((e: unknown) => (e as Error).message);
+      if (/Exception|not a changeable|has not requested/i.test(out)) {
+        throw new QuiescoError('DEVICE_ERROR', `pm ${grant ? 'grant' : 'revoke'} ${n} failed (is it declared in the app manifest?): ${out.trim()}`);
+      }
+    }
+    return { relaunch: !grant };
+  }
+
+  async setAppearance(scheme: ColorScheme): Promise<void> {
+    if (!this.restore.has('night')) {
+      const now = /Night mode:\s*(\w+)/.exec(await this.shell('cmd uimode night').catch(() => ''))?.[1] ?? 'no';
+      this.restore.set('night', [`cmd uimode night ${now}`]);
+    }
+    await this.shell(`cmd uimode night ${scheme === 'dark' ? 'yes' : 'no'}`);
+  }
+
+  /**
+   * Font scale and app language are configuration changes the activity does not handle (React Native's
+   * default `configChanges`): Android recreates it, React's root remounts in the same JS context, and
+   * expo-router's imperative router stops working (Phase 6.6). The app is started again instead, so
+   * it runs with the new setting from a clean state — as on iOS / the web for a locale.
+   */
+  async setFontScale(scale: number): Promise<StateChange & { scale: number }> {
+    if (!this.restore.has('fontScale')) this.restore.set('fontScale', [`settings put system font_scale ${await this.settingValue('system', 'font_scale', '1.0')}`]);
+    await this.shell(`settings put system font_scale ${scale}`);
+    return { scale, relaunch: true };
+  }
+
+  /** Per-app language (Android 13+); the app is started again (see setFontScale). */
+  async setLocale(locale: string | null): Promise<StateChange> {
+    const out = await this.shell(`cmd locale set-app-locales ${shq(this.pkg)} --locales ${shq(locale ?? '')}`);
+    if (/Unknown|Error|Exception/i.test(out)) throw new QuiescoError('DEVICE_ERROR', `cmd locale set-app-locales failed (Android 13+ needed): ${out.trim()}`);
+    if (locale !== null) this.restore.set('locale', [`cmd locale set-app-locales ${shq(this.pkg)} --locales ''`]);
+    else this.restore.delete('locale');
+    return { relaunch: true };
+  }
+
+  async resetDeviceState(): Promise<StateChange> {
+    // Restoring the font scale or the language recreates the activity again (see setFontScale).
+    const relaunch = this.restore.has('fontScale') || this.restore.has('locale');
+    for (const cmds of this.restore.values()) for (const c of cmds) await this.shell(c).catch(() => undefined);
+    this.restore.clear();
+    return { relaunch };
+  }
+
+  /** `settings get <ns> <key>`; `fallback` when unset ("null"). */
+  private async settingValue(ns: string, key: string, fallback: string): Promise<string> {
+    const v = (await this.shell(`settings get ${ns} ${key}`).catch(() => '')).trim();
+    return v === '' || v === 'null' ? fallback : v;
   }
 
   async reversePort(port: number): Promise<void> {

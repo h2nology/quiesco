@@ -108,6 +108,8 @@ export interface QuiescoNativeModule {
   getLaunchParams(): { port: string | null; session: string | null; args: string | null };
   /** iOS only: leave for the home screen (private `-[UIApplication suspend]`); false when unavailable. */
   suspend?(): Promise<boolean>;
+  /** iOS only: rotate the window scene; resolves with "" or iOS's error message (Phase 6.6). */
+  setOrientation?(landscape: boolean): Promise<string>;
   locate(tag: number): Promise<LocateResult>;
   /** iOS: who would receive a touch at the window point (x, y) of `tag`'s window. */
   hitAt?(tag: number, x: number, y: number): Promise<Pick<LocateResult, 'windowHasFocus' | 'hitClass' | 'hitChain' | 'hitTags'>>;

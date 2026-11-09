@@ -20,7 +20,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { LAUNCH_PARAM_ARGS, LAUNCH_PARAM_PORT, LAUNCH_PARAM_SESSION, LAUNCH_PARAM_URL } from '@quiesco/protocol';
-import type { HostInput } from '@quiesco/protocol';
+import type { HostInput, Orientation } from '@quiesco/protocol';
 
 import type { IosAppConfig, IosDeviceConfig } from '../config.js';
 import { QuiescoError } from '../errors.js';
@@ -29,7 +29,7 @@ import { silentLogger } from '../logger.js';
 import type { Exec } from './exec.js';
 import { execCommand } from './exec.js';
 import type { Permission } from './permissions.js';
-import type { DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling } from './provider.js';
+import type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, StateChange } from './provider.js';
 
 /** `simctl privacy` services; camera and notifications have none (Xcode 27). */
 const IOS_PRIVACY: Partial<Record<Permission, string[]>> = {
@@ -39,6 +39,37 @@ const IOS_PRIVACY: Partial<Record<Permission, string[]>> = {
   photos: ['photos'],
   calendar: ['calendar'],
 };
+
+/**
+ * Dynamic Type sizes (`simctl ui content_size`) and the font scale React Native reports for each
+ * (RCTAccessibilityManager.mm `multipliers`, RN 0.88).
+ */
+export const IOS_CONTENT_SIZES: readonly (readonly [string, number])[] = [
+  ['extra-small', 0.823],
+  ['small', 0.882],
+  ['medium', 0.941],
+  ['large', 1.0],
+  ['extra-large', 1.118],
+  ['extra-extra-large', 1.235],
+  ['extra-extra-extra-large', 1.353],
+  ['accessibility-medium', 1.786],
+  ['accessibility-large', 2.143],
+  ['accessibility-extra-large', 2.643],
+  ['accessibility-extra-extra-large', 3.143],
+  ['accessibility-extra-extra-extra-large', 3.571],
+];
+
+/** The Dynamic Type size whose font scale is nearest to `scale`. */
+export function nearestContentSize(scale: number): readonly [string, number] {
+  let best = IOS_CONTENT_SIZES[3] as readonly [string, number];
+  for (const c of IOS_CONTENT_SIZES) if (Math.abs(c[1] - scale) < Math.abs(best[1] - scale)) best = c;
+  return best;
+}
+
+/** `ja-JP` → `-AppleLanguages (ja-JP) -AppleLocale ja_JP` launch arguments. */
+export function iosLocaleArgs(locale: string): string[] {
+  return ['-AppleLanguages', `(${locale})`, '-AppleLocale', locale.replace(/-/g, '_')];
+}
 
 /** Configuration-profile files holding the effective restrictions, relative to the simulator data directory. */
 export const IOS_RESTRICTION_FILES: readonly string[] = [
@@ -107,6 +138,10 @@ export class IosProvider implements DeviceProvider {
   readonly gestureSlop = { pinch: 9, rotation: (7 * Math.PI) / 180 };
   private sim: SimDevice | null = null;
   private bootedByUs = false;
+  /** Locale the app is launched with (setLocale); null = the simulator's. */
+  private locale: string | null = null;
+  /** Device settings changed by setX, with the value to restore (resetDeviceState). */
+  private readonly changed = new Map<'appearance' | 'contentSize' | 'location' | 'orientation', string>();
   private readonly exec: Exec;
   private readonly logger: Logger;
 
@@ -197,6 +232,7 @@ export class IosProvider implements DeviceProvider {
     args.push(`-${LAUNCH_PARAM_PORT}`, String(params.port), `-${LAUNCH_PARAM_SESSION}`, params.sessionId);
     if (params.args !== undefined) args.push(`-${LAUNCH_PARAM_ARGS}`, params.args);
     if (params.url !== undefined) args.push(`-${LAUNCH_PARAM_URL}`, params.url);
+    if (this.locale !== null) args.push(...iosLocaleArgs(this.locale));
     await this.simctl(args).catch((e: unknown) => {
       throw new QuiescoError('DEVICE_ERROR', `simctl launch failed: ${(e as Error).message}`);
     });
@@ -245,6 +281,90 @@ export class IosProvider implements DeviceProvider {
     await this.simctl(['launch', this.udid, this.bundleId]).catch((e: unknown) => {
       throw new QuiescoError('DEVICE_ERROR', `simctl launch failed: ${(e as Error).message}`);
     });
+  }
+
+  // ---- Phase 6.6 device state ----
+
+  /** simctl cannot rotate: the app's window scene is rotated by @quiesco/native. */
+  async setOrientation(orientation: Orientation, app: InAppControls): Promise<void> {
+    const r = await app.setOrientation(orientation);
+    if (!r.supported) {
+      throw new QuiescoError('ACTION_NOT_SUPPORTED', 'setOrientation on iOS needs @quiesco/native ≥ Phase 6.6 in the app (simctl cannot rotate)', {
+        action: 'setOrientation',
+        platform: 'ios',
+        hint: 'rebuild the app with EXPO_PUBLIC_QUIESCO=1 and @quiesco/expo-plugin',
+      });
+    }
+    if (r.error !== undefined) {
+      throw new QuiescoError('DEVICE_ERROR', `iOS refused to rotate the app to ${orientation}: ${r.error} (does the app allow it? app.json "orientation": "default")`);
+    }
+    if (!this.changed.has('orientation')) this.changed.set('orientation', 'portrait');
+  }
+
+  async setLocation(location: { latitude: number; longitude: number }): Promise<void> {
+    await this.simctl(['location', this.udid, 'set', `${location.latitude},${location.longitude}`]);
+    this.changed.set('location', 'clear');
+  }
+
+  async setPermission(permission: Permission, grant: boolean): Promise<StateChange> {
+    const services = IOS_PRIVACY[permission];
+    if (services === undefined) {
+      throw new QuiescoError('ACTION_NOT_SUPPORTED', `the "${permission}" permission cannot be changed on the iOS simulator (simctl privacy has no such service)`, {
+        action: 'setPermission',
+        platform: 'ios',
+      });
+    }
+    for (const svc of services) await this.simctl(['privacy', this.udid, grant ? 'grant' : 'revoke', svc, this.bundleId]);
+    // The simulator keeps the app running when a permission is revoked (spike 6.6).
+    return { relaunch: false };
+  }
+
+  async setAppearance(scheme: ColorScheme): Promise<void> {
+    if (!this.changed.has('appearance')) this.changed.set('appearance', await this.current('appearance', 'light'));
+    await this.simctl(['ui', this.udid, 'appearance', scheme]);
+  }
+
+  async setFontScale(scale: number): Promise<StateChange & { scale: number }> {
+    const [size, applied] = nearestContentSize(scale);
+    if (!this.changed.has('contentSize')) this.changed.set('contentSize', await this.current('content_size', 'large'));
+    await this.simctl(['ui', this.udid, 'content_size', size]);
+    return { scale: applied, relaunch: false }; // applied live
+  }
+
+  /** Applied at launch (`-AppleLanguages`): the app is started again. It must declare the language (CFBundleLocalizations). */
+  async setLocale(locale: string | null): Promise<StateChange> {
+    const changed = this.locale !== locale;
+    this.locale = locale;
+    return { relaunch: changed };
+  }
+
+  async resetDeviceState(app: InAppControls): Promise<StateChange> {
+    for (const [what, value] of this.changed) {
+      switch (what) {
+        case 'orientation':
+          await app.setOrientation('portrait').catch(() => undefined); // a terminated app starts in portrait anyway
+          break;
+        case 'location':
+          await this.simctl(['location', this.udid, 'clear']).catch(() => undefined);
+          break;
+        case 'appearance':
+          await this.simctl(['ui', this.udid, 'appearance', value]);
+          break;
+        case 'contentSize':
+          await this.simctl(['ui', this.udid, 'content_size', value]);
+          break;
+      }
+    }
+    this.changed.clear();
+    const relaunch = this.locale !== null;
+    this.locale = null;
+    return { relaunch };
+  }
+
+  /** Current `simctl ui` value (light / dark, a content size), or `fallback`. */
+  private async current(option: 'appearance' | 'content_size', fallback: string): Promise<string> {
+    const v = (await this.simctl(['ui', this.udid, option]).catch(() => '')).trim();
+    return v === '' || v === 'unknown' || v === 'unsupported' ? fallback : v;
   }
 
   /** The simulator shares the Mac's network: host ports are reachable as they are. */

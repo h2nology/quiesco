@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import type { Exec } from '../src/devices/exec';
-import { IOS_DEV_MENU_ARGS, IOS_RESTRICTION_FILES, IosProvider, chooseSimulator, runtimeMatches } from '../src/devices/ios';
+import { IOS_DEV_MENU_ARGS, IOS_RESTRICTION_FILES, IosProvider, chooseSimulator, iosLocaleArgs, nearestContentSize, runtimeMatches } from '../src/devices/ios';
 import type { IosProviderOptions, SimDevice } from '../src/devices/ios';
 
 const R27 = 'com.apple.CoreSimulator.SimRuntime.iOS-27-0';
@@ -225,5 +225,68 @@ describe('IosProvider lifecycle (Phase 6.5)', () => {
     await p.uninstall();
     expect(calls.slice(-2)).toEqual(['xcrun simctl terminate NEW-17 com.example.todo', 'xcrun simctl uninstall NEW-17 com.example.todo']);
     await p.reversePort();
+  });
+});
+
+describe('IosProvider device state (Phase 6.6)', () => {
+  const inApp = (r: { supported: boolean; error?: string }) => ({ suspend: async () => false, setOrientation: async () => r });
+
+  it('maps a font scale to the nearest Dynamic Type size (React Native multipliers) and builds locale arguments', () => {
+    expect(nearestContentSize(1)).toEqual(['large', 1]);
+    expect(nearestContentSize(1.25)).toEqual(['extra-extra-large', 1.235]);
+    expect(nearestContentSize(1.3)).toEqual(['extra-extra-extra-large', 1.353]);
+    expect(nearestContentSize(2.6)).toEqual(['accessibility-extra-large', 2.643]);
+    expect(nearestContentSize(9)).toEqual(['accessibility-extra-extra-extra-large', 3.571]);
+    expect(iosLocaleArgs('ja-JP')).toEqual(['-AppleLanguages', '(ja-JP)', '-AppleLocale', 'ja_JP']);
+  });
+
+  it('rotates through the app, and says why when it cannot', async () => {
+    const { p } = provider([]);
+    await p.boot();
+    await p.setOrientation('landscape', inApp({ supported: true }));
+    await expect(p.setOrientation('landscape', inApp({ supported: false }))).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED' });
+    await expect(p.setOrientation('landscape', inApp({ supported: true, error: 'unsupported orientation' }))).rejects.toThrow(/app\.json "orientation"/);
+  });
+
+  it('sets location, permissions, appearance and text size with simctl, and restores the previous values', async () => {
+    const { p, calls } = provider([
+      [/ui NEW-17 appearance$/, 'dark\n'],
+      [/ui NEW-17 content_size$/, 'medium\n'],
+    ]);
+    await p.boot();
+    calls.length = 0;
+    await p.setLocation({ latitude: 35.68, longitude: 139.76 });
+    await expect(p.setPermission('location', false)).resolves.toEqual({ relaunch: false });
+    await expect(p.setPermission('camera', true)).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED' });
+    await p.setAppearance('light');
+    await p.setAppearance('dark');
+    await expect(p.setFontScale(1.25)).resolves.toEqual({ scale: 1.235, relaunch: false });
+    expect(calls).toEqual([
+      'xcrun simctl location NEW-17 set 35.68,139.76',
+      'xcrun simctl privacy NEW-17 revoke location com.example.todo',
+      'xcrun simctl ui NEW-17 appearance',
+      'xcrun simctl ui NEW-17 appearance light',
+      'xcrun simctl ui NEW-17 appearance dark',
+      'xcrun simctl ui NEW-17 content_size',
+      'xcrun simctl ui NEW-17 content_size extra-extra-large',
+    ]);
+    calls.length = 0;
+    await expect(p.resetDeviceState(inApp({ supported: true }))).resolves.toEqual({ relaunch: false });
+    expect(calls).toEqual(['xcrun simctl location NEW-17 clear', 'xcrun simctl ui NEW-17 appearance dark', 'xcrun simctl ui NEW-17 content_size medium']);
+    calls.length = 0;
+    await p.resetDeviceState(inApp({ supported: true }));
+    expect(calls).toEqual([]);
+  });
+
+  it('applies a locale at launch (the app is started again), until reset', async () => {
+    const { p, calls } = provider([]);
+    await p.boot();
+    await expect(p.setLocale('ja-JP')).resolves.toEqual({ relaunch: true });
+    await expect(p.setLocale('ja-JP')).resolves.toEqual({ relaunch: false });
+    await p.launch({ port: 1, sessionId: 's' });
+    expect(calls.at(-1)).toBe('xcrun simctl launch --terminate-running-process NEW-17 com.example.todo -quiescoPort 1 -quiescoSession s -AppleLanguages (ja-JP) -AppleLocale ja_JP');
+    await expect(p.resetDeviceState(inApp({ supported: true }))).resolves.toEqual({ relaunch: true });
+    await p.launch({ port: 1, sessionId: 's' });
+    expect(calls.at(-1)).not.toContain('AppleLanguages');
   });
 });

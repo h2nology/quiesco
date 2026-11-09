@@ -21,18 +21,30 @@ public class QuiescoNativeModule: Module {
       Self.deliverLaunchUrl()
     }
 
-    /** Phase 6.6 spike: rotate the app's window scene (iOS 16+ geometry request). */
-    AsyncFunction("spikeOrientation") { (landscape: Bool, promise: Promise) in
+    /**
+     * `app.device.setOrientation()` (Phase 6.6): rotate the app's window scene with a geometry request
+     * (simctl has no rotation command). Resolves with "" when requested, or iOS's error (e.g. the app
+     * does not support that orientation). The window's size changes right after; the host waits for it.
+     */
+    AsyncFunction("setOrientation") { (landscape: Bool, promise: Promise) in
       guard let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else {
-        promise.resolve("no window scene")
+        promise.resolve("the app has no window scene")
         return
       }
       scene.keyWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
       let mask: UIInterfaceOrientationMask = landscape ? .landscapeRight : .portrait
-      var failure: String? = nil
-      scene.requestGeometryUpdate(.iOS(interfaceOrientations: mask)) { error in failure = error.localizedDescription }
-      DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-        promise.resolve(failure.map { "error: \($0)" } ?? "requested; interface orientation \(scene.interfaceOrientation.rawValue)")
+      var settled = false
+      scene.requestGeometryUpdate(.iOS(interfaceOrientations: mask)) { error in
+        // Called only when the request fails.
+        guard !settled else { return }
+        settled = true
+        promise.resolve(error.localizedDescription)
+      }
+      // A successful request has no callback: report it on the next run loop turn.
+      DispatchQueue.main.async {
+        guard !settled else { return }
+        settled = true
+        promise.resolve("")
       }
     }.runOnQueue(.main)
 

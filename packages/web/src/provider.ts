@@ -13,8 +13,8 @@
  *   Playwright stays visible whatever is tried (findings 6.5 spike), so sendToBackground is not offered.
  */
 import { LAUNCH_PARAM_PORT, LAUNCH_PARAM_SESSION, WEB_PARAMS_GLOBAL } from '@quiesco/protocol';
-import type { HostInput } from '@quiesco/protocol';
-import type { DeviceProvider, LaunchParams, LaunchUrlHandling, Logger, Permission, WebAppConfig, WebDeviceConfig } from '@quiesco/core';
+import type { HostInput, Orientation } from '@quiesco/protocol';
+import type { ColorScheme, DeviceProvider, LaunchParams, LaunchUrlHandling, Logger, Permission, StateChange, WebAppConfig, WebDeviceConfig } from '@quiesco/core';
 import { QuiescoError, silentLogger } from '@quiesco/core';
 import { chromium, firefox, webkit } from 'playwright';
 import type { Browser, BrowserContext, BrowserType, Page } from 'playwright';
@@ -69,6 +69,13 @@ export class WebProvider implements DeviceProvider {
   private permissions: string[] = [];
   /** Cookies / storage of the last context, kept by terminate({ keepData: true }) for the next launch. */
   private kept: StorageState | null = null;
+  /** Device state (Phase 6.6), applied to the open page and to every new context until reset. */
+  private orientation: Orientation | null = null;
+  private geolocation: { latitude: number; longitude: number } | null = null;
+  private colorScheme: ColorScheme | null = null;
+  private locale: string | null = null;
+  /** Permissions granted at runtime beyond / revoked from the configured ones. */
+  private permissionsAtStart: string[] | null = null;
   private readonly pageErrors: string[] = [];
   private readonly logger: Logger;
 
@@ -115,12 +122,16 @@ export class WebProvider implements DeviceProvider {
     const kept = this.kept;
     this.kept = null;
     const vp = this.device.viewport;
+    const size = this.viewportSize();
     const context = await this.browser.newContext({
       ...(vp !== undefined
-        ? { viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: vp.deviceScaleFactor ?? 1, hasTouch: vp.hasTouch ?? false, isMobile: vp.isMobile ?? false }
+        ? { viewport: size ?? { width: vp.width, height: vp.height }, deviceScaleFactor: vp.deviceScaleFactor ?? 1, hasTouch: vp.hasTouch ?? false, isMobile: vp.isMobile ?? false }
         : {}),
       permissions: this.permissions,
       ...(kept !== null ? { storageState: kept } : {}),
+      ...(this.geolocation !== null ? { geolocation: this.geolocation } : {}),
+      ...(this.colorScheme !== null ? { colorScheme: this.colorScheme } : {}),
+      ...(this.locale !== null ? { locale: this.locale } : {}),
     });
     await context.addInitScript(
       ({ key, port, session, args }) => {
@@ -236,6 +247,82 @@ export class WebProvider implements DeviceProvider {
         await page.goBack();
         return;
     }
+  }
+
+  // ---- Phase 6.6 device state ----
+
+  /** The configured viewport, turned to `this.orientation`; null without a configured viewport. */
+  private viewportSize(): { width: number; height: number } | null {
+    const vp = this.device.viewport;
+    if (vp === undefined) return null;
+    const long = Math.max(vp.width, vp.height);
+    const short = Math.min(vp.width, vp.height);
+    if (this.orientation === 'landscape') return { width: long, height: short };
+    if (this.orientation === 'portrait') return { width: short, height: long };
+    return { width: vp.width, height: vp.height };
+  }
+
+  /** Swaps the viewport's sides (a `resize` for the page; `screen.orientation` follows). */
+  async setOrientation(orientation: Orientation): Promise<void> {
+    if (this.device.viewport === undefined) {
+      throw new QuiescoError('ACTION_NOT_SUPPORTED', 'setOrientation on the web needs a configured viewport (devices.web.viewport)', { action: 'setOrientation', platform: 'web' });
+    }
+    this.orientation = orientation;
+    await this.requirePage().setViewportSize(this.viewportSize() as { width: number; height: number });
+  }
+
+  async setLocation(location: { latitude: number; longitude: number }): Promise<void> {
+    this.geolocation = { ...location };
+    await this.context?.setGeolocation(this.geolocation);
+  }
+
+  async setPermission(permission: Permission, grant: boolean): Promise<StateChange> {
+    const name = WEB_PERMISSIONS[permission];
+    if (name === undefined) {
+      throw new QuiescoError('ACTION_NOT_SUPPORTED', `the "${permission}" permission does not exist on the web`, { action: 'setPermission', platform: 'web' });
+    }
+    if (this.permissionsAtStart === null) this.permissionsAtStart = [...this.permissions];
+    this.permissions = grant ? [...new Set([...this.permissions, name])] : this.permissions.filter((p) => p !== name);
+    // Playwright cannot revoke a single permission: clear all, grant the rest again.
+    await this.context?.clearPermissions();
+    if (this.permissions.length > 0) await this.context?.grantPermissions(this.permissions);
+    return { relaunch: false };
+  }
+
+  async setAppearance(scheme: ColorScheme): Promise<void> {
+    this.colorScheme = scheme;
+    await this.requirePage().emulateMedia({ colorScheme: scheme });
+  }
+
+  /** A browser context's locale is fixed when it is created: the app is opened again in a new one (data kept). */
+  async setLocale(locale: string | null): Promise<StateChange> {
+    const changed = this.locale !== locale;
+    this.locale = locale;
+    return { relaunch: changed };
+  }
+
+  async resetDeviceState(): Promise<StateChange> {
+    const page = this.page;
+    if (this.orientation !== null) {
+      this.orientation = null;
+      const vp = this.device.viewport;
+      if (page !== null && vp !== undefined) await page.setViewportSize({ width: vp.width, height: vp.height });
+    }
+    if (this.geolocation !== null) {
+      this.geolocation = null;
+      await this.context?.setGeolocation(null);
+    }
+    if (this.colorScheme !== null) {
+      this.colorScheme = null;
+      await page?.emulateMedia({ colorScheme: null });
+    }
+    if (this.permissionsAtStart !== null) {
+      this.permissions = this.permissionsAtStart;
+      this.permissionsAtStart = null;
+    }
+    const relaunch = this.locale !== null;
+    this.locale = null;
+    return { relaunch };
   }
 
   async shutdown(): Promise<void> {

@@ -146,12 +146,13 @@ export class Session {
   }
 
   /**
-   * Before each scenario: undo the previous scenario's `app.sync.*` changes, bring a backgrounded app
+   * Before each scenario: undo the previous scenario's `app.sync.*` and device-state changes, bring a backgrounded app
    * back / start a terminated one, then soft reset — or terminate + relaunch for `@hard-reset` (or
    * `reset.default: 'hard'`).
    */
   async beforeScenario(info: ScenarioInfo = {}): Promise<void> {
     await this.sync.reset();
+    await this.device.resetDeviceState(this.config.permissions ?? []);
     const hard = info.tags?.includes(tagNames(this.config.tags).hardReset) === true || this.config.reset?.default === 'hard';
     if (hard || this.appState === 'terminated') {
       await this.provider.terminate();
@@ -185,6 +186,10 @@ export class Session {
   }
 
   async dispose(): Promise<void> {
+    // Leave the device as it was: undo the last scenario's device-state changes (best effort).
+    await this.device.resetDeviceState(this.config.permissions ?? [], { relaunch: false }).catch((e: unknown) =>
+      this.logger.warn(`restoring the device state failed: ${(e as Error).message}`),
+    );
     await this.server.stop();
     await this.provider.shutdown().catch((e: unknown) => this.logger.warn(`device shutdown failed: ${(e as Error).message}`));
   }
@@ -245,6 +250,7 @@ export class Session {
       },
       deviceInfo: (timeoutMs) => this.driver.request('deviceInfo', {}, timeoutMs),
       suspendInApp: async () => (await this.driver.request('suspend', {}, 3_000)).suspended,
+      setOrientationInApp: (orientation) => this.driver.request('setOrientation', { orientation }, 5_000),
       reapplyConfig: () => this.pushAgentConfig(),
       waitForIdle: async () => {
         await this.driver.waitForIdle();

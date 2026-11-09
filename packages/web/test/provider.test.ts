@@ -131,6 +131,42 @@ describe('WebProvider (real Chromium)', () => {
   });
 });
 
+describe('WebProvider device state (Phase 6.6, real Chromium)', () => {
+  it('turns the viewport, emulates color scheme, location and permissions, opens again with a locale, and resets', async () => {
+    const p = new WebProvider({ app: { distDir: dir }, device: { viewport: { width: 390, height: 844 } } });
+    await p.boot();
+    await p.install();
+    await p.grantPermissions(['location']);
+    await p.launch({ port: 7357, sessionId: 's' });
+    const page = () => (p as unknown as { page: { evaluate<T>(f: string): Promise<T> } }).page;
+    try {
+      await p.setOrientation('landscape');
+      expect(await page().evaluate('[innerWidth, innerHeight]')).toEqual([844, 390]);
+      await p.setAppearance('dark');
+      expect(await page().evaluate("matchMedia('(prefers-color-scheme: dark)').matches")).toBe(true);
+      await p.setLocation({ latitude: 35.68, longitude: 139.76 });
+      expect(await page().evaluate('new Promise((r) => navigator.geolocation.getCurrentPosition((x) => r([x.coords.latitude, x.coords.longitude]), (e) => r(e.message)))')).toEqual([35.68, 139.76]);
+      await expect(p.setPermission('location', false)).resolves.toEqual({ relaunch: false });
+      expect(await page().evaluate("navigator.permissions.query({ name: 'geolocation' }).then((s) => s.state)")).toBe('prompt');
+      await expect(p.setPermission('contacts', true)).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED' });
+
+      // A locale needs a new context: the next launch has it, with the other state carried over.
+      await expect(p.setLocale('ja-JP')).resolves.toEqual({ relaunch: true });
+      await p.terminate({ keepData: true });
+      await p.launch({ port: 7357, sessionId: 's' });
+      expect(await page().evaluate('[navigator.language, innerWidth, matchMedia("(prefers-color-scheme: dark)").matches]')).toEqual(['ja-JP', 844, true]);
+
+      await expect(p.resetDeviceState()).resolves.toEqual({ relaunch: true });
+      expect(await page().evaluate('[innerWidth, matchMedia("(prefers-color-scheme: dark)").matches]')).toEqual([390, false]);
+      await p.terminate({ keepData: true });
+      await p.launch({ port: 7357, sessionId: 's' });
+      expect(await page().evaluate("Promise.all([navigator.language === 'ja-JP', navigator.permissions.query({ name: 'geolocation' }).then((s) => s.state)])")).toEqual([false, 'granted']);
+    } finally {
+      await p.shutdown();
+    }
+  });
+});
+
 describe('webPathFor', () => {
   it('turns app scheme URLs into paths and keeps paths / http URLs', () => {
     expect(webPathFor('todo://todos/1?tab=a#h')).toBe('/todos/1?tab=a#h');

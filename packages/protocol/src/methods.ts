@@ -41,7 +41,14 @@ export interface AgentMethods {
   deviceInfo: { params: Record<string, never>; result: DeviceInfo };
   /** Leave for the home screen from inside the app (iOS @quiesco/native); `false` when not available. */
   suspend: { params: Record<string, never>; result: { suspended: boolean } };
+  /**
+   * Rotate the app's window from inside the app (iOS @quiesco/native; Phase 6.6). `supported: false`
+   * when the app cannot (no native module, other platforms); `error` when iOS refused the request.
+   */
+  setOrientation: { params: { orientation: Orientation }; result: { supported: boolean; error?: string } };
 }
+
+export type Orientation = 'portrait' | 'landscape';
 
 /** `AppState` as React Native reports it; `unknown` where it cannot be read. */
 export type AppStateName = 'active' | 'background' | 'inactive' | 'unknown';
@@ -52,6 +59,12 @@ export interface DeviceInfo {
   /** Physical pixels per logical unit. */
   pixelRatio: number;
   appState: AppStateName;
+  /** Phase 6.6 read-backs (optional for older agents): what the app sees of the device state. */
+  colorScheme?: 'light' | 'dark' | null;
+  /** Text size multiplier (`PixelRatio.getFontScale()`). */
+  fontScale?: number;
+  /** The JS engine's default locale (`Intl.DateTimeFormat().resolvedOptions().locale`). */
+  locale?: string;
 }
 
 /** Methods the AGENT calls on the HOST. */

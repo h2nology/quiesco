@@ -50,6 +50,11 @@ quiesco.backdoor('openLifecycle', () => {
   router.push('/lifecycle');
 });
 
+// The hidden device-state page (src/app/device.tsx), used by features/device.feature.
+quiesco.backdoor('openDevice', () => {
+  router.push('/device');
+});
+
 quiesco.onReset(async () => {
   await api.replaceTodos([]);
   store.clear();

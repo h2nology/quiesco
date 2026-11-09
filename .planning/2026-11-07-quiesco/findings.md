@@ -359,3 +359,7 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 **④ 剪贴板**：iOS `simctl pbcopy` 写入后 App 读取 → 弹「Quiesco Todo に CoreSimulatorBridge からペースト…」确认框，读取一直挂起、App 变 inactive ⇒ `clipboard.set` 必须由原生模块在 App 进程内写（App 读自己写的内容不弹框）；App 写后 `simctl pbpaste` 可读。Android 无 shell 命令，App 进程内读写（expo-clipboard）正常 ⇒ 两端都走原生模块。Web 授予 clipboard-read / write 后 `navigator.clipboard` 读写正常。
 **⑤ 离线**：Android `svc wifi disable` + `svc data disable` → NetInfo 立即 offline、外网 fetch 失败；经 `adb reverse` 的 localhost（mock 后端、Quiesco 连接、Metro）不受影响；`enable` 后恢复 online。Web `context.setOffline(true)` → `navigator.onLine` false + `offline` 事件、fetch 失败（Failed to fetch）。iOS 模拟器无设备级断网（agent 拦截，NetInfo 感知不到）。
 - 其他：Android 模拟器访问 https://example.com 在线时也报 SSL trust anchor 错误（模拟器证书问题，与本阶段无关）；示例 App 装了 `@react-native-community/netinfo` 12.0.1、`expo-clipboard` 58.0.4（SDK 58 自带版本），iOS 原生临时函数 `spikeOrientation` 实现时改名为正式函数。
+
+## 6.6 实现发现（2026-11-09）
+- **Chromium MediaQueryList 的观察者效应**：对某个 MediaQueryList 读 `matches` 会更新它记住的匹配状态；之后媒体特性变化时 Chromium 比较「上次状态」与当前值，没有差异就不派发 change 事件。react-native-web 的 `Appearance` 在模块作用域保存一个 MediaQueryList，`getColorScheme()` 与 `addChangeListener` 共用它 ⇒ 测试工具在 emulateMedia 之后立即调用 `Appearance.getColorScheme()` 会吞掉 App 的 change 事件（useColorScheme 不更新）。新建的 MediaQueryList 互不影响。⇒ 读回一律用新建的 MediaQueryList。
+- RN 0.88 iOS 字号倍数表（RCTAccessibilityManager.mm `multipliers`）：xs 0.823、s 0.882、m 0.941、l 1.0、xl 1.118、xxl 1.235、xxxl 1.353、a-m 1.786、a-l 2.143、a-xl 2.643、a-xxl 3.143、a-xxxl 3.571（与 spike 实测一致）。

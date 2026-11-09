@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-6.4 完成并提交（2026-11-09）。6.5 完成并提交（c5a4200，2026-11-09）。6.6 spike 完成（2026-11-09，findings.md「6.6 spike」）。下一步：6.6 实现批次 A。
+6.4 完成并提交（2026-11-09）。6.5 完成并提交（c5a4200，2026-11-09）。6.6 批次 A 完成（2026-11-09，三端实跑通过，待提交）。下一步：6.6 批次 B（状态栏、离线、剪贴板）。
 
 ## Current Phase
 Phase 6
@@ -401,3 +401,11 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | 6.5 spike：iOS 原生模块 OnCreate 里创建 LinkingAppDelegateSubscriber 崩溃（EXC_BREAKPOINT） | 1 | app-delegate subscriber 是 @MainActor，OnCreate 不在主线程 → `DispatchQueue.main.async`；实测仍早于 expo-router 首次读取 |
 | 6.5 Web 实跑：terminate 后 tap 等了 30 s 重连才失败 | 1 | action() 先调 mode() 读连接，状态检查在 call() 里太晚 → checkAppRunning 前移到 action()；新增 Driver 直测（连接永不返回），反向测试：去掉修复后超时失败 |
 | 6.5 iOS xcodebuild：「Scanning for @ExpoModule classes didn't complete」 | 1 | 与 Android `prebuild --clean` 同时跑导致；Android 构建结束后重试即成功（两端构建不要并行） |
+| 6.6 Web 实跑：深色模式下页面 useColorScheme 不更新（agent 读回却是 dark） | 1 | 读回用的 `Appearance.getColorScheme()` 读的是 react-native-web 监听的同一个 MediaQueryList，读 `matches` 会更新它记住的状态，Chromium 随后不再派发 change 事件 → agent 改为在有 matchMedia 时新建 MediaQueryList 读取（readColorScheme + 单测）；修复前该场景失败即反向证据 |
+| 6.6 Web 实跑：新方法报 ACTION_NOT_SUPPORTED | 1 | `@quiesco/web` 从 dist 加载，未重建；`pnpm -r build` 后正常（原生 / web 包改动后先构建再实跑） |
+| 6.6 Android 实跑：放大字号之后 11 个场景连锁失败（router.push 报 imperative router unavailable before first render） | 1 | 字号 / 语言变化重建 Activity，React 根在同一 JS context 内重挂载，expo-router 58 的命令式路由失效且软重置救不回 → Android setFontScale / setLocale 及其恢复都保留数据重启 App（与 iOS / Web 的 locale、Android 撤销权限一致）；会话结束时也恢复设备状态（不重启） |
+| 6.6 Android 首次实跑：App 30 s 内未连接 | 1 | 原因未定位（重跑即正常；当时 Metro 冷启动 + 新原生依赖）；若再现需看完整诊断（之前被 grep 过滤） |
+| 6.6 Android 实跑：「模拟定位」后所有场景超时，模拟器看似无动静 | 1 | expo-location getCurrentPositionAsync 触发 Google Play 服务「Location Accuracy」系统对话框盖住 App → 示例改 `mayShowUserSettingsDialog: false` + `Accuracy.High`（GPS，geo fix 喂的是 GPS；新模拟器无网络定位）。系统对话框的通用处理属 6.7 |
+| 6.6 Android：模拟器连续运行 7 小时后 App 启动到 JS 运行 26 s，连接超时 | 1 | 主机负载 ~7 + 模拟器老化；经 HU 同意 `adb emu kill` 后由 QUIESCO_AVD 冷启动，全量 3m35s |
+| 6.6 Web 桌面：「上一个场景的横屏已恢复」断言 portrait 失败 | 1 | 桌面视口本身横向，Quiesco 恢复到配置视口是对的 → 示例改为与首次打开时的方向比较 |
+

@@ -1,5 +1,5 @@
 /** Device abstraction (requirements.md §6.9). One implementation per platform; platform branches live here. */
-import type { GestureSlop, HostInput, Platform } from '@quiesco/protocol';
+import type { GestureSlop, HostInput, Orientation, Platform } from '@quiesco/protocol';
 
 import type { Permission } from './permissions.js';
 
@@ -22,10 +22,20 @@ export interface LaunchParams {
  */
 export type LaunchUrlHandling = 'delivered' | 'needs-native';
 
-/** Ways into the app the provider may use for sendToBackground (iOS: `-[UIApplication suspend]`). */
+/** Ways into the app a provider may use (iOS: `-[UIApplication suspend]`, window rotation). */
 export interface InAppControls {
   /** Ask @quiesco/native to leave for the home screen; false when the app cannot. */
   suspend(): Promise<boolean>;
+  /** Ask @quiesco/native to rotate the window (Phase 6.6). */
+  setOrientation(orientation: Orientation): Promise<{ supported: boolean; error?: string }>;
+}
+
+export type ColorScheme = 'light' | 'dark';
+
+/** How a device-state change reached the app (Phase 6.6). */
+export interface StateChange {
+  /** The app must be started again to see it (iOS / web locale), or the system killed it (Android revoke). */
+  relaunch: boolean;
 }
 
 export interface DeviceProvider {
@@ -65,4 +75,21 @@ export interface DeviceProvider {
   /** Make a host port reachable from the device under the same port (Android `adb reverse`). */
   reversePort?(port: number): Promise<void>;
   unreversePort?(port: number): Promise<void>;
+
+  // ---- Phase 6.6 device state; a missing method means ACTION_NOT_SUPPORTED on that platform ----
+
+  setOrientation?(orientation: Orientation, app: InAppControls): Promise<void>;
+  setLocation?(location: { latitude: number; longitude: number }): Promise<void>;
+  /** Grant or revoke one permission while the app runs. */
+  setPermission?(permission: Permission, grant: boolean): Promise<StateChange>;
+  setAppearance?(scheme: ColorScheme): Promise<void>;
+  /** Text size; `scale` = what the platform actually applies (iOS: the nearest Dynamic Type size). */
+  setFontScale?(scale: number): Promise<StateChange & { scale: number }>;
+  /** BCP 47 locale, e.g. `ja-JP`; `null` = the device default. */
+  setLocale?(locale: string | null): Promise<StateChange>;
+  /**
+   * Undo every device-state change made since the last call (before each scenario, HU 2026-11-09).
+   * Permissions are restored by the caller (it knows the configured ones).
+   */
+  resetDeviceState?(app: InAppControls): Promise<StateChange>;
 }

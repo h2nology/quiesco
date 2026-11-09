@@ -235,3 +235,75 @@ describe('AndroidProvider lifecycle (Phase 6.5)', () => {
     await expect(p.uninstall()).rejects.toThrow(/DELETE_FAILED_INTERNAL_ERROR/);
   });
 });
+
+describe('AndroidProvider device state (Phase 6.6)', () => {
+  const booted = async (answers: [RegExp, string | Error][] = []) => {
+    const r = provider([...BOOTED, ...answers]);
+    await r.p.boot();
+    r.calls.length = 0;
+    return r;
+  };
+
+  it('rotates, sets night mode, font scale and app locale, and restores what was there before', async () => {
+    const { p, calls } = await booted([
+      [/settings get system accelerometer_rotation/, '1\n'],
+      [/settings get system user_rotation/, '0\n'],
+      [/cmd uimode night$/, 'Night mode: auto\n'],
+      [/settings get system font_scale/, 'null\n'],
+    ]);
+    await p.setOrientation('landscape');
+    await p.setOrientation('portrait');
+    await p.setAppearance('dark');
+    // Both would recreate the activity: the app is started again.
+    await expect(p.setFontScale(1.3)).resolves.toEqual({ scale: 1.3, relaunch: true });
+    await expect(p.setLocale('ja-JP')).resolves.toEqual({ relaunch: true });
+    const s = (c: string) => `adb -s emulator-5554 shell ${c}`;
+    expect(calls).toEqual([
+      s('settings get system accelerometer_rotation'),
+      s('settings get system user_rotation'),
+      s('settings put system accelerometer_rotation 0'),
+      s('settings put system user_rotation 1'),
+      s('settings put system accelerometer_rotation 0'),
+      s('settings put system user_rotation 0'),
+      s('cmd uimode night'),
+      s('cmd uimode night yes'),
+      s('settings get system font_scale'),
+      s('settings put system font_scale 1.3'),
+      s("cmd locale set-app-locales 'com.example.todo' --locales 'ja-JP'"),
+    ]);
+    calls.length = 0;
+    await expect(p.resetDeviceState()).resolves.toEqual({ relaunch: true });
+    expect(calls).toEqual([
+      s('settings put system accelerometer_rotation 1'),
+      s('settings put system user_rotation 0'),
+      s('cmd uimode night auto'),
+      s('settings put system font_scale 1.0'),
+      s("cmd locale set-app-locales 'com.example.todo' --locales ''"),
+    ]);
+    // Only rotation / night mode changed: restored live, no restart.
+    await p.setOrientation('landscape');
+    await expect(p.resetDeviceState()).resolves.toEqual({ relaunch: false });
+  });
+
+  it('grants and revokes (a revoke kills the app), and fakes the location on emulators only', async () => {
+    const { p, calls } = await booted();
+    await expect(p.setPermission('location', true)).resolves.toEqual({ relaunch: false });
+    await expect(p.setPermission('location', false)).resolves.toEqual({ relaunch: true });
+    await p.setLocation({ latitude: 35.68, longitude: 139.76 });
+    expect(calls).toEqual([
+      "adb -s emulator-5554 shell pm grant 'com.example.todo' android.permission.ACCESS_FINE_LOCATION",
+      "adb -s emulator-5554 shell pm grant 'com.example.todo' android.permission.ACCESS_COARSE_LOCATION",
+      "adb -s emulator-5554 shell pm revoke 'com.example.todo' android.permission.ACCESS_FINE_LOCATION",
+      "adb -s emulator-5554 shell pm revoke 'com.example.todo' android.permission.ACCESS_COARSE_LOCATION",
+      'adb -s emulator-5554 emu geo fix 139.76 35.68',
+    ]);
+    const device = provider([[/adb devices$/, 'List of devices attached\nR58M123\tdevice\n'], ...BOOTED.slice(2)], { device: { serial: 'R58M123' } });
+    await device.p.boot();
+    await expect(device.p.setLocation({ latitude: 1, longitude: 2 })).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED' });
+  });
+
+  it('reports a permission the app does not declare', async () => {
+    const { p } = await booted([[/pm grant .* android.permission.CAMERA/, 'Exception occurred: has not requested permission android.permission.CAMERA']]);
+    await expect(p.setPermission('camera', true)).rejects.toThrow(/declared in the app manifest/);
+  });
+});

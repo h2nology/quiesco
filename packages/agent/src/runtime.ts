@@ -266,7 +266,13 @@ export class AgentRuntime {
     },
     deviceInfo: async () => {
       const w = this.deps.windowInfo();
-      return { window: { width: w.width, height: w.height }, pixelRatio: w.pixelRatio, appState: this.deps.appState() };
+      return { window: { width: w.width, height: w.height }, pixelRatio: w.pixelRatio, appState: this.deps.appState(), ...this.deps.settings() };
+    },
+    setOrientation: async (p) => {
+      const rotate = this.nativeModule()?.setOrientation;
+      if (rotate === undefined) return { supported: false };
+      const error = await rotate(p.orientation === 'landscape');
+      return error === '' ? { supported: true } : { supported: true, error };
     },
     suspend: async () => {
       const suspend = this.nativeModule()?.suspend;

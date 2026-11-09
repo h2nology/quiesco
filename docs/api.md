@@ -208,6 +208,31 @@ await this.app.device.reversePort(3001);                          // Android: ad
 Before each scenario Quiesco starts an app a previous scenario left terminated, and brings a
 backgrounded one back, so scenarios stay independent.
 
+#### Device state
+
+```ts
+await this.app.device.setOrientation('landscape');      // resolves once the app's window has turned
+await this.app.device.setAppearance('dark');
+await this.app.device.setFontScale(1.3);                 // iOS: nearest Dynamic Type size; returns the scale applied
+await this.app.device.setLocale('ja-JP');                // iOS / web: the app is started again with it
+await this.app.device.setLocation(35.68, 139.76);
+await this.app.device.setPermission('location', 'revoke');
+```
+
+| Method | What it does |
+|---|---|
+| `setOrientation('portrait' \| 'landscape')` | Rotates the app and waits until its window has the new shape. The app must not lock its orientation (app.json `"orientation": "default"`) |
+| `setAppearance('light' \| 'dark')` | System color scheme; checked against what the app reports. The app must follow the system (`"userInterfaceStyle": "automatic"`) |
+| `setFontScale(n)` | System text size (0.5–4); resolves with the scale applied. Android starts the app again (data kept). Not on the web |
+| `setLocale(tag \| null)` | The app's language and region (BCP 47); `null` = device default. The app is started again with it (data kept). iOS needs the language in `CFBundleLocalizations` |
+| `setLocation(lat, lon)` | Simulated GPS position (Android: emulators only) |
+| `setPermission(name, 'grant' \| 'revoke')` | Change a permission while the app runs. Android kills the app on a revoke: Quiesco starts it again (data kept) before resolving, so the app is back on its first screen |
+
+Every change is undone before the next scenario, and when the session ends: permissions go back to the
+configured ones, the rest to what the device had (only what was changed is touched). A call that starts
+the app again leaves it on its first screen. Detox's `setURLBlacklist` is
+`this.app.sync.ignoreUrls.add()` here.
+
 ### Runtime synchronization (`this.app.sync`)
 
 Change what Quiesco waits for, for the rest of the scenario — instead of switching synchronization off
