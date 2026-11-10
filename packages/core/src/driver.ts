@@ -60,6 +60,9 @@ export interface DriverOptions {
 /** Calls without side effects, repeated once when the connection drops mid-call. */
 const RETRYABLE: ReadonlySet<keyof AgentMethods> = new Set(['query', 'assert', 'waitForIdle', 'getTree', 'getIdleState']);
 
+/** What an action returns when a JS dialog it opened blocks the page. */
+const DIALOG: unique symbol = Symbol('dialog');
+
 /** Extra wall-clock time on top of the agent-side timeout before the host gives up on a reply. */
 const HOST_MARGIN_MS = 5_000;
 /** Upper bound of steps of scrollToEdge / scrollToIndex in the agent (each may take the call timeout). */
@@ -391,19 +394,60 @@ export class Driver {
     const params: ParamsOf<AgentMethods['action']> = { action: spec, mode: opts.mode ?? (await this.mode()), ...syncParams(opts) };
     // Multi-step scrolls give every step the full timeout in the agent (bounded number of steps).
     const steps = spec.type === 'scrollToEdge' || spec.type === 'scrollToIndex' ? MAX_SCROLL_STEPS : 1;
-    const r = await this.call('action', params, opts.timeoutMs, steps);
-    if (r.hostInput !== undefined) {
-      const inject = this.options.provider.injectInput?.bind(this.options.provider);
-      if (inject === undefined) {
-        throw new QuiescoError('ACTION_NOT_SUPPORTED', `${spec.type} is not supported on ${this.options.provider.platform}`, {
-          action: spec.type,
-          platform: this.options.provider.platform,
-        });
+    // A JS dialog the action opens (web alert / confirm / prompt) blocks the page — its scripts, the agent
+    // and Playwright's input — until the test answers it: the action is done once the dialog is up.
+    const dialog = this.watchDialog();
+    try {
+      const r = await dialog.race(() => this.call('action', params, opts.timeoutMs, steps));
+      if (r === DIALOG) return undefined;
+      const input = r.hostInput;
+      if (input !== undefined) {
+        const inject = this.options.provider.injectInput?.bind(this.options.provider);
+        if (inject === undefined) {
+          throw new QuiescoError('ACTION_NOT_SUPPORTED', `${spec.type} is not supported on ${this.options.provider.platform}`, {
+            action: spec.type,
+            platform: this.options.provider.platform,
+          });
+        }
+        if ((await dialog.race(() => this.race(inject(input)))) === DIALOG) return r.element;
+        if (opts.sync !== false) await dialog.race(() => this.waitForIdle(opts.timeoutMs === undefined ? {} : { timeoutMs: opts.timeoutMs }));
       }
-      await this.race(inject(r.hostInput));
-      if (opts.sync !== false) await this.waitForIdle(opts.timeoutMs === undefined ? {} : { timeoutMs: opts.timeoutMs });
+      return r.element;
+    } finally {
+      dialog.stop();
     }
-    return r.element;
+  }
+
+  /**
+   * `race(start)` settles with DIALOG as soon as the page opens a JS dialog (providers that report them:
+   * the web); a call that fails because the dialog is open counts as DIALOG too.
+   */
+  private watchDialog(): { race<T>(start: () => Promise<T>): Promise<T | typeof DIALOG>; stop(): void } {
+    const subscribe = this.options.provider.onBlockingDialog?.bind(this.options.provider);
+    if (subscribe === undefined) return { race: (start) => start(), stop: () => undefined };
+    let open = false;
+    let opened!: () => void;
+    const shown = new Promise<typeof DIALOG>((resolve) => (opened = () => resolve(DIALOG)));
+    const stop = subscribe(() => {
+      open = true;
+      opened();
+    });
+    return {
+      race: async <T>(start: () => Promise<T>): Promise<T | typeof DIALOG> => {
+        if (open) return DIALOG;
+        const p = start();
+        try {
+          const r = await Promise.race([p, shown]);
+          // The blocked call settles after the dialog is answered (or times out): nobody waits for it.
+          if (r === DIALOG) p.catch(() => undefined);
+          return r;
+        } catch (e) {
+          if (open) return DIALOG;
+          throw e;
+        }
+      },
+      stop,
+    };
   }
 
   private async assert(spec: AssertionSpec, opts: CallOptions = {}): Promise<ElementSummary[]> {
@@ -430,8 +474,18 @@ export class Driver {
     return this.request(method, params, timeoutMs, steps);
   }
 
-  /** Fail fast while the test has the app terminated or in the background (no waiting for a reconnect). */
+  /**
+   * Fail fast while the test has the app terminated or in the background (no waiting for a reconnect), or
+   * while a web page is blocked on a JS dialog (the call would hang until the dialog is answered).
+   */
   private checkAppRunning(what: string): void {
+    const dialog = this.options.provider.blockingDialog?.() ?? null;
+    if (dialog !== null) {
+      throw new QuiescoError('DIALOG_OPEN', `${what}: the page is showing a dialog (${JSON.stringify(dialog)}); answer it first, e.g. app.device.system.tap({ text: 'OK' }) or { text: 'Cancel' }`, {
+        method: what,
+        message: dialog,
+      });
+    }
     const state = this.options.appState?.() ?? 'running';
     if (state === 'terminated') {
       throw new QuiescoError('APP_NOT_RUNNING', `${what}: the app is not running (the test terminated or uninstalled it); call app.device.relaunch() first`, { method: what });

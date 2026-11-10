@@ -1,7 +1,7 @@
 @REQ-DEMO-006 @native
 Feature: 系统集成（系统集成页）
   生物识别（Face ID / 指纹）、摇动、通知与系统对话框。每个场景开始时 Quiesco 会撤销上一个场景的生物识别录入和权限变更。
-  （演示 Phase 6.7。浏览器没有这些设备能力，整个 feature 只在 iOS / Android 上跑；场景上的 @ios / @android
+  （演示 Phase 6.7。浏览器没有这些设备能力，feature 默认只在 iOS / Android 上跑；场景上的 @ios / @android / @web
   比 feature 上的 @native 更靠内，以场景为准。）
 
   Background:
@@ -75,3 +75,25 @@ Feature: 系统集成（系统集成页）
     And 向 App 发送通知 "提醒"
     And 从通知栏打开通知 "提醒"
     Then 系统集成页仍然显示
+
+  # 浏览器的 alert / confirm 也是 App 之外的界面：对话框打开期间页面停住，用回答系统界面的同一组 step 回答它。
+  @web
+  Scenario: 取消网页的确认对话框
+    When 点击清零摇动次数
+    Then 系统界面显示 "清零摇动次数?"
+    When 点击系统界面上的 "Cancel"
+    Then 系统集成页显示对话框结果 "取消"
+    And 系统界面不再显示 "清零摇动次数?"
+
+  @web
+  Scenario: 确定网页的确认对话框
+    When 点击清零摇动次数
+    And 点击系统界面上的 "OK"
+    Then 系统集成页显示对话框结果 "确定"
+
+  @web
+  Scenario: 关闭网页的提示
+    When 点击显示提示
+    Then 系统界面显示 "已保存"
+    When 点击系统界面上的 "OK"
+    Then 系统集成页显示对话框结果 "提示已关闭"

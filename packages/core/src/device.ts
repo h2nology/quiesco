@@ -586,7 +586,7 @@ const NOTIFICATION_HINT: Record<DeviceProvider['platform'], string> = {
 const SYSTEM_UI_HINT: Record<DeviceProvider['platform'], string> = {
   ios: '',
   android: '',
-  web: SYSTEM_HINT.web,
+  web: "a browser's permission prompts are not part of the page: set them with app.device.setPermission",
 };
 
 const STATE_HINT: Partial<Record<string, Partial<Record<DeviceProvider['platform'], string>>>> = {

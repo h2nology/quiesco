@@ -75,6 +75,27 @@ When('点击系统界面上的 {string}', async function (this: QuiescoWorld, te
   await this.app.device.system.tap({ text });
 });
 
+Then('系统界面显示 {string}', async function (this: QuiescoWorld, text: string) {
+  await this.app.device.system.expectVisible({ text });
+});
+
+Then('系统界面不再显示 {string}', async function (this: QuiescoWorld, text: string) {
+  await this.app.device.system.expectNotVisible({ text });
+});
+
+// Web only: the page's confirm / alert stays open until answered (the tap returns once it is up).
+When('点击清零摇动次数', async function (this: QuiescoWorld) {
+  await this.app.tap('confirm-reset');
+});
+
+When('点击显示提示', async function (this: QuiescoWorld) {
+  await this.app.tap('show-alert');
+});
+
+Then('系统集成页显示对话框结果 {string}', async function (this: QuiescoWorld, result: string) {
+  await this.app.expectText('dialog-result', result);
+});
+
 // Back to "not determined", as after a fresh install (iOS reinstalls the app; Android kills and restarts
 // it), so the page is opened again.
 async function resetNotificationPermission(world: QuiescoWorld): Promise<void> {

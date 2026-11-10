@@ -264,12 +264,12 @@ await this.app.device.system.tap({ text: 'Cancel' });  // any system UI outside 
 | `sendNotification({ title, body?, data? })` | iOS: a simulated remote push (`simctl push`, `data` next to `aps`); the app's push library gets it while the app is in front, and the system shows it only when the app may show notifications (they cannot be pre-granted on the simulator). Android: an emulator has no push service, so the notification is posted as the app (needs the `notifications` permission); tapping it opens the app with `data` as intent extras, and the push library's callbacks do not fire. Works while the app is in the background |
 | `openNotification(title)` | Tap the notification: iOS its banner, or in Notification Center once the banner is gone; Android in the notification shade. Resolves when the app is in front and idle |
 | `clearKeychain()` | iOS: resets the simulator's keychain (every app's). Android has no keychain: `ACTION_NOT_SUPPORTED`, use `relaunch({ clearData: true })` |
-| `system.tap(query, { timeoutMs }?)` | Tap system UI outside the app (a permission dialog, the biometric prompt). `query`: `{ text }` (exact, typographic quotes ignored, or a RegExp) and / or `{ id }` (Android resource-id, or the part after `:id/`). Waits up to `timeoutMs` (10 s) for it to show up, then for the app to be idle |
+| `system.tap(query, { timeoutMs }?)` | Tap system UI outside the app (a permission dialog, the biometric prompt, a web page's JS dialog). `query`: `{ text }` (exact, typographic quotes ignored, or a RegExp) and / or `{ id }` (Android resource-id, or the part after `:id/`). Waits up to `timeoutMs` (10 s) for it to show up, then for the app to be idle |
 | `system.expectVisible(query)` / `system.expectNotVisible(query)` | Wait until such system UI is (not) on screen; `ELEMENT_NOT_FOUND` / `ASSERTION_FAILED` list the texts seen |
 | `system.allowPermission()` / `system.denyPermission()` | Answer the runtime permission dialog whatever the device language (Android: by its buttons' ids, also "while using the app" and "don't ask again"; iOS: by position, as iOS lays them out); resolves when the app is in front and idle |
 
-None of these exist on the web (`ACTION_NOT_SUPPORTED`; tag such scenarios `@native`; JavaScript `alert` /
-`confirm` dialogs are dismissed by Playwright). On Android they need an emulator (its console fakes the
+None of these exist on the web (`ACTION_NOT_SUPPORTED`; tag such scenarios `@native`), except `system.tap` /
+`expectVisible` / `expectNotVisible` for the page's JavaScript dialogs (below). On Android they need an emulator (its console fakes the
 sensors). On iOS, system UI belongs to SpringBoard: Quiesco builds a small XCUITest runner the first time
 it is needed (once per Xcode version, cached in `~/Library/Caches/quiesco/ios-runner`, about 10 s) and starts
 it on the simulator (2–4 s, once per session). Alerts outlive the app: one left by a scenario is dismissed
@@ -277,6 +277,23 @@ it on the simulator (2–4 s, once per session). Alerts outlive the app: one lef
 
 While a permission dialog (another activity) is in front, Android pauses the app's JS timers; Quiesco's idle
 wait notices that the app went to the background and returns, so the tap that opened the dialog completes.
+
+**Web JavaScript dialogs.** `alert`, `confirm` and `prompt` stay open until the test answers them, as a user
+would: they are system UI too. The dialog's message is a node with id `dialog.message`, its buttons are `OK`
+(`dialog.accept`) and, for `confirm` / `prompt`, `Cancel` (`dialog.dismiss`); a prompt accepted gets its
+default value.
+
+```ts
+await this.app.tap('clear-all');                                   // the page calls confirm('Delete all?')
+await this.app.device.system.expectVisible({ text: 'Delete all?' });
+await this.app.device.system.tap({ text: 'Cancel' });              // confirm() returns false; then waits for idle
+```
+
+While a dialog is open the page runs no script and takes no input, so the action that opened it returns as
+soon as the dialog is up (without waiting for idle), and any other call on the app fails at once with
+`DIALOG_OPEN` naming the dialog (answer it first); a screenshot too, the page does not paint. A dialog still
+open when the scenario ends is dismissed before the next one, with a warning. `beforeunload` prompts are
+always accepted (leaving or reloading the page is never held up).
 
 ### Runtime synchronization (`this.app.sync`)
 
@@ -472,6 +489,7 @@ Failures are `QuiescoError`s with `errorName`, a message that says what to do, a
 | `AGENT_TIMEOUT` | The app stopped answering — usually its JS thread is blocked |
 | `AGENT_DISCONNECTED`, `DEVICE_ERROR`, `CONFIG_ERROR` | Lost connection, device tooling failure (adb / simctl / Playwright), invalid config |
 | `APP_NOT_RUNNING` / `APP_IN_BACKGROUND` | The test terminated the app / sent it to the background (`this.app.device`); relaunch it / bring it back first |
+| `DIALOG_OPEN` | Web: the page shows a JavaScript dialog (`data.message`); answer it with `app.device.system.tap({ text: 'OK' })` / `{ text: 'Cancel' }` first |
 
 When a scenario fails, `@quiesco/cucumber` attaches a screenshot, the element tree and the tracker
 states to the report.

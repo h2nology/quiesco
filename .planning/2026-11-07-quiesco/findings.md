@@ -414,3 +414,11 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - **SpringBoard alert 不随 App 重启消失**：上一次运行留下的授权 alert 在 relaunch 后仍在，挡住 App（`no native view in a window`）⇒ 场景间重置要处理残留 alert。
 - 代价：依赖 Xcode（xcodebuild，按 Xcode 版本缓存 build-for-testing 产物）；每个会话一个常驻 xcodebuild 子进程；模拟器之外（真机）需签名，留给 6.13。
 - **实现后**：`relaunch({ reinstall: true })` 在 iOS 模拟器上把通知权限恢复为「未决定」（实跑确认）；残留 alert 在场景重置时按 cancel → deny → 第一个按钮关闭。
+
+## Web alert / confirm spike（2026-11-10；spikes/web-dialogs/dialogs.mts，Playwright 1.65）
+- 注册 `page.on('dialog')` 后 Playwright 不再自动关闭 dialog；`confirm()` 调用后约 14 ms 收到 dialog 事件（type / message / defaultValue）。
+- dialog 未处理期间：`page.mouse.click` 不返回、`page.evaluate` 被阻塞（页面 JS 冻结 ⇒ agent RPC 也不返回）。`dismiss()` 后 click 立即 resolve，页面得到 `false`。
+- `beforeunload` 同样被监听器挡住，`page.goto` 一直等到它被处理 ⇒ Quiesco 自己的导航（relaunch / reload）必须自动接受 beforeunload。
+- 实现中补测：dialog 打开时 `page.screenshot()` 一直等（页面不绘制）⇒ provider 截图时直接报 DIALOG_OPEN；`context.close()` 不受影响（4 ms）。
+- `dialog.accept()` 不带参数时 prompt 提交空字符串（不是默认值）⇒ 接受 prompt 时显式传 `defaultValue()`。
+- HU 确认方案（2026-11-10）：dialog 保持打开，作为系统节点（dialog.message / accept「OK」/ dismiss「Cancel」）经 `app.device.system.*` 回答；引发 dialog 的动作在 dialog 出现时即返回；dialog 打开时其他调用立即 DIALOG_OPEN；场景间残留的自动取消并警告。未加 `web.dialogs` 配置项。

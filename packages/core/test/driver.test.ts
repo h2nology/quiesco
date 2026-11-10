@@ -7,19 +7,45 @@ import { AGENT_CONFIG, NO_REPLY, connectAgent } from './helpers/fake-agent';
 import type { Handler } from './helpers/fake-agent';
 import { FakeProvider } from './helpers/fake-provider';
 
+/** A web-like provider whose page can open a JS dialog that blocks input until answered. */
+class DialogProvider extends FakeProvider {
+  message: string | null = null;
+  private readonly listeners = new Set<(m: string) => void>();
+  /** What the next injectInput does: open a dialog and stay blocked. */
+  opensDialog = false;
+  blockingDialog(): string | null {
+    return this.message;
+  }
+  onBlockingDialog(l: (m: string) => void): () => void {
+    this.listeners.add(l);
+    return () => this.listeners.delete(l);
+  }
+  open(message: string): void {
+    this.message = message;
+    for (const l of [...this.listeners]) l(message);
+  }
+  override async injectInput(input: Parameters<FakeProvider['injectInput']>[0]): Promise<void> {
+    await super.injectInput(input);
+    if (this.opensDialog) {
+      this.open('删除全部?');
+      await new Promise(() => undefined);
+    }
+  }
+}
+
 let server: QuiescoServer | null = null;
 afterEach(async () => {
   await server?.stop();
   server = null;
 });
 
-async function setup(handler: Handler = () => ({}), opts: { nativeModule?: boolean; mode?: 'js' | 'native' } = {}) {
+async function setup(handler: Handler = () => ({}), opts: { nativeModule?: boolean; mode?: 'js' | 'native'; provider?: FakeProvider } = {}) {
   server = new QuiescoServer({ port: 0, host: '127.0.0.1', agentConfig: AGENT_CONFIG });
   const port = await server.start();
   server.expectSession('s');
   const agent = connectAgent(port, { sessionId: 's', handler, ...(opts.nativeModule !== undefined ? { nativeModule: opts.nativeModule } : {}) });
   const conn: AgentConnection = await server.waitForConnection('s', 1000, () => '');
-  const provider = new FakeProvider();
+  const provider = opts.provider ?? new FakeProvider();
   const driver = new Driver({ provider, connection: async () => conn, defaultTimeoutMs: 1000, ...(opts.mode !== undefined ? { mode: opts.mode } : {}) });
   driver.attach(conn);
   return { driver, agent, provider, conn };
@@ -59,6 +85,47 @@ describe('Driver', () => {
     await driver.openUrl('app://todos');
     expect(provider.inputs).toEqual([{ kind: 'back' }, { kind: 'navigate', url: 'app://todos' }]);
     expect(agent.requests.map((r) => r.method)).toEqual(['action', 'waitForIdle', 'action', 'waitForIdle']);
+  });
+
+  it('an action whose tap opens a JS dialog returns once the dialog is up, without waiting for idle', async () => {
+    const provider = new DialogProvider();
+    provider.opensDialog = true;
+    const { driver, agent } = await setup((m) => (m === 'action' ? { element: { testID: 'clear' }, hostInput: { kind: 'tap', x: 1, y: 2 } } : NO_REPLY), { provider, mode: 'native' });
+    await expect(driver.tap('clear')).resolves.toEqual({ testID: 'clear' });
+    expect(agent.requests.map((r) => r.method)).toEqual(['action']);
+  });
+
+  it('js mode: the agent call blocked by the dialog it opened is left behind', async () => {
+    const provider = new DialogProvider();
+    const { driver } = await setup((m) => {
+      if (m === 'action') {
+        provider.open('确定?');
+        return NO_REPLY;
+      }
+      return {};
+    }, { provider, mode: 'js' });
+    await expect(driver.tap('clear', { timeoutMs: 60_000 })).resolves.toBeUndefined();
+  });
+
+  it('a dialog opened while waiting for idle after the input ends the action too', async () => {
+    const provider = new DialogProvider();
+    const { driver } = await setup((m) => {
+      if (m === 'action') return { hostInput: { kind: 'tap', x: 1, y: 2 } };
+      setTimeout(() => provider.open('later'), 10);
+      return NO_REPLY;
+    }, { provider, mode: 'native' });
+    await expect(driver.tap('x', { timeoutMs: 60_000 })).resolves.toBeUndefined();
+  });
+
+  it('fails fast with DIALOG_OPEN while the page shows a dialog', async () => {
+    const provider = new DialogProvider();
+    const { driver, agent } = await setup(() => ({ elements: [] }), { provider });
+    provider.open('删除全部?');
+    await expect(driver.expectVisible('x')).rejects.toMatchObject({ errorName: 'DIALOG_OPEN', data: { message: '删除全部?' } });
+    await expect(driver.tap('x')).rejects.toThrow(/system\.tap/);
+    expect(agent.requests).toEqual([]);
+    provider.message = null;
+    await expect(driver.expectVisible('x')).resolves.toEqual([]);
   });
 
   it('backdoor checks arguments on the host and returns the value; reset returns the duration', async () => {

@@ -233,6 +233,95 @@ describe('WebProvider network, clipboard and status bar (Phase 6.6, real Chromiu
   });
 });
 
+describe('WebProvider JS dialogs (real Chromium)', () => {
+  const DIALOGS = `<!doctype html><html><body style="margin:0">
+<button id="c" style="position:absolute;left:0;top:0;width:100px;height:40px" onclick="window.r = confirm('删除全部?')">c</button>
+<button id="a" style="position:absolute;left:0;top:50px;width:100px;height:40px" onclick="alert('已保存'); window.r = 'alerted'">a</button>
+<button id="p" style="position:absolute;left:0;top:100px;width:100px;height:40px" onclick="window.r = prompt('名字?', '默认')">p</button>
+<script>window.addEventListener('beforeunload', (e) => { e.preventDefault(); e.returnValue = ''; });</script>
+</body></html>`;
+  let d: WebProvider;
+  const warnings: string[] = [];
+  const result = () => (d as unknown as { page: { evaluate<T>(f: string): Promise<T> } }).page.evaluate<unknown>('window.r');
+  /** Click (the click stays pending while the dialog is open) and wait for the dialog. */
+  const open = async (y: number): Promise<{ message: string; click: Promise<void> }> => {
+    const shown = new Promise<string>((resolve) => {
+      const stop = d.onBlockingDialog((m) => {
+        stop();
+        resolve(m);
+      });
+    });
+    const click = d.injectInput({ kind: 'tap', x: 50, y });
+    return { message: await shown, click };
+  };
+
+  beforeAll(async () => {
+    const dir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'quiesco-web-dialogs-'));
+    fs.writeFileSync(path.join(dir2, 'index.html'), DIALOGS);
+    const logger = { debug: () => undefined, info: () => undefined, warn: (m: string) => warnings.push(m), error: () => undefined };
+    d = new WebProvider({ app: { distDir: dir2 }, device: { viewport: { width: 390, height: 844 } }, logger });
+    await d.boot();
+    await d.install();
+    await d.launch({ port: 1, sessionId: 's' });
+  });
+  afterAll(async () => d.shutdown());
+
+  it('holds a confirm until it is answered: Cancel → false, OK → true', async () => {
+    expect(await d.systemNodes()).toEqual([]);
+    const first = await open(20);
+    expect(first.message).toBe('删除全部?');
+    expect(d.blockingDialog()).toBe('删除全部?');
+    const nodes = await d.systemNodes();
+    expect(nodes.map((n) => [n.text, n.id])).toEqual([
+      ['删除全部?', 'dialog.message'],
+      ['OK', 'dialog.accept'],
+      ['Cancel', 'dialog.dismiss'],
+    ]);
+    await expect(d.screenshot()).rejects.toMatchObject({ errorName: 'DIALOG_OPEN' });
+    await expect(d.tapSystemNode(nodes[0]!)).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED' });
+    await d.tapSystemNode(nodes[2]!);
+    await first.click;
+    expect(d.blockingDialog()).toBeNull();
+    expect(await result()).toBe(false);
+
+    const second = await open(20);
+    await d.tapSystemNode((await d.systemNodes())[1]!);
+    await second.click;
+    expect(await result()).toBe(true);
+    await expect(d.tapSystemNode(nodes[1]!)).rejects.toMatchObject({ errorName: 'DEVICE_ERROR' });
+  });
+
+  it('an alert has only OK; a prompt accepted keeps its default value', async () => {
+    let { click } = await open(70);
+    expect((await d.systemNodes()).map((n) => n.text)).toEqual(['已保存', 'OK']);
+    await d.tapSystemNode((await d.systemNodes())[1]!);
+    await click;
+    expect(await result()).toBe('alerted');
+
+    ({ click } = await open(120));
+    await d.tapSystemNode((await d.systemNodes())[1]!);
+    await click;
+    expect(await result()).toBe('默认');
+  });
+
+  it('dismisses a dialog left open at the device reset, with a warning', async () => {
+    const { click } = await open(20);
+    await d.resetDeviceState();
+    await click;
+    expect(d.blockingDialog()).toBeNull();
+    expect(await result()).toBe(false);
+    expect(warnings.some((w) => w.includes('删除全部?'))).toBe(true);
+  });
+
+  it('accepts beforeunload: the page can be opened again', async () => {
+    // The page asked to confirm leaving (after a user gesture above); a relaunch is not held by it.
+    await d.injectInput({ kind: 'navigate', url: '/' });
+    expect(d.blockingDialog()).toBeNull();
+    await d.launch({ port: 1, sessionId: 's2' });
+    expect(await result()).toBeUndefined();
+  });
+});
+
 describe('webPathFor', () => {
   it('turns app scheme URLs into paths and keeps paths / http URLs', () => {
     expect(webPathFor('todo://todos/1?tab=a#h')).toBe('/todos/1?tab=a#h');

@@ -11,7 +11,9 @@ export type HostErrorName =
   /** The app was terminated / uninstalled by the test (`app.device.*`); relaunch it first. */
   | 'APP_NOT_RUNNING'
   /** The app was sent to the background by the test; bring it to the foreground first. */
-  | 'APP_IN_BACKGROUND';
+  | 'APP_IN_BACKGROUND'
+  /** A web page is blocked on a JS dialog (alert / confirm / prompt); answer it with app.device.system.tap first. */
+  | 'DIALOG_OPEN';
 
 /**
  * Every failure surfaced by @quiesco/core. Agent errors keep their protocol code and structured data

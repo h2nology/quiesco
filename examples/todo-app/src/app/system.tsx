@@ -1,12 +1,13 @@
 /**
  * Hidden system-integration page (opened by the `openSystem` backdoor), for features/system.feature
  * (Phase 6.7): biometric authentication (expo-local-authentication), notifications the app received or
- * the user tapped (expo-notifications), the notification permission request and shakes (react-native-shake).
+ * the user tapped (expo-notifications), the notification permission request and shakes (react-native-shake);
+ * on the web the browser's JS dialogs (alert / confirm).
  */
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as Notifications from 'expo-notifications';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import RNShake from 'react-native-shake';
 
 import { ScreenTransition } from '../components/ScreenTransition';
@@ -23,6 +24,7 @@ export default function System() {
   const [tapped, setTapped] = useState('');
   const [shakes, setShakes] = useState(0);
   const [permission, setPermission] = useState('');
+  const [dialog, setDialog] = useState('');
 
   const readEnrollment = async () => {
     const [hardware, isEnrolled] = await Promise.all([LocalAuthentication.hasHardwareAsync(), LocalAuthentication.isEnrolledAsync()]);
@@ -71,6 +73,21 @@ export default function System() {
           {/* Shows the system's permission dialog while the permission is undetermined (features/system.feature). */}
           {button('request-notification-permission', '请求通知权限', () => void Notifications.requestPermissionsAsync().then((p) => setPermission(p.status)))}
         </View>
+        {Platform.OS === 'web' && (
+          <View style={styles.row}>
+            {/* The browser's JS dialogs block the page until answered (features/system.feature, @web). */}
+            {button('confirm-reset', '清零摇动次数', () => {
+              const ok = globalThis.confirm('清零摇动次数?');
+              if (ok) setShakes(0);
+              setDialog(ok ? '确定' : '取消');
+            })}
+            {button('show-alert', '显示提示', () => {
+              globalThis.alert('已保存');
+              setDialog('提示已关闭');
+            })}
+            <Text testID="dialog-result">{dialog}</Text>
+          </View>
+        )}
         <View style={styles.row}>
           <Text style={styles.label}>收到通知</Text>
           <Text testID="notification-received">{received}</Text>

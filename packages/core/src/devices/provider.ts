@@ -162,6 +162,13 @@ export interface DeviceProvider {
   /** System UI on screen now that does not belong to the app (dialogs, prompts), topmost window first. */
   systemNodes?(): Promise<SystemNode[]>;
   tapSystemNode?(node: SystemNode): Promise<void>;
+  /**
+   * Web: the message of the JS dialog (alert / confirm / prompt) the page is blocked on, or null. While
+   * one is open the page runs no script and takes no input until it is answered (findings 6.7 web dialogs).
+   */
+  blockingDialog?(): string | null;
+  /** Web: call `listener` when a JS dialog opens; returns the unsubscribe function. */
+  onBlockingDialog?(listener: (message: string) => void): () => void;
   /** Ids of the permission dialog's buttons, in order of preference (several variants exist). */
   readonly permissionDialog?: { allow: readonly string[]; deny: readonly string[] };
   /**

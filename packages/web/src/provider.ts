@@ -11,13 +11,16 @@
  *   (`myapp://todos/1` → `/todos/1`); a relaunch that keeps data carries cookies, localStorage and
  *   IndexedDB over to the new context (Playwright storageState). No background state: a page driven by
  *   Playwright stays visible whatever is tried (findings 6.5 spike), so sendToBackground is not offered.
+ * - Phase 6.7: the page's JS dialogs (alert / confirm / prompt) stay open until the test answers them
+ *   through app.device.system.* (systemNodes / tapSystemNode); beforeunload is always accepted, or
+ *   Quiesco's own reloads would hang (findings 6.7 web dialogs).
  */
 import { LAUNCH_PARAM_PORT, LAUNCH_PARAM_SESSION, WEB_PARAMS_GLOBAL } from '@quiesco/protocol';
 import type { HostInput, Orientation } from '@quiesco/protocol';
-import type { ColorScheme, DeviceProvider, LaunchParams, LaunchUrlHandling, Logger, Permission, StateChange, StatusBarOptions, WebAppConfig, WebDeviceConfig } from '@quiesco/core';
+import type { ColorScheme, DeviceProvider, LaunchParams, LaunchUrlHandling, Logger, Permission, StateChange, StatusBarOptions, SystemNode, WebAppConfig, WebDeviceConfig } from '@quiesco/core';
 import { QuiescoError, silentLogger } from '@quiesco/core';
 import { chromium, firefox, webkit } from 'playwright';
-import type { Browser, BrowserContext, BrowserType, CDPSession, Page, Route } from 'playwright';
+import type { Browser, BrowserContext, BrowserType, CDPSession, Dialog, Page, Route } from 'playwright';
 
 type StorageState = Awaited<ReturnType<BrowserContext['storageState']>>;
 
@@ -46,6 +49,22 @@ const WEB_PERMISSIONS: Partial<Record<Permission, string>> = {
   location: 'geolocation',
   notifications: 'notifications',
 };
+
+/** Ids of a JS dialog's parts in systemNodes(). */
+export const DIALOG_MESSAGE = 'dialog.message';
+export const DIALOG_ACCEPT = 'dialog.accept';
+export const DIALOG_DISMISS = 'dialog.dismiss';
+
+/** A JS dialog as system UI: its message, OK and (confirm / prompt) Cancel. No geometry (the browser draws it). */
+export function dialogNodes(type: string, message: string): SystemNode[] {
+  const none = { x1: 0, y1: 0, x2: 0, y2: 0 };
+  const nodes: SystemNode[] = [
+    { text: message, id: DIALOG_MESSAGE, bounds: none },
+    { text: 'OK', id: DIALOG_ACCEPT, bounds: none },
+  ];
+  if (type !== 'alert') nodes.push({ text: 'Cancel', id: DIALOG_DISMISS, bounds: none });
+  return nodes;
+}
 
 export interface WebProviderOptions {
   app: WebAppConfig;
@@ -81,6 +100,9 @@ export class WebProvider implements DeviceProvider {
   /** Permissions granted at runtime beyond / revoked from the configured ones. */
   private permissionsAtStart: string[] | null = null;
   private readonly pageErrors: string[] = [];
+  /** The JS dialog the page is blocked on (Phase 6.7). */
+  private dialog: Dialog | null = null;
+  private readonly dialogListeners = new Set<(message: string) => void>();
   private readonly logger: Logger;
 
   constructor(private readonly options: WebProviderOptions) {
@@ -148,6 +170,7 @@ export class WebProvider implements DeviceProvider {
       this.pageErrors.push(e.message);
       if (this.pageErrors.length > 20) this.pageErrors.shift();
     });
+    page.on('dialog', (d) => this.onDialog(page, d));
     this.context = context;
     this.page = page;
     const target = params.url !== undefined ? webPathFor(params.url) : (this.options.app.path ?? '/');
@@ -159,6 +182,7 @@ export class WebProvider implements DeviceProvider {
 
   async terminate(opts: { keepData?: boolean } = {}): Promise<void> {
     this.networkCdp = null; // detached with its page
+    this.dialog = null; // closed with its page
     const ctx = this.context;
     this.context = null;
     this.page = null;
@@ -181,6 +205,9 @@ export class WebProvider implements DeviceProvider {
   }
 
   async screenshot(): Promise<Buffer> {
+    // The page does not paint while a JS dialog is open: Playwright's screenshot would wait for it.
+    const d = this.dialog;
+    if (d !== null) throw new QuiescoError('DIALOG_OPEN', `no screenshot while the page shows a ${d.type()} dialog (${JSON.stringify(d.message())})`, { message: d.message() });
     return this.requirePage().screenshot();
   }
 
@@ -374,7 +401,57 @@ export class WebProvider implements DeviceProvider {
     return page;
   }
 
+  // ---- Phase 6.7 JS dialogs ----
+
+  private onDialog(page: Page, d: Dialog): void {
+    if (page !== this.page) {
+      void d.dismiss().catch(() => undefined);
+      return;
+    }
+    // Leaving the page (a reload or relaunch by Quiesco, the app's own navigation): always allowed.
+    if (d.type() === 'beforeunload') {
+      void d.accept().catch(() => undefined);
+      return;
+    }
+    this.dialog = d;
+    this.logger.debug(`page opened a dialog (${d.type()}): ${JSON.stringify(d.message())}`);
+    for (const l of [...this.dialogListeners]) l(d.message());
+  }
+
+  blockingDialog(): string | null {
+    return this.dialog?.message() ?? null;
+  }
+
+  onBlockingDialog(listener: (message: string) => void): () => void {
+    this.dialogListeners.add(listener);
+    return () => this.dialogListeners.delete(listener);
+  }
+
+  async systemNodes(): Promise<SystemNode[]> {
+    const d = this.dialog;
+    return d === null ? [] : dialogNodes(d.type(), d.message());
+  }
+
+  /** OK accepts (a prompt with its default value), Cancel dismisses; the page goes on at once. */
+  async tapSystemNode(node: SystemNode): Promise<void> {
+    const d = this.dialog;
+    if (d === null) throw new QuiescoError('DEVICE_ERROR', 'the dialog is already closed');
+    if (node.id !== DIALOG_ACCEPT && node.id !== DIALOG_DISMISS) {
+      throw new QuiescoError('ACTION_NOT_SUPPORTED', `${JSON.stringify(node.text)} is the dialog's message, not a button: tap { text: 'OK' } or { text: 'Cancel' }`, { action: 'system.tap', platform: 'web' });
+    }
+    this.dialog = null;
+    // Without text Playwright submits an empty prompt (checked): give it the page's default value.
+    if (node.id === DIALOG_ACCEPT) await d.accept(d.type() === 'prompt' ? d.defaultValue() : undefined);
+    else await d.dismiss();
+  }
+
   async resetDeviceState(): Promise<StateChange> {
+    const left = this.dialog;
+    if (left !== null) {
+      this.dialog = null;
+      this.logger.warn(`the page still showed a ${left.type()} dialog (${JSON.stringify(left.message())}); dismissed it`);
+      await left.dismiss().catch(() => undefined);
+    }
     if (this.offline) await this.setNetwork(false);
     const page = this.page;
     if (this.orientation !== null) {
