@@ -230,7 +230,7 @@ await this.app.device.setStatusBar({ time: '9:41', batteryLevel: 100 }); // for 
 | `setFontScale(n)` | System text size (0.5–4); resolves with the scale applied. Android starts the app again (data kept). Not on the web |
 | `setLocale(tag \| null)` | The app's language and region (BCP 47); `null` = device default. The app is started again with it (data kept). iOS needs the language in `CFBundleLocalizations` |
 | `setLocation(lat, lon)` | Simulated GPS position (Android: emulators only) |
-| `setPermission(name, 'grant' \| 'revoke')` | Change a permission while the app runs. Android kills the app on a revoke: Quiesco starts it again (data kept) before resolving, so the app is back on its first screen |
+| `setPermission(name, 'grant' \| 'revoke' \| 'reset')` | Change a permission while the app runs. Android kills the app on a revoke: Quiesco starts it again (data kept) before resolving, so the app is back on its first screen. `'reset'` = not determined, as after a fresh install: the app's next request shows the system dialog again (Android: revoked, "don't ask again" cleared; iOS: `simctl privacy reset`; web: the browser asks). On iOS, notifications and the camera can only be reset by reinstalling the app: Quiesco reinstalls and starts it, **deleting its data** (needs `binaryPath`; a warning says so) |
 | `setNetwork('offline' \| 'online')` | Offline: the app's new `fetch` / `XMLHttpRequest` / `WebSocket` connections fail as they do without a network (Quiesco's own connection keeps working; connections already open stay open). Android also turns Wi-Fi and mobile data off, the web reports `navigator.onLine === false`, so NetInfo sees it there; the iOS simulator has no network switch, NetInfo keeps reporting online. Lasts across relaunches |
 | `clipboard.set(text)` / `clipboard.get()` | The device clipboard, written / read inside the app (iOS / Android need `@quiesco/native` ≥ Phase 6.6; iOS reads fall back to `simctl pbpaste`). Cleared before the next scenario when set |
 | `setStatusBar({ time, batteryLevel, charging, wifiBars, cellularBars, dataNetwork })` / `resetStatusBar()` | Status bar for clean screenshots: `time` `'9:41'`, `batteryLevel` 0–100, `wifiBars` 0–3, `cellularBars` 0–4, `dataNetwork` `'wifi' \| '3g' \| '4g' \| 'lte' \| '5g' \| 'hide'`. Nothing to do on the web |
@@ -273,8 +273,7 @@ None of these exist on the web (`ACTION_NOT_SUPPORTED`; tag such scenarios `@nat
 sensors). On iOS, system UI belongs to SpringBoard: Quiesco builds a small XCUITest runner the first time
 it is needed (once per Xcode version, cached in `~/Library/Caches/quiesco/ios-runner`, about 10 s) and starts
 it on the simulator (2–4 s, once per session). Alerts outlive the app: one left by a scenario is dismissed
-(cancel / deny) before the next. The simulator cannot reset the notification permission;
-`relaunch({ reinstall: true })` brings it back to "not determined".
+(cancel / deny) before the next. To ask for a permission again, reset it first: `setPermission('notifications', 'reset')`.
 
 While a permission dialog (another activity) is in front, Android pauses the app's JS timers; Quiesco's idle
 wait notices that the app went to the background and returns, so the tap that opened the dialog completes.

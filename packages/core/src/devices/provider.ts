@@ -73,6 +73,11 @@ export type ColorScheme = 'light' | 'dark';
 export interface StateChange {
   /** The app must be started again to see it (iOS / web locale), or the system killed it (Android revoke). */
   relaunch: boolean;
+  /**
+   * Only reinstalling the app gets there (iOS: a permission simctl cannot reset). The caller reinstalls and
+   * starts it; the app's data is lost.
+   */
+  reinstall?: boolean;
 }
 
 export interface DeviceProvider {
@@ -119,6 +124,8 @@ export interface DeviceProvider {
   setLocation?(location: { latitude: number; longitude: number }): Promise<void>;
   /** Grant or revoke one permission while the app runs. */
   setPermission?(permission: Permission, grant: boolean): Promise<StateChange>;
+  /** Back to "not determined", as after a fresh install: the app's next request asks the user again. */
+  resetPermission?(permission: Permission): Promise<StateChange>;
   setAppearance?(scheme: ColorScheme): Promise<void>;
   /** Text size; `scale` = what the platform actually applies (iOS: the nearest Dynamic Type size). */
   setFontScale?(scale: number): Promise<StateChange & { scale: number }>;

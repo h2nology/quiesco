@@ -47,6 +47,11 @@ class StateProvider extends FakeProvider {
     this.calls.push(`${grant ? 'grant' : 'revoke'}:${perm}`);
     return { relaunch: !grant && this.revokeKills };
   }
+  resetReinstalls = false;
+  async resetPermission(perm: Permission): Promise<StateChange> {
+    this.calls.push(`reset:${perm}`);
+    return this.resetReinstalls ? { relaunch: true, reinstall: true } : { relaunch: false };
+  }
   async setAppearance(s: ColorScheme) {
     this.calls.push(`appearance:${s}`);
     if (this.honors) this.app.colorScheme = s;
@@ -208,6 +213,20 @@ describe('app.device state (Phase 6.6)', () => {
     await device.setPermission('location', 'revoke');
     expect(provider.calls.slice(1)).toEqual(['revoke:location', 'terminate:keep', 'launch']);
     expect(agents).toHaveLength(2);
+  });
+
+  it("setPermission 'reset': back to not determined; where only a reinstall gets there (iOS notifications), the app is reinstalled", async () => {
+    const { provider, agents, device } = await start();
+    await device.setPermission('location', 'reset');
+    expect(provider.calls).toEqual(['reset:location']);
+    expect(agents).toHaveLength(1);
+    provider.resetReinstalls = true;
+    provider.calls.length = 0;
+    await device.setPermission('notifications', 'reset');
+    expect(provider.calls[0]).toBe('reset:notifications');
+    expect(provider.calls).toContain('launch');
+    expect(agents).toHaveLength(2);
+    await expect(device.setPermission('location', 'ask' as never)).rejects.toThrow(RangeError);
   });
 
   it('before the next scenario: permissions back to the configured ones, the rest reset by the provider (relaunch for a locale)', async () => {

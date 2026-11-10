@@ -545,6 +545,17 @@ describe('AndroidProvider system integration (Phase 6.7)', () => {
     expect(calls.at(-1)).toBe('adb -s emulator-5554 shell cmd statusbar collapse');
   }, 15_000);
 
+  it('resets a permission like a fresh install: revoked, may ask again (the app is killed)', async () => {
+    const { p, calls } = provider([...BOOTED]);
+    await p.boot();
+    calls.length = 0;
+    await expect(p.resetPermission('notifications')).resolves.toEqual({ relaunch: true });
+    expect(calls).toEqual([
+      "adb -s emulator-5554 shell pm revoke 'com.example.todo' android.permission.POST_NOTIFICATIONS",
+      "adb -s emulator-5554 shell pm clear-permission-flags 'com.example.todo' android.permission.POST_NOTIFICATIONS user-set user-fixed",
+    ]);
+  });
+
   it('lists the system UI outside the app (uiautomator) and taps a node at its center', async () => {
     const DIALOG = [
       '<hierarchy>',

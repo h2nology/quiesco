@@ -344,6 +344,11 @@ export class AndroidProvider implements DeviceProvider {
     return { relaunch: !grant };
   }
 
+  /** Revoked with its user-set / user-fixed flags cleared is how a fresh install starts (the app is killed). */
+  resetPermission(permission: Permission): Promise<StateChange> {
+    return this.setPermission(permission, false);
+  }
+
   async setAppearance(scheme: ColorScheme): Promise<void> {
     if (!this.restore.has('night')) {
       const now = /Night mode:\s*(\w+)/.exec(await this.shell('cmd uimode night').catch(() => ''))?.[1] ?? 'no';

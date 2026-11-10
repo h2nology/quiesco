@@ -150,6 +150,7 @@ describe('WebProvider device state (Phase 6.6, real Chromium)', () => {
       await p.setLocation({ latitude: 35.68, longitude: 139.76 });
       expect(await page().evaluate('new Promise((r) => navigator.geolocation.getCurrentPosition((x) => r([x.coords.latitude, x.coords.longitude]), (e) => r(e.message)))')).toEqual([35.68, 139.76]);
       await expect(p.setPermission('location', false)).resolves.toEqual({ relaunch: false });
+      await expect(p.resetPermission('location')).resolves.toEqual({ relaunch: false }); // not granted = the browser asks again
       expect(await page().evaluate("navigator.permissions.query({ name: 'geolocation' }).then((s) => s.state)")).toBe('prompt');
       await expect(p.setPermission('contacts', true)).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED' });
 

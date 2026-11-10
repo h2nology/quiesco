@@ -296,6 +296,11 @@ export class WebProvider implements DeviceProvider {
     return { relaunch: false };
   }
 
+  /** Not granted is the browser's "prompt" state: a page's next request asks again. */
+  resetPermission(permission: Permission): Promise<StateChange> {
+    return this.setPermission(permission, false);
+  }
+
   async setAppearance(scheme: ColorScheme): Promise<void> {
     this.colorScheme = scheme;
     await this.requirePage().emulateMedia({ colorScheme: scheme });

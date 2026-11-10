@@ -75,14 +75,10 @@ When('点击系统界面上的 {string}', async function (this: QuiescoWorld, te
   await this.app.device.system.tap({ text });
 });
 
-/**
- * Back to "not determined", so the app's request shows the system dialog. Android: revoke (the app is
- * killed and started again). iOS: notifications cannot be revoked on the simulator (simctl privacy has no
- * such service); reinstalling the app resets them.
- */
+// Back to "not determined", as after a fresh install (iOS reinstalls the app; Android kills and restarts
+// it), so the page is opened again.
 async function resetNotificationPermission(world: QuiescoWorld): Promise<void> {
-  if (world.app.device.platform === 'ios') await world.app.device.relaunch({ reinstall: true });
-  else await world.app.device.setPermission('notifications', 'revoke');
+  await world.app.device.setPermission('notifications', 'reset');
   await world.app.backdoor('openSystem');
   await world.app.expectVisible('system');
 }

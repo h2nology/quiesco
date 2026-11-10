@@ -340,6 +340,17 @@ export class IosProvider implements DeviceProvider {
     return { relaunch: false };
   }
 
+  /**
+   * `simctl privacy reset` (the app keeps running). Permissions simctl has no service for (notifications,
+   * camera) are only reset by reinstalling the app: the caller does that.
+   */
+  async resetPermission(permission: Permission): Promise<StateChange> {
+    const services = IOS_PRIVACY[permission];
+    if (services === undefined) return { relaunch: true, reinstall: true };
+    for (const svc of services) await this.simctl(['privacy', this.udid, 'reset', svc, this.bundleId]);
+    return { relaunch: false };
+  }
+
   async setAppearance(scheme: ColorScheme): Promise<void> {
     if (!this.changed.has('appearance')) this.changed.set('appearance', await this.current('appearance', 'light'));
     await this.simctl(['ui', this.udid, 'appearance', scheme]);

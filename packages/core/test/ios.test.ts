@@ -347,6 +347,15 @@ describe('IosProvider device state (Phase 6.6)', () => {
     await expect(p.setOrientation('landscape', inApp({ supported: true, error: 'unsupported orientation' }))).rejects.toThrow(/app\.json "orientation"/);
   });
 
+  it('resets permissions with simctl privacy reset; notifications / camera (no service) only by reinstalling', async () => {
+    const { p, calls } = provider([]);
+    await p.boot();
+    calls.length = 0;
+    await expect(p.resetPermission('location')).resolves.toEqual({ relaunch: false });
+    expect(calls).toContain('xcrun simctl privacy NEW-17 reset location com.example.todo');
+    await expect(p.resetPermission('notifications')).resolves.toEqual({ relaunch: true, reinstall: true });
+  });
+
   it('sets location, permissions, appearance and text size with simctl, and restores the previous values', async () => {
     const { p, calls } = provider([
       [/ui NEW-17 appearance$/, 'dark\n'],

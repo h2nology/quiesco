@@ -301,11 +301,12 @@ export class DeviceApi {
    * Grant or revoke a permission while the app runs. Where the system kills the app on revoke
    * (Android), the app is started again (data kept) before this resolves (HU 2026-11-09).
    */
-  async setPermission(permission: Permission, state: 'grant' | 'revoke'): Promise<void> {
-    if (state !== 'grant' && state !== 'revoke') throw new RangeError(`state must be 'grant' or 'revoke', got ${String(state)}`);
-    const change = await this.provider('setPermission').setPermission(permission, state === 'grant');
+  async setPermission(permission: Permission, state: 'grant' | 'revoke' | 'reset'): Promise<void> {
+    if (state !== 'grant' && state !== 'revoke' && state !== 'reset') throw new RangeError(`state must be 'grant', 'revoke' or 'reset', got ${String(state)}`);
+    const change =
+      state === 'reset' ? await this.provider('resetPermission').resetPermission(permission) : await this.provider('setPermission').setPermission(permission, state === 'grant');
     this.permissionChanges.add(permission);
-    await this.afterChange(change, `setPermission(${permission}, revoke)`);
+    await this.afterChange(change, `setPermission(${permission}, ${state})`);
   }
 
   /** Light / dark mode. The app must follow the system (app.json "userInterfaceStyle": "automatic"). */
@@ -468,7 +469,7 @@ export class DeviceApi {
     if (relaunch && opts.relaunch !== false && this.host.appState !== 'terminated') await this.relaunch();
   }
 
-  private provider<K extends 'setOrientation' | 'setLocation' | 'setPermission' | 'setAppearance' | 'setFontScale' | 'setLocale' | 'setStatusBar' | 'resetStatusBar'>(method: K): Required<Pick<DeviceProvider, K>> {
+  private provider<K extends 'setOrientation' | 'setLocation' | 'setPermission' | 'resetPermission' | 'setAppearance' | 'setFontScale' | 'setLocale' | 'setStatusBar' | 'resetStatusBar'>(method: K): Required<Pick<DeviceProvider, K>> {
     const p = this.host.provider;
     if (p[method] === undefined) throw notSupported(method, p.platform, STATE_HINT[method]?.[p.platform]);
     return p as unknown as Required<Pick<DeviceProvider, K>>;
@@ -476,6 +477,11 @@ export class DeviceApi {
 
   /** The app must be started again (or the system killed it): relaunch keeping data. */
   private async afterChange(change: StateChange, what: string): Promise<void> {
+    if (change.reinstall === true) {
+      this.host.logger.warn(`${what}: only reinstalling the app resets it here; reinstalling (the app's data is deleted)`);
+      await this.relaunch({ reinstall: true });
+      return;
+    }
     if (!change.relaunch || this.host.appState === 'terminated') return;
     this.host.logger.info(`${what}: starting the app again`);
     await this.relaunch();
