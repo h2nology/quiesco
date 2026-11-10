@@ -403,3 +403,13 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - 连续拒绝两次 ⇒ flags USER_SET|USER_FIXED，第三次不再弹出；`pm clear-permission-flags <pkg> <perm> user-set user-fixed` 恢复为可再询问。`pm revoke` 杀 App 进程；安装（-g）会授予全部权限 ⇒ 撤销必须在安装后。
 - **BiometricPrompt**（fail 后保持显示）：包 `com.android.systemui`，取消按钮 `com.android.systemui:id/button_negative`（文字为 cancelLabel「取消」），另有 `close_button`；点击后 App 收到 `user_cancel`。
 - `uiautomator dump` 每次约 2 s（1.9–2.9 s）⇒ 轮询间隔不需要再加等待，超时要按 dump 时间留余量。
+
+## 6.7 批次 C spike（iOS XCUITest 辅助进程，2026-11-10；spikes/ios-xcuitest、spikes/system/ios-system-ui.mts）
+- **工程**：无 xcodegen / tuist ⇒ 用 CocoaPods 自带的 xcodeproj gem 生成（GEM_PATH=cocoapods libexec + ruby 默认路径，否则缺 rexml）：空壳 Host App + UI test bundle（TEST_TARGET_NAME=Host，不签名）。`build-for-testing` 约 9 s（首次），产出 `.xctestrun`。
+- **运行方式**：`xcodebuild test-without-building -xctestrun … -destination id=<udid> -only-testing:Runner/SystemUIServer/testServe`，环境变量 `TEST_RUNNER_QUIESCO_PORT` 传端口（前缀被去掉）；测试方法里 NWListener（主队列）+ RunLoop 常驻，类似 WebDriverAgent。**启动 2.1–3.8 s**；启动时 App 保持 active（不会被挤到后台）。
+- **延迟**：`/nodes` 空闲 ~30 ms、有横幅 ~200 ms、有 alert 570–1170 ms；tap 0.6–1.7 s。
+- **通知授权 alert**（SpringBoard）：文字跟随模拟器语言（ja-JP：「許可しない」「許可」），按钮**没有 identifier** ⇒ allow / deny 只能按位置（通知：最后一个 = 允许、第一个 = 不允许；位置权限是三个纵向按钮，需另测）或按本地化文字。点允许后 App 回到 active，`getPermissionsAsync` = granted。
+- **Face ID 失败重试 alert**：在 SpringBoard 树里，**有稳定 identifier**：alert `com.apple.localauthentication.ax.authentication.alert`，按钮 `…authentication.button.try-again` / `…button.cancel` ⇒ 与语言无关；点取消后 App 收到 `user_cancel`。
+- **通知横幅**（App 在后台、已授权）：SpringBoard 按钮 identifier `ShortLook.Platter.Content.Seamless`，label「今, <标题>, <正文>」；点击后 App 回到 active，expo-notifications 的 response 回调收到标题 ⇒ **iOS openNotification 可实现**。
+- **SpringBoard alert 不随 App 重启消失**：上一次运行留下的授权 alert 在 relaunch 后仍在，挡住 App（`no native view in a window`）⇒ 场景间重置要处理残留 alert。
+- 代价：依赖 Xcode（xcodebuild，按 Xcode 版本缓存 build-for-testing 产物）；每个会话一个常驻 xcodebuild 子进程；模拟器之外（真机）需签名，留给 6.13。
