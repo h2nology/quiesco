@@ -370,6 +370,7 @@ describe('AndroidProvider device state (Phase 6.6)', () => {
         clip = t;
         return { supported: true };
       },
+      postNotification: async () => ({ supported: false }),
     };
     await p.setClipboard('hello', app);
     await expect(p.getClipboard(app)).resolves.toBe('hello');
@@ -504,5 +505,41 @@ describe('AndroidProvider system integration (Phase 6.7)', () => {
     await expect(device.p.shake()).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { action: 'shake' } });
     await expect(device.p.presentBiometric(true)).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED' });
   });
-});
 
+  it('sends notifications through the app; says what is missing when it cannot', async () => {
+    const { p, calls } = provider(BOOTED);
+    await p.boot();
+    calls.length = 0;
+    const posted: unknown[] = [];
+    const app = (r: { supported: boolean; enabled?: boolean }) => ({
+      suspend: async () => false,
+      setOrientation: async () => ({ supported: false }),
+      getClipboard: async () => ({ supported: false }),
+      setClipboard: async () => ({ supported: false }),
+      postNotification: async (n: unknown) => {
+        posted.push(n);
+        return r;
+      },
+    });
+    await p.sendNotification({ title: 'Hello', data: { screen: 'system' } }, app({ supported: true, enabled: true }));
+    expect(posted).toEqual([{ title: 'Hello', data: { screen: 'system' } }]);
+    expect(calls).toEqual([]);
+    await expect(p.sendNotification({ title: 'x' }, app({ supported: false }))).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { action: 'sendNotification' } });
+    await expect(p.sendNotification({ title: 'x' }, app({ supported: true, enabled: false }))).rejects.toThrow(/grant them/);
+  });
+
+  it('opens a notification from the shade by its title; lists what is there when it is missing', async () => {
+    const shade = '<hierarchy><node text="" resource-id="" clickable="false" enabled="true" bounds="[0,0][1080,2400]"><node text="Quiesco Todo" resource-id="android:id/app_name_text" clickable="false" enabled="true" bounds="[200,300][500,350]" /><node text="Hello" resource-id="android:id/title" clickable="false" enabled="true" bounds="[200,360][600,420]" /></node></hierarchy>';
+    const { p, calls } = provider([...BOOTED, [/cat \/sdcard\/quiesco-ui.xml/, shade]]);
+    await p.boot();
+    calls.length = 0;
+    await p.openNotification('Hello');
+    expect(calls.filter((c) => !/uiautomator dump|cat \/sdcard/.test(c))).toEqual([
+      'adb -s emulator-5554 shell cmd statusbar expand-notifications',
+      'adb -s emulator-5554 shell input tap 400 390',
+    ]);
+    calls.length = 0;
+    await expect(p.openNotification('Missing')).rejects.toThrow(/no notification "Missing" in the shade \(texts there: "Quiesco Todo", "Hello"\)/);
+    expect(calls.at(-1)).toBe('adb -s emulator-5554 shell cmd statusbar collapse');
+  }, 15_000);
+});

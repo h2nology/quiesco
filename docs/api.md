@@ -248,6 +248,8 @@ await this.app.tap('login-with-face-id');      // the app calls LocalAuthenticat
 await this.app.device.biometrics.match();      // a matching face / finger: the app's authentication succeeds
 await this.app.device.shake();
 await this.app.device.clearKeychain();         // iOS
+await this.app.device.sendNotification({ title: 'New message', data: { chatId: '42' } });
+await this.app.device.openNotification('New message'); // Android: tap it in the notification shade
 ```
 
 | Method | What it does |
@@ -255,6 +257,8 @@ await this.app.device.clearKeychain();         // iOS
 | `biometrics.enroll(enrolled = true)` | Enroll (or remove) a face / fingerprint. Android: Quiesco sets a screen-lock PIN (required for fingerprints) and goes through Settings' enrollment; the app is brought back to the front. Undone before the next scenario |
 | `biometrics.match()` / `biometrics.fail()` | Present a matching / unknown face or finger to the authentication the app is showing. After `fail()` the system keeps its retry prompt up, as on a device: the app gets no result until the prompt is answered. Several failures in a row lock the sensor for a while (Android emulator: from about 0.5 s up to 30 s) |
 | `shake()` | A device shake (iOS: Simulator's *Device > Shake*; Android emulator: accelerometer pushes), then waits for idle |
+| `sendNotification({ title, body?, data? })` | iOS: a simulated remote push (`simctl push`, `data` next to `aps`); the app's push library gets it while the app is in front, and the system shows it only when the app may show notifications (they cannot be pre-granted on the simulator). Android: an emulator has no push service, so the notification is posted as the app (needs the `notifications` permission); tapping it opens the app with `data` as intent extras, and the push library's callbacks do not fire. Works while the app is in the background |
+| `openNotification(title)` | Android: tap the notification in the shade; resolves when the app is in front and idle. iOS: not yet (`ACTION_NOT_SUPPORTED`: the notification is outside the app) |
 | `clearKeychain()` | iOS: resets the simulator's keychain (every app's). Android has no keychain: `ACTION_NOT_SUPPORTED`, use `relaunch({ clearData: true })` |
 
 None of these exist on the web (`ACTION_NOT_SUPPORTED`; tag such scenarios `@native`). On Android they need an
@@ -429,6 +433,9 @@ The config file is plain TypeScript, so values can come from the environment.
 | `@hard-reset` | Relaunch the app before this scenario instead of the soft reset |
 
 Untagged scenarios run everywhere. Rename them with `tags: { web: '@browser' }`.
+
+A scenario inherits its feature's tags, and the platforms of all its tags add up: in a feature tagged
+`@native`, a scenario tagged `@android` still runs on iOS. Put platform tags on the scenarios when they differ.
 
 ## Errors
 

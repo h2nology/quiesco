@@ -385,3 +385,11 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - **Android 失败后的锁定**：ranchu HAL 每次 `onAuthenticationFailed` 后短暂锁定（约 0.5 s，`onLockoutTimed`），期间的触摸以错误 7「Too many attempts」结束认证；连续失败多次锁定更久（见到约 7 s），计数在 `locksettings clear` 时也不清零（`resetLockout` 报 E_HAT_WRONG_CHALLENGE），成功一次才清。spike 中多次未匹配导致后续运行全部被锁 ⇒ fail() 后下一次触摸至少隔 1 s；文档说明连续失败会锁定。
 - **模拟器运行 9.5 h 后过慢**（内部 load 约 8，进程启动到 JS 运行 17 s，连接超时）⇒ 经 HU 同意冷启动。AVD 名称是 `Medium_Phone_API_37.0`；传错名字时 provider 等满 180 s 才报「did not appear」（改进点：启动前用 `-list-avds` 校验并列出可用名称）。
 - **dev client 的摇动会打开开发者菜单（iOS）**：全量回归中 system.feature 的摇动场景之后，expo-dev-menu 的菜单面板一直盖在 App 上，values.feature 6 个场景被判为「被另一窗口遮挡」。expo-dev-menu 的 `toggleMenu` 只在 `EXDevMenuMotionGestureEnabled` 为真时打开（UserDefaults，启动参数可覆盖）；`RCTShowDevMenuNotification` 由 RN 核心照常发出，RNShake（Debug）仍收到 ⇒ `IOS_DEV_MENU_ARGS` 加 `-EXDevMenuMotionGestureEnabled NO`。Android 摇动后截图无菜单。
+
+## 6.7 批次 B spike（推送，2026-11-10；spikes/system/ios-push.mts、android-push.mts）
+- **iOS `simctl push`**：App 在前台时 expo-notifications 的 received 监听收到（通知权限 `undetermined` 也收到）；无权限时前台不显示横幅、后台主屏幕也不显示（simctl privacy 无 notifications，无法预授权）⇒ 点击通知进入 App 需要先授权 + 点进程外横幅 → 依赖批次 C。
+- **Android A（@quiesco/native 以 App 身份 NotificationManager.notify）**：前后台都出现在通知栏；`cmd statusbar expand-notifications` + uiautomator 按标题点击 → App 回到前台；expo-notifications 的 received / response 回调不触发（HU ② 预期）。
+- **Android B（反射调用 expo-notifications 的 FirebaseMessagingDelegate.onMessageReceived(RemoteMessage(bundle))）**：调用成功但既无回调也无通知（未初始化 Firebase / 字段格式不明）⇒ 放弃，按 HU ② 用 A。
+- App 在后台时 backdoor 15 s 无应答（backdoor 之后等空闲）；正式的 agent 方法 postNotification 不等空闲。
+- **Metro `CI=1` 不监听文件**：之前「bundle 是旧的」都是因为用 CI=1 启动 Metro（Expo CLI 在 CI 模式关闭 watch）⇒ 本地实跑改为不带 CI 启动（stdin 重定向 /dev/null 防交互）。
+- **平台标签并集 + 继承**：feature 级 @native 被场景继承，与场景的 @android 取并集 ⇒ @android 场景也在 iOS 上跑（批次 A 的「不匹配后再出示匹配的指纹」在 iOS 上也跑过）。示例改为场景级标签；api.md 注明。

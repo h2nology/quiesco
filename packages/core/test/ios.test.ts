@@ -234,6 +234,7 @@ describe('IosProvider device state (Phase 6.6)', () => {
     setOrientation: async () => r,
     getClipboard: async () => ({ supported: false }),
     setClipboard: async () => ({ supported: false }),
+    postNotification: async () => ({ supported: false }),
   });
 
   it('maps a font scale to the nearest Dynamic Type size (React Native multipliers) and builds locale arguments', () => {
@@ -313,6 +314,29 @@ describe('IosProvider device state (Phase 6.6)', () => {
       n('-s', 'com.apple.BiometricKit.enrollmentChanged', '0'),
       n('-p', 'com.apple.BiometricKit.enrollmentChanged'),
     ]);
+  });
+
+  it('sends a notification as a simulated push: data next to aps, the payload file removed afterwards', async () => {
+    let payload: unknown = null;
+    let file = '';
+    const calls: string[] = [];
+    const exec: Exec = async (cmd, args) => {
+      calls.push(`${cmd} ${args.join(' ')}`);
+      if (args[1] === 'push') {
+        file = args[4] as string;
+        payload = JSON.parse(fs.readFileSync(file, 'utf8'));
+      }
+      if (args.includes('list')) return { stdout: Buffer.from(JSON.stringify({ devices: { 'com.apple.CoreSimulator.SimRuntime.iOS-27-0': [{ udid: 'NEW-17', name: 'iPhone 17', state: 'Booted' }] } })), stderr: '' };
+      return { stdout: Buffer.from(''), stderr: '' };
+    };
+    const p = new IosProvider({ app: { bundleId: 'com.example.todo' }, exec });
+    await p.boot();
+    await p.sendNotification({ title: 'Hello', body: 'World', data: { screen: 'system' } });
+    expect(calls.at(-1)).toBe(`xcrun simctl push NEW-17 com.example.todo ${file}`);
+    expect(payload).toEqual({ aps: { alert: { title: 'Hello', body: 'World' }, sound: 'default' }, screen: 'system' });
+    expect(fs.existsSync(file)).toBe(false);
+    await p.sendNotification({ title: 'Only a title' });
+    expect(payload).toEqual({ aps: { alert: { title: 'Only a title' }, sound: 'default' } });
   });
 
   it('rotates through the app, and says why when it cannot', async () => {

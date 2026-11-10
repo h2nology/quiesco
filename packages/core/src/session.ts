@@ -255,6 +255,7 @@ export class Session {
       setOrientationInApp: (orientation) => this.driver.request('setOrientation', { orientation }, 5_000),
       getClipboardInApp: () => this.driver.request('getClipboard', {}, 5_000),
       setClipboardInApp: (text) => this.driver.request('setClipboard', { text }, 5_000),
+      postNotificationInApp: (n) => this.driver.request('postNotification', { title: n.title, body: n.body ?? '', data: n.data ?? {} }, 5_000),
       setOffline: async (offline) => {
         this.offline = offline;
         await this.applyAgentConfig(this.sync.current());

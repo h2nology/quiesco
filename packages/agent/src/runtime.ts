@@ -292,6 +292,12 @@ export class AgentRuntime {
       await set(p.text);
       return { supported: true };
     },
+    // No wait for idle: it is also called while the app is in the background.
+    postNotification: async (p) => {
+      const post = this.nativeModule()?.postNotification;
+      if (post === undefined) return { supported: false };
+      return { supported: true, enabled: (await post(p.title, p.body, p.data)).enabled };
+    },
     suspend: async () => {
       const suspend = this.nativeModule()?.suspend;
       if (suspend === undefined) return { suspended: false };

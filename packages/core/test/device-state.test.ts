@@ -4,7 +4,7 @@ import type { Orientation } from '@quiesco/protocol';
 
 import type { QuiescoConfig } from '../src/config';
 import type { Permission } from '../src/devices/permissions';
-import type { ColorScheme, InAppControls, LaunchParams, StateChange, StatusBarOptions } from '../src/devices/provider';
+import type { ColorScheme, InAppControls, LaunchParams, NotificationSpec, StateChange, StatusBarOptions } from '../src/devices/provider';
 import { silentLogger } from '../src/logger';
 import { Session } from '../src/session';
 import { connectAgent } from './helpers/fake-agent';
@@ -94,6 +94,12 @@ class StateProvider extends FakeProvider {
   async clearKeychain() {
     this.calls.push('keychain');
   }
+  async sendNotification(n: NotificationSpec, app: InAppControls) {
+    this.calls.push(`notify:${n.title}:${(await app.postNotification(n)).enabled}`);
+  }
+  async openNotification(title: string) {
+    this.calls.push(`open:${title}`);
+  }
   async resetDeviceState(): Promise<StateChange> {
     this.calls.push('reset');
     const relaunch = this.locale !== null;
@@ -122,6 +128,7 @@ async function start(extra: Partial<QuiescoConfig> = {}) {
           if (m === 'deviceInfo') return { window: { width: a.width, height: a.height }, pixelRatio: 2, appState: 'active', colorScheme: a.colorScheme, fontScale: a.fontScale, locale: a.locale };
           if (m === 'setOrientation') return { supported: true };
           if (m === 'getClipboard') return { supported: true, text: clip };
+          if (m === 'postNotification') return { supported: true, enabled: true };
           if (m === 'setClipboard') {
             clip = (p as { text: string }).text;
             return { supported: true };
@@ -301,6 +308,26 @@ describe('app.device state (Phase 6.6)', () => {
     expect(provider.calls).toEqual(['enroll:false']);
   });
 
+  it('notifications (Phase 6.7): sent through the provider (also in the background); opening one brings the app back and waits for it', async () => {
+    const { provider, agents } = await start();
+    const device = session!.driver.device;
+    await device.sendNotification({ title: 'Hello', body: 'b', data: { k: 'v' } });
+    expect(agents[0]!.requests.find((r) => r.method === 'postNotification')?.params).toEqual({ title: 'Hello', body: 'b', data: { k: 'v' } });
+    await device.sendToBackground().catch(() => undefined); // the fake provider has no background: set the state by hand
+    (session as unknown as { appState: string }).appState = 'background';
+    await device.sendNotification({ title: 'Later' });
+    agents[0]!.requests.length = 0;
+    await device.openNotification('Later');
+    expect(device.appState).toBe('running');
+    expect(methods(agents[0])).toEqual(['deviceInfo', 'configure', 'waitForIdle']);
+    expect(provider.calls.filter((c) => /notify|open/.test(c))).toEqual(['notify:Hello:true', 'notify:Later:true', 'open:Later']);
+    await expect(device.sendNotification({ title: '' })).rejects.toThrow(TypeError);
+    await expect(device.sendNotification({ title: 'x', data: { n: 1 as never } })).rejects.toThrow(/data.n must be a string/);
+    await device.terminate();
+    await expect(device.sendNotification({ title: 'x' })).rejects.toMatchObject({ errorName: 'APP_NOT_RUNNING' });
+    await expect(device.openNotification('x')).rejects.toMatchObject({ errorName: 'APP_NOT_RUNNING' });
+  });
+
   it('validates locations; platforms without a method say so', async () => {
     const { device } = await start();
     await expect(device.setLocation(91, 0)).rejects.toThrow(RangeError);
@@ -319,6 +346,7 @@ describe('app.device state on a provider without it', () => {
     await expect(session.driver.device.setStatusBar({ time: '9:41' })).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED' });
     await expect(session.driver.device.biometrics.enroll()).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { action: 'biometrics.enroll' } });
     await expect(session.driver.device.shake()).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { action: 'shake' } });
+    await expect(session.driver.device.openNotification('x')).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { action: 'openNotification' } });
     await expect(session.driver.device.clearKeychain()).rejects.toThrow(/Android has no keychain: relaunch\(\{ clearData: true \}\)/);
     // The agent alone can still simulate offline mode.
     await session.driver.device.setNetwork('offline');

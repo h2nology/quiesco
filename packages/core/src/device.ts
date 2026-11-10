@@ -7,7 +7,7 @@
 import type { DeviceInfo, Orientation, Rect } from '@quiesco/protocol';
 
 import type { Permission } from './devices/permissions.js';
-import type { ColorScheme, DeviceProvider, InAppControls, LaunchUrlHandling, StateChange, StatusBarOptions } from './devices/provider.js';
+import type { ColorScheme, DeviceProvider, InAppControls, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions } from './devices/provider.js';
 import { QuiescoError } from './errors.js';
 import { checkLaunchArgs } from './launch-args.js';
 import type { LaunchArgs } from './launch-args.js';
@@ -46,6 +46,7 @@ export interface DeviceHost {
   setOrientationInApp(orientation: Orientation): Promise<{ supported: boolean; error?: string }>;
   getClipboardInApp(): Promise<{ supported: boolean; text?: string }>;
   setClipboardInApp(text: string): Promise<{ supported: boolean }>;
+  postNotificationInApp(n: NotificationSpec): Promise<{ supported: boolean; enabled?: boolean }>;
   /** Simulated offline mode in the agent (Phase 6.6): sent now when running, and with every later hello. */
   setOffline(offline: boolean): Promise<void>;
   /** Re-send the current agent config (after the app was in the background). */
@@ -118,6 +119,10 @@ export class DeviceApi {
       setOrientation: async (o) => (this.host.appState === 'running' ? this.host.setOrientationInApp(o) : { supported: false }),
       getClipboard: () => this.host.getClipboardInApp(),
       setClipboard: (text) => this.host.setClipboardInApp(text),
+      postNotification: (n) => {
+        if (this.host.appState === 'terminated') throw notRunning('sendNotification');
+        return this.host.postNotificationInApp(n);
+      },
     };
   }
 
@@ -316,6 +321,37 @@ export class DeviceApi {
     await this.host.waitForIdle();
   }
 
+  /**
+   * Deliver a notification (Phase 6.7). iOS: a simulated remote push (`simctl push`); the app's push
+   * library sees it ("received" while the app is in front; shown by the system only when the app may
+   * show notifications). Android: posted as the app (an emulator has no push service), without the push
+   * library's callbacks. Also while the app is in the background.
+   */
+  async sendNotification(n: NotificationSpec): Promise<void> {
+    if (typeof n !== 'object' || n === null || typeof n.title !== 'string' || n.title === '') throw new TypeError('sendNotification({ title }) needs a non-empty title');
+    if (n.body !== undefined && typeof n.body !== 'string') throw new TypeError('sendNotification: body must be a string');
+    for (const [k, v] of Object.entries(n.data ?? {})) if (typeof v !== 'string') throw new TypeError(`sendNotification: data.${k} must be a string`);
+    const p = this.host.provider;
+    if (p.sendNotification === undefined) throw notSupported('sendNotification', p.platform, SYSTEM_HINT.web);
+    await p.sendNotification(n, this.inApp);
+  }
+
+  /**
+   * Tap the notification titled `title` in the system's notification list, like a user opening it from the
+   * background; resolves when the app is in front and idle.
+   */
+  async openNotification(title: string): Promise<void> {
+    if (typeof title !== 'string' || title === '') throw new TypeError('openNotification(title) needs a non-empty title');
+    const p = this.host.provider;
+    if (p.openNotification === undefined) throw notSupported('openNotification', p.platform, NOTIFICATION_HINT[p.platform]);
+    if (this.host.appState === 'terminated') throw notRunning('openNotification');
+    await p.openNotification(title);
+    this.host.appState = 'running';
+    await this.waitForAppState((s) => s === 'active', true);
+    await this.host.reapplyConfig();
+    await this.host.waitForIdle();
+  }
+
   /** Delete keychain items. iOS resets the whole simulator's keychain; Android has none (use relaunch({ clearData: true })). */
   async clearKeychain(): Promise<void> {
     const p = this.host.provider;
@@ -454,6 +490,12 @@ export class DeviceApi {
 }
 
 const SYSTEM_HINT = { web: 'browsers have no such device feature; tag the scenario @native' } as const;
+
+const NOTIFICATION_HINT: Record<DeviceProvider['platform'], string> = {
+  ios: 'notifications are shown outside the app, where in-app input cannot reach (Phase 6.7 batch C)',
+  android: '',
+  web: SYSTEM_HINT.web,
+};
 
 const STATE_HINT: Partial<Record<string, Partial<Record<DeviceProvider['platform'], string>>>> = {
   setFontScale: { web: 'browsers have no system text size' },

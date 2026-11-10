@@ -46,3 +46,24 @@ When('摇动设备', async function (this: QuiescoWorld) {
 Then('系统集成页显示摇动次数 {string}', async function (this: QuiescoWorld, count: string) {
   await this.app.expectText('shake-count', count);
 });
+
+Given('App 可以显示通知', async function (this: QuiescoWorld) {
+  await this.app.device.setPermission('notifications', 'grant');
+});
+
+When('向 App 发送通知 {string}', async function (this: QuiescoWorld, title: string) {
+  await this.app.device.sendNotification({ title, body: `${title}（Quiesco）` });
+});
+
+When('从通知栏打开通知 {string}', async function (this: QuiescoWorld, title: string) {
+  await this.app.device.openNotification(title);
+});
+
+Then('系统集成页显示收到的通知 {string}', async function (this: QuiescoWorld, title: string) {
+  await this.app.expectText('notification-received', title);
+});
+
+Then('系统集成页仍然显示', async function (this: QuiescoWorld) {
+  await this.app.expectVisible('system');
+});
+

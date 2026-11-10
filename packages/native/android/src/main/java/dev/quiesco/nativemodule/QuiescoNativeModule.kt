@@ -1,6 +1,11 @@
 package dev.quiesco.nativemodule
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ClipData
+import android.content.Intent
 import android.content.ClipboardManager
 import android.content.Context
 import android.os.Build
@@ -56,6 +61,29 @@ class QuiescoNativeModule : Module() {
       clipboard()?.setPrimaryClip(ClipData.newPlainText("quiesco", text))
       Unit
     }.runOnQueue(Queues.MAIN)
+
+    /**
+     * `app.device.sendNotification()` on Android (Phase 6.7): an emulator has no push service to deliver
+     * through, so the notification is posted as the app itself (HU 2026-11-09). Tapping it opens the app
+     * with `data` as intent extras; it does not go through the app's push library (no "received" /
+     * "response" callbacks of expo-notifications). Resolves with whether the app may show notifications.
+     */
+    AsyncFunction("postNotification") { title: String, body: String, data: Map<String, String> ->
+      val ctx = appContext.reactContext ?: throw IllegalStateException("the app has no context yet")
+      val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+      if (Build.VERSION.SDK_INT >= 26) {
+        nm.createNotificationChannel(NotificationChannel(NOTIFICATION_CHANNEL, "Quiesco e2e", NotificationManager.IMPORTANCE_HIGH))
+      }
+      val launch = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)
+        ?: throw IllegalStateException("the app has no launcher activity")
+      launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+      for ((k, v) in data) launch.putExtra(k, v)
+      val id = (SystemClock.elapsedRealtime() % Int.MAX_VALUE).toInt()
+      val tap = PendingIntent.getActivity(ctx, id, launch, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+      val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(ctx, NOTIFICATION_CHANNEL) else Notification.Builder(ctx)
+      nm.notify(id, builder.setSmallIcon(ctx.applicationInfo.icon).setContentTitle(title).setContentText(body).setContentIntent(tap).setAutoCancel(true).build())
+      mapOf("enabled" to nm.areNotificationsEnabled())
+    }
 
     /** Where a view really is, and whether its window is the one receiving input. */
     AsyncFunction("locate") { tag: Int ->
@@ -401,3 +429,5 @@ class QuiescoNativeModule : Module() {
     const val STEP_MS = 16
   }
 }
+
+private const val NOTIFICATION_CHANNEL = "quiesco-e2e"

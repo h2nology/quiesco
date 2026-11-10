@@ -53,6 +53,11 @@ export interface AgentMethods {
    */
   getClipboard: { params: Record<string, never>; result: { supported: boolean; text?: string } };
   setClipboard: { params: { text: string }; result: { supported: boolean } };
+  /**
+   * Post a notification as the app (Android @quiesco/native; Phase 6.7). `supported: false` without it;
+   * `enabled: false` when the app may not show notifications (POST_NOTIFICATIONS not granted).
+   */
+  postNotification: { params: { title: string; body: string; data: Record<string, string> }; result: { supported: boolean; enabled?: boolean } };
 }
 
 export type Orientation = 'portrait' | 'landscape';

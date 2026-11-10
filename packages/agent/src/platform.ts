@@ -45,6 +45,8 @@ export type NativeModuleLike = NativeBridge & {
   suspend?(): Promise<boolean>;
   /** iOS: rotate the window scene; resolves with an error message, or '' when requested (Phase 6.6). */
   setOrientation?(landscape: boolean): Promise<string>;
+  /** Android: post a notification as the app (Phase 6.7). */
+  postNotification?(title: string, body: string, data: Record<string, string>): Promise<{ enabled: boolean }>;
   /** The clipboard's text ('' when it holds none), read inside the app (Phase 6.6). */
   getClipboard?(): Promise<string>;
   setClipboard?(text: string): Promise<void>;

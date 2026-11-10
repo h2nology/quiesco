@@ -22,6 +22,7 @@ export default function System() {
   const [received, setReceived] = useState('');
   const [tapped, setTapped] = useState('');
   const [shakes, setShakes] = useState(0);
+  const [permission, setPermission] = useState('');
 
   const readEnrollment = async () => {
     const [hardware, isEnrolled] = await Promise.all([LocalAuthentication.hasHardwareAsync(), LocalAuthentication.isEnrolledAsync()]);
@@ -61,6 +62,10 @@ export default function System() {
         <View style={styles.row}>
           {button('authenticate', '生物识别认证', () => void authenticate())}
           <Text testID="auth-result">{auth}</Text>
+        </View>
+        <View style={styles.row}>
+          {button('read-notification-permission', '读取通知权限', () => void Notifications.getPermissionsAsync().then((p) => setPermission(p.status)))}
+          <Text testID="notification-permission">{permission}</Text>
         </View>
         <View style={styles.row}>
           <Text style={styles.label}>收到通知</Text>

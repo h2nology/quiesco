@@ -29,7 +29,7 @@ import { silentLogger } from '../logger.js';
 import type { Exec } from './exec.js';
 import { execCommand } from './exec.js';
 import type { Permission } from './permissions.js';
-import type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, StateChange, StatusBarOptions } from './provider.js';
+import type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions } from './provider.js';
 
 /** `simctl privacy` services; camera and notifications have none (Xcode 27). */
 const IOS_PRIVACY: Partial<Record<Permission, string[]>> = {
@@ -415,6 +415,23 @@ export class IosProvider implements DeviceProvider {
 
   async clearKeychain(): Promise<void> {
     await this.simctl(['keychain', this.udid, 'reset']);
+  }
+
+  /**
+   * A simulated remote push (`simctl push`): `data` sits next to `aps`, as a push server would send it. The
+   * app's push library sees it while the app is in front; the system shows it only when the app may show
+   * notifications (simctl cannot grant that: the app has to ask).
+   */
+  async sendNotification(n: NotificationSpec): Promise<void> {
+    const payload = { aps: { alert: { title: n.title, ...(n.body !== undefined ? { body: n.body } : {}) }, sound: 'default' }, ...n.data };
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'quiesco-push-'));
+    const file = path.join(dir, 'payload.json');
+    try {
+      await fs.writeFile(file, JSON.stringify(payload));
+      await this.simctl(['push', this.udid, this.bundleId, file]);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
   }
 
   async resetDeviceState(app: InAppControls): Promise<StateChange> {

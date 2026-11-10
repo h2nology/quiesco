@@ -45,6 +45,8 @@ The same features, steps and `this.app` calls run on all three platforms. What d
 | `biometrics.match()` / `fail()` | `notifyutil -p com.apple.BiometricKit_Sim.pearl.match` / `.nomatch` (and `fingerTouch.*` for Touch ID models) | `adb emu finger touch 1` / `2`, once the authentication has started (`dumpsys fingerprint`) | `ACTION_NOT_SUPPORTED` |
 | `shake()` | `notifyutil -p com.apple.UIKit.SimulatorShake` (what *Device > Shake* posts) | `adb emu sensor set acceleration`, 12 alternating pushes | `ACTION_NOT_SUPPORTED` |
 | `clearKeychain()` | `simctl keychain reset` (the whole simulator) | `ACTION_NOT_SUPPORTED` | `ACTION_NOT_SUPPORTED` |
+| `sendNotification()` | `simctl push` (a simulated APNs push) | posted as the app by `@quiesco/native` ≥ Phase 6.7 (no push service on emulators) | `ACTION_NOT_SUPPORTED` |
+| `openNotification()` | `ACTION_NOT_SUPPORTED` (outside the app) | notification shade (`cmd statusbar expand-notifications`), tapped by `uiautomator` | `ACTION_NOT_SUPPORTED` |
 | Value controls, accessibility actions (native mode) | need an app built with `@quiesco/native` ≥ Phase 6.3 (`sliderInfo`, `wheelInfo`, `accessibilityAction`) | same (`sliderInfo`, `accessibilityAction`) | — |
 
 ## Permissions

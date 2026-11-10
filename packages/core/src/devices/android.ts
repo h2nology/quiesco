@@ -40,7 +40,7 @@ import { silentLogger } from '../logger.js';
 import type { Exec, Spawn } from './exec.js';
 import { execCommand, shq, spawnDetached } from './exec.js';
 import type { Permission } from './permissions.js';
-import type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, StateChange, StatusBarOptions } from './provider.js';
+import type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions } from './provider.js';
 
 const ANDROID_PERMISSIONS: Record<Permission, string[]> = {
   camera: ['android.permission.CAMERA'],
@@ -525,6 +525,41 @@ export class AndroidProvider implements DeviceProvider {
     await this.adbRun(['emu', 'sensor', 'set', 'acceleration', '0:9.81:0']);
   }
 
+  /** Posted by @quiesco/native as the app: an emulator has no push service to deliver through (HU 2026-11-09). */
+  async sendNotification(n: NotificationSpec, app: InAppControls): Promise<void> {
+    const r = await app.postNotification(n);
+    if (!r.supported) {
+      throw new QuiescoError('ACTION_NOT_SUPPORTED', 'sendNotification on Android needs @quiesco/native ≥ Phase 6.7 in the app (it posts the notification as the app)', {
+        action: 'sendNotification',
+        platform: 'android',
+        hint: 'rebuild the app with EXPO_PUBLIC_QUIESCO=1 and @quiesco/expo-plugin',
+      });
+    }
+    if (r.enabled === false) {
+      throw new QuiescoError('DEVICE_ERROR', 'sendNotification: the app may not show notifications; grant them (config permissions: [\'notifications\'], or app.device.setPermission(\'notifications\', \'grant\'))');
+    }
+  }
+
+  /** Pulls the notification shade down and taps the notification whose text is `title` (uiautomator). */
+  async openNotification(title: string): Promise<void> {
+    await this.shell('cmd statusbar expand-notifications');
+    const deadline = Date.now() + NOTIFICATION_WAIT_MS;
+    for (;;) {
+      const nodes = parseUiNodes(await this.uiDump());
+      const node = nodes.find((n) => n.text === title);
+      if (node !== undefined) {
+        await this.shell(`input tap ${(node.bounds.x1 + node.bounds.x2) >> 1} ${(node.bounds.y1 + node.bounds.y2) >> 1}`);
+        return;
+      }
+      if (Date.now() > deadline) {
+        await this.shell('cmd statusbar collapse').catch(() => undefined);
+        const texts = nodes.map((n) => n.text).filter((t) => t !== '').slice(0, 12);
+        throw new QuiescoError('DEVICE_ERROR', `openNotification: no notification "${title}" in the shade (texts there: ${texts.map((t) => JSON.stringify(t)).join(', ') || 'none'})`);
+      }
+      await new Promise((r) => setTimeout(r, NOTIFICATION_POLL_MS));
+    }
+  }
+
   async resetDeviceState(): Promise<StateChange> {
     // Restoring the font scale or the language recreates the activity again (see setFontScale).
     const relaunch = this.restore.has('fontScale') || this.restore.has('locale');
@@ -630,6 +665,8 @@ const AUTH_WAIT_MS = 5_000;
 /** The HAL's timed lockout after one failed attempt (about 500 ms measured), with a margin. */
 const FAILURE_LOCKOUT_MS = 1_000;
 const AUTH_POLL_MS = 100;
+const NOTIFICATION_WAIT_MS = 5_000;
+const NOTIFICATION_POLL_MS = 300;
 const SHAKE_PUSHES = 12;
 const SHAKE_PUSH_MS = 80;
 

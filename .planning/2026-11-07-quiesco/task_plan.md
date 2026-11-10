@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-6.5 完成并提交（c5a4200）。6.6 批次 A 已提交（b899531）；6.6 批次 B 完成并提交（2026-11-09，三端全量实跑通过）⇒ 6.6 完成。6.7 计划 HU 已确认（2026-11-09）；6.7 批次 A（生物识别 / shake / clearKeychain）完成并提交（2026-11-10，三端全量通过）。下一步：6.7 批次 B 推送（spike：iOS simctl push 前台 / 后台 / 点击；Android @quiesco/native 本地通知）。
+6.5 完成并提交（c5a4200）。6.6 批次 A 已提交（b899531）；6.6 批次 B 完成并提交（2026-11-09，三端全量实跑通过）⇒ 6.6 完成。6.7 计划 HU 已确认（2026-11-09）；6.7 批次 A（生物识别 / shake / clearKeychain）完成并提交（2026-11-10，三端全量通过）。6.7 批次 B（推送：sendNotification / openNotification）完成并提交（2026-11-10，三端全量通过；iOS openNotification 待批次 C）。下一步：6.7 批次 C 系统弹窗（Android uiautomator；iOS 先 spike XCUITest 辅助进程，含 iOS 通知点击 / 通知授权 / Face ID 重试弹窗）。另待 HU：平台标签并集 + feature 继承是否改为场景标签优先。
 
 ## Current Phase
 Phase 6

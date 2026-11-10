@@ -31,6 +31,16 @@ export interface InAppControls {
   /** The clipboard through @quiesco/native (Phase 6.6); `supported: false` without it. */
   getClipboard(): Promise<{ supported: boolean; text?: string }>;
   setClipboard(text: string): Promise<{ supported: boolean }>;
+  /** Post a notification as the app (Android @quiesco/native; Phase 6.7); works while it is in the background. */
+  postNotification(n: NotificationSpec): Promise<{ supported: boolean; enabled?: boolean }>;
+}
+
+/** A notification for `app.device.sendNotification()` (Phase 6.7). */
+export interface NotificationSpec {
+  title: string;
+  body?: string;
+  /** Custom data: iOS puts it next to `aps` in the push payload, Android into the launch intent's extras. */
+  data?: Record<string, string>;
 }
 
 /** Status bar overrides for clean screenshots (Phase 6.6); unset fields keep the real value. */
@@ -129,6 +139,10 @@ export interface DeviceProvider {
   shake?(): Promise<void>;
   /** Delete the keychain items (iOS: the whole simulator's keychain). */
   clearKeychain?(): Promise<void>;
+  /** Deliver a notification to the app (iOS: a simulated push; Android: posted as the app). */
+  sendNotification?(n: NotificationSpec, app: InAppControls): Promise<void>;
+  /** Tap the notification with this title in the system's notification list (the app comes to the front). */
+  openNotification?(title: string): Promise<void>;
   /**
    * Undo every device-state change made since the last call (before each scenario, HU 2026-11-09).
    * Permissions are restored by the caller (it knows the configured ones).
