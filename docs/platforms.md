@@ -47,6 +47,7 @@ The same features, steps and `this.app` calls run on all three platforms. What d
 | `clearKeychain()` | `simctl keychain reset` (the whole simulator) | `ACTION_NOT_SUPPORTED` | `ACTION_NOT_SUPPORTED` |
 | `sendNotification()` | `simctl push` (a simulated APNs push) | posted as the app by `@quiesco/native` ≥ Phase 6.7 (no push service on emulators) | `ACTION_NOT_SUPPORTED` |
 | `openNotification()` | `ACTION_NOT_SUPPORTED` (outside the app) | notification shade (`cmd statusbar expand-notifications`), tapped by `uiautomator` | `ACTION_NOT_SUPPORTED` |
+| `system.*` (system UI outside the app) | `ACTION_NOT_SUPPORTED` (outside the app; XCUITest spike pending) | `uiautomator dump` (nodes of other packages; ~2 s per dump) + `input tap`; permission buttons by `com.android.permissioncontroller` ids | `ACTION_NOT_SUPPORTED` (JS dialogs are dismissed by Playwright) |
 | Value controls, accessibility actions (native mode) | need an app built with `@quiesco/native` ≥ Phase 6.3 (`sliderInfo`, `wheelInfo`, `accessibilityAction`) | same (`sliderInfo`, `accessibilityAction`) | — |
 
 ## Permissions
@@ -132,6 +133,8 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
   removes it, with the fingerprint, before the next scenario). The app goes to the background while Settings
   enrolls and is brought back. After an unknown finger the sensor is locked for about half a second, longer
   after several failures in a row (the count only resets on a success).
+- `setPermission(p, 'revoke')` also clears the permission's user-set / user-fixed flags: after two denials
+  Android would stop asking, but a revoked permission is asked for again, as on a fresh install.
 
 ## Web
 

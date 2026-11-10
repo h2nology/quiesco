@@ -7,13 +7,15 @@
 import type { DeviceInfo, Orientation, Rect } from '@quiesco/protocol';
 
 import type { Permission } from './devices/permissions.js';
-import type { ColorScheme, DeviceProvider, InAppControls, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions } from './devices/provider.js';
+import type { ColorScheme, DeviceProvider, InAppControls, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions, SystemNode } from './devices/provider.js';
 import { QuiescoError } from './errors.js';
 import { checkLaunchArgs } from './launch-args.js';
 import type { LaunchArgs } from './launch-args.js';
 import type { Logger } from './logger.js';
 import type { MatcherInput } from './matcher.js';
 import { cropPng, pngSize } from './png.js';
+import { SYSTEM_WAIT_MS, checkSystemQuery, describeSystemQuery, matchesSystemQuery, seenTexts } from './system-ui.js';
+import type { SystemQuery, SystemWaitOptions } from './system-ui.js';
 
 /** What the test did to the app last. Element calls need `running`. */
 export type AppRunState = 'running' | 'background' | 'terminated';
@@ -90,6 +92,44 @@ export class DeviceApi {
     },
     match: (): Promise<void> => this.biometric(true),
     fail: (): Promise<void> => this.biometric(false),
+  };
+
+  /**
+   * System UI outside the app (Phase 6.7 batch C): permission dialogs, the biometric prompt. Each call
+   * waits for the UI to show up (or go away) within `timeoutMs` (default 10 s). Taps wait for the app to
+   * be idle afterwards.
+   */
+  readonly system = {
+    tap: async (query: SystemQuery, opts: SystemWaitOptions = {}): Promise<void> => {
+      checkSystemQuery('system.tap', query);
+      const node = await this.findSystemNode('system.tap', describeSystemQuery(query), (nodes) => nodes.find((n) => matchesSystemQuery(n, query)), opts);
+      await this.systemProvider('system.tap').tapSystemNode(node);
+      if (this.host.appState === 'running') await this.host.waitForIdle();
+    },
+    expectVisible: async (query: SystemQuery, opts: SystemWaitOptions = {}): Promise<void> => {
+      checkSystemQuery('system.expectVisible', query);
+      await this.findSystemNode('system.expectVisible', describeSystemQuery(query), (nodes) => nodes.find((n) => matchesSystemQuery(n, query)), opts);
+    },
+    expectNotVisible: async (query: SystemQuery, opts: SystemWaitOptions = {}): Promise<void> => {
+      checkSystemQuery('system.expectNotVisible', query);
+      const p = this.systemProvider('system.expectNotVisible');
+      const deadline = Date.now() + (opts.timeoutMs ?? SYSTEM_WAIT_MS);
+      for (;;) {
+        const match = (await p.systemNodes()).find((n) => matchesSystemQuery(n, query));
+        if (match === undefined) return;
+        if (Date.now() >= deadline) {
+          throw new QuiescoError('ASSERTION_FAILED', `system.expectNotVisible: ${describeSystemQuery(query)} is still on screen (${JSON.stringify(match.text)})`, {
+            expected: 'not visible',
+            actual: match.text,
+          });
+        }
+        await new Promise((r) => setTimeout(r, STATE_POLL_MS));
+      }
+    },
+    /** Tap the permission dialog's allow button (whatever the device language); waits until the app is back in front. */
+    allowPermission: (opts: SystemWaitOptions = {}): Promise<void> => this.answerPermission(true, opts),
+    /** Tap the permission dialog's deny button (also "deny and don't ask again"); waits until the app is back in front. */
+    denyPermission: (opts: SystemWaitOptions = {}): Promise<void> => this.answerPermission(false, opts),
   };
 
   /** The device clipboard (plain text), as the app sees it. Cleared before the next scenario when set. */
@@ -471,6 +511,46 @@ export class DeviceApi {
     }
   }
 
+  private systemProvider(action: string): Required<Pick<DeviceProvider, 'systemNodes' | 'tapSystemNode'>> {
+    const p = this.host.provider;
+    if (p.systemNodes === undefined || p.tapSystemNode === undefined) throw notSupported(action, p.platform, SYSTEM_UI_HINT[p.platform]);
+    return { systemNodes: () => p.systemNodes!(), tapSystemNode: (n) => p.tapSystemNode!(n) };
+  }
+
+  /** Poll the system UI until a node matches (each listing may take a while: uiautomator dumps take ~2 s). */
+  private async findSystemNode(action: string, what: string, pick: (nodes: SystemNode[]) => SystemNode | undefined, opts: SystemWaitOptions): Promise<SystemNode> {
+    const p = this.systemProvider(action);
+    const timeoutMs = opts.timeoutMs ?? SYSTEM_WAIT_MS;
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const nodes = await p.systemNodes();
+      const node = pick(nodes);
+      if (node !== undefined) return node;
+      if (Date.now() >= deadline) {
+        const seen = seenTexts(nodes);
+        throw new QuiescoError('ELEMENT_NOT_FOUND', `${action}: no system UI matching ${what} within ${timeoutMs}ms (on screen outside the app: ${seen.map((t) => JSON.stringify(t)).join(', ') || 'nothing'})`, {
+          action,
+          seen,
+        });
+      }
+      await new Promise((r) => setTimeout(r, STATE_POLL_MS));
+    }
+  }
+
+  private async answerPermission(allow: boolean, opts: SystemWaitOptions): Promise<void> {
+    const action = allow ? 'system.allowPermission' : 'system.denyPermission';
+    const p = this.host.provider;
+    const ids = (allow ? p.permissionDialog?.allow : p.permissionDialog?.deny) ?? [];
+    if (ids.length === 0) throw notSupported(action, p.platform, SYSTEM_UI_HINT[p.platform]);
+    const rank = (n: SystemNode) => ids.indexOf(n.id);
+    // Several may be on screen (location: "while using the app" and "only this time"): the preferred one.
+    const node = await this.findSystemNode(action, `the permission dialog's ${allow ? 'allow' : 'deny'} button (${ids.join(' / ')})`, (nodes) => nodes.filter((n) => rank(n) >= 0).sort((a, b) => rank(a) - rank(b))[0], opts);
+    await this.systemProvider(action).tapSystemNode(node);
+    if (this.host.appState !== 'running') return;
+    await this.waitForAppState((s) => s === 'active', true);
+    await this.host.waitForIdle();
+  }
+
   private async waitForAppState(ok: (s: DeviceInfo['appState']) => boolean, required: boolean): Promise<void> {
     const deadline = Date.now() + STATE_WAIT_MS;
     let last: string = 'no answer';
@@ -493,6 +573,12 @@ const SYSTEM_HINT = { web: 'browsers have no such device feature; tag the scenar
 
 const NOTIFICATION_HINT: Record<DeviceProvider['platform'], string> = {
   ios: 'notifications are shown outside the app, where in-app input cannot reach (Phase 6.7 batch C)',
+  android: '',
+  web: SYSTEM_HINT.web,
+};
+
+const SYSTEM_UI_HINT: Record<DeviceProvider['platform'], string> = {
+  ios: 'system dialogs are outside the app, where in-app input cannot reach (Phase 6.7 batch C: XCUITest spike pending); grant permissions up front (config permissions, app.device.setPermission)',
   android: '',
   web: SYSTEM_HINT.web,
 };

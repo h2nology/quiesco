@@ -67,3 +67,30 @@ Then('系统集成页仍然显示', async function (this: QuiescoWorld) {
   await this.app.expectVisible('system');
 });
 
+
+When('点击系统界面上的 {string}', async function (this: QuiescoWorld, text: string) {
+  await this.app.device.system.tap({ text });
+});
+
+// Revoking restarts the app (Android kills it), so the page is opened again.
+Given('通知权限尚未决定', async function (this: QuiescoWorld) {
+  await this.app.device.setPermission('notifications', 'revoke');
+  await this.app.backdoor('openSystem');
+  await this.app.expectVisible('system');
+});
+
+When('请求通知权限', async function (this: QuiescoWorld) {
+  await this.app.tap('request-notification-permission');
+});
+
+When('在系统对话框中允许', async function (this: QuiescoWorld) {
+  await this.app.device.system.allowPermission();
+});
+
+When('在系统对话框中拒绝', async function (this: QuiescoWorld) {
+  await this.app.device.system.denyPermission();
+});
+
+Then('系统集成页显示通知权限 {string}', async function (this: QuiescoWorld, status: string) {
+  await this.app.expectText('notification-permission', status);
+});

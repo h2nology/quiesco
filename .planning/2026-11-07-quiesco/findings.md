@@ -396,3 +396,10 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 
 - **平台标签改为最内层优先（HU 2026-11-10 确认）**：feature → Rule → 场景 → Examples，最内层带平台标签的层级决定平台（同层多个仍取并集），无平台标签时继承外层。分组靠 cucumber-js Before hook 的 `gherkinDocument` + `pickle.tags[].astNodeId`（`tagLevels`，packages/cucumber）；core 的 `runsOnPlatform` 接受扁平或分层标签。与 cucumber-js `--tags`（含继承标签）不同，api.md 注明。示例 system.feature 改回 feature 级 @native。
 - **两台模拟器同时开机**：未指定设备时 iOS provider 取第一台 Booted（5FB8…），该台上生物识别录入不被撤销、`simctl push` 报 UNErrorDomain 2003「Source is not authorized」；旧代码同样失败 ⇒ 与标签改动无关。关掉多余的一台后 iOS 全量通过。改进点：多台 Booted 时警告并列出 udid（或要求指定）。
+
+## 6.7 批次 C spike（Android 系统弹窗，2026-11-10；spikes/system/android-dialogs.mts、android-dialog-appstate.mts）
+- **权限对话框是另一个 Activity**（permissioncontroller 的 GrantPermissionsActivity）：点击后约 150 ms RN AppState 变 `background`，JS 线程仍可应答（deviceInfo / getIdleState），但 **RN 定时器暂停** ⇒ agent 的 `waitForIdle`（sleep 用 setTimeout）既不结束也不超时 ⇒ 触发对话框的 `tap()` 卡到 RPC 超时。修复：等待循环同时被 AppState change 事件唤醒；后台且活动 tracker 全空闲时直接返回（不做第二个 macrotask 确认，后台没有定时器 / 帧）。
+- **resource-id 与语言无关**：`com.android.permissioncontroller:id/permission_allow_button`、`permission_deny_button`；第二次请求时拒绝按钮变为 `permission_deny_and_dont_ask_again_button`（文字同为 “Don’t allow”，弯引号）。位置权限另有 `permission_allow_foreground_only_button` / `permission_allow_one_time_button`。包名 `com.google.android.permissioncontroller`（id 前缀仍是 com.android.permissioncontroller）。
+- 连续拒绝两次 ⇒ flags USER_SET|USER_FIXED，第三次不再弹出；`pm clear-permission-flags <pkg> <perm> user-set user-fixed` 恢复为可再询问。`pm revoke` 杀 App 进程；安装（-g）会授予全部权限 ⇒ 撤销必须在安装后。
+- **BiometricPrompt**（fail 后保持显示）：包 `com.android.systemui`，取消按钮 `com.android.systemui:id/button_negative`（文字为 cancelLabel「取消」），另有 `close_button`；点击后 App 收到 `user_cancel`。
+- `uiautomator dump` 每次约 2 s（1.9–2.9 s）⇒ 轮询间隔不需要再加等待，超时要按 dump 时间留余量。

@@ -29,6 +29,8 @@ export class SyncEngine {
   private disabled = new Set<string>();
   /** Trackers that cannot settle right now (e.g. no frames while the app is in the background). */
   private skipped: () => ReadonlySet<string> = () => NO_NAMES;
+  private inBackground: () => boolean = () => false;
+  private onBackgroundChange: ((wake: () => void) => () => void) | undefined;
 
   constructor(
     readonly trackers: readonly IdleTracker[],
@@ -60,6 +62,17 @@ export class SyncEngine {
     this.skipped = fn;
   }
 
+  /**
+   * While `inBackground()`, Android pauses the JS timers (findings 6.7 batch C: a permission dialog is
+   * another activity), so a wait sleeping on a timer would neither end nor time out. `onChange` wakes it
+   * (AppState events still arrive), and in the background it returns as soon as every active tracker is
+   * idle, without the confirmation check in a later macrotask (that needs a timer; nothing runs anyway).
+   */
+  setBackground(inBackground: () => boolean, onChange?: (wake: () => void) => () => void): void {
+    this.inBackground = inBackground;
+    this.onBackgroundChange = onChange;
+  }
+
   private active(): IdleTracker[] {
     const skipped = safe(() => this.skipped(), NO_NAMES);
     return this.trackers.filter((t) => !this.disabled.has(t.name) && !skipped.has(t.name));
@@ -77,18 +90,28 @@ export class SyncEngine {
     const pollMs = options.pollIntervalMs ?? DEFAULT_POLL_MS;
     const start = this.clock.now();
     const trackers = this.active();
+    let wake: (() => void) | null = null;
+    const unsubscribe = safe(() => this.onBackgroundChange?.(() => wake?.()), undefined);
+    const sleep = (ms: number) =>
+      new Promise<void>((resolve) => {
+        wake = resolve;
+        this.clock.setTimeout(resolve, ms);
+      });
     for (const t of trackers) t.beginWait?.();
     try {
       for (;;) {
         if (this.allIdle()) {
-          await this.sleep(0);
+          if (safe(() => this.inBackground(), false)) return { waitedMs: this.clock.now() - start };
+          await sleep(0);
           if (this.allIdle()) return { waitedMs: this.clock.now() - start };
         }
         const elapsed = this.clock.now() - start;
         if (elapsed >= timeoutMs) throw this.timeoutError(options.reportedTimeoutMs ?? timeoutMs, elapsed);
-        await this.sleep(Math.min(pollMs, timeoutMs - elapsed));
+        await sleep(Math.min(pollMs, timeoutMs - elapsed));
       }
     } finally {
+      wake = null;
+      safe(() => unsubscribe?.(), undefined);
       for (const t of trackers) t.endWait?.();
     }
   }
@@ -107,11 +130,6 @@ export class SyncEngine {
     });
   }
 
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => {
-      this.clock.setTimeout(resolve, ms);
-    });
-  }
 }
 
 function safe<T>(fn: () => T, fallback: T): T {

@@ -285,7 +285,7 @@ describe('AndroidProvider device state (Phase 6.6)', () => {
     await expect(p.resetDeviceState()).resolves.toEqual({ relaunch: false });
   });
 
-  it('grants and revokes (a revoke kills the app), and fakes the location on emulators only', async () => {
+  it('grants and revokes (a revoke kills the app, and the app may ask again), and fakes the location on emulators only', async () => {
     const { p, calls } = await booted();
     await expect(p.setPermission('location', true)).resolves.toEqual({ relaunch: false });
     await expect(p.setPermission('location', false)).resolves.toEqual({ relaunch: true });
@@ -294,7 +294,9 @@ describe('AndroidProvider device state (Phase 6.6)', () => {
       "adb -s emulator-5554 shell pm grant 'com.example.todo' android.permission.ACCESS_FINE_LOCATION",
       "adb -s emulator-5554 shell pm grant 'com.example.todo' android.permission.ACCESS_COARSE_LOCATION",
       "adb -s emulator-5554 shell pm revoke 'com.example.todo' android.permission.ACCESS_FINE_LOCATION",
+      "adb -s emulator-5554 shell pm clear-permission-flags 'com.example.todo' android.permission.ACCESS_FINE_LOCATION user-set user-fixed",
       "adb -s emulator-5554 shell pm revoke 'com.example.todo' android.permission.ACCESS_COARSE_LOCATION",
+      "adb -s emulator-5554 shell pm clear-permission-flags 'com.example.todo' android.permission.ACCESS_COARSE_LOCATION user-set user-fixed",
       'adb -s emulator-5554 emu geo fix 139.76 35.68',
     ]);
     const device = provider([[/adb devices$/, 'List of devices attached\nR58M123\tdevice\n'], ...BOOTED.slice(2)], { device: { serial: 'R58M123' } });
@@ -542,4 +544,29 @@ describe('AndroidProvider system integration (Phase 6.7)', () => {
     await expect(p.openNotification('Missing')).rejects.toThrow(/no notification "Missing" in the shade \(texts there: "Quiesco Todo", "Hello"\)/);
     expect(calls.at(-1)).toBe('adb -s emulator-5554 shell cmd statusbar collapse');
   }, 15_000);
+
+  it('lists the system UI outside the app (uiautomator) and taps a node at its center', async () => {
+    const DIALOG = [
+      '<hierarchy>',
+      '<node text="" resource-id="" package="com.example.todo" enabled="true" bounds="[0,0][1080,2400]" />',
+      '<node text="Allow Todo to send you notifications?" resource-id="com.android.permissioncontroller:id/permission_message" package="com.google.android.permissioncontroller" enabled="true" bounds="[133,1010][947,1179]" />',
+      '<node text="Allow" resource-id="com.android.permissioncontroller:id/permission_allow_button" package="com.google.android.permissioncontroller" clickable="true" enabled="true" bounds="[133,1242][947,1368]" />',
+      '<node text="" resource-id="" package="com.google.android.permissioncontroller" enabled="true" bounds="[28,789][1052,1610]" />',
+      '<node text="Off" resource-id="x:id/off" package="com.google.android.permissioncontroller" enabled="false" bounds="[0,0][1,1]" />',
+      '<node text="Todo item" resource-id="" package="com.example.todo" enabled="true" bounds="[0,0][10,10]" />',
+      '</hierarchy>',
+    ].join('');
+    const { p, calls } = provider([...BOOTED, [/cat \/sdcard\/quiesco-ui.xml/, DIALOG]]);
+    await p.boot();
+    const nodes = await p.systemNodes();
+    // Not the app's own nodes, not disabled ones, not anonymous containers.
+    expect(nodes).toEqual([
+      { text: 'Allow Todo to send you notifications?', id: 'com.android.permissioncontroller:id/permission_message', bounds: { x1: 133, y1: 1010, x2: 947, y2: 1179 } },
+      { text: 'Allow', id: 'com.android.permissioncontroller:id/permission_allow_button', bounds: { x1: 133, y1: 1242, x2: 947, y2: 1368 } },
+    ]);
+    calls.length = 0;
+    await p.tapSystemNode(nodes[1]!);
+    expect(calls).toEqual(['adb -s emulator-5554 shell input tap 540 1305']);
+    expect(p.permissionDialog.deny).toContain('com.android.permissioncontroller:id/permission_deny_and_dont_ask_again_button');
+  });
 });

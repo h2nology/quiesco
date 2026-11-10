@@ -1,8 +1,8 @@
 @REQ-DEMO-006 @native
 Feature: 系统集成（系统集成页）
-  生物识别（Face ID / 指纹）、摇动与通知。每个场景开始时 Quiesco 会撤销上一个场景的生物识别录入和权限变更。
-  （演示 Phase 6.7。浏览器没有这些设备能力，每个场景都只在 iOS / Android 上跑。平台标签取并集，
-  所以 @native 写在场景上而不是 feature 上：feature 上的 @native 会让 @android 场景也在 iOS 上跑。）
+  生物识别（Face ID / 指纹）、摇动、通知与系统对话框。每个场景开始时 Quiesco 会撤销上一个场景的生物识别录入和权限变更。
+  （演示 Phase 6.7。浏览器没有这些设备能力，整个 feature 只在 iOS / Android 上跑；场景上的 @ios / @android
+  比 feature 上的 @native 更靠内，以场景为准。）
 
   Background:
     Given 打开系统集成页
@@ -33,6 +33,26 @@ Feature: 系统集成（系统集成页）
     Then 系统集成页显示认证结果 "…"
     When 出示匹配的生物特征
     Then 系统集成页显示认证结果 "成功"
+
+  # 认证失败后系统的指纹提示仍在，点它的「取消」按钮（App 之外的系统界面），App 收到用户取消。
+  @android
+  Scenario: 不匹配后取消认证
+    Given 设备已录入生物识别
+    When 点击生物识别认证
+    And 出示不匹配的生物特征
+    And 点击系统界面上的 "取消"
+    Then 系统集成页显示认证结果 "失败:user_cancel"
+
+  # 系统的权限对话框不属于 App：按按钮的 id 找，与设备语言无关。
+  @android
+  Scenario: 先拒绝再允许通知权限
+    Given 通知权限尚未决定
+    When 请求通知权限
+    And 在系统对话框中拒绝
+    Then 系统集成页显示通知权限 "denied"
+    When 请求通知权限
+    And 在系统对话框中允许
+    Then 系统集成页显示通知权限 "granted"
 
   Scenario: 摇动设备
     When 摇动设备

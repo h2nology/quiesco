@@ -1,7 +1,7 @@
 /**
  * Hidden system-integration page (opened by the `openSystem` backdoor), for features/system.feature
  * (Phase 6.7): biometric authentication (expo-local-authentication), notifications the app received or
- * the user tapped (expo-notifications) and shakes (react-native-shake).
+ * the user tapped (expo-notifications), the notification permission request and shakes (react-native-shake).
  */
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as Notifications from 'expo-notifications';
@@ -66,6 +66,10 @@ export default function System() {
         <View style={styles.row}>
           {button('read-notification-permission', '读取通知权限', () => void Notifications.getPermissionsAsync().then((p) => setPermission(p.status)))}
           <Text testID="notification-permission">{permission}</Text>
+        </View>
+        <View style={styles.row}>
+          {/* Shows the system's permission dialog while the permission is undetermined (features/system.feature). */}
+          {button('request-notification-permission', '请求通知权限', () => void Notifications.requestPermissionsAsync().then((p) => setPermission(p.status)))}
         </View>
         <View style={styles.row}>
           <Text style={styles.label}>收到通知</Text>

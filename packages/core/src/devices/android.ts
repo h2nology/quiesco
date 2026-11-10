@@ -40,7 +40,7 @@ import { silentLogger } from '../logger.js';
 import type { Exec, Spawn } from './exec.js';
 import { execCommand, shq, spawnDetached } from './exec.js';
 import type { Permission } from './permissions.js';
-import type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions } from './provider.js';
+import type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions, SystemNode } from './provider.js';
 
 const ANDROID_PERMISSIONS: Record<Permission, string[]> = {
   camera: ['android.permission.CAMERA'],
@@ -327,7 +327,10 @@ export class AndroidProvider implements DeviceProvider {
     if (/KO/.test(out)) throw new QuiescoError('DEVICE_ERROR', `adb emu geo fix failed: ${out.trim()}`);
   }
 
-  /** `pm grant` / `pm revoke`. Android kills the app when a permission is revoked (spike 6.6). */
+  /**
+   * `pm grant` / `pm revoke`. Android kills the app when a permission is revoked (spike 6.6); a revoked
+   * permission is asked for again (its user-set / user-fixed flags are cleared).
+   */
   async setPermission(permission: Permission, grant: boolean): Promise<StateChange> {
     const names = ANDROID_PERMISSIONS[permission];
     for (const n of names) {
@@ -335,6 +338,8 @@ export class AndroidProvider implements DeviceProvider {
       if (/Exception|not a changeable|has not requested/i.test(out)) {
         throw new QuiescoError('DEVICE_ERROR', `pm ${grant ? 'grant' : 'revoke'} ${n} failed (is it declared in the app manifest?): ${out.trim()}`);
       }
+      // After two denials Android stops asking (USER_FIXED): revoked means "the app may ask again".
+      if (!grant) await this.shell(`pm clear-permission-flags ${shq(this.pkg)} ${n} user-set user-fixed`).catch(() => undefined);
     }
     return { relaunch: !grant };
   }
@@ -560,6 +565,24 @@ export class AndroidProvider implements DeviceProvider {
     }
   }
 
+  /** Language-independent ids of the runtime permission dialog's buttons (findings 6.7 batch C). */
+  readonly permissionDialog = {
+    allow: ['com.android.permissioncontroller:id/permission_allow_button', 'com.android.permissioncontroller:id/permission_allow_foreground_only_button', 'com.android.permissioncontroller:id/permission_allow_one_time_button'],
+    deny: ['com.android.permissioncontroller:id/permission_deny_button', 'com.android.permissioncontroller:id/permission_deny_and_dont_ask_again_button'],
+  } as const;
+
+  /** What uiautomator sees on screen outside the app (a permission dialog is another app's activity). */
+  async systemNodes(): Promise<SystemNode[]> {
+    return parseUiNodes(await this.uiDump())
+      .filter((n) => n.package !== this.pkg && n.enabled && (n.text !== '' || n.resourceId !== ''))
+      .map((n) => ({ text: n.text, id: n.resourceId, bounds: n.bounds }));
+  }
+
+  async tapSystemNode(node: SystemNode): Promise<void> {
+    const { x1, y1, x2, y2 } = node.bounds;
+    await this.shell(`input tap ${(x1 + x2) >> 1} ${(y1 + y2) >> 1}`);
+  }
+
   async resetDeviceState(): Promise<StateChange> {
     // Restoring the font scale or the language recreates the activity again (see setFontScale).
     const relaunch = this.restore.has('fontScale') || this.restore.has('locale');
@@ -673,6 +696,8 @@ const SHAKE_PUSH_MS = 80;
 export interface UiNode {
   text: string;
   resourceId: string;
+  /** The app the node belongs to. */
+  package: string;
   clickable: boolean;
   enabled: boolean;
   bounds: { x1: number; y1: number; x2: number; y2: number };
@@ -688,6 +713,7 @@ export function parseUiNodes(xml: string): UiNode[] {
     nodes.push({
       text: attrs['text'] ?? '',
       resourceId: attrs['resource-id'] ?? '',
+      package: attrs['package'] ?? '',
       clickable: attrs['clickable'] === 'true',
       enabled: attrs['enabled'] !== 'false',
       bounds: { x1: Number(b[1]), y1: Number(b[2]), x2: Number(b[3]), y2: Number(b[4]) },

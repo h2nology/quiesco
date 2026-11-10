@@ -4,7 +4,7 @@ import type { Orientation } from '@quiesco/protocol';
 
 import type { QuiescoConfig } from '../src/config';
 import type { Permission } from '../src/devices/permissions';
-import type { ColorScheme, InAppControls, LaunchParams, NotificationSpec, StateChange, StatusBarOptions } from '../src/devices/provider';
+import type { ColorScheme, InAppControls, LaunchParams, NotificationSpec, StateChange, StatusBarOptions, SystemNode } from '../src/devices/provider';
 import { silentLogger } from '../src/logger';
 import { Session } from '../src/session';
 import { connectAgent } from './helpers/fake-agent';
@@ -100,6 +100,16 @@ class StateProvider extends FakeProvider {
   async openNotification(title: string) {
     this.calls.push(`open:${title}`);
   }
+  /** What systemNodes() returns on each call (the last one repeats). */
+  screens: SystemNode[][] = [[]];
+  async systemNodes() {
+    this.calls.push('systemNodes');
+    return this.screens.length > 1 ? this.screens.shift()! : this.screens[0]!;
+  }
+  async tapSystemNode(n: SystemNode) {
+    this.calls.push(`systemTap:${n.id || n.text}`);
+  }
+  readonly permissionDialog = { allow: ['p:id/allow', 'p:id/allow_foreground'], deny: ['p:id/deny', 'p:id/deny_dont_ask'] };
   async resetDeviceState(): Promise<StateChange> {
     this.calls.push('reset');
     const relaunch = this.locale !== null;
@@ -328,6 +338,40 @@ describe('app.device state (Phase 6.6)', () => {
     await expect(device.openNotification('x')).rejects.toMatchObject({ errorName: 'APP_NOT_RUNNING' });
   });
 
+  it('system UI (6.7 batch C): waits for it to show up, taps it, then waits for the app', async () => {
+    const { provider, agents } = await start();
+    const device = session!.driver.device;
+    const n = (text: string, id = ''): SystemNode => ({ text, id, bounds: { x1: 0, y1: 0, x2: 1, y2: 1 } });
+    provider.screens = [[], [n('Quiesco')], [n('Quiesco'), n('取消', 'sys:id/button_negative')]];
+    agents[0]!.requests.length = 0;
+    await device.system.tap({ text: '取消' });
+    expect(provider.calls.filter((c) => /system/.test(c))).toEqual(['systemNodes', 'systemNodes', 'systemNodes', 'systemTap:sys:id/button_negative']);
+    expect(methods(agents[0])).toEqual(['waitForIdle']);
+
+    await device.system.expectVisible({ id: 'button_negative' });
+    provider.screens = [[n('Quiesco')], []];
+    await device.system.expectNotVisible({ text: 'Quiesco' });
+    provider.screens = [[n('Still here')]];
+    await expect(device.system.expectNotVisible({ text: 'Still here' }, { timeoutMs: 1 })).rejects.toMatchObject({ errorName: 'ASSERTION_FAILED' });
+    await expect(device.system.tap({ text: 'Nope' }, { timeoutMs: 1 })).rejects.toMatchObject({ errorName: 'ELEMENT_NOT_FOUND', data: { seen: ['Still here'] } });
+    await expect(device.system.tap({})).rejects.toThrow(TypeError);
+  });
+
+  it('permission dialogs: the preferred button by id, then waits until the app is in front and idle', async () => {
+    const { provider, agents } = await start();
+    const device = session!.driver.device;
+    const n = (id: string): SystemNode => ({ text: id, id, bounds: { x1: 0, y1: 0, x2: 1, y2: 1 } });
+    provider.screens = [[n('p:id/allow_foreground'), n('p:id/allow'), n('p:id/deny')]];
+    agents[0]!.requests.length = 0;
+    await device.system.allowPermission();
+    provider.screens = [[n('p:id/deny_dont_ask')]];
+    await device.system.denyPermission();
+    expect(provider.calls.filter((c) => c.startsWith('systemTap'))).toEqual(['systemTap:p:id/allow', 'systemTap:p:id/deny_dont_ask']);
+    expect(methods(agents[0])).toEqual(['deviceInfo', 'waitForIdle', 'deviceInfo', 'waitForIdle']);
+    provider.screens = [[]];
+    await expect(device.system.allowPermission({ timeoutMs: 1 })).rejects.toMatchObject({ errorName: 'ELEMENT_NOT_FOUND', data: { action: 'system.allowPermission' } });
+  });
+
   it('validates locations; platforms without a method say so', async () => {
     const { device } = await start();
     await expect(device.setLocation(91, 0)).rejects.toThrow(RangeError);
@@ -347,6 +391,8 @@ describe('app.device state on a provider without it', () => {
     await expect(session.driver.device.biometrics.enroll()).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { action: 'biometrics.enroll' } });
     await expect(session.driver.device.shake()).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { action: 'shake' } });
     await expect(session.driver.device.openNotification('x')).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { action: 'openNotification' } });
+    await expect(session.driver.device.system.tap({ text: 'OK' })).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { action: 'system.tap' } });
+    await expect(session.driver.device.system.allowPermission()).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { action: 'system.allowPermission' } });
     await expect(session.driver.device.clearKeychain()).rejects.toThrow(/Android has no keychain: relaunch\(\{ clearData: true \}\)/);
     // The agent alone can still simulate offline mode.
     await session.driver.device.setNetwork('offline');

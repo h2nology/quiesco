@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-6.5 完成并提交（c5a4200）。6.6 批次 A 已提交（b899531）；6.6 批次 B 完成并提交（2026-11-09，三端全量实跑通过）⇒ 6.6 完成。6.7 计划 HU 已确认（2026-11-09）；6.7 批次 A（生物识别 / shake / clearKeychain）完成并提交（2026-11-10，三端全量通过）。6.7 批次 B（推送：sendNotification / openNotification）完成并提交（2026-11-10，三端全量通过；iOS openNotification 待批次 C）。下一步：6.7 批次 C 系统弹窗（Android uiautomator；iOS 先 spike XCUITest 辅助进程，含 iOS 通知点击 / 通知授权 / Face ID 重试弹窗）。平台标签改为「最内层带平台标签的层级决定」（HU 2026-11-10 确认；三端全量通过并提交）。
+6.5 完成并提交（c5a4200）。6.6 批次 A 已提交（b899531）；6.6 批次 B 完成并提交（2026-11-09，三端全量实跑通过）⇒ 6.6 完成。6.7 计划 HU 已确认（2026-11-09）；6.7 批次 A（生物识别 / shake / clearKeychain）完成并提交（2026-11-10，三端全量通过）。6.7 批次 B（推送：sendNotification / openNotification）完成并提交（2026-11-10，三端全量通过；iOS openNotification 待批次 C）。6.7 批次 C Android 部分（app.device.system.*、agent 后台等待修复）完成并提交（2026-11-10，三端全量通过）；Web dialog 延后（HU）。下一步：iOS XCUITest 辅助进程 spike（iOS 通知点击 / 通知授权 / Face ID 重试弹窗），spike 后请 HU 决定是否实现。平台标签改为「最内层带平台标签的层级决定」（HU 2026-11-10 确认；三端全量通过并提交）。
 
 ## Current Phase
 Phase 6
@@ -241,6 +241,7 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 - [ ] 6.7 系统集成（spike → 实现，逐项可降级）
   - **HU 决定（2026-11-09）**：① 示例 App 加 expo-notifications 与 expo-local-authentication（重建两端 dev client）；② Android 推送 = @quiesco/native 以 App 身份发真实本地通知（点击打开 App；不经 FCM，expo-notifications 的远程推送回调不触发，文档说明）；③ iOS 系统弹窗先 spike XCUITest 辅助进程，spike 后再定是否实现；④ Android `clearKeychain()` 报 ACTION_NOT_SUPPORTED（提示 relaunch({ clearData: true })）
   - **HU 决定（2026-11-09，spike 后）**：⑤ `biometrics.fail()` 只模拟不匹配（系统重试弹窗保留，与真机 / Detox unmatchFace 一致；让 App 收到失败要配合系统弹窗操作，批次 C）；⑥ 示例加 react-native-shake（演示 shake）
+  - **HU 决定（2026-11-10，批次 C）**：API `app.device.system.tap({ text } | { id })` / `expectVisible` / `expectNotVisible` / `allowPermission()` / `denyPermission()`；先 Android（uiautomator，只查 App 以外的包）；示例加「请求通知权限」+ 生物识别 fail 后点取消；Web 的 alert / confirm 起初定为本批次一起做，**改为延后（HU 2026-11-10）**：dialog 打开时页面冻结、点击与 RPC 都不返回，需改 core 动作同步，作为以后的单独小批次；本批次 Web 的 system.* 报 ACTION_NOT_SUPPORTED、未处理 dialog 仍自动关闭；iOS XCUITest spike 放在 Android 之后
   - **分批**：A 生物识别 / shake / clearKeychain → B 推送 → C 系统弹窗（Android uiautomator；iOS 视 spike）。每批 spike → 实现 → 三端实跑。Web 均为 ACTION_NOT_SUPPORTED（写进 platforms.md）
   - 推送：`sendNotification(payload)`（iOS simctl push 到前台 / 后台、点击通知进入；Android `cmd notification post` 或经 agent 调 expo-notifications 的接收路径——spike 决定）
   - 生物识别：`biometrics.enroll(bool)` / `match()` / `fail()`（iOS notifyutil `com.apple.BiometricKit_Sim.*`；Android `adb emu finger touch`）——Detox 仅 iOS

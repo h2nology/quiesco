@@ -250,6 +250,10 @@ await this.app.device.shake();
 await this.app.device.clearKeychain();         // iOS
 await this.app.device.sendNotification({ title: 'New message', data: { chatId: '42' } });
 await this.app.device.openNotification('New message'); // Android: tap it in the notification shade
+
+await this.app.tap('enable-notifications');           // the app asks for a permission
+await this.app.device.system.allowPermission();        // Android: the system dialog's allow button
+await this.app.device.system.tap({ text: 'Cancel' });  // Android: any system UI outside the app
 ```
 
 | Method | What it does |
@@ -260,9 +264,17 @@ await this.app.device.openNotification('New message'); // Android: tap it in the
 | `sendNotification({ title, body?, data? })` | iOS: a simulated remote push (`simctl push`, `data` next to `aps`); the app's push library gets it while the app is in front, and the system shows it only when the app may show notifications (they cannot be pre-granted on the simulator). Android: an emulator has no push service, so the notification is posted as the app (needs the `notifications` permission); tapping it opens the app with `data` as intent extras, and the push library's callbacks do not fire. Works while the app is in the background |
 | `openNotification(title)` | Android: tap the notification in the shade; resolves when the app is in front and idle. iOS: not yet (`ACTION_NOT_SUPPORTED`: the notification is outside the app) |
 | `clearKeychain()` | iOS: resets the simulator's keychain (every app's). Android has no keychain: `ACTION_NOT_SUPPORTED`, use `relaunch({ clearData: true })` |
+| `system.tap(query, { timeoutMs }?)` | Tap system UI outside the app (a permission dialog, the biometric prompt). `query`: `{ text }` (exact, typographic quotes ignored, or a RegExp) and / or `{ id }` (Android resource-id, or the part after `:id/`). Waits up to `timeoutMs` (10 s) for it to show up, then for the app to be idle. Android only for now |
+| `system.expectVisible(query)` / `system.expectNotVisible(query)` | Wait until such system UI is (not) on screen; `ELEMENT_NOT_FOUND` / `ASSERTION_FAILED` list the texts seen |
+| `system.allowPermission()` / `system.denyPermission()` | Answer the runtime permission dialog by its buttons' ids, whatever the device language (also "while using the app" and "don't ask again"); resolves when the app is in front and idle |
 
-None of these exist on the web (`ACTION_NOT_SUPPORTED`; tag such scenarios `@native`). On Android they need an
-emulator (its console fakes the sensors).
+None of these exist on the web (`ACTION_NOT_SUPPORTED`; tag such scenarios `@native`; JavaScript `alert` /
+`confirm` dialogs are dismissed by Playwright). On Android they need an emulator (its console fakes the
+sensors). `system.*` on iOS is not available yet: the dialogs are outside the app, where in-app input cannot
+reach — grant permissions up front instead (`permissions` in the config, `app.device.setPermission`).
+
+While a permission dialog (another activity) is in front, Android pauses the app's JS timers; Quiesco's idle
+wait notices that the app went to the background and returns, so the tap that opened the dialog completes.
 
 ### Runtime synchronization (`this.app.sync`)
 

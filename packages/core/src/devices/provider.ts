@@ -43,6 +43,15 @@ export interface NotificationSpec {
   data?: Record<string, string>;
 }
 
+/** A piece of system UI outside the app: a permission dialog's button, a biometric prompt (Phase 6.7 batch C). */
+export interface SystemNode {
+  text: string;
+  /** Platform id (Android: the resource-id, like `com.android.systemui:id/button_negative`), or ''. */
+  id: string;
+  /** Where it is, in the provider's own screen units (what `tapSystemNode` expects). */
+  bounds: { x1: number; y1: number; x2: number; y2: number };
+}
+
 /** Status bar overrides for clean screenshots (Phase 6.6); unset fields keep the real value. */
 export interface StatusBarOptions {
   /** The clock, `H:MM` / `HH:MM` (e.g. `9:41`). */
@@ -143,6 +152,11 @@ export interface DeviceProvider {
   sendNotification?(n: NotificationSpec, app: InAppControls): Promise<void>;
   /** Tap the notification with this title in the system's notification list (the app comes to the front). */
   openNotification?(title: string): Promise<void>;
+  /** System UI on screen now that does not belong to the app (dialogs, prompts), topmost window first. */
+  systemNodes?(): Promise<SystemNode[]>;
+  tapSystemNode?(node: SystemNode): Promise<void>;
+  /** Ids of the permission dialog's buttons, in order of preference (several variants exist). */
+  readonly permissionDialog?: { allow: readonly string[]; deny: readonly string[] };
   /**
    * Undo every device-state change made since the last call (before each scenario, HU 2026-11-09).
    * Permissions are restored by the caller (it knows the configured ones).

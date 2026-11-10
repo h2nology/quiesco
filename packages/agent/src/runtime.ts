@@ -123,6 +123,7 @@ export class AgentRuntime {
     this.log = (m) => warn?.call(c, `[quiesco] ${m}`);
     this.engine = new SyncEngine(options.trackers?.(this) ?? this.defaultTrackers(), this.clock);
     this.engine.setSkipped(() => (this.deps.appState() === 'background' ? BACKGROUND_SKIPPED : NONE));
+    this.engine.setBackground(() => this.deps.appState() === 'background', this.deps.onAppStateChange?.bind(this.deps));
     this.resets = new ResetManager(options.storage ?? (() => defaultStorageAdapters()));
     this.events = new EventForwarder({ notify: (e, p) => this.client?.notify(e, p), target: this.global });
   }

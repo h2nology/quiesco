@@ -31,6 +31,11 @@ export interface AppDeps {
   interactionManager(): InteractionManagerLike | null;
   /** React Native's AppState (react-native-web: from the page visibility). */
   appState(): AppStateName;
+  /**
+   * Calls `listener` on every AppState change; returns the unsubscribe. Events still arrive while Android
+   * pauses the JS timers (another activity on top, e.g. a permission dialog).
+   */
+  onAppStateChange?(listener: () => void): () => void;
   /** The window in logical units and physical pixels per unit. */
   windowInfo(): { width: number; height: number; pixelRatio: number };
   /** What the app sees of the device settings (Phase 6.6 read-backs). */
@@ -61,7 +66,7 @@ interface RN {
     metrics?(): { screenX: number; screenY: number; width: number; height: number } | null | undefined;
   };
   InteractionManager?: InteractionManagerLike;
-  AppState: { currentState: string | null | undefined };
+  AppState: { currentState: string | null | undefined; addEventListener(type: 'change', listener: () => void): { remove(): void } };
   Dimensions: { get(dim: 'window'): { width: number; height: number } };
   PixelRatio: { get(): number; getFontScale(): number };
   Appearance: { getColorScheme(): string | null | undefined };
@@ -114,6 +119,10 @@ export const defaultAppDeps: AppDeps = {
   appState() {
     const s = rn().AppState.currentState;
     return s === 'active' || s === 'background' || s === 'inactive' ? s : 'unknown';
+  },
+  onAppStateChange(listener) {
+    const sub = rn().AppState.addEventListener('change', listener);
+    return () => sub.remove();
   },
   windowInfo() {
     const { width, height } = rn().Dimensions.get('window');

@@ -145,3 +145,50 @@ describe('SyncEngine.setSkipped (Phase 6.5: background)', () => {
     await expect(engine.waitForIdle({ timeoutMs: 50 })).rejects.toMatchObject({ errorName: 'SYNC_TIMEOUT' });
   });
 });
+
+describe('SyncEngine.setBackground (6.7 batch C: Android pauses JS timers behind another activity)', () => {
+  // Timers that never fire, as on Android while a permission dialog's activity is on top.
+  const pausedClock = { setTimeout: () => 0, clearTimeout: () => undefined, now: () => Date.now() };
+  const tracker = (name: string, idle: () => boolean): IdleTracker => ({ name, isIdle: idle, describeBusy: () => ['busy'], install() {}, uninstall() {} });
+
+  it('returns in the background once every active tracker is idle, without a timer-based second check', async () => {
+    const engine = new SyncEngine([tracker('network', () => true)], pausedClock);
+    engine.setBackground(() => true);
+    await expect(engine.waitForIdle({ timeoutMs: 1000 })).resolves.toMatchObject({});
+  });
+
+  it('is woken by an AppState change while its timer is paused, and unsubscribes afterwards', async () => {
+    let background = false;
+    let listener: (() => void) | null = null;
+    const unsubscribe = vi.fn(() => {
+      listener = null;
+    });
+    const engine = new SyncEngine([tracker('frame-stable', () => false), tracker('network', () => true)], pausedClock);
+    engine.setSkipped(() => (background ? new Set(['frame-stable']) : new Set()));
+    engine.setBackground(
+      () => background,
+      (wake) => {
+        listener = wake;
+        return unsubscribe;
+      },
+    );
+    let done = false;
+    const wait = engine.waitForIdle({ timeoutMs: 1000 }).then(() => (done = true));
+    await Promise.resolve();
+    expect(done).toBe(false); // frame-stable busy, sleeping on a timer that never fires
+    background = true;
+    (listener as (() => void) | null)?.();
+    await wait;
+    expect(done).toBe(true);
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the two-macrotask confirmation in the foreground', async () => {
+    const engine = new SyncEngine([tracker('network', () => true)], pausedClock);
+    engine.setBackground(() => false, () => () => undefined);
+    let done = false;
+    void engine.waitForIdle({ timeoutMs: 1000 }).then(() => (done = true));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(done).toBe(false); // waits for the confirmation timer
+  });
+});
