@@ -1,6 +1,6 @@
 import { After, AfterAll, Before, BeforeAll, Status, setDefaultTimeout, setWorldConstructor } from '@cucumber/cucumber';
 
-import { Lifecycle } from './lifecycle.js';
+import { Lifecycle, tagLevels } from './lifecycle.js';
 import type { LifecycleOptions } from './lifecycle.js';
 import { QuiescoWorld, bindLifecycle } from './world.js';
 
@@ -21,7 +21,7 @@ export function registerQuiesco(options: RegisterOptions = {}): Lifecycle {
   setDefaultTimeout(options.stepTimeoutMs ?? 60_000);
 
   BeforeAll({ name: 'quiesco: start session', timeout: options.setupTimeoutMs ?? 600_000 }, () => lifecycle.beforeAll());
-  Before({ name: 'quiesco: reset app' }, ({ pickle }) => lifecycle.before(pickle.tags.map((t) => t.name)));
+  Before({ name: 'quiesco: reset app' }, ({ pickle, gherkinDocument }) => lifecycle.before(tagLevels(pickle.tags, gherkinDocument)));
   After({ name: 'quiesco: evidence' }, async function (this: QuiescoWorld, { pickle, result }) {
     const failed = result !== undefined && result.status !== Status.PASSED && result.status !== Status.SKIPPED;
     for (const a of await lifecycle.after({ tags: pickle.tags.map((t) => t.name), failed })) {

@@ -434,8 +434,9 @@ The config file is plain TypeScript, so values can come from the environment.
 
 Untagged scenarios run everywhere. Rename them with `tags: { web: '@browser' }`.
 
-A scenario inherits its feature's tags, and the platforms of all its tags add up: in a feature tagged
-`@native`, a scenario tagged `@android` still runs on iOS. Put platform tags on the scenarios when they differ.
+Platform tags can sit on the feature, a `Rule`, the scenario or an `Examples` block; the innermost one decides.
+In a feature tagged `@native`, an untagged scenario runs on iOS and Android, and a scenario tagged `@android`
+runs on Android only. This differs from cucumber-js `--tags`, which matches inherited tags too.
 
 ## Errors
 

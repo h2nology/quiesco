@@ -19,7 +19,10 @@ describe('registerQuiesco inside a real cucumber-js run', () => {
     expect(result.success).toBe(false); // the "fails with evidence" scenario
 
     const log = (globalThis as { __quiescoTestLog?: string[] }).__quiescoTestLog;
-    expect(log).toEqual(['reset soft', 'tap add', 'reset hard', 'tap x', 'reset soft', 'tap broken', 'dispose']);
+    // platforms.feature (android): the innermost level carrying a platform tag decides.
+    const platforms = ['reset soft', 'tap inherited', 'reset soft', 'tap rule-android', 'reset soft', 'tap ex-android'];
+    const todo = ['reset soft', 'tap add', 'reset hard', 'tap x', 'reset soft', 'tap broken'];
+    expect(log).toEqual([...platforms, ...todo, 'dispose']);
 
     const names = new Map(envelopes.flatMap((e) => (e.pickle ? [[e.pickle.id, e.pickle.name] as const] : [])));
     const caseToPickle = new Map(envelopes.flatMap((e) => (e.testCase ? [[e.testCase.id, e.testCase.pickleId] as const] : [])));

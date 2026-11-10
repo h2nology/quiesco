@@ -393,3 +393,6 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - App 在后台时 backdoor 15 s 无应答（backdoor 之后等空闲）；正式的 agent 方法 postNotification 不等空闲。
 - **Metro `CI=1` 不监听文件**：之前「bundle 是旧的」都是因为用 CI=1 启动 Metro（Expo CLI 在 CI 模式关闭 watch）⇒ 本地实跑改为不带 CI 启动（stdin 重定向 /dev/null 防交互）。
 - **平台标签并集 + 继承**：feature 级 @native 被场景继承，与场景的 @android 取并集 ⇒ @android 场景也在 iOS 上跑（批次 A 的「不匹配后再出示匹配的指纹」在 iOS 上也跑过）。示例改为场景级标签；api.md 注明。
+
+- **平台标签改为最内层优先（HU 2026-11-10 确认）**：feature → Rule → 场景 → Examples，最内层带平台标签的层级决定平台（同层多个仍取并集），无平台标签时继承外层。分组靠 cucumber-js Before hook 的 `gherkinDocument` + `pickle.tags[].astNodeId`（`tagLevels`，packages/cucumber）；core 的 `runsOnPlatform` 接受扁平或分层标签。与 cucumber-js `--tags`（含继承标签）不同，api.md 注明。示例 system.feature 改回 feature 级 @native。
+- **两台模拟器同时开机**：未指定设备时 iOS provider 取第一台 Booted（5FB8…），该台上生物识别录入不被撤销、`simctl push` 报 UNErrorDomain 2003「Source is not authorized」；旧代码同样失败 ⇒ 与标签改动无关。关掉多余的一台后 iOS 全量通过。改进点：多台 Booted 时警告并列出 udid（或要求指定）。

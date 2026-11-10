@@ -2,8 +2,8 @@
  * Maps the cucumber-js lifecycle onto @quiesco/core's session API (requirements.md §6.10). Kept free of
  * cucumber imports so it can be unit-tested and mirrored by other runner adapters.
  */
-import { QuiescoError, createSession, loadConfig, resolvePlatform, runsOnPlatform, tagNames } from '@quiesco/core';
-import type { Platform, QuiescoConfig, Session, SessionOptions } from '@quiesco/core';
+import { QuiescoError, createSession, flattenTags, loadConfig, resolvePlatform, runsOnPlatform, tagNames } from '@quiesco/core';
+import type { Platform, QuiescoConfig, ScenarioTags, Session, SessionOptions } from '@quiesco/core';
 
 export interface LifecycleOptions {
   /** Config instead of loading `quiesco.config.*` (QUIESCO_CONFIG picks another file). */
@@ -23,6 +23,49 @@ export interface Attachment {
 export interface ScenarioResult {
   tags: readonly string[];
   failed: boolean;
+}
+
+interface TaggedNode {
+  tags: readonly { id: string }[];
+}
+interface ScenarioNode extends TaggedNode {
+  examples: readonly TaggedNode[];
+}
+interface FeatureChild {
+  rule?: TaggedNode & { children: readonly FeatureChild[] };
+  scenario?: ScenarioNode;
+}
+/** The parts of a cucumber-js GherkinDocument needed to place tags (structural, no cucumber import). */
+export interface TagSource {
+  feature?: (TaggedNode & { children: readonly FeatureChild[] }) | undefined;
+}
+
+/**
+ * A pickle's tags grouped by Gherkin level: [feature, rule, scenario, examples]. Tags whose node is
+ * not found count as scenario tags.
+ */
+export function tagLevels(pickleTags: readonly { name: string; astNodeId: string }[], doc: TagSource): string[][] {
+  const level = new Map<string, number>();
+  const mark = (node: TaggedNode, l: number) => node.tags.forEach((t) => level.set(t.id, l));
+  const walk = (children: readonly FeatureChild[]) => {
+    for (const c of children) {
+      if (c.rule !== undefined) {
+        mark(c.rule, 1);
+        walk(c.rule.children);
+      }
+      if (c.scenario !== undefined) {
+        mark(c.scenario, 2);
+        c.scenario.examples.forEach((e) => mark(e, 3));
+      }
+    }
+  };
+  if (doc.feature !== undefined) {
+    mark(doc.feature, 0);
+    walk(doc.feature.children);
+  }
+  const out: string[][] = [[], [], [], []];
+  for (const t of pickleTags) out[level.get(t.astNodeId) ?? 2]?.push(t.name);
+  return out;
 }
 
 export class Lifecycle {
@@ -49,11 +92,14 @@ export class Lifecycle {
     this.session = await (this.options.createSession ?? createSession)({ config: this.config, platform: this.platform });
   }
 
-  /** Before: `'skipped'` for scenarios tagged for other platforms, else reset the app. */
-  async before(tags: readonly string[]): Promise<'skipped' | undefined> {
+  /**
+   * Before: `'skipped'` for scenarios tagged for other platforms, else reset the app. Pass the tags
+   * grouped by Gherkin level ({@link tagLevels}) so the innermost platform tag decides.
+   */
+  async before(tags: ScenarioTags): Promise<'skipped' | undefined> {
     if (this.config === null || this.platform === null) throw new Error('Quiesco BeforeAll did not complete');
     if (!runsOnPlatform(tags, this.platform, tagNames(this.config.tags))) return 'skipped';
-    await this.current.beforeScenario({ tags });
+    await this.current.beforeScenario({ tags: flattenTags(tags) });
     return undefined;
   }
 

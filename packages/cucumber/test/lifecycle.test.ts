@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { QuiescoConfig, Session, SessionOptions } from '@quiesco/core';
 
-import { Lifecycle } from '../src/lifecycle';
+import { Lifecycle, tagLevels } from '../src/lifecycle';
 
 function fakeSession(opts: { lateError?: Error } = {}) {
   const calls: unknown[] = [];
@@ -49,6 +49,34 @@ describe('Lifecycle', () => {
     expect(await l.before(['@ios'])).toBe('skipped');
     expect(await l.before(['@native', '@hard-reset'])).toBeUndefined();
     expect(calls).toEqual([['beforeScenario', { tags: ['@native', '@hard-reset'] }]]);
+  });
+
+  it('lets the innermost platform tag decide and passes the flat tags on', async () => {
+    const { session, calls } = fakeSession();
+    const l = new Lifecycle({ config, platform: 'android', createSession: async () => session });
+    await l.beforeAll();
+    expect(await l.before([['@native'], [], ['@ios'], []])).toBe('skipped');
+    expect(await l.before([['@web'], [], ['@android', '@hard-reset'], []])).toBeUndefined();
+    expect(calls).toEqual([['beforeScenario', { tags: ['@web', '@android', '@hard-reset'] }]]);
+  });
+
+  it('groups pickle tags by Gherkin level', () => {
+    const tag = (id: string) => ({ id });
+    const doc = {
+      feature: {
+        tags: [tag('f')],
+        children: [
+          { scenario: { tags: [tag('s1')], examples: [] } },
+          { rule: { tags: [tag('r')], children: [{ scenario: { tags: [tag('s2')], examples: [{ tags: [tag('e')] }] } }] } },
+        ],
+      },
+    };
+    const pt = (name: string, astNodeId: string) => ({ name, astNodeId });
+    expect(tagLevels([pt('@native', 'f'), pt('@android', 's1')], doc)).toEqual([['@native'], [], ['@android'], []]);
+    expect(tagLevels([pt('@native', 'f'), pt('@web', 'r'), pt('@ios', 's2'), pt('@android', 'e')], doc)).toEqual([['@native'], ['@web'], ['@ios'], ['@android']]);
+    // unknown nodes count as scenario tags; no feature → everything scenario-level.
+    expect(tagLevels([pt('@x', '?')], doc)).toEqual([[], [], ['@x'], []]);
+    expect(tagLevels([pt('@x', 'f')], {})).toEqual([[], [], ['@x'], []]);
   });
 
   it('returns evidence attachments for failed scenarios', async () => {

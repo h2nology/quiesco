@@ -89,6 +89,27 @@ describe('tags', async () => {
     expect(runsOnPlatform(['@native'], 'web')).toBe(false);
     expect(runsOnPlatform(['@web', '@ios'], 'ios')).toBe(true);
   });
+  it('the innermost level with a platform tag decides', () => {
+    // feature @native, scenario @android → Android only (not the union).
+    expect(runsOnPlatform([['@native'], [], ['@android'], []], 'android')).toBe(true);
+    expect(runsOnPlatform([['@native'], [], ['@android'], []], 'ios')).toBe(false);
+    // levels without platform tags fall through to the outer ones.
+    expect(runsOnPlatform([['@native'], [], ['@smoke'], []], 'ios')).toBe(true);
+    expect(runsOnPlatform([['@native'], [], ['@smoke'], []], 'web')).toBe(false);
+    // a rule overrides the feature, examples override the scenario.
+    expect(runsOnPlatform([['@native'], ['@web'], [], []], 'web')).toBe(true);
+    expect(runsOnPlatform([['@native'], ['@web'], ['@ios'], ['@android']], 'android')).toBe(true);
+    expect(runsOnPlatform([['@native'], ['@web'], ['@ios'], ['@android']], 'ios')).toBe(false);
+    // several platform tags on one level still add up.
+    expect(runsOnPlatform([['@ios'], ['@web', '@android']], 'android')).toBe(true);
+    expect(runsOnPlatform([[], [], [], []], 'web')).toBe(true);
+    expect(runsOnPlatform([], 'web')).toBe(true);
+  });
+  it('flattens leveled tags outermost first', async () => {
+    const { flattenTags } = await import('../src/tags');
+    expect(flattenTags([['@native'], [], ['@android', '@hard-reset']])).toEqual(['@native', '@android', '@hard-reset']);
+    expect(flattenTags(['@web'])).toEqual(['@web']);
+  });
   it('tag names are configurable', () => {
     const names = tagNames({ web: '@browser' });
     expect(runsOnPlatform(['@browser'], 'web', names)).toBe(true);

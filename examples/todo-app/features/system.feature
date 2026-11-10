@@ -1,4 +1,4 @@
-@REQ-DEMO-006
+@REQ-DEMO-006 @native
 Feature: 系统集成（系统集成页）
   生物识别（Face ID / 指纹）、摇动与通知。每个场景开始时 Quiesco 会撤销上一个场景的生物识别录入和权限变更。
   （演示 Phase 6.7。浏览器没有这些设备能力，每个场景都只在 iOS / Android 上跑。平台标签取并集，
@@ -7,19 +7,16 @@ Feature: 系统集成（系统集成页）
   Background:
     Given 打开系统集成页
 
-  @native
   Scenario: 录入生物识别
     When 在设备上录入生物识别
     And 读取录入状态
     Then 系统集成页显示录入状态 "已录入"
 
   # 依赖场景顺序：紧接在「录入生物识别」之后，确认录入在本场景开始前被撤销。
-  @native
   Scenario: 上一个场景的录入已撤销
     When 读取录入状态
     Then 系统集成页显示录入状态 "未录入"
 
-  @native
   Scenario: 生物识别认证成功
     Given 设备已录入生物识别
     When 点击生物识别认证
@@ -37,7 +34,6 @@ Feature: 系统集成（系统集成页）
     When 出示匹配的生物特征
     Then 系统集成页显示认证结果 "成功"
 
-  @native
   Scenario: 摇动设备
     When 摇动设备
     Then 系统集成页显示摇动次数 "1"
