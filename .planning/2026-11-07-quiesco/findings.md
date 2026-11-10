@@ -422,3 +422,12 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - 实现中补测：dialog 打开时 `page.screenshot()` 一直等（页面不绘制）⇒ provider 截图时直接报 DIALOG_OPEN；`context.close()` 不受影响（4 ms）。
 - `dialog.accept()` 不带参数时 prompt 提交空字符串（不是默认值）⇒ 接受 prompt 时显式传 `defaultValue()`。
 - HU 确认方案（2026-11-10）：dialog 保持打开，作为系统节点（dialog.message / accept「OK」/ dismiss「Cancel」）经 `app.device.system.*` 回答；引发 dialog 的动作在 dialog 出现时即返回；dialog 打开时其他调用立即 DIALOG_OPEN；场景间残留的自动取消并警告。未加 `web.dialogs` 配置项。
+
+## 6.8 WebView spike（2026-11-10，spikes/webview/）
+- react-native-webview 14.0.1（Expo 自带版本）：Web 只渲染「does not support this platform」；`<WebView>` 的类型默认 `P = undefined` 使 props 为 never → 示例写 `WebView<object>`。ref 是 imperative handle，`findNodeHandle` 不可用 ⇒ 正式实现由 fiber-adapter 找宿主 view 的 tag（原生侧在子视图里找 WKWebView / android.webkit.WebView）。
+- 原生 `webviewEval`：iOS `evaluateJavaScript` 往返 **~50 ms**；Android `evaluateJavascript` **120–375 ms**（模拟器，经 backdoor）。页面脚本抛错时 iOS 只给本地化的笼统信息（「JavaScriptの例外処理が起きました」），Android 静默返回 "" ⇒ **脚本一律在页面里 try/catch，结果包成 JSON `{v}` / `{e}`**。
+- 坐标：`getBoundingClientRect()`（CSS px）× (WebView 宽 / innerWidth) + WebView 在窗口中的位置 = 窗口坐标（iOS f=1，Android f≈1.001，inset 0）。真实点击（现有 tapAt / 原生触摸）命中 input（焦点到 #name）、button、`<a href="#faq">`。点击前必须 `scrollIntoView`（页面被滚走时点到外面）。
+- 输入：iOS 原生 typeText 找不到 WKWebView 的文本输入（E_NOT_TEXT_INPUT）；**聚焦后 `document.execCommand('insertText')` 两端都能输入并触发 input 事件** ⇒ 采用（真实点击聚焦 + insertText）。
+- 文档开始脚本：iOS `WKUserScript(.atDocumentStart)`、Android `WebViewCompat.addDocumentStartJavaScript`（模拟器 WebView 支持 DOCUMENT_START_SCRIPT）都只作用于之后的加载，两端在重载后的页面都执行了 ⇒ 首次发现 WebView 时「注册 + 对当前页 eval 同一钩子」。fetch 计数实测：点击后 1 → 请求结束 0；页内 setTimeout 不计（断言本身会重试）。
+- `source={{ html }}` 的页面重载后是空白 about:blank。Android `WebView.url` 不含 hash ⇒ `url()` 用页面里的 `location.href`。
+- Web：`<iframe srcdoc>` 经 `elementHandle.contentFrame()` 可用，fill / click / textContent / xpath / getByText / scrollIntoViewIfNeeded / evaluate 都正常；agent 查到的 iframe 宿主元素 props 里带 `ref`（含 fiber，循环巨大）⇒ 元素摘要要过滤 `ref`。

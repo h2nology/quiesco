@@ -160,6 +160,32 @@ export interface QuiescoNativeModule {
    * position among the non-standard actions (Android generated ids). Absent before Phase 6.3.
    */
   accessibilityAction?(tag: number, name: string, label: string, index: number, customIndex: number): Promise<{ performed: boolean; via: string }>;
+  /** The WebView (react-native-webview) inside `tag`'s view: rect in the window and load state. Absent before Phase 6.8. */
+  webviewInfo?(tag: number): Promise<WebViewInfo>;
+  /** Evaluate a string-valued expression in the WebView's main frame. Absent before Phase 6.8. */
+  webviewEval?(tag: number, script: string): Promise<string>;
+  /** Run `source` at document start of the WebView's later page loads; false where unsupported. Absent before Phase 6.8. */
+  webviewAddStartScript?(tag: number, source: string): Promise<boolean>;
+}
+
+export interface WebViewInfo {
+  found: boolean;
+  /** In the window of the view (dp / pt). */
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  loading?: boolean;
+  progress?: number;
+  url?: string;
+  title?: string;
+  /** iOS: the scroll view's adjusted content inset and zoom. */
+  insetTop?: number;
+  insetLeft?: number;
+  zoom?: number;
+  /** Android: display density, and whether document-start scripts are supported. */
+  density?: number;
+  documentStartScript?: boolean;
 }
 
 export const QuiescoNative: QuiescoNativeModule | null = requireOptionalNativeModule<QuiescoNativeModule>('QuiescoNative');

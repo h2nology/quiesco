@@ -20,4 +20,6 @@ android {
 dependencies {
   // UIManagerHelper / ReactContext: resolve React view tags to Android views.
   implementation 'com.facebook.react:react-android'
+  // WebView (Phase 6.8): document-start scripts; the same library react-native-webview uses.
+  implementation 'androidx.webkit:webkit:1.14.0'
 }

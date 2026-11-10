@@ -1,5 +1,6 @@
 import ExpoModulesCore
 import UIKit
+import WebKit
 
 /**
  * Real touch / text input inside the app process (requirements.md §6.3, docs/spikes/04-ios-touch.md).
@@ -91,6 +92,43 @@ public class QuiescoNativeModule: Module {
     }
 
     /** Where a view really is, and whether a touch at its center would reach it. */
+    // ---- Phase 6.8 WebView (spike) ----
+
+    /** The WKWebView inside the React view `tag` (react-native-webview): its rect in the window and load state. */
+    AsyncFunction("webviewInfo") { (tag: Int) -> [String: Any] in
+      guard let web = Self.webView(tag), let window = web.window else { return ["found": false] }
+      let r = web.convert(web.bounds, to: window)
+      let inset = web.scrollView.adjustedContentInset
+      return [
+        "found": true, "x": r.minX, "y": r.minY, "width": r.width, "height": r.height,
+        "insetTop": inset.top, "insetLeft": inset.left, "zoom": web.scrollView.zoomScale,
+        "loading": web.isLoading, "progress": web.estimatedProgress,
+        "url": web.url?.absoluteString ?? "", "title": web.title ?? "",
+      ]
+    }.runOnQueue(.main)
+
+    /** Evaluate `script` (an expression) in the page's main frame; resolves with its value as a string (JSON by the caller). */
+    AsyncFunction("webviewEval") { (tag: Int, script: String, promise: Promise) in
+      guard let web = Self.webView(tag) else {
+        promise.reject("E_NO_VIEW", "no WebView in view \(tag)")
+        return
+      }
+      web.evaluateJavaScript(script) { result, error in
+        if let error = error {
+          promise.reject("E_SCRIPT", error.localizedDescription)
+          return
+        }
+        promise.resolve(result.map { "\($0)" } ?? "")
+      }
+    }.runOnQueue(.main)
+
+    /** Run `source` at document start of every later page load in this WebView (main frame). */
+    AsyncFunction("webviewAddStartScript") { (tag: Int, source: String) -> Bool in
+      guard let web = Self.webView(tag) else { return false }
+      web.configuration.userContentController.addUserScript(WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+      return true
+    }.runOnQueue(.main)
+
     AsyncFunction("locate") { (tag: Int) -> [String: Any] in
       guard let view = QSTouchInjector.view(withReactTag: tag), view.window != nil else { return ["found": false] }
       return Self.describe(view)
@@ -457,6 +495,17 @@ public class QuiescoNativeModule: Module {
   static func unsupported(_ missing: String) -> String {
     let version = UIDevice.current.systemVersion
     return "touch injection needs private UIKit API that iOS \(version) does not have (\(missing)); use actions.mode 'js'"
+  }
+
+  static func webView(_ tag: Int) -> WKWebView? {
+    guard let root = QSTouchInjector.view(withReactTag: tag) else { return nil }
+    var queue: [UIView] = [root]
+    while !queue.isEmpty {
+      let v = queue.removeFirst()
+      if let w = v as? WKWebView { return w }
+      queue.append(contentsOf: v.subviews)
+    }
+    return nil
   }
 
   static func target(tag: Int, x: Double, y: Double) -> (UIWindow, CGPoint)? {

@@ -19,8 +19,11 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.inputmethod.EditorInfo
+import android.webkit.WebView
 import android.widget.AbsSeekBar
 import android.widget.EditText
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import com.facebook.react.uimanager.UIManagerHelper
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.functions.Queues
@@ -86,6 +89,49 @@ class QuiescoNativeModule : Module() {
     }
 
     /** Where a view really is, and whether its window is the one receiving input. */
+    // ---- Phase 6.8 WebView (spike) ----
+
+    /** The android.webkit.WebView inside the React view `tag` (react-native-webview): rect in dp and load state. */
+    AsyncFunction("webviewInfo") { tag: Int ->
+      val web = findView(tag)?.let { findWebView(it) } ?: return@AsyncFunction mapOf("found" to false)
+      val d = density()
+      val loc = IntArray(2)
+      web.getLocationInWindow(loc)
+      mapOf(
+        "found" to true,
+        "x" to loc[0] / d, "y" to loc[1] / d, "width" to web.width / d, "height" to web.height / d,
+        "loading" to (web.progress < 100), "progress" to web.progress / 100.0,
+        "url" to (web.url ?: ""), "title" to (web.title ?: ""),
+        "density" to d,
+        "documentStartScript" to WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT),
+      )
+    }.runOnQueue(Queues.MAIN)
+
+    /** Evaluate `script` in the page's main frame; resolves with its value (a string expression's string). */
+    AsyncFunction("webviewEval") { tag: Int, script: String, promise: Promise ->
+      val web = findView(tag)?.let { findWebView(it) } ?: return@AsyncFunction promise.reject("E_NO_VIEW", "no WebView in view $tag", null)
+      web.evaluateJavascript(script) { raw ->
+        // The callback gets the value as JSON: a string comes quoted.
+        val value = try {
+          when (val v = org.json.JSONTokener(raw ?: "null").nextValue()) {
+            null, org.json.JSONObject.NULL -> ""
+            else -> v.toString()
+          }
+        } catch (e: Exception) {
+          raw ?: ""
+        }
+        promise.resolve(value)
+      }
+    }.runOnQueue(Queues.MAIN)
+
+    /** Run `source` at document start of every later page load (androidx.webkit, where the WebView supports it). */
+    AsyncFunction("webviewAddStartScript") { tag: Int, source: String ->
+      val web = findView(tag)?.let { findWebView(it) } ?: return@AsyncFunction false
+      if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return@AsyncFunction false
+      WebViewCompat.addDocumentStartJavaScript(web, source, setOf("*"))
+      true
+    }.runOnQueue(Queues.MAIN)
+
     AsyncFunction("locate") { tag: Int ->
       val view = findView(tag) ?: return@AsyncFunction mapOf("found" to false)
       describe(view)
@@ -359,6 +405,12 @@ class QuiescoNativeModule : Module() {
     } catch (e: Exception) {
       null
     }
+  }
+
+  private fun findWebView(view: View): WebView? {
+    if (view is WebView) return view
+    if (view is ViewGroup) for (i in 0 until view.childCount) findWebView(view.getChildAt(i))?.let { return it }
+    return null
   }
 
   private fun findEditText(view: View): EditText? {
