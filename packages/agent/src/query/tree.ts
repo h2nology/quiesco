@@ -9,7 +9,8 @@ import { checkedState, elementValue, isEnabled, isFocusedWidget, semanticType, w
 import { visibleRatio } from './visibility';
 
 /** Props never worth sending: structural, or huge and useless for assertions. */
-const SKIPPED_PROPS = new Set(['children', 'style', 'collapsable', 'collapsableChildren']);
+// `ref`: React 19 passes it as a prop; a DOM ref holds the element and its fiber (huge, circular).
+const SKIPPED_PROPS = new Set(['children', 'style', 'collapsable', 'collapsableChildren', 'ref']);
 const MAX_DEPTH = 4;
 
 function isReactElement(v: object): boolean {

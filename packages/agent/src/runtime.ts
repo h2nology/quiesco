@@ -3,7 +3,7 @@
  * One instance per JS context, created when `@quiesco/agent` is first imported (it must be the first
  * import of the app entry, so the DevTools hook and scheduler patch precede the renderer).
  */
-import { SyncDefaults } from '@quiesco/protocol';
+import { SyncDefaults, WEBVIEW_HOOK } from '@quiesco/protocol';
 import type { Direction, Edge, Point, Speed } from '@quiesco/protocol';
 import type {
   ActionSpec,
@@ -109,6 +109,8 @@ export class AgentRuntime {
   private launchArgsCache: Record<string, JsonValue> | null = null;
   /** Pending stop after the last QuiescoRoot unmounted (see unmount). */
   private stopTimer: unknown = null;
+  /** WebViews (by view tag) whose later page loads already run WEBVIEW_HOOK at document start. */
+  private readonly hookedWebViews = new Set<number>();
   /** Original console methods, captured before the event forwarder wraps them. */
   private readonly log: (message: string) => void;
 
@@ -304,6 +306,7 @@ export class AgentRuntime {
       if (suspend === undefined) return { suspended: false };
       return { suspended: await suspend() };
     },
+    webview: async (p) => this.webview(p.matcher, p.script, p),
     reset: async () => {
       const start = this.clock.now();
       await this.resets.run(this.remount);
@@ -755,6 +758,75 @@ export class AgentRuntime {
     throw new QuiescoError('ELEMENT_NOT_FOUND', `Scrolled ${describeMatcher(container)} to both ends without finding a visible ${describeMatcher(target)}`, { matcher: target });
   }
 
+  /**
+   * A WebView (Phase 6.8): react-native-webview's native view (iOS / Android, through @quiesco/native) or
+   * an `<iframe>` (web, which the host drives through Playwright's frames). Evaluates `script` in the
+   * native page; the page logic itself lives in the host (@quiesco/core webview.ts).
+   */
+  private async webview(matcher: Matcher | undefined, script: string | undefined, opts: SyncOption): Promise<ResultOf<AgentMethods['webview']>> {
+    const deadline = this.clock.now() + this.timeout(opts);
+    const node = await this.resolveWebView(matcher, opts, deadline);
+    const rect = node.measure();
+    const what = matcher === undefined ? 'the WebView' : describeMatcher(matcher);
+    if (rect === null) throw new QuiescoError('ELEMENT_NOT_FOUND', `${what} cannot be measured`, { matcher: matcher ?? {} });
+    if (this.deps.platform() === 'web') return { rect, viaHost: true };
+    const native = this.nativeModule();
+    const tag = node.nativeTag();
+    if (native?.webviewEval === undefined || native.webviewInfo === undefined || tag === null) {
+      throw new QuiescoError('ACTION_NOT_SUPPORTED', `WebViews need @quiesco/native${native === null ? '' : ' built with Phase 6.8 (rebuild the app)'}`, {
+        action: 'webview',
+        platform: this.deps.platform(),
+        hint: 'add @quiesco/native to the app and rebuild it: Quiesco evaluates scripts in the WebView natively',
+      });
+    }
+    if (!this.hookedWebViews.has(tag)) {
+      this.hookedWebViews.add(tag);
+      await native.webviewAddStartScript?.(tag, WEBVIEW_HOOK).catch(() => false);
+    }
+    const info = await native.webviewInfo(tag);
+    if (!info.found) throw new QuiescoError('ELEMENT_NOT_FOUND', `${what} contains no WebView (react-native-webview)`, { matcher: matcher ?? {} });
+    // The web content's own rect: below an inset (iOS content inset), maybe smaller than the host.
+    const web: Rect = {
+      x: (info.x ?? rect.x) + (info.insetLeft ?? 0),
+      y: (info.y ?? rect.y) + (info.insetTop ?? 0),
+      width: info.width ?? rect.width,
+      height: info.height ?? rect.height,
+    };
+    if (script === undefined) return { rect: web, loading: info.loading === true };
+    let value: string;
+    try {
+      value = await native.webviewEval(tag, script);
+    } catch (e) {
+      throw new QuiescoError('ACTION_NOT_SUPPORTED', `evaluating a script in ${what} failed: ${e instanceof Error ? e.message : String(e)}`, { action: 'webview', platform: this.deps.platform() });
+    }
+    return { rect: web, loading: info.loading === true, value };
+  }
+
+  /** The single visible WebView matching `matcher`, or the only one on screen. Waits for it like an action target. */
+  private async resolveWebView(matcher: Matcher | undefined, opts: SyncOption, deadline: number): Promise<HostNode> {
+    if (matcher !== undefined) {
+      const node = await this.resolveTarget(matcher, opts, deadline);
+      if (this.deps.platform() !== 'web' || node.type === 'iframe') return node;
+      // A wrapper matched (e.g. a View with the testID around the iframe): the iframe inside it.
+      const inner = findAll([node], { type: 'iframe' });
+      if (inner.length === 1) return inner[0] as HostNode;
+      throw new QuiescoError('ELEMENT_NOT_FOUND', `${describeMatcher(matcher)} is a ${node.type}, not a WebView (no single <iframe> inside it)`, { matcher });
+    }
+    for (;;) {
+      await this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now()));
+      const viewport = this.adapter.viewport();
+      const all = findAll(this.adapter.getHostRoots(), {}).filter((n) => isWebViewHost(n.type) && isVisible(n, viewport));
+      // A WebView's native view inside another WebView host (a wrapper with the same name): the outermost.
+      const outer = all.filter((n) => !all.some((o) => o !== n && isAncestor(o, n)));
+      if (outer.length === 1) return outer[0] as HostNode;
+      if (outer.length > 1) {
+        throw new QuiescoError('MULTIPLE_MATCHES', `${outer.length} WebViews are on screen; pass a matcher to app.webview() (e.g. its testID)`, { matcher: {}, matches: outer.map((n) => this.summarize(n)) });
+      }
+      if (this.clock.now() >= deadline) throw new QuiescoError('ELEMENT_NOT_FOUND', 'No WebView on screen (react-native-webview, or an <iframe> on the web)', { matcher: {} });
+      await this.sleep(SyncDefaults.retryIntervalMs);
+    }
+  }
+
   private async assert(spec: AssertionSpec, opts: SyncOption): Promise<ResultOf<AgentMethods['assert']>> {
     const timeoutMs = this.timeout(opts);
     const deadline = this.clock.now() + timeoutMs;
@@ -800,6 +872,16 @@ export class AgentRuntime {
       new NativeSettleTracker(() => this.nativeModule()),
     ];
   }
+}
+
+/** Host types of a WebView: react-native-webview's native component, or an iframe on the web. */
+function isWebViewHost(type: string): boolean {
+  return type === 'iframe' || /^RNC?WebView$/.test(type);
+}
+
+function isAncestor(a: HostNode, b: HostNode): boolean {
+  for (let p = b.parent; p !== null; p = p.parent) if (p === a || p.isSameElement(a)) return true;
+  return false;
 }
 
 /** Whether two rects share some area (touching edges do not count). */

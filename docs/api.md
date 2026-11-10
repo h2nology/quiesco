@@ -295,6 +295,41 @@ soon as the dialog is up (without waiting for idle), and any other call on the a
 open when the scenario ends is dismissed before the next one, with a warning. `beforeunload` prompts are
 always accepted (leaving or reloading the page is never held up).
 
+### WebView (`this.app.webview()`)
+
+Elements of a page shown in a WebView: react-native-webview on iOS / Android, an `<iframe>` on the web
+(react-native-webview has no web implementation, so an app renders an iframe there, e.g. in a
+`MyWebView.web.tsx`).
+
+```ts
+const help = this.app.webview('help');                  // the WebView by matcher (testID, ...); no argument: the only one on screen
+await help.element({ css: '#name' }).type('Alice');
+await help.element({ xpath: '//input[@name="name"]' }).replaceText('Bob');
+await help.element({ text: '打招呼' }).tap();
+await help.element({ id: 'result' }).expectText('你好，Bob');
+await help.element({ text: /^Loading/ }).expectNotVisible();
+const title = await help.runScript<string>('return document.title');   // a function body; `arguments`, promises awaited
+await help.url(); await help.title();
+```
+
+| Method | What it does |
+|---|---|
+| `element({ css } \| { xpath } \| { id } \| { text }, index?)` | An element of the page. `text`: the element's text with whitespace collapsed, exactly, or a RegExp; the innermost matching element |
+| `tap()` | A real tap (iOS / Android: a touch at the element's position on screen; web: Playwright input), after scrolling it into view. Fails at once with `MULTIPLE_MATCHES`, or with `ELEMENT_NOT_FOUND` when no visible, enabled match appears within the timeout |
+| `type(text)` / `replaceText(text)` | Tap the field (it gets the focus, as from a user), then insert the text at the caret (`execCommand('insertText')`: `input` events like typing) / replace its value. No software keyboard input |
+| `scrollIntoView()` | Scroll the page until the element is in view |
+| `expectText(text \| RegExp)` | The single match's text (inputs: their value) |
+| `expectExists()` / `expectNotExists()` / `expectVisible()` / `expectNotVisible()` | Visible = in the page's viewport (not scrolled away) and not hidden by CSS |
+| `runScript(body, args?)` | Run a function body in the page and return its (JSON) value; a returned promise is awaited. A page exception fails with `APP_ERROR` |
+| `url()` / `title()` | `location.href` / `document.title` |
+
+Every call waits for the app to be idle and for the page to settle: loaded and no `fetch` / `XMLHttpRequest`
+of the page running (counted by a script Quiesco adds to the page; timers of the page are not tracked —
+assertions retry until their timeout anyway). Only the WebView's main frame: iframes inside the page and
+shadow DOM are not reached. iOS / Android need `@quiesco/native` (scripts run through the native WebView,
+no `onMessage` needed in the app); without it `ACTION_NOT_SUPPORTED`. `runScript` uses `new Function`, which
+a page's Content-Security-Policy may forbid.
+
 ### Runtime synchronization (`this.app.sync`)
 
 Change what Quiesco waits for, for the rest of the scenario — instead of switching synchronization off

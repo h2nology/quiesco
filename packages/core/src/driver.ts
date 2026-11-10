@@ -37,6 +37,8 @@ import { ElementExpectation, checkRatio } from './expect.js';
 import type { AgentConnection } from './server/ws-server.js';
 import type { AppRunState, DeviceApi } from './device.js';
 import type { SyncApi } from './sync-api.js';
+import { WebView } from './webview.js';
+import type { WebViewHost } from './webview.js';
 
 export type { ActionOptions, CallOptions } from './options.js';
 
@@ -203,6 +205,34 @@ export class Driver {
   }
   async dismissKeyboard(opts?: ActionOptions): Promise<void> {
     await this.action({ type: 'dismissKeyboard' }, opts);
+  }
+
+  // ---- WebView (Phase 6.8) ----
+
+  /**
+   * The WebView matching `target` (react-native-webview; an `<iframe>` on the web), or the only one on
+   * screen: `app.webview('help').element({ css: '#name' }).type('Alice')`. Needs @quiesco/native on iOS / Android.
+   */
+  webview(target?: MatcherInput): WebView {
+    return new WebView(this.webviewHost(), target === undefined ? undefined : toMatcher(target));
+  }
+
+  private webviewHost(): WebViewHost {
+    return {
+      evalInWebView: async (matcher, script, opts) => {
+        const params: ParamsOf<AgentMethods['webview']> = { script, ...syncParams(opts) };
+        if (matcher !== undefined) params.matcher = matcher;
+        const r = await this.call('webview', params, opts.timeoutMs);
+        if (r.viaHost !== true) return { rect: r.rect, value: r.value ?? '', loading: r.loading === true };
+        const provider = this.options.provider;
+        if (provider.webviewEval === undefined) {
+          throw new QuiescoError('ACTION_NOT_SUPPORTED', `WebViews are not supported on ${provider.platform}`, { action: 'webview', platform: provider.platform });
+        }
+        return { rect: r.rect, value: await this.race(provider.webviewEval(r.rect, script)), loading: false };
+      },
+      tapAt: (point, opts) => this.tapAt(point, opts),
+      defaultTimeoutMs: this.options.defaultTimeoutMs,
+    };
   }
 
   // ---- multi-finger gestures (Phase 6.4) ----

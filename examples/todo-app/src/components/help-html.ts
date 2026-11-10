@@ -26,6 +26,8 @@ export const HELP_HTML = `<!doctype html><html><head><meta charset="utf-8">
       setTimeout(function () { document.getElementById('slow-result').textContent = '晚上好'; }, 700);
     });
   });
+  // A fragment link resolves against the parent page in a srcdoc iframe (web): move the hash by script.
+  document.getElementById('faq').addEventListener('click', function (e) { e.preventDefault(); location.hash = 'faq'; });
   window.addEventListener('hashchange', function () { document.title = '帮助 ' + location.hash; });
 </script>
 </body></html>`;

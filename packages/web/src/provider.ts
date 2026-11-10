@@ -16,11 +16,11 @@
  *   Quiesco's own reloads would hang (findings 6.7 web dialogs).
  */
 import { LAUNCH_PARAM_PORT, LAUNCH_PARAM_SESSION, WEB_PARAMS_GLOBAL } from '@quiesco/protocol';
-import type { HostInput, Orientation } from '@quiesco/protocol';
+import type { HostInput, Orientation, Rect } from '@quiesco/protocol';
 import type { ColorScheme, DeviceProvider, LaunchParams, LaunchUrlHandling, Logger, Permission, StateChange, StatusBarOptions, SystemNode, WebAppConfig, WebDeviceConfig } from '@quiesco/core';
 import { QuiescoError, silentLogger } from '@quiesco/core';
 import { chromium, firefox, webkit } from 'playwright';
-import type { Browser, BrowserContext, BrowserType, CDPSession, Dialog, Page, Route } from 'playwright';
+import type { Browser, BrowserContext, BrowserType, CDPSession, Dialog, Frame, Page, Route } from 'playwright';
 
 type StorageState = Awaited<ReturnType<BrowserContext['storageState']>>;
 
@@ -399,6 +399,30 @@ export class WebProvider implements DeviceProvider {
       .grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(page.url()).origin })
       .catch((e: unknown) => this.logger.debug(`clipboard permissions: ${(e as Error).message}`));
     return page;
+  }
+
+  // ---- Phase 6.8 WebView (an <iframe> on the web) ----
+
+  /**
+   * Evaluate `script` in the iframe the agent measured at `rect` (page coordinates): Playwright's frames
+   * reach cross-origin iframes too. The iframe is picked by position (the agent cannot name DOM nodes).
+   */
+  async webviewEval(rect: Rect, script: string): Promise<string> {
+    const page = this.requirePage();
+    // The one iframe, or the one whose center is nearest (the agent's layout rect can lag a transition).
+    const handles = await page.$$('iframe');
+    let best: { frame: Frame | null; d: number } | null = null;
+    for (const handle of handles) {
+      const box = await handle.boundingBox();
+      if (box === null && handles.length > 1) continue;
+      const d = box === null ? 0 : Math.hypot(box.x + box.width / 2 - (rect.x + rect.width / 2), box.y + box.height / 2 - (rect.y + rect.height / 2));
+      if (best === null || d < best.d) best = { frame: await handle.contentFrame(), d };
+    }
+    if (best === null || best.frame === null) {
+      throw new QuiescoError('ELEMENT_NOT_FOUND', `no <iframe> at (${Math.round(rect.x)}, ${Math.round(rect.y)}) ${Math.round(rect.width)}x${Math.round(rect.height)}`, {});
+    }
+    const value: unknown = await best.frame.evaluate(script);
+    return typeof value === 'string' ? value : JSON.stringify(value ?? null);
   }
 
   // ---- Phase 6.7 JS dialogs ----

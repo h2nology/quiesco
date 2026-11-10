@@ -4,10 +4,7 @@
  */
 import { quiesco } from '@quiesco/agent';
 import { router } from 'expo-router';
-import { PermissionsAndroid, Platform, findNodeHandle } from 'react-native';
-import { QuiescoNative } from '@quiesco/native';
-
-import { spikeWebViewRef } from './app/webview';
+import { PermissionsAndroid, Platform } from 'react-native';
 
 import { api } from './api';
 import { store } from './store';
@@ -66,14 +63,6 @@ quiesco.backdoor('openSystem', () => {
 // The hidden WebView page (src/app/webview.tsx), used by features/webview.feature.
 quiesco.backdoor('openWebView', () => {
   router.push('/webview');
-});
-
-// SPIKE 6.8 (removed after the spike): call the native WebView functions on the page's WebView.
-quiesco.backdoor('webviewProbe', async (fn: string, arg?: string) => {
-  const tag = findNodeHandle((spikeWebViewRef.current as { current: never }).current);
-  const n = QuiescoNative as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>;
-  const args = arg === undefined ? [] : arg.startsWith('[') ? (JSON.parse(arg) as unknown[]) : [arg];
-  return { tag, result: (await n[fn]!(tag, ...args)) as never };
 });
 
 quiesco.onReset(async () => {

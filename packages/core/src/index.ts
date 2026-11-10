@@ -1,5 +1,5 @@
 export { PROTOCOL_VERSION } from '@quiesco/protocol';
-export type { ActionMode, ElementSummary, JsonValue, Platform, TrackerState, TreeNode } from '@quiesco/protocol';
+export type { ActionMode, ElementSummary, JsonValue, Platform, Rect, TrackerState, TreeNode } from '@quiesco/protocol';
 
 export { defineConfig, loadConfig, resolvePlatform, serverPort, toAgentConfig, ignoredAppErrors, DEFAULT_CONNECT_TIMEOUT_MS, DEFAULT_IGNORED_APP_ERRORS } from './config.js';
 export type { AndroidAppConfig, AndroidDeviceConfig, IosAppConfig, IosDeviceConfig, QuiescoConfig, WebAppConfig, WebDeviceConfig, WebViewport } from './config.js';
@@ -31,3 +31,7 @@ export { encodeLaunchArgs } from './launch-args.js';
 export { cropPng, decodePng, encodePng, pngSize } from './png.js';
 export type { Permission } from './devices/permissions.js';
 export { QuiescoServer, AgentConnection } from './server/ws-server.js';
+export { WebView, WebElement } from './webview.js';
+export type { WebElementQuery } from './webview.js';
+export { pageScript, parsePageResult } from './webview-page.js';
+export type { PageElement, WebLocator } from './webview-page.js';

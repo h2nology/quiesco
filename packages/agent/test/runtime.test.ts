@@ -12,12 +12,12 @@ const clock: Clock = { setTimeout: (cb, ms) => setTimeout(cb, ms), clearTimeout:
 const R = (y: number) => ({ __rect: { x: 0, y, width: 100, height: 40 } });
 
 function setup(
-  opts: { busy?: () => boolean; native?: ReturnType<AppDeps['nativeModule']>; keyboard?: () => ReturnType<AppDeps['keyboardFrame']>; appState?: () => ReturnType<AppDeps['appState']>; globals?: Record<string, unknown> } = {},
+  opts: { platform?: 'ios' | 'android' | 'web'; busy?: () => boolean; native?: ReturnType<AppDeps['nativeModule']>; keyboard?: () => ReturnType<AppDeps['keyboardFrame']>; appState?: () => ReturnType<AppDeps['appState']>; globals?: Record<string, unknown> } = {},
 ) {
   const target: Record<string, unknown> = { ...opts.globals };
   const sockets: FakeSocket[] = [];
   const deps: AppDeps = {
-    platform: () => 'android',
+    platform: () => opts.platform ?? 'android',
     dismissKeyboard: vi.fn(),
     keyboardFrame: () => opts.keyboard?.() ?? null,
     nativeModule: () => opts.native ?? null,
@@ -526,5 +526,63 @@ describe('AgentRuntime lifecycle (Phase 6.5)', () => {
     expect(await setup({ native: native(undefined, suspend) }).call('suspend', {})).toEqual({ suspended: true });
     expect(suspend).toHaveBeenCalledTimes(1);
     expect(await setup().call('suspend', {})).toEqual({ suspended: false });
+  });
+});
+
+describe('AgentRuntime webview (Phase 6.8)', () => {
+  beforeEach(() => vi.useFakeTimers({ now: 0, toFake: ['setTimeout', 'clearTimeout', 'Date'] }));
+  afterEach(() => vi.useRealTimers());
+
+  const bridge = (over: Record<string, unknown> = {}) => ({
+    getLaunchParams: () => ({ port: '7401', session: 'sess' }),
+    locate: vi.fn(),
+    tap: vi.fn(),
+    swipe: vi.fn(),
+    typeText: vi.fn(),
+    webviewInfo: vi.fn(async () => ({ found: true, x: 0, y: 100, width: 390, height: 600, insetTop: 4, insetLeft: 0, loading: false })),
+    webviewEval: vi.fn(async (_tag: number, script: string) => `ran:${script}`),
+    webviewAddStartScript: vi.fn(async (_tag: number, _source: string) => true),
+    ...over,
+  });
+
+  it('evaluates the script in the only WebView on screen; registers the page hook once per WebView', async () => {
+    const native = bridge();
+    const { target, call } = setup({ native });
+    sameRoot(target)(host('RCTView', { testID: 'page', ...R(0) }, host('RNCWebView', { testID: 'help', ...R(100) })));
+    const r = await drive(call('webview', { script: 'document.title' }));
+    // The content rect comes from the native view, below its inset.
+    expect(r).toEqual({ rect: { x: 0, y: 104, width: 390, height: 600 }, loading: false, value: 'ran:document.title' });
+    await drive(call('webview', { matcher: { id: 'help' }, script: '1' }));
+    expect(native.webviewAddStartScript).toHaveBeenCalledTimes(1);
+    expect(native.webviewAddStartScript.mock.calls[0]?.[1]).toContain('__quiescoPending');
+  });
+
+  it('several WebViews need a matcher; none fails with ELEMENT_NOT_FOUND after the timeout', async () => {
+    const { target, call } = setup({ native: bridge() });
+    const commit = sameRoot(target);
+    commit(host('RNCWebView', { testID: 'a', ...R(0) }), host('RNCWebView', { testID: 'b', ...R(50) }));
+    await expect(drive(call('webview', { script: '1' }))).rejects.toMatchObject({ errorName: 'MULTIPLE_MATCHES' });
+    commit(host('RCTView', { testID: 'nothing', ...R(0) }));
+    await expect(drive(call('webview', { script: '1', timeoutMs: 300 }), 1000)).rejects.toMatchObject({ errorName: 'ELEMENT_NOT_FOUND', message: expect.stringMatching(/No WebView on screen/) });
+  });
+
+  it('needs @quiesco/native on iOS / Android; on the web the host evaluates in the iframe', async () => {
+    const plain = setup();
+    sameRoot(plain.target)(host('RNCWebView', { testID: 'help', ...R(0) }));
+    await expect(drive(plain.call('webview', { script: '1' }))).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { action: 'webview' } });
+
+    const web = setup({ platform: 'web' });
+    sameRoot(web.target)(host('div', { testID: 'help-box', ...R(0) }, host('iframe', { ...R(10) })));
+    expect(await drive(web.call('webview', { matcher: { id: 'help-box' }, script: '1' }))).toEqual({ rect: { x: 0, y: 10, width: 100, height: 40 }, viaHost: true });
+  });
+
+  it('reports a native WebView without its content and evaluation failures', async () => {
+    const empty = setup({ native: bridge({ webviewInfo: vi.fn(async () => ({ found: false })) }) });
+    sameRoot(empty.target)(host('RNCWebView', { ...R(0) }));
+    await expect(drive(empty.call('webview', { script: '1' }))).rejects.toMatchObject({ errorName: 'ELEMENT_NOT_FOUND' });
+
+    const failing = setup({ native: bridge({ webviewEval: vi.fn(async () => Promise.reject(new Error('boom'))) }) });
+    sameRoot(failing.target)(host('RNCWebView', { ...R(0) }));
+    await expect(drive(failing.call('webview', { script: '1' }))).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', message: expect.stringMatching(/boom/) });
   });
 });

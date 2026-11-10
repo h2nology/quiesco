@@ -1,7 +1,7 @@
 import type { ActionMode, ActionSpec, HostInput } from './actions.js';
 import type { AssertionSpec } from './assertions.js';
 import type { AgentConfig } from './config.js';
-import type { ElementSummary, TreeNode } from './element.js';
+import type { ElementSummary, Rect, TreeNode } from './element.js';
 import type { JsonValue } from './json.js';
 import type { Matcher } from './matcher.js';
 
@@ -58,6 +58,23 @@ export interface AgentMethods {
    * `enabled: false` when the app may not show notifications (POST_NOTIFICATIONS not granted).
    */
   postNotification: { params: { title: string; body: string; data: Record<string, string> }; result: { supported: boolean; enabled?: boolean } };
+  /**
+   * A WebView (Phase 6.8): waits for idle, finds the single WebView matching `matcher` (default: the only
+   * one on screen), and on iOS / Android (@quiesco/native) evaluates `script` in its page. On the web the
+   * WebView is an `<iframe>` the host reaches itself (Playwright frames): no `value`, the host uses `rect`.
+   */
+  webview: { params: { matcher?: Matcher; script?: string } & SyncOption; result: WebViewCallResult };
+}
+
+export interface WebViewCallResult {
+  /** The WebView in window coordinates (logical units). */
+  rect: Rect;
+  /** Native: the page is (re)loading. */
+  loading?: boolean;
+  /** Native: the result of `script` (a string expression). */
+  value?: string;
+  /** Web: the host evaluates the script in the iframe at `rect` itself. */
+  viaHost?: boolean;
 }
 
 export type Orientation = 'portrait' | 'landscape';

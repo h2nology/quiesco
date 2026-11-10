@@ -128,6 +128,27 @@ describe('Driver', () => {
     await expect(driver.expectVisible('x')).resolves.toEqual([]);
   });
 
+  it('webview: native results come from the agent; on the web the provider evaluates in the iframe', async () => {
+    const native = await setup((m, p) => (m === 'webview' ? { rect: { x: 0, y: 0, width: 10, height: 10 }, loading: false, value: JSON.stringify({ v: { readyState: 'complete', pending: 0, url: 'u', title: 'T', innerWidth: 10 } }), echo: p } : {}));
+    await expect(native.driver.webview('help').title()).resolves.toBe('T');
+    expect(native.agent.requests[0]).toMatchObject({ method: 'webview', params: { matcher: { id: 'help' }, script: expect.stringContaining('"op":"state"') } });
+    await server?.stop();
+
+    const provider = new FakeProvider();
+    const seen: string[] = [];
+    (provider as unknown as { webviewEval: (r: unknown, s: string) => Promise<string> }).webviewEval = async (_r, s) => {
+      seen.push(s);
+      return JSON.stringify({ v: { readyState: 'complete', pending: 0, url: 'https://x/', title: 'W', innerWidth: 10 } });
+    };
+    const web = await setup(() => ({ rect: { x: 0, y: 0, width: 10, height: 10 }, viaHost: true }), { provider });
+    await expect(web.driver.webview().url()).resolves.toBe('https://x/');
+    expect(seen.length).toBeGreaterThan(0);
+    await server?.stop();
+
+    const none = await setup(() => ({ rect: { x: 0, y: 0, width: 10, height: 10 }, viaHost: true }));
+    await expect(none.driver.webview().url()).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED' });
+  });
+
   it('backdoor checks arguments on the host and returns the value; reset returns the duration', async () => {
     const { driver } = await setup((m, p) => (m === 'backdoor' ? { value: { got: p['args'] } } : { durationMs: 42 }));
     await expect(driver.backdoor('seedTodos', ['a', 'b'])).resolves.toEqual({ got: [['a', 'b']] });

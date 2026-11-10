@@ -39,7 +39,7 @@ export interface ErrorDataMap {
   MULTIPLE_MATCHES: { matcher: Matcher; matches: ElementSummary[] };
   SYNC_TIMEOUT: { timeoutMs: number; busy: TrackerState[] };
   ASSERTION_FAILED: { expected: JsonValue; actual: JsonValue; elements: ElementSummary[] };
-  ACTION_NOT_SUPPORTED: { action: ActionType; platform: string; hint?: string };
+  ACTION_NOT_SUPPORTED: { action: ActionType | 'webview'; platform: string; hint?: string };
   BACKDOOR_NOT_REGISTERED: { name: string; registered: string[] };
   NOT_SERIALIZABLE: { where: 'args' | 'result'; path: string };
   BACKDOOR_FAILED: { name: string; message: string; stack?: string };

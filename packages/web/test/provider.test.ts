@@ -8,6 +8,8 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { WebSocketServer } from 'ws';
 
+import { pageScript, parsePageResult } from '@quiesco/core';
+
 import { WebProvider, webPathFor } from '../src/provider';
 
 const PAGE = `<!doctype html><html><body style="margin:0">
@@ -319,6 +321,77 @@ describe('WebProvider JS dialogs (real Chromium)', () => {
     expect(d.blockingDialog()).toBeNull();
     await d.launch({ port: 1, sessionId: 's2' });
     expect(await result()).toBeUndefined();
+  });
+});
+
+describe('WebView pages: the page scripts in a real iframe (Chromium)', () => {
+  const INNER = `<!doctype html><html><head><title>帮助</title><meta name="viewport" content="width=device-width"></head><body style="margin:0">
+<input id="name" name="name" style="width:200px;height:30px">
+<button id="greet">打招呼</button>
+<p id="result"><span>你好，</span><b>世界</b></p>
+<p style="visibility:hidden">藏起来</p>
+<div style="height:2000px"></div>
+<p id="bottom">到底了</p>
+<script>window.inputs = 0; document.getElementById('name').addEventListener('input', function () { window.inputs++; });
+fetch('/never').catch(function () {});</script>
+</body></html>`;
+  let p: WebProvider;
+  let rect: { x: number; y: number; width: number; height: number };
+  const run = async <T,>(op: Parameters<typeof pageScript>[0]): Promise<T> => {
+    const r = parsePageResult<T>(await p.webviewEval(rect, pageScript(op)));
+    if (!r.ok) throw new Error(r.error);
+    return r.value;
+  };
+
+  beforeAll(async () => {
+    const d = fs.mkdtempSync(path.join(os.tmpdir(), 'quiesco-webview-'));
+    fs.writeFileSync(path.join(d, 'inner.html'), INNER);
+    fs.writeFileSync(path.join(d, 'index.html'), '<!doctype html><body style="margin:0"><iframe src="/inner.html" style="position:absolute;left:0;top:50px;width:300px;height:400px;border:0"></iframe></body>');
+    p = new WebProvider({ app: { distDir: d }, device: { viewport: { width: 390, height: 844 } } });
+    await p.boot();
+    await p.install();
+    await p.launch({ port: 1, sessionId: 's' });
+    rect = { x: 0, y: 50, width: 300, height: 400 };
+    const page = (p as unknown as { page: { waitForFunction(f: string): Promise<unknown> } }).page;
+    await page.waitForFunction("document.querySelector('iframe').contentDocument && document.querySelector('iframe').contentDocument.readyState === 'complete'");
+  });
+  afterAll(async () => p.shutdown());
+
+  it('reports the page state, counting the page hook from the first evaluation on', async () => {
+    const s = await run<{ readyState: string; pending: number; url: string; title: string; innerWidth: number }>({ op: 'state' });
+    expect(s).toMatchObject({ readyState: 'complete', pending: 0, title: '帮助', innerWidth: 300 });
+    expect(s.url).toMatch(/\/inner\.html$/);
+  });
+
+  it('finds by css, xpath, id and text (innermost, whitespace collapsed, RegExp); hidden and scrolled-away elements are not visible', async () => {
+    type F = { count: number; elements: { tag: string; text: string; visible: boolean; rect: { y: number } }[] };
+    expect((await run<F>({ op: 'find', locator: { css: 'p' } })).count).toBe(3);
+    expect((await run<F>({ op: 'find', locator: { xpath: '//button' } })).elements[0]).toMatchObject({ tag: 'button', text: '打招呼', visible: true });
+    expect((await run<F>({ op: 'find', locator: { id: 'result' } })).elements[0]?.text).toBe('你好，世界');
+    expect((await run<F>({ op: 'find', locator: { text: '你好，世界' } })).elements.map((e) => e.tag)).toEqual(['p']);
+    expect((await run<F>({ op: 'find', locator: { text: { regex: { source: '^打', flags: '' } } } })).count).toBe(1);
+    expect((await run<F>({ op: 'find', locator: { text: '藏起来' } })).elements[0]?.visible).toBe(false);
+    expect((await run<F>({ op: 'find', locator: { css: 'p', index: 2 } })).elements[0]?.text).toBe('到底了');
+    const bottom = await run<F>({ op: 'find', locator: { id: 'bottom' } });
+    expect(bottom.elements[0]?.visible).toBe(false);
+    const revealed = await run<F>({ op: 'reveal', locator: { id: 'bottom' } });
+    expect(revealed.elements[0]).toMatchObject({ visible: true });
+    expect(revealed.elements[0]!.rect.y).toBeLessThan(400);
+  });
+
+  it('inserts text like typing (input events), and replaces the value', async () => {
+    type F = { count: number; elements: { value: string }[] };
+    expect((await run<F>({ op: 'insert', locator: { id: 'name' }, text: 'Alice', replace: false })).elements[0]?.value).toBe('Alice');
+    expect((await run<F>({ op: 'insert', locator: { id: 'name' }, text: 'Bob', replace: true })).elements[0]?.value).toBe('Bob');
+    expect(await run<{ value: number }>({ op: 'run', body: 'return window.inputs', args: [], key: 'a' })).toEqual({ value: 2 });
+  });
+
+  it('runs scripts with arguments and promises; page exceptions come back as errors', async () => {
+    expect(await run({ op: 'run', body: 'return arguments[0] * 2', args: [21], key: 'b' })).toEqual({ value: 42 });
+    expect(await run({ op: 'run', body: 'return new Promise(function (r) { setTimeout(function () { r("later"); }, 50); })', args: [], key: 'c' })).toEqual({ async: true });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(await run({ op: 'settled', key: 'c' })).toEqual({ done: true, value: 'later' });
+    await expect(run({ op: 'run', body: 'nosuch()', args: [], key: 'd' })).rejects.toThrow(/nosuch/);
   });
 });
 

@@ -55,6 +55,12 @@ export type NativeModuleLike = NativeBridge & {
   /** The clipboard's text ('' when it holds none), read inside the app (Phase 6.6). */
   getClipboard?(): Promise<string>;
   setClipboard?(text: string): Promise<void>;
+  /** The WebView inside a view (Phase 6.8): its rect in the window and load state. */
+  webviewInfo?(tag: number): Promise<{ found: boolean; x?: number; y?: number; width?: number; height?: number; insetTop?: number; insetLeft?: number; loading?: boolean }>;
+  /** Evaluate a string-valued expression in the WebView's main frame. */
+  webviewEval?(tag: number, script: string): Promise<string>;
+  /** Run `source` at document start of the WebView's later loads; false where the WebView cannot. */
+  webviewAddStartScript?(tag: number, source: string): Promise<boolean>;
 };
 
 interface RN {

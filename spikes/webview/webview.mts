@@ -2,6 +2,7 @@
 // webviewAddStartScript, reached here through the temporary `webviewProbe` backdoor):
 // round-trip latency, coordinate mapping + a real tap, text input, document-start scripts (for in-page
 // request tracking) and navigation. Usage: node spikes/webview/webview.mts ios|android
+// The temporary webviewProbe backdoor it used was removed with the implementation (Phase 6.8).
 import type { Platform } from '@quiesco/protocol';
 
 import { log, open, pause, shot } from '../system/common.mts';

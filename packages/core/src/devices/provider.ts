@@ -1,5 +1,5 @@
 /** Device abstraction (requirements.md §6.9). One implementation per platform; platform branches live here. */
-import type { GestureSlop, HostInput, Orientation, Platform } from '@quiesco/protocol';
+import type { GestureSlop, HostInput, Orientation, Platform, Rect } from '@quiesco/protocol';
 
 import type { Permission } from './permissions.js';
 
@@ -167,6 +167,11 @@ export interface DeviceProvider {
    * one is open the page runs no script and takes no input until it is answered (findings 6.7 web dialogs).
    */
   blockingDialog?(): string | null;
+  /**
+   * Web (Phase 6.8): evaluate a string-valued expression in the `<iframe>` at `rect` (page coordinates,
+   * as the agent measured it) and return its value.
+   */
+  webviewEval?(rect: Rect, script: string): Promise<string>;
   /** Web: call `listener` when a JS dialog opens; returns the unsubscribe function. */
   onBlockingDialog?(listener: (message: string) => void): () => void;
   /** Ids of the permission dialog's buttons, in order of preference (several variants exist). */
