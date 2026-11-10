@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-6.5 完成并提交（c5a4200）。6.6 批次 A 已提交（b899531）；6.6 批次 B 完成并提交（2026-11-09，三端全量实跑通过）⇒ 6.6 完成。6.7 计划 HU 已确认（2026-11-09）；6.7 批次 A（生物识别 / shake / clearKeychain）完成并提交（2026-11-10，三端全量通过）。6.7 批次 B（推送：sendNotification / openNotification）完成并提交（2026-11-10，三端全量通过；iOS openNotification 待批次 C）。6.7 批次 C Android 部分（app.device.system.*、agent 后台等待修复）完成并提交（2026-11-10，三端全量通过）；Web dialog 延后（HU）。iOS XCUITest 辅助进程 spike 完成（2026-11-10，结论见 findings：三项都可行）。下一步：待 HU 决定是否实现 iOS system.* / openNotification。平台标签改为「最内层带平台标签的层级决定」（HU 2026-11-10 确认；三端全量通过并提交）。
+6.5 完成并提交（c5a4200）。6.6 批次 A 已提交（b899531）；6.6 批次 B 完成并提交（2026-11-09，三端全量实跑通过）⇒ 6.6 完成。6.7 计划 HU 已确认（2026-11-09）；6.7 批次 A（生物识别 / shake / clearKeychain）完成并提交（2026-11-10，三端全量通过）。6.7 批次 B（推送：sendNotification / openNotification）完成并提交（2026-11-10，三端全量通过；iOS openNotification 待批次 C）。6.7 批次 C Android 部分（app.device.system.*、agent 后台等待修复）完成并提交（2026-11-10，三端全量通过）；Web dialog 延后（HU）。iOS XCUITest 辅助进程 spike 完成（2026-11-10，结论见 findings：三项都可行）。HU 决定实现 iOS（2026-11-10）：runner 随包发布、首次使用时构建并按 Xcode 版本缓存、会话内按需启动；iOS provider 实现 systemNodes / tapSystemNode（授权弹窗按位置、Face ID 按 id）、openNotification（点横幅）、重置时处理残留弹窗；示例两个场景改 @native。已完成并提交（2026-11-10，三端全量通过）⇒ 6.7 批次 C 完成（Web dialog 延后）。下一步：确认 6.7 是否整体完成，然后 6.8 WebView（先出计划）。平台标签改为「最内层带平台标签的层级决定」（HU 2026-11-10 确认；三端全量通过并提交）。
 
 ## Current Phase
 Phase 6

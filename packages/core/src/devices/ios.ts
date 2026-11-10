@@ -28,8 +28,9 @@ import type { Logger } from '../logger.js';
 import { silentLogger } from '../logger.js';
 import type { Exec } from './exec.js';
 import { execCommand } from './exec.js';
+import { IosSystemRunner, PERMISSION_ALLOW, PERMISSION_DENY, dismissButton, screenNodes } from './ios-runner.js';
 import type { Permission } from './permissions.js';
-import type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions } from './provider.js';
+import type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions, SystemNode } from './provider.js';
 
 /** `simctl privacy` services; camera and notifications have none (Xcode 27). */
 const IOS_PRIVACY: Partial<Record<Permission, string[]>> = {
@@ -104,7 +105,14 @@ export interface IosProviderOptions {
   device?: IosDeviceConfig;
   logger?: Logger;
   exec?: Exec;
+  /** Where the built system UI runner is cached (default ~/Library/Caches/quiesco/ios-runner). */
+  runnerCacheDir?: string;
+  /** The system UI runner (tests). Default: the XCUITest runner on the session's simulator. */
+  systemRunner?: SystemRunnerLike;
 }
+
+/** What IosProvider uses of IosSystemRunner. */
+export type SystemRunnerLike = Pick<IosSystemRunner, 'running' | 'screen' | 'tap' | 'openNotificationCenter' | 'stop'>;
 
 /** `27.0` / `iOS 27.0` / `27` → does the runtime identifier match? */
 export function runtimeMatches(runtime: string, version: string): boolean {
@@ -135,6 +143,11 @@ export function chooseSimulator(devices: readonly SimDevice[], cfg: IosDeviceCon
 /** Darwin notification state BiometricKit_Sim reads for "enrolled" (1 / 0). */
 const BIOMETRIC_ENROLLMENT = 'com.apple.BiometricKit.enrollmentChanged';
 
+/** openNotification: how long to look for the notification; after BANNER_WAIT_MS, in Notification Center. */
+const NOTIFICATION_WAIT_MS = 10_000;
+const BANNER_WAIT_MS = 2_000;
+const NOTIFICATION_POLL_MS = 250;
+
 export class IosProvider implements DeviceProvider {
   readonly platform = 'ios' as const;
   /**
@@ -150,6 +163,8 @@ export class IosProvider implements DeviceProvider {
   private readonly changed = new Map<'appearance' | 'biometrics' | 'contentSize' | 'location' | 'orientation' | 'statusBar', string>();
   private readonly exec: Exec;
   private readonly logger: Logger;
+  /** XCUITest runner for SpringBoard's UI, started on first use (Phase 6.7 batch C). */
+  private runnerInstance: SystemRunnerLike | null = null;
 
   constructor(private readonly options: IosProviderOptions) {
     this.exec = options.exec ?? execCommand;
@@ -434,7 +449,68 @@ export class IosProvider implements DeviceProvider {
     }
   }
 
+  // ---- Phase 6.7 batch C: system UI through the XCUITest runner ----
+
+  private get runner(): SystemRunnerLike {
+    this.runnerInstance ??= this.options.systemRunner ?? new IosSystemRunner({ udid: this.udid, exec: this.exec, logger: this.logger, ...(this.options.runnerCacheDir !== undefined ? { cacheDir: this.options.runnerCacheDir } : {}) });
+    return this.runnerInstance;
+  }
+
+  /** Permission alerts have no identifiers and follow the device language: the buttons get ids by position. */
+  readonly permissionDialog = { allow: [PERMISSION_ALLOW], deny: [PERMISSION_DENY] } as const;
+
+  async systemNodes(): Promise<SystemNode[]> {
+    return screenNodes(await this.runner.screen());
+  }
+
+  async tapSystemNode(node: SystemNode): Promise<void> {
+    await this.runner.tap((node.bounds.x1 + node.bounds.x2) / 2, (node.bounds.y1 + node.bounds.y2) / 2);
+  }
+
+  /**
+   * Tap the notification titled `title`: its banner while it is shown, else in Notification Center
+   * (swiped down from the top edge). Banners read "<time>, <title>, <body>".
+   */
+  async openNotification(title: string): Promise<void> {
+    const find = async () => (await this.runner.screen()).others.find((o) => o.label.split(', ').includes(title) || o.label.includes(title));
+    const deadline = Date.now() + NOTIFICATION_WAIT_MS;
+    let centerOpened = false;
+    for (;;) {
+      const hit = await find();
+      if (hit !== undefined) {
+        const b = screenNodes({ alerts: [], others: [hit] })[0]!.bounds;
+        await this.runner.tap((b.x1 + b.x2) / 2, (b.y1 + b.y2) / 2);
+        return;
+      }
+      if (Date.now() > deadline) {
+        const seen = (await this.runner.screen().catch(() => ({ alerts: [], others: [] }))).others.map((o) => JSON.stringify(o.label)).slice(0, 8);
+        throw new QuiescoError('DEVICE_ERROR', `openNotification: no notification "${title}" in a banner or Notification Center (seen: ${seen.join(', ') || 'nothing'}). Can the app show notifications (system.allowPermission())?`);
+      }
+      // The banner goes away after a few seconds; then the notification is in Notification Center.
+      if (!centerOpened && Date.now() > deadline - NOTIFICATION_WAIT_MS + BANNER_WAIT_MS) {
+        await this.runner.openNotificationCenter();
+        centerOpened = true;
+      }
+      await new Promise((r) => setTimeout(r, NOTIFICATION_POLL_MS));
+    }
+  }
+
+  /** Alerts outlive the app (a relaunch keeps a permission alert up): dismiss what an earlier scenario left. */
+  private async dismissLeftoverAlerts(): Promise<void> {
+    if (this.runnerInstance?.running !== true) return;
+    for (let i = 0; i < 3; i++) {
+      const alert = (await this.runner.screen().catch(() => null))?.alerts[0];
+      if (alert === undefined) return;
+      const button = dismissButton(alert);
+      if (button === undefined) return;
+      this.logger.warn(`dismissing a system alert left by the previous scenario: ${JSON.stringify(alert.label)}`);
+      const [x = 0, y = 0, w = 0, h = 0] = button.frame;
+      await this.runner.tap(x + w / 2, y + h / 2).catch(() => undefined);
+    }
+  }
+
   async resetDeviceState(app: InAppControls): Promise<StateChange> {
+    await this.dismissLeftoverAlerts();
     for (const [what, value] of this.changed) {
       switch (what) {
         case 'orientation':
@@ -524,6 +600,7 @@ export class IosProvider implements DeviceProvider {
   }
 
   async shutdown(): Promise<void> {
+    await this.runnerInstance?.stop().catch(() => undefined);
     if (this.sim === null) return;
     if (this.bootedByUs && this.options.device?.shutdown === true) await this.simctl(['shutdown', this.sim.udid]).catch(() => undefined);
   }

@@ -34,8 +34,8 @@ Feature: 系统集成（系统集成页）
     When 出示匹配的生物特征
     Then 系统集成页显示认证结果 "成功"
 
-  # 认证失败后系统的指纹提示仍在，点它的「取消」按钮（App 之外的系统界面），App 收到用户取消。
-  @android
+  # 认证失败后系统的提示仍在（iOS：「重试 Face ID」弹窗；Android：指纹提示），点它的「取消」按钮
+  # （App 之外的系统界面），App 收到用户取消。
   Scenario: 不匹配后取消认证
     Given 设备已录入生物识别
     When 点击生物识别认证
@@ -43,13 +43,16 @@ Feature: 系统集成（系统集成页）
     And 点击系统界面上的 "取消"
     Then 系统集成页显示认证结果 "失败:user_cancel"
 
-  # 系统的权限对话框不属于 App：按按钮的 id 找，与设备语言无关。
-  @android
-  Scenario: 先拒绝再允许通知权限
+  # 系统的权限对话框不属于 App：按按钮找（Android 按 id，iOS 按位置），与设备语言无关。
+  # iOS 拒绝一次后不会再询问，所以拒绝和允许各从「尚未决定」开始。
+  Scenario: 拒绝通知权限
     Given 通知权限尚未决定
     When 请求通知权限
     And 在系统对话框中拒绝
     Then 系统集成页显示通知权限 "denied"
+
+  Scenario: 允许通知权限
+    Given 通知权限尚未决定
     When 请求通知权限
     And 在系统对话框中允许
     Then 系统集成页显示通知权限 "granted"
@@ -64,9 +67,9 @@ Feature: 系统集成（系统集成页）
     When 向 App 发送通知 "早上好"
     Then 系统集成页显示收到的通知 "早上好"
 
-  # Android 模拟器没有推送服务：通知以 App 的身份发出，从通知栏点开后回到 App。
-  @android
-  Scenario: 从通知栏打开通知回到 App
+  # 从通知打开 App。iOS：点后台时的横幅（或通知中心里的那条）；Android 模拟器没有推送服务，
+  # 通知以 App 的身份发出，从通知栏点开。
+  Scenario: 从通知打开 App
     Given App 可以显示通知
     When 把 App 切到后台
     And 向 App 发送通知 "提醒"

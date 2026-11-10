@@ -413,3 +413,4 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - **通知横幅**（App 在后台、已授权）：SpringBoard 按钮 identifier `ShortLook.Platter.Content.Seamless`，label「今, <标题>, <正文>」；点击后 App 回到 active，expo-notifications 的 response 回调收到标题 ⇒ **iOS openNotification 可实现**。
 - **SpringBoard alert 不随 App 重启消失**：上一次运行留下的授权 alert 在 relaunch 后仍在，挡住 App（`no native view in a window`）⇒ 场景间重置要处理残留 alert。
 - 代价：依赖 Xcode（xcodebuild，按 Xcode 版本缓存 build-for-testing 产物）；每个会话一个常驻 xcodebuild 子进程；模拟器之外（真机）需签名，留给 6.13。
+- **实现后**：`relaunch({ reinstall: true })` 在 iOS 模拟器上把通知权限恢复为「未决定」（实跑确认）；残留 alert 在场景重置时按 cancel → deny → 第一个按钮关闭。

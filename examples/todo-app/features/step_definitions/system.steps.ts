@@ -47,8 +47,11 @@ Then('系统集成页显示摇动次数 {string}', async function (this: Quiesco
   await this.app.expectText('shake-count', count);
 });
 
+// The iOS simulator cannot grant notifications up front (simctl privacy has no such service): ask, then allow.
 Given('App 可以显示通知', async function (this: QuiescoWorld) {
-  await this.app.device.setPermission('notifications', 'grant');
+  await resetNotificationPermission(this);
+  await this.app.tap('request-notification-permission');
+  await this.app.device.system.allowPermission();
 });
 
 When('向 App 发送通知 {string}', async function (this: QuiescoWorld, title: string) {
@@ -72,11 +75,20 @@ When('点击系统界面上的 {string}', async function (this: QuiescoWorld, te
   await this.app.device.system.tap({ text });
 });
 
-// Revoking restarts the app (Android kills it), so the page is opened again.
+/**
+ * Back to "not determined", so the app's request shows the system dialog. Android: revoke (the app is
+ * killed and started again). iOS: notifications cannot be revoked on the simulator (simctl privacy has no
+ * such service); reinstalling the app resets them.
+ */
+async function resetNotificationPermission(world: QuiescoWorld): Promise<void> {
+  if (world.app.device.platform === 'ios') await world.app.device.relaunch({ reinstall: true });
+  else await world.app.device.setPermission('notifications', 'revoke');
+  await world.app.backdoor('openSystem');
+  await world.app.expectVisible('system');
+}
+
 Given('通知权限尚未决定', async function (this: QuiescoWorld) {
-  await this.app.device.setPermission('notifications', 'revoke');
-  await this.app.backdoor('openSystem');
-  await this.app.expectVisible('system');
+  await resetNotificationPermission(this);
 });
 
 When('请求通知权限', async function (this: QuiescoWorld) {

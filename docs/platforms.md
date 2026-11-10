@@ -46,8 +46,8 @@ The same features, steps and `this.app` calls run on all three platforms. What d
 | `shake()` | `notifyutil -p com.apple.UIKit.SimulatorShake` (what *Device > Shake* posts) | `adb emu sensor set acceleration`, 12 alternating pushes | `ACTION_NOT_SUPPORTED` |
 | `clearKeychain()` | `simctl keychain reset` (the whole simulator) | `ACTION_NOT_SUPPORTED` | `ACTION_NOT_SUPPORTED` |
 | `sendNotification()` | `simctl push` (a simulated APNs push) | posted as the app by `@quiesco/native` ≥ Phase 6.7 (no push service on emulators) | `ACTION_NOT_SUPPORTED` |
-| `openNotification()` | `ACTION_NOT_SUPPORTED` (outside the app) | notification shade (`cmd statusbar expand-notifications`), tapped by `uiautomator` | `ACTION_NOT_SUPPORTED` |
-| `system.*` (system UI outside the app) | `ACTION_NOT_SUPPORTED` (outside the app; XCUITest spike pending) | `uiautomator dump` (nodes of other packages; ~2 s per dump) + `input tap`; permission buttons by `com.android.permissioncontroller` ids | `ACTION_NOT_SUPPORTED` (JS dialogs are dismissed by Playwright) |
+| `openNotification()` | the banner, else Notification Center (swiped down), tapped through the XCUITest runner | notification shade (`cmd statusbar expand-notifications`), tapped by `uiautomator` | `ACTION_NOT_SUPPORTED` |
+| `system.*` (system UI outside the app) | Quiesco's XCUITest runner (`@quiesco/core/ios-runner`, built once per Xcode version) reading and tapping SpringBoard; permission alerts by button position (no identifiers, localized labels), Face ID's retry alert by its identifiers | `uiautomator dump` (nodes of other packages; ~2 s per dump) + `input tap`; permission buttons by `com.android.permissioncontroller` ids | `ACTION_NOT_SUPPORTED` (JS dialogs are dismissed by Playwright) |
 | Value controls, accessibility actions (native mode) | need an app built with `@quiesco/native` ≥ Phase 6.3 (`sliderInfo`, `wheelInfo`, `accessibilityAction`) | same (`sliderInfo`, `accessibilityAction`) | — |
 
 ## Permissions

@@ -572,13 +572,13 @@ export class DeviceApi {
 const SYSTEM_HINT = { web: 'browsers have no such device feature; tag the scenario @native' } as const;
 
 const NOTIFICATION_HINT: Record<DeviceProvider['platform'], string> = {
-  ios: 'notifications are shown outside the app, where in-app input cannot reach (Phase 6.7 batch C)',
+  ios: '',
   android: '',
   web: SYSTEM_HINT.web,
 };
 
 const SYSTEM_UI_HINT: Record<DeviceProvider['platform'], string> = {
-  ios: 'system dialogs are outside the app, where in-app input cannot reach (Phase 6.7 batch C: XCUITest spike pending); grant permissions up front (config permissions, app.device.setPermission)',
+  ios: '',
   android: '',
   web: SYSTEM_HINT.web,
 };
