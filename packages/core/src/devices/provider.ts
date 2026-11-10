@@ -115,6 +115,20 @@ export interface DeviceProvider {
   setNetwork?(offline: boolean): Promise<void>;
   getClipboard?(app: InAppControls): Promise<string>;
   setClipboard?(text: string, app: InAppControls): Promise<void>;
+
+  // ---- Phase 6.7 system integration; a missing method means ACTION_NOT_SUPPORTED on that platform ----
+
+  /**
+   * Enroll / remove a face or fingerprint. `leftApp`: the platform had to open another app (Android
+   * Settings) and the app under test is now in the background.
+   */
+  setBiometricEnrollment?(enrolled: boolean): Promise<{ leftApp: boolean }>;
+  /** Present an enrolled (match) or unknown (no match) face / finger to a pending authentication. */
+  presentBiometric?(match: boolean): Promise<void>;
+  /** A device shake as the platform delivers it. */
+  shake?(): Promise<void>;
+  /** Delete the keychain items (iOS: the whole simulator's keychain). */
+  clearKeychain?(): Promise<void>;
   /**
    * Undo every device-state change made since the last call (before each scenario, HU 2026-11-09).
    * Permissions are restored by the caller (it knows the configured ones).

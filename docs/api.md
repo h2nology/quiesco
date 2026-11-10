@@ -240,6 +240,26 @@ configured ones, the rest to what the device had (only what was changed is touch
 the app again leaves it on its first screen. Detox's `setURLBlacklist` is
 `this.app.sync.ignoreUrls.add()` here.
 
+#### System integration
+
+```ts
+await this.app.device.biometrics.enroll();     // Face ID / Touch ID / a fingerprint is set up
+await this.app.tap('login-with-face-id');      // the app calls LocalAuthentication.authenticateAsync()
+await this.app.device.biometrics.match();      // a matching face / finger: the app's authentication succeeds
+await this.app.device.shake();
+await this.app.device.clearKeychain();         // iOS
+```
+
+| Method | What it does |
+|---|---|
+| `biometrics.enroll(enrolled = true)` | Enroll (or remove) a face / fingerprint. Android: Quiesco sets a screen-lock PIN (required for fingerprints) and goes through Settings' enrollment; the app is brought back to the front. Undone before the next scenario |
+| `biometrics.match()` / `biometrics.fail()` | Present a matching / unknown face or finger to the authentication the app is showing. After `fail()` the system keeps its retry prompt up, as on a device: the app gets no result until the prompt is answered. Several failures in a row lock the sensor for a while (Android emulator: from about 0.5 s up to 30 s) |
+| `shake()` | A device shake (iOS: Simulator's *Device > Shake*; Android emulator: accelerometer pushes), then waits for idle |
+| `clearKeychain()` | iOS: resets the simulator's keychain (every app's). Android has no keychain: `ACTION_NOT_SUPPORTED`, use `relaunch({ clearData: true })` |
+
+None of these exist on the web (`ACTION_NOT_SUPPORTED`; tag such scenarios `@native`). On Android they need an
+emulator (its console fakes the sensors).
+
 ### Runtime synchronization (`this.app.sync`)
 
 Change what Quiesco waits for, for the rest of the scenario — instead of switching synchronization off

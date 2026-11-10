@@ -55,6 +55,11 @@ quiesco.backdoor('openDevice', () => {
   router.push('/device');
 });
 
+// The hidden system-integration page (src/app/system.tsx), used by features/system.feature.
+quiesco.backdoor('openSystem', () => {
+  router.push('/system');
+});
+
 quiesco.onReset(async () => {
   await api.replaceTodos([]);
   store.clear();

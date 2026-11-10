@@ -84,6 +84,9 @@ export const IOS_DEV_MENU_ARGS: readonly string[] = [
   '-EXDevMenuIsOnboardingFinished', 'YES',
   '-EXDevMenuShowFloatingActionButton', 'NO',
   '-EXDevMenuDisableAutoLaunch', 'YES',
+  // A shake (app.device.shake()) would open the dev menu over the app; the app's own shake handlers
+  // (RCTShowDevMenuNotification) still get it (Phase 6.7).
+  '-EXDevMenuMotionGestureEnabled', 'NO',
 ];
 
 export interface SimDevice {
@@ -129,6 +132,9 @@ export function chooseSimulator(devices: readonly SimDevice[], cfg: IosDeviceCon
   return booted[0] as SimDevice;
 }
 
+/** Darwin notification state BiometricKit_Sim reads for "enrolled" (1 / 0). */
+const BIOMETRIC_ENROLLMENT = 'com.apple.BiometricKit.enrollmentChanged';
+
 export class IosProvider implements DeviceProvider {
   readonly platform = 'ios' as const;
   /**
@@ -141,7 +147,7 @@ export class IosProvider implements DeviceProvider {
   /** Locale the app is launched with (setLocale); null = the simulator's. */
   private locale: string | null = null;
   /** Device settings changed by setX, with the value to restore (resetDeviceState). */
-  private readonly changed = new Map<'appearance' | 'contentSize' | 'location' | 'orientation' | 'statusBar', string>();
+  private readonly changed = new Map<'appearance' | 'biometrics' | 'contentSize' | 'location' | 'orientation' | 'statusBar', string>();
   private readonly exec: Exec;
   private readonly logger: Logger;
 
@@ -377,6 +383,40 @@ export class IosProvider implements DeviceProvider {
     return this.simctl(['pbpaste', this.udid]);
   }
 
+  // ---- Phase 6.7 system integration (Darwin notifications inside the simulator; findings 6.7) ----
+
+  /** `notifyutil` run inside the simulator, where BiometricKit_Sim and UIKit listen. */
+  private notify(...args: string[]): Promise<string> {
+    return this.simctl(['spawn', this.udid, 'notifyutil', ...args]);
+  }
+
+  async setBiometricEnrollment(enrolled: boolean): Promise<{ leftApp: boolean }> {
+    if (!this.changed.has('biometrics')) this.changed.set('biometrics', /\s(\d+)\s*$/.exec(await this.notify('-g', BIOMETRIC_ENROLLMENT).catch(() => ''))?.[1] ?? '0');
+    await this.setEnrollment(enrolled ? '1' : '0');
+    return { leftApp: false };
+  }
+
+  private async setEnrollment(value: string): Promise<void> {
+    await this.notify('-s', BIOMETRIC_ENROLLMENT, value);
+    await this.notify('-p', BIOMETRIC_ENROLLMENT);
+  }
+
+  /** Face ID (`pearl`) and Touch ID (`fingerTouch`): the simulator's model only listens to its own kind. */
+  async presentBiometric(match: boolean): Promise<void> {
+    const outcome = match ? 'match' : 'nomatch';
+    await this.notify('-p', `com.apple.BiometricKit_Sim.pearl.${outcome}`);
+    await this.notify('-p', `com.apple.BiometricKit_Sim.fingerTouch.${outcome}`);
+  }
+
+  /** What Simulator's Device > Shake posts; UIKit delivers a real shake motion event (iOS 26 has no `_sendMotion*`). */
+  async shake(): Promise<void> {
+    await this.notify('-p', 'com.apple.UIKit.SimulatorShake');
+  }
+
+  async clearKeychain(): Promise<void> {
+    await this.simctl(['keychain', this.udid, 'reset']);
+  }
+
   async resetDeviceState(app: InAppControls): Promise<StateChange> {
     for (const [what, value] of this.changed) {
       switch (what) {
@@ -391,6 +431,9 @@ export class IosProvider implements DeviceProvider {
           break;
         case 'contentSize':
           await this.simctl(['ui', this.udid, 'content_size', value]);
+          break;
+        case 'biometrics':
+          await this.setEnrollment(value).catch(() => undefined);
           break;
         case 'statusBar':
           await this.simctl(['status_bar', this.udid, 'clear']).catch(() => undefined);

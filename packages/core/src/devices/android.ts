@@ -82,6 +82,8 @@ export class AndroidProvider implements DeviceProvider {
   private bootedByUs = false;
   /** Shell commands that undo device-state changes (resetDeviceState), by setting. */
   private readonly restore = new Map<string, string[]>();
+  /** When biometrics.fail() last presented an unknown finger (the HAL's short lockout follows). */
+  private lastBiometricFailure = 0;
   private readonly exec: Exec;
   private readonly spawn: Spawn;
   private readonly logger: Logger;
@@ -427,6 +429,102 @@ export class AndroidProvider implements DeviceProvider {
     return r.text ?? '';
   }
 
+  // ---- Phase 6.7 system integration (emulators: the console fakes the sensors; findings 6.7) ----
+
+  private requireEmulator(action: string): void {
+    if (this.serial === null || !this.serial.startsWith('emulator-')) {
+      throw new QuiescoError('ACTION_NOT_SUPPORTED', `${action} needs an Android emulator (${this.serial ?? 'no device'} is not one)`, { action, platform: 'android' });
+    }
+  }
+
+  /** Enrolled fingerprints (`dumpsys fingerprint`). */
+  private async fingerprints(): Promise<number> {
+    const out = await this.shell('dumpsys fingerprint').catch(() => '');
+    return [...out.matchAll(/"count":(\d+)/g)].reduce((n, m) => n + Number(m[1]), 0);
+  }
+
+  /**
+   * No shell command enrolls a fingerprint: Settings' enrollment is driven like a user would — a screen-lock
+   * PIN (required, set by Quiesco and removed with the fingerprints), the consent screen's primary button,
+   * then the emulator sensor (`adb emu finger touch 1`) until the fingerprint is stored. Buttons are found
+   * by position, not by their (localized) text. Removing the PIN deletes every fingerprint.
+   */
+  async setBiometricEnrollment(enrolled: boolean): Promise<{ leftApp: boolean }> {
+    this.requireEmulator('biometrics.enroll');
+    if (!enrolled) {
+      for (const c of this.restore.get('biometrics') ?? []) await this.shell(c).catch(() => undefined);
+      this.restore.delete('biometrics');
+      return { leftApp: false };
+    }
+    if ((await this.fingerprints()) > 0) return { leftApp: false };
+    const pin = await this.shell(`locksettings set-pin ${BIOMETRIC_PIN}`).catch((e: unknown) => (e as Error).message);
+    if (!/Pin set/i.test(pin)) {
+      throw new QuiescoError('DEVICE_ERROR', `biometrics.enroll: cannot set the screen-lock PIN Android requires for fingerprints (does the emulator already have a screen lock?): ${pin.trim()}`);
+    }
+    this.restore.set('biometrics', [`locksettings clear --old ${BIOMETRIC_PIN}`]);
+    await this.shell('am start -W -a android.settings.FINGERPRINT_ENROLL');
+    const deadline = Date.now() + ENROLL_TIMEOUT_MS;
+    try {
+      while ((await this.fingerprints()) === 0) {
+        if (Date.now() > deadline) throw new QuiescoError('DEVICE_ERROR', `biometrics.enroll: Settings did not store a fingerprint within ${ENROLL_TIMEOUT_MS / 1000}s`);
+        const nodes = parseUiNodes(await this.uiDump());
+        if (nodes.some((n) => n.resourceId.endsWith(':id/password_entry'))) {
+          await this.shell(`input text ${BIOMETRIC_PIN}`);
+          await this.shell('input keyevent KEYCODE_ENTER');
+        } else {
+          const primary = primaryButton(nodes);
+          if (primary !== null) await this.shell(`input tap ${primary.x} ${primary.y}`);
+          else await this.adbRun(['emu', 'finger', 'touch', '1']);
+        }
+        await new Promise((r) => setTimeout(r, ENROLL_STEP_MS));
+      }
+    } finally {
+      await this.shell('am force-stop com.android.settings').catch(() => undefined);
+    }
+    return { leftApp: true };
+  }
+
+  private async uiDump(): Promise<string> {
+    await this.shell('uiautomator dump /sdcard/quiesco-ui.xml');
+    return this.shell('cat /sdcard/quiesco-ui.xml');
+  }
+
+  /**
+   * Finger 1 is the one enroll() stored; finger 2 is unknown. A touch before the authentication has started
+   * is lost, so this waits until `dumpsys fingerprint` shows it started (BiometricScheduler STATE_STARTED,
+   * about 0.5 s after the prompt is requested; findings 6.7). After an unknown finger the emulator's HAL
+   * locks the sensor for about half a second (longer after several failures in a row, as devices do); a
+   * touch in that time ends the authentication with a lockout error, so the next touch waits it out.
+   */
+  async presentBiometric(match: boolean): Promise<void> {
+    const action = match ? 'biometrics.match' : 'biometrics.fail';
+    this.requireEmulator(action);
+    const deadline = Date.now() + AUTH_WAIT_MS;
+    while (!AUTH_STARTED.test(await this.shell('dumpsys fingerprint').catch(() => ''))) {
+      if (Date.now() > deadline) {
+        throw new QuiescoError('DEVICE_ERROR', `${action}: no fingerprint authentication is waiting for a finger (did the app start one, e.g. LocalAuthentication.authenticateAsync()?)`, { action });
+      }
+      await new Promise((r) => setTimeout(r, AUTH_POLL_MS));
+    }
+    const cooldown = this.lastBiometricFailure + FAILURE_LOCKOUT_MS - Date.now();
+    if (cooldown > 0) await new Promise((r) => setTimeout(r, cooldown));
+    await this.adbRun(['emu', 'finger', 'touch', match ? '1' : '2']);
+    this.lastBiometricFailure = match ? 0 : Date.now();
+  }
+
+  /**
+   * Accelerometer pushes through the emulator console: the usual detectors (react-native-shake, the dev
+   * menu) want several strong sign changes within a few seconds (8 above 1.33 g within 3 s).
+   */
+  async shake(): Promise<void> {
+    this.requireEmulator('shake');
+    for (let i = 0; i < SHAKE_PUSHES; i++) {
+      await this.adbRun(['emu', 'sensor', 'set', 'acceleration', i % 2 === 0 ? '20:9.8:0' : '-20:9.8:0']);
+      await new Promise((r) => setTimeout(r, SHAKE_PUSH_MS));
+    }
+    await this.adbRun(['emu', 'sensor', 'set', 'acceleration', '0:9.81:0']);
+  }
+
   async resetDeviceState(): Promise<StateChange> {
     // Restoring the font scale or the language recreates the activity again (see setFontScale).
     const relaunch = this.restore.has('fontScale') || this.restore.has('locale');
@@ -520,4 +618,61 @@ function clipboardNeedsNative(action: string): QuiescoError {
     platform: 'android',
     hint: 'rebuild the app with EXPO_PUBLIC_QUIESCO=1 and @quiesco/expo-plugin',
   });
+}
+
+/** Screen-lock PIN Quiesco sets for fingerprint enrollment (Android requires one) and removes again. */
+const BIOMETRIC_PIN = '7357';
+const ENROLL_TIMEOUT_MS = 60_000;
+const ENROLL_STEP_MS = 400;
+/** An authentication BiometricScheduler has started (state 2), i.e. listening to the sensor. */
+const AUTH_STARTED = /FingerprintAuthenticationClient[^\n]*State: 2\b/;
+const AUTH_WAIT_MS = 5_000;
+/** The HAL's timed lockout after one failed attempt (about 500 ms measured), with a margin. */
+const FAILURE_LOCKOUT_MS = 1_000;
+const AUTH_POLL_MS = 100;
+const SHAKE_PUSHES = 12;
+const SHAKE_PUSH_MS = 80;
+
+export interface UiNode {
+  text: string;
+  resourceId: string;
+  clickable: boolean;
+  enabled: boolean;
+  bounds: { x1: number; y1: number; x2: number; y2: number };
+}
+
+/** Nodes of a `uiautomator dump`. */
+export function parseUiNodes(xml: string): UiNode[] {
+  const nodes: UiNode[] = [];
+  for (const m of xml.matchAll(/<node ([^>]*?)\/?>/g)) {
+    const attrs = Object.fromEntries([...(m[1] as string).matchAll(/([\w-]+)="([^"]*)"/g)].map((a) => [a[1], a[2]]));
+    const b = /\[(\d+),(\d+)\]\[(\d+),(\d+)\]/.exec(attrs['bounds'] ?? '');
+    if (b === null) continue;
+    nodes.push({
+      text: attrs['text'] ?? '',
+      resourceId: attrs['resource-id'] ?? '',
+      clickable: attrs['clickable'] === 'true',
+      enabled: attrs['enabled'] !== 'false',
+      bounds: { x1: Number(b[1]), y1: Number(b[2]), x2: Number(b[3]), y2: Number(b[4]) },
+    });
+  }
+  return nodes;
+}
+
+/**
+ * Settings' primary footer button (Next / More / I agree / Done): an enabled clickable node in the bottom
+ * fifth of the screen whose center is in the right half. Secondary buttons (No thanks / Do it later) sit
+ * on the left, and the screens that wait for the sensor only have those.
+ */
+export function primaryButton(nodes: readonly UiNode[]): { x: number; y: number } | null {
+  const width = Math.max(0, ...nodes.map((n) => n.bounds.x2));
+  const height = Math.max(0, ...nodes.map((n) => n.bounds.y2));
+  for (const n of nodes) {
+    if (!n.clickable || !n.enabled) continue;
+    const x = (n.bounds.x1 + n.bounds.x2) >> 1;
+    const y = (n.bounds.y1 + n.bounds.y2) >> 1;
+    const area = (n.bounds.x2 - n.bounds.x1) * (n.bounds.y2 - n.bounds.y1);
+    if (y > height * 0.8 && x > width / 2 && area < (width * height) / 4) return { x, y };
+  }
+  return null;
 }

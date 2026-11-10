@@ -4,7 +4,7 @@
 按 `requirements.md` 第 10 节的 6 个阶段，交付 Quiesco monorepo：三端灰盒同步 + Cucumber 驱动，示例 App 的第 9 节场景在 iOS Simulator、Android Emulator、Chromium 上用同一份 feature 通过。
 
 ## Next Step
-6.5 完成并提交（c5a4200）。6.6 批次 A 已提交（b899531）；6.6 批次 B 完成并提交（2026-11-09，三端全量实跑通过）⇒ 6.6 完成。下一步：6.7 系统集成（先出实施计划，经 HU 确认）。
+6.5 完成并提交（c5a4200）。6.6 批次 A 已提交（b899531）；6.6 批次 B 完成并提交（2026-11-09，三端全量实跑通过）⇒ 6.6 完成。6.7 计划 HU 已确认（2026-11-09）；6.7 批次 A（生物识别 / shake / clearKeychain）完成并提交（2026-11-10，三端全量通过）。下一步：6.7 批次 B 推送（spike：iOS simctl push 前台 / 后台 / 点击；Android @quiesco/native 本地通知）。
 
 ## Current Phase
 Phase 6
@@ -239,6 +239,9 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
   - **测试**：core 单测（各 provider 命令序列、Dynamic Type 档位映射、权限撤销后的重启流程、状态恢复）；agent 单测（离线拦截如采用）；三端实跑（iOS / Android native + js 档位、Web 三视口）；`pnpm run check`
   - **文档**：api.md（app.device 新方法）、platforms.md（各端实现与限制）
 - [ ] 6.7 系统集成（spike → 实现，逐项可降级）
+  - **HU 决定（2026-11-09）**：① 示例 App 加 expo-notifications 与 expo-local-authentication（重建两端 dev client）；② Android 推送 = @quiesco/native 以 App 身份发真实本地通知（点击打开 App；不经 FCM，expo-notifications 的远程推送回调不触发，文档说明）；③ iOS 系统弹窗先 spike XCUITest 辅助进程，spike 后再定是否实现；④ Android `clearKeychain()` 报 ACTION_NOT_SUPPORTED（提示 relaunch({ clearData: true })）
+  - **HU 决定（2026-11-09，spike 后）**：⑤ `biometrics.fail()` 只模拟不匹配（系统重试弹窗保留，与真机 / Detox unmatchFace 一致；让 App 收到失败要配合系统弹窗操作，批次 C）；⑥ 示例加 react-native-shake（演示 shake）
+  - **分批**：A 生物识别 / shake / clearKeychain → B 推送 → C 系统弹窗（Android uiautomator；iOS 视 spike）。每批 spike → 实现 → 三端实跑。Web 均为 ACTION_NOT_SUPPORTED（写进 platforms.md）
   - 推送：`sendNotification(payload)`（iOS simctl push 到前台 / 后台、点击通知进入；Android `cmd notification post` 或经 agent 调 expo-notifications 的接收路径——spike 决定）
   - 生物识别：`biometrics.enroll(bool)` / `match()` / `fail()`（iOS notifyutil `com.apple.BiometricKit_Sim.*`；Android `adb emu finger touch`）——Detox 仅 iOS
   - `shake()`（iOS 原生模块发 motionEnded；Android `adb emu sensor set acceleration`）、`clearKeychain()`（iOS simctl keychain reset；Android 等价为清除 App 数据）

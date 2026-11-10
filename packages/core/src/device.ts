@@ -70,6 +70,27 @@ export class DeviceApi {
   private offline = false;
   private clipboardSet = false;
 
+  /**
+   * Face ID / Touch ID / fingerprint (Phase 6.7). `enroll(true)` enrolls one (Android: through Settings, with
+   * a screen-lock PIN set by Quiesco; the app comes back to the front), `match()` / `fail()` present a
+   * matching / unknown one to the authentication the app is showing. After `fail()` the system keeps its
+   * retry prompt up, as on a real device. Enrollment is undone before the next scenario.
+   */
+  readonly biometrics = {
+    enroll: async (enrolled = true): Promise<void> => {
+      if (typeof enrolled !== 'boolean') throw new TypeError('biometrics.enroll(enrolled) needs a boolean');
+      const p = this.host.provider;
+      if (p.setBiometricEnrollment === undefined) throw notSupported('biometrics.enroll', p.platform, SYSTEM_HINT.web);
+      const { leftApp } = await p.setBiometricEnrollment(enrolled);
+      if (leftApp && this.host.appState === 'running') {
+        this.host.appState = 'background';
+        await this.bringToForeground();
+      }
+    },
+    match: (): Promise<void> => this.biometric(true),
+    fail: (): Promise<void> => this.biometric(false),
+  };
+
   /** The device clipboard (plain text), as the app sees it. Cleared before the next scenario when set. */
   readonly clipboard = {
     set: async (text: string): Promise<void> => {
@@ -286,6 +307,32 @@ export class DeviceApi {
     );
   }
 
+  /** Shake the device (iOS: Simulator's Device > Shake; Android emulator: accelerometer pushes). Waits for idle after. */
+  async shake(): Promise<void> {
+    const p = this.host.provider;
+    if (p.shake === undefined) throw notSupported('shake', p.platform, SYSTEM_HINT.web);
+    this.requireRunning('shake');
+    await p.shake();
+    await this.host.waitForIdle();
+  }
+
+  /** Delete keychain items. iOS resets the whole simulator's keychain; Android has none (use relaunch({ clearData: true })). */
+  async clearKeychain(): Promise<void> {
+    const p = this.host.provider;
+    if (p.clearKeychain === undefined) {
+      throw notSupported('clearKeychain', p.platform, p.platform === 'android' ? 'Android has no keychain: relaunch({ clearData: true }) deletes the app\'s data, Keystore keys included' : SYSTEM_HINT.web);
+    }
+    await p.clearKeychain();
+  }
+
+  private async biometric(match: boolean): Promise<void> {
+    const p = this.host.provider;
+    const action = match ? 'biometrics.match' : 'biometrics.fail';
+    if (p.presentBiometric === undefined) throw notSupported(action, p.platform, SYSTEM_HINT.web);
+    this.requireRunning(action);
+    await p.presentBiometric(match);
+  }
+
   /**
    * Override the status bar (clock, battery, signal) for clean screenshots; undone before the next
    * scenario. The web has no status bar: nothing to do there.
@@ -405,6 +452,8 @@ export class DeviceApi {
     if (required) throw new QuiescoError('DEVICE_ERROR', `the app did not become active within ${STATE_WAIT_MS}ms (AppState: ${last})`);
   }
 }
+
+const SYSTEM_HINT = { web: 'browsers have no such device feature; tag the scenario @native' } as const;
 
 const STATE_HINT: Partial<Record<string, Partial<Record<DeviceProvider['platform'], string>>>> = {
   setFontScale: { web: 'browsers have no system text size' },

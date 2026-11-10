@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { AndroidProvider, devClientLaunchUrl } from '../src/devices/android';
+import { AndroidProvider, devClientLaunchUrl, parseUiNodes, primaryButton } from '../src/devices/android';
 import type { AndroidProviderOptions } from '../src/devices/android';
 import type { Exec } from '../src/devices/exec';
 import { shq } from '../src/devices/exec';
@@ -384,3 +384,125 @@ describe('AndroidProvider device state (Phase 6.6)', () => {
     await expect(p.setPermission('camera', true)).rejects.toThrow(/declared in the app manifest/);
   });
 });
+
+describe('AndroidProvider system integration (Phase 6.7)', () => {
+  const screen = (...nodes: string[]) => `<hierarchy><node text="" resource-id="" clickable="false" enabled="true" bounds="[0,0][1080,2400]">${nodes.join('')}</node></hierarchy>`;
+  const PIN_SCREEN = screen('<node text="" resource-id="com.android.settings:id/password_entry" clickable="true" enabled="true" bounds="[267,914][813,1054]" />');
+  const CONSENT = screen('<node text="NO THANKS" resource-id="" clickable="true" enabled="true" bounds="[53,2179][343,2305]" />', '<node text="I AGREE" resource-id="" clickable="true" enabled="true" bounds="[796,2179][1027,2305]" />');
+  const TOUCH = screen('<node text="Touch the sensor" resource-id="com.android.settings:id/suc_layout_title" clickable="false" enabled="true" bounds="[63,336][1017,421]" />', '<node text="DO IT LATER" resource-id="" clickable="true" enabled="true" bounds="[21,2179][315,2305]" />');
+
+  /** An emulator whose Settings walks PIN → consent → three sensor touches → enrolled. */
+  function enrollingEmulator() {
+    const calls: string[] = [];
+    let ui = PIN_SCREEN;
+    let touches = 0;
+    let prints = 0;
+    const exec: Exec = async (file, args) => {
+      const line = `${file} ${args.join(' ')}`;
+      calls.push(line);
+      let out = '';
+      for (const [re, answer] of BOOTED) if (re.test(line)) out = answer;
+      if (/locksettings set-pin/.test(line)) out = "Pin set to '7357'\n";
+      if (/locksettings clear/.test(line)) prints = 0;
+      if (/dumpsys fingerprint/.test(line)) out = `{"prints":[{"id":0,"count":${prints}}]}`;
+      if (/cat \/sdcard\/quiesco-ui.xml/.test(line)) out = ui;
+      if (/KEYCODE_ENTER/.test(line)) ui = CONSENT;
+      if (/input tap 911 2242/.test(line)) ui = TOUCH;
+      if (/emu finger touch 1/.test(line) && ui === TOUCH && ++touches === 3) prints = 1;
+      return { stdout: Buffer.from(out), stderr: '' };
+    };
+    const p = new AndroidProvider({ app: { package: 'com.example.todo' }, adbPath: 'adb', emulatorPath: 'emulator', exec, pollMs: 1 });
+    return { p, calls };
+  }
+
+  it('finds Settings’ primary footer button by position (not by its localized text)', () => {
+    expect(primaryButton(parseUiNodes(CONSENT))).toEqual({ x: 911, y: 2242 });
+    expect(primaryButton(parseUiNodes(TOUCH))).toBeNull(); // only "Do it later" (left): touch the sensor instead
+    expect(primaryButton(parseUiNodes(PIN_SCREEN))).toBeNull();
+    expect(parseUiNodes(TOUCH)[1]).toMatchObject({ text: 'Touch the sensor', resourceId: 'com.android.settings:id/suc_layout_title', clickable: false });
+  });
+
+  it('enrolls through Settings with a PIN it removes again (with the fingerprints) on reset', async () => {
+    const { p, calls } = enrollingEmulator();
+    await p.boot();
+    calls.length = 0;
+    await expect(p.setBiometricEnrollment(true)).resolves.toEqual({ leftApp: true });
+    const s = (c: string) => `adb -s emulator-5554 shell ${c}`;
+    const steps = calls.filter((c) => !/dumpsys fingerprint|uiautomator dump|cat \/sdcard/.test(c));
+    expect(steps).toEqual([
+      s('locksettings set-pin 7357'),
+      s('am start -W -a android.settings.FINGERPRINT_ENROLL'),
+      s('input text 7357'),
+      s('input keyevent KEYCODE_ENTER'),
+      s('input tap 911 2242'),
+      'adb -s emulator-5554 emu finger touch 1',
+      'adb -s emulator-5554 emu finger touch 1',
+      'adb -s emulator-5554 emu finger touch 1',
+      s('am force-stop com.android.settings'),
+    ]);
+    // Already enrolled: nothing to do.
+    calls.length = 0;
+    await expect(p.setBiometricEnrollment(true)).resolves.toEqual({ leftApp: false });
+    expect(calls.filter((c) => !/dumpsys fingerprint/.test(c))).toEqual([]);
+    calls.length = 0;
+    await p.resetDeviceState();
+    expect(calls).toContain(s('locksettings clear --old 7357'));
+  });
+
+  it('enroll(false) removes Quiesco’s PIN; a PIN it cannot set is reported', async () => {
+    const { p, calls } = enrollingEmulator();
+    await p.boot();
+    await p.setBiometricEnrollment(true);
+    calls.length = 0;
+    await expect(p.setBiometricEnrollment(false)).resolves.toEqual({ leftApp: false });
+    expect(calls).toEqual(['adb -s emulator-5554 shell locksettings clear --old 7357']);
+    const locked = provider([...BOOTED, [/locksettings set-pin/, 'Old password provided is not correct\n'], [/dumpsys fingerprint/, '"count":0']]);
+    await locked.p.boot();
+    await expect(locked.p.setBiometricEnrollment(true)).rejects.toThrow(/already have a screen lock/);
+  });
+
+  it('waits for the authentication to start before touching the sensor; says so when none is waiting', async () => {
+    let polls = 0;
+    const calls: string[] = [];
+    const exec: Exec = async (file, args) => {
+      const line = `${file} ${args.join(' ')}`;
+      calls.push(line);
+      let out = '';
+      for (const [re, answer] of BOOTED) if (re.test(line)) out = answer;
+      // Queued (state 4) for two polls, then started (state 2).
+      if (/dumpsys fingerprint/.test(line)) out = `Current operation: {FingerprintAuthenticationClient}, State: ${++polls > 2 ? 2 : 4}`;
+      return { stdout: Buffer.from(out), stderr: '' };
+    };
+    const p = new AndroidProvider({ app: { package: 'com.example.todo' }, adbPath: 'adb', emulatorPath: 'emulator', exec, pollMs: 1 });
+    await p.boot();
+    calls.length = 0;
+    await p.presentBiometric(true);
+    expect(calls.filter((c) => /dumpsys fingerprint/.test(c))).toHaveLength(3);
+    expect(calls.at(-1)).toBe('adb -s emulator-5554 emu finger touch 1');
+    const idle = provider([...BOOTED, [/dumpsys fingerprint/, 'Current operation: null']]);
+    await idle.p.boot();
+    await expect(idle.p.presentBiometric(false)).rejects.toThrow(/no fingerprint authentication is waiting/);
+  }, 15_000);
+
+  it('presents finger 1 (enrolled) or 2 (unknown), shakes with alternating accelerometer pushes; emulators only', async () => {
+    const started = 'Current operation: {[57] com.android.server.biometrics.sensors.fingerprint.aidl.FingerprintAuthenticationClient, owner=com.example.todo}, State: 2';
+    const { p, calls } = provider([...BOOTED, [/dumpsys fingerprint/, started]]);
+    await p.boot();
+    calls.length = 0;
+    await p.presentBiometric(true);
+    await p.presentBiometric(false);
+    await p.shake();
+    const touches = calls.filter((c) => !/dumpsys fingerprint/.test(c));
+    expect(touches.slice(0, 2)).toEqual(['adb -s emulator-5554 emu finger touch 1', 'adb -s emulator-5554 emu finger touch 2']);
+    const pushes = touches.slice(2);
+    expect(pushes).toHaveLength(13);
+    expect(pushes[0]).toBe('adb -s emulator-5554 emu sensor set acceleration 20:9.8:0');
+    expect(pushes[1]).toBe('adb -s emulator-5554 emu sensor set acceleration -20:9.8:0');
+    expect(pushes[12]).toBe('adb -s emulator-5554 emu sensor set acceleration 0:9.81:0');
+    const device = provider([[/adb devices$/, 'List of devices attached\nR58M123\tdevice\n'], ...BOOTED.slice(2)], { device: { serial: 'R58M123' } });
+    await device.p.boot();
+    await expect(device.p.shake()).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { action: 'shake' } });
+    await expect(device.p.presentBiometric(true)).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED' });
+  });
+});
+

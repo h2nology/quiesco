@@ -41,6 +41,10 @@ The same features, steps and `this.app` calls run on all three platforms. What d
 | `setNetwork('offline')` | the agent fails the app's new connections; no device switch (NetInfo stays online) | the agent, plus `svc wifi / data disable` (NetInfo sees it; `adb reverse` keeps working) | the agent, plus aborted page requests and CDP `Network.overrideNetworkState` (`navigator.onLine`, `offline` / `connection` `change` events; Chromium) |
 | `clipboard.set()` / `get()` | `UIPasteboard` in the app (`@quiesco/native` ≥ Phase 6.6); `get` without it: `simctl pbpaste` | `ClipboardManager` in the app (same; without it `ACTION_NOT_SUPPORTED`) | `navigator.clipboard` (clipboard permissions granted to the page) |
 | `setStatusBar()` | `simctl status_bar override` (reset: `clear`) | SystemUI demo mode (`sysui_demo_allowed`, notification icons hidden; reset: `exit`) | no status bar: nothing to do |
+| `biometrics.enroll()` | `notifyutil` in the simulator: `com.apple.BiometricKit.enrollmentChanged` (restored to the previous value) | screen-lock PIN (`locksettings set-pin`), Settings' enrollment driven with `uiautomator` (buttons by position) and `adb emu finger touch 1`; removing the PIN removes the fingerprint | `ACTION_NOT_SUPPORTED` |
+| `biometrics.match()` / `fail()` | `notifyutil -p com.apple.BiometricKit_Sim.pearl.match` / `.nomatch` (and `fingerTouch.*` for Touch ID models) | `adb emu finger touch 1` / `2`, once the authentication has started (`dumpsys fingerprint`) | `ACTION_NOT_SUPPORTED` |
+| `shake()` | `notifyutil -p com.apple.UIKit.SimulatorShake` (what *Device > Shake* posts) | `adb emu sensor set acceleration`, 12 alternating pushes | `ACTION_NOT_SUPPORTED` |
+| `clearKeychain()` | `simctl keychain reset` (the whole simulator) | `ACTION_NOT_SUPPORTED` | `ACTION_NOT_SUPPORTED` |
 | Value controls, accessibility actions (native mode) | need an app built with `@quiesco/native` ≥ Phase 6.3 (`sliderInfo`, `wheelInfo`, `accessibilityAction`) | same (`sliderInfo`, `accessibilityAction`) | — |
 
 ## Permissions
@@ -67,7 +71,9 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
 
 - Quiesco turns off password AutoFill on the simulator (`devices.ios.disablePasswordAutoFill`), otherwise
   iOS covers the app with "Save Password?" after a login form.
-- Dev clients are launched with the dev menu, its onboarding and the floating button switched off.
+- Dev clients are launched with the dev menu, its onboarding, the floating button and its shake gesture
+  switched off (a `shake()` would otherwise open the dev menu over the app; the app's own shake handlers
+  still get it).
 - On iOS 26+ screen content can be laid out under a translucent navigation bar; elements there are
   reported as covered (`ELEMENT_OBSCURED`). Use the header height (`useHeaderHeight()`) or an opaque
   header.
@@ -86,6 +92,11 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
 - Clipboard: text put there by another process (`simctl pbcopy`) makes iOS ask the user before the app
   may paste it, and the app's read hangs until someone answers. `clipboard.set()` therefore writes from
   inside the app (`@quiesco/native` ≥ Phase 6.6); the app reads what it wrote itself without asking.
+- Biometrics: a failed Face ID / Touch ID attempt leaves the system's retry alert ("Try Face ID again" /
+  "Cancel") over the app; the app's `authenticateAsync` resolves only once it is answered, and element
+  calls cannot reach the app meanwhile. `match()` does not dismiss it.
+- `shake()` uses the Darwin notification Simulator's *Device > Shake* posts; UIKit turns it into a real shake
+  motion event (iOS 26 no longer has the private `-[UIApplication _sendMotionEnded:]` Detox used).
 - `setNetwork('offline')`: the simulator shares the Mac's network and has no switch of its own. Only the
   agent fails the app's connections (sent to an `.invalid` host, so they fail with React Native's own
   "Network request failed"); NetInfo keeps reporting the Mac's network.
@@ -115,6 +126,10 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
   working, so Quiesco, Metro and a mock backend on the host stay reachable — the app's requests to them
   fail through the agent. The previous Wi-Fi / data state is restored before the next scenario.
 - adb has no clipboard command: `clipboard.*` needs `@quiesco/native` ≥ Phase 6.6 in the app.
+- `biometrics.enroll()` needs an emulator without a screen lock of its own (Quiesco sets PIN 7357 and
+  removes it, with the fingerprint, before the next scenario). The app goes to the background while Settings
+  enrolls and is brought back. After an unknown finger the sensor is locked for about half a second, longer
+  after several failures in a row (the count only resets on a success).
 
 ## Web
 

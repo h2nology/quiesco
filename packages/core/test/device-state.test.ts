@@ -77,6 +77,23 @@ class StateProvider extends FakeProvider {
   async getClipboard(app: InAppControls) {
     return (await app.getClipboard()).text ?? '';
   }
+  enrollLeavesApp = false;
+  async setBiometricEnrollment(enrolled: boolean) {
+    this.calls.push(`enroll:${enrolled}`);
+    return { leftApp: this.enrollLeavesApp };
+  }
+  async bringToForeground() {
+    this.calls.push('foreground');
+  }
+  async presentBiometric(match: boolean) {
+    this.calls.push(match ? 'biometric:match' : 'biometric:fail');
+  }
+  async shake() {
+    this.calls.push('shake');
+  }
+  async clearKeychain() {
+    this.calls.push('keychain');
+  }
   async resetDeviceState(): Promise<StateChange> {
     this.calls.push('reset');
     const relaunch = this.locale !== null;
@@ -259,6 +276,31 @@ describe('app.device state (Phase 6.6)', () => {
     await expect(device.setStatusBar({ clock: '9:41' } as never)).rejects.toThrow(/unknown option clock/);
   });
 
+  it('biometrics / shake / keychain (Phase 6.7): an enrollment that left the app brings it back and waits for it', async () => {
+    const { provider, agents } = await start();
+    const device = session!.driver.device;
+    await device.biometrics.enroll();
+    provider.enrollLeavesApp = true;
+    await device.biometrics.enroll(true);
+    expect(provider.calls).toEqual(['enroll:true', 'enroll:true', 'foreground']);
+    expect(device.appState).toBe('running');
+    await device.biometrics.match();
+    await device.biometrics.fail();
+    agents[0]!.requests.length = 0;
+    await device.shake();
+    expect(methods(agents[0])).toEqual(['waitForIdle']);
+    await device.clearKeychain();
+    expect(provider.calls.slice(3)).toEqual(['biometric:match', 'biometric:fail', 'shake', 'keychain']);
+    await expect(device.biometrics.enroll('yes' as never)).rejects.toThrow(TypeError);
+    await device.terminate();
+    await expect(device.biometrics.match()).rejects.toMatchObject({ errorName: 'APP_NOT_RUNNING' });
+    await expect(device.shake()).rejects.toMatchObject({ errorName: 'APP_NOT_RUNNING' });
+    // Enrolling needs no running app; nothing to bring back then.
+    provider.calls.length = 0;
+    await device.biometrics.enroll(false);
+    expect(provider.calls).toEqual(['enroll:false']);
+  });
+
   it('validates locations; platforms without a method say so', async () => {
     const { device } = await start();
     await expect(device.setLocation(91, 0)).rejects.toThrow(RangeError);
@@ -275,6 +317,9 @@ describe('app.device state on a provider without it', () => {
     await expect(session.driver.device.setFontScale(1.2)).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { action: 'setFontScale', platform: 'android' } });
     await expect(session.driver.device.clipboard.get()).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { action: 'clipboard.get' } });
     await expect(session.driver.device.setStatusBar({ time: '9:41' })).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED' });
+    await expect(session.driver.device.biometrics.enroll()).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { action: 'biometrics.enroll' } });
+    await expect(session.driver.device.shake()).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { action: 'shake' } });
+    await expect(session.driver.device.clearKeychain()).rejects.toThrow(/Android has no keychain: relaunch\(\{ clearData: true \}\)/);
     // The agent alone can still simulate offline mode.
     await session.driver.device.setNetwork('offline');
     expect(session.server.agentConfig.network).toEqual({ offline: true });

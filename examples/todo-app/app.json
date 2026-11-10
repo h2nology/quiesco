@@ -39,7 +39,14 @@
       "expo-router",
       "expo-dev-client",
       "@quiesco/expo-plugin",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Quiesco example: biometric authentication driven by app.device.biometrics (Phase 6.7)."
+        }
+      ],
+      "expo-notifications"
     ],
     "scheme": "quiescotodo"
   }

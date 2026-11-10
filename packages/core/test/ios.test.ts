@@ -131,7 +131,7 @@ describe('IosProvider', () => {
       `xcrun simctl launch --terminate-running-process NEW-17 com.example.todo --initialUrl http://localhost:8082 ${IOS_DEV_MENU_ARGS.join(' ')} -quiescoPort 7357 -quiescoSession s`,
     );
     expect(IOS_DEV_MENU_ARGS).toEqual([
-      '-EXDevMenuShowsAtLaunch', 'NO', '-EXDevMenuIsOnboardingFinished', 'YES', '-EXDevMenuShowFloatingActionButton', 'NO', '-EXDevMenuDisableAutoLaunch', 'YES',
+      '-EXDevMenuShowsAtLaunch', 'NO', '-EXDevMenuIsOnboardingFinished', 'YES', '-EXDevMenuShowFloatingActionButton', 'NO', '-EXDevMenuDisableAutoLaunch', 'YES', '-EXDevMenuMotionGestureEnabled', 'NO',
     ]);
   });
 
@@ -281,6 +281,38 @@ describe('IosProvider device state (Phase 6.6)', () => {
     await expect(p.setClipboard('x', without)).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { action: 'clipboard.set', platform: 'ios' } });
     await expect(p.getClipboard(without)).resolves.toBe('from the Mac');
     expect(calls).toEqual(['xcrun simctl pbpaste NEW-17']);
+  });
+
+  it('Face ID / Touch ID, shake and keychain through simctl (notifyutil inside the simulator); enrollment restored on reset', async () => {
+    const { p, calls } = provider([[/notifyutil -g/, 'com.apple.BiometricKit.enrollmentChanged 0\n']]);
+    await p.boot();
+    calls.length = 0;
+    await expect(p.setBiometricEnrollment(true)).resolves.toEqual({ leftApp: false });
+    await p.presentBiometric(true);
+    await p.presentBiometric(false);
+    await p.shake();
+    await p.clearKeychain();
+    const n = (...a: string[]) => `xcrun simctl spawn NEW-17 notifyutil ${a.join(' ')}`;
+    expect(calls).toEqual([
+      n('-g', 'com.apple.BiometricKit.enrollmentChanged'),
+      n('-s', 'com.apple.BiometricKit.enrollmentChanged', '1'),
+      n('-p', 'com.apple.BiometricKit.enrollmentChanged'),
+      n('-p', 'com.apple.BiometricKit_Sim.pearl.match'),
+      n('-p', 'com.apple.BiometricKit_Sim.fingerTouch.match'),
+      n('-p', 'com.apple.BiometricKit_Sim.pearl.nomatch'),
+      n('-p', 'com.apple.BiometricKit_Sim.fingerTouch.nomatch'),
+      n('-p', 'com.apple.UIKit.SimulatorShake'),
+      'xcrun simctl keychain NEW-17 reset',
+    ]);
+    calls.length = 0;
+    await p.setBiometricEnrollment(false); // the value to restore stays the one from before the first change
+    await p.resetDeviceState(inApp({ supported: true }));
+    expect(calls).toEqual([
+      n('-s', 'com.apple.BiometricKit.enrollmentChanged', '0'),
+      n('-p', 'com.apple.BiometricKit.enrollmentChanged'),
+      n('-s', 'com.apple.BiometricKit.enrollmentChanged', '0'),
+      n('-p', 'com.apple.BiometricKit.enrollmentChanged'),
+    ]);
   });
 
   it('rotates through the app, and says why when it cannot', async () => {
