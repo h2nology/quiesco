@@ -42,3 +42,6 @@ yarn-error.*
 
 # Cucumber reports
 reports/
+
+# Quiesco artifacts (videos, logs, timelines, screenshots)
+artifacts/

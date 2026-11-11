@@ -26,6 +26,7 @@ function fakeView(page: (op: PageOp) => unknown, opts: { rect?: Rect; loading?: 
       return { rect: opts.rect ?? { x: 0, y: 100, width: 200, height: 400 }, value, loading: opts.loading?.() ?? false };
     },
     tapAt: async (p) => void taps.push(p),
+    screenshotRect: async () => Buffer.alloc(0),
     defaultTimeoutMs: opts.timeoutMs ?? 1000,
   };
   return { view: new WebView(host, { id: 'help' }), ops, taps };

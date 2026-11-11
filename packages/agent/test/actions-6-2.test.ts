@@ -70,6 +70,7 @@ describe('js mode', () => {
       offset: () => offset,
       viewport: () => ({ x: 0, y: 0, width: 300, height: 500 }),
       content: () => ({ x: 0, y: -offset.y, width: 300, height: 2000 }),
+      host: () => null,
       scrollTo: (x, y) => {
         offset = { x, y };
       },

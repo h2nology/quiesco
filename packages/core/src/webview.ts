@@ -26,6 +26,8 @@ export interface WebViewHost {
   evalInWebView(matcher: Matcher | undefined, script: string, opts: CallOptions): Promise<{ rect: Rect; value: string; loading: boolean }>;
   /** A real tap at a window point (waits for idle afterwards). */
   tapAt(point: Point, opts: CallOptions): Promise<void>;
+  /** The screen cut to `rect` (window coordinates; Phase 6.9). */
+  screenshotRect(rect: Rect): Promise<Buffer>;
   readonly defaultTimeoutMs: number;
 }
 
@@ -141,6 +143,26 @@ export class WebElement {
   /** Tap the field, then replace its whole value with `text`. */
   async replaceText(text: string, opts: CallOptions = {}): Promise<PageElement> {
     return this.input(text, true, opts);
+  }
+
+  /**
+   * PNG of the element, scrolled into view first (Phase 6.9): the part inside the WebView's visible area.
+   * `name`: saved and attached through `app.device.screenshot`'s artifacts as well.
+   */
+  async screenshot(opts: CallOptions = {}): Promise<Buffer> {
+    const deadline = this.view.deadline(opts);
+    await this.reveal(deadline, opts);
+    const { value: r, rect } = await this.view.pageWithRect<FindResult>({ op: 'find', locator: this.locator }, opts);
+    const el = r.elements[0];
+    if (r.count !== 1 || el === undefined) throw this.notSingle(r, 'screenshot');
+    const f = r.innerWidth > 0 ? rect.width / r.innerWidth : 1;
+    // Clipped to the WebView: the page may be taller than it.
+    const x0 = Math.max(rect.x, rect.x + el.rect.x * f);
+    const y0 = Math.max(rect.y, rect.y + el.rect.y * f);
+    const x1 = Math.min(rect.x + rect.width, rect.x + (el.rect.x + el.rect.width) * f);
+    const y1 = Math.min(rect.y + rect.height, rect.y + (el.rect.y + el.rect.height) * f);
+    if (x1 <= x0 || y1 <= y0) throw new QuiescoError('ELEMENT_NOT_FOUND', `${describeLocator(this.locator)} (WebView) is not inside the WebView's visible area`, { locator: this.locator as unknown as JsonValue });
+    return this.view.host.screenshotRect({ x: x0, y: y0, width: x1 - x0, height: y1 - y0 });
   }
 
   async scrollIntoView(opts: CallOptions = {}): Promise<PageElement> {

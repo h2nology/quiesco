@@ -8,8 +8,20 @@ function fakeSession(opts: { lateError?: Error } = {}) {
   const calls: unknown[] = [];
   let late = opts.lateError ?? null;
   const session = {
+    startScenario: vi.fn(async (info: unknown) => void calls.push(['startScenario', info])),
     beforeScenario: vi.fn(async (info: unknown) => void calls.push(['beforeScenario', info])),
-    collectEvidence: vi.fn(async () => ({ screenshot: Buffer.from('png'), tree: { type: 'RCTView', children: [] }, idle: [], errors: ['x: y'] })),
+    afterScenario: vi.fn(async (r: { failed: boolean }) => {
+      calls.push(['afterScenario', r]);
+      return {
+        files: [],
+        attachments: r.failed
+          ? [
+              { data: Buffer.from('png'), mediaType: 'image/png', fileName: 'failure.png' },
+              { data: '{"elementTree":{}}', mediaType: 'application/json', fileName: 'element-tree.json' },
+            ]
+          : [],
+      };
+    }),
     dispose: vi.fn(async () => void calls.push('dispose')),
     driver: {
       takeAppError: () => {
@@ -48,7 +60,10 @@ describe('Lifecycle', () => {
     expect(await l.before(['@browser'])).toBe('skipped');
     expect(await l.before(['@ios'])).toBe('skipped');
     expect(await l.before(['@native', '@hard-reset'])).toBeUndefined();
-    expect(calls).toEqual([['beforeScenario', { tags: ['@native', '@hard-reset'] }]]);
+    expect(calls).toEqual([
+      ['startScenario', { name: 'scenario' }],
+      ['beforeScenario', { tags: ['@native', '@hard-reset'], name: 'scenario' }],
+    ]);
   });
 
   it('lets the innermost platform tag decide and passes the flat tags on', async () => {
@@ -56,8 +71,11 @@ describe('Lifecycle', () => {
     const l = new Lifecycle({ config, platform: 'android', createSession: async () => session });
     await l.beforeAll();
     expect(await l.before([['@native'], [], ['@ios'], []])).toBe('skipped');
-    expect(await l.before([['@web'], [], ['@android', '@hard-reset'], []])).toBeUndefined();
-    expect(calls).toEqual([['beforeScenario', { tags: ['@web', '@android', '@hard-reset'] }]]);
+    expect(await l.before([['@web'], [], ['@android', '@hard-reset'], []], '保存待办')).toBeUndefined();
+    expect(calls).toEqual([
+      ['startScenario', { name: '保存待办' }],
+      ['beforeScenario', { tags: ['@web', '@android', '@hard-reset'], name: '保存待办' }],
+    ]);
   });
 
   it('groups pickle tags by Gherkin level', () => {
@@ -79,20 +97,28 @@ describe('Lifecycle', () => {
     expect(tagLevels([pt('@x', 'f')], {})).toEqual([[], [], ['@x'], []]);
   });
 
-  it('returns evidence attachments for failed scenarios', async () => {
-    const { session } = fakeSession();
+  it('ends the scenario through the session and returns its attachments', async () => {
+    const { session, calls } = fakeSession();
     const l = new Lifecycle({ config, platform: 'android', createSession: async () => session });
     await l.beforeAll();
+    await l.before([], 'a');
     const a = await l.after({ tags: [], failed: true });
-    expect(a.map((x) => x.mediaType)).toEqual(['image/png', 'application/json', 'application/json', 'text/plain']);
-    expect(String(a[1]?.data)).toContain('"elementTree"');
+    expect(a.map((x) => x.fileName)).toEqual(['failure.png', 'element-tree.json']);
+    await l.before([], 'b');
     expect(await l.after({ tags: [], failed: false })).toEqual([]);
+    // A skipped scenario has no artifacts to end.
+    expect(await l.after({ tags: [], failed: false })).toEqual([]);
+    expect(calls.filter((c) => Array.isArray(c) && c[0] === 'afterScenario')).toEqual([
+      ['afterScenario', { failed: true }],
+      ['afterScenario', { failed: false }],
+    ]);
   });
 
   it('fails a passed scenario when the app reported an error after the last step', async () => {
     const { session } = fakeSession({ lateError: new Error('late app error') });
     const l = new Lifecycle({ config, platform: 'android', createSession: async () => session });
     await l.beforeAll();
+    await l.before([], 'late');
     await expect(l.after({ tags: [], failed: false })).rejects.toThrow('late app error');
   });
 

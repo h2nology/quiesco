@@ -431,3 +431,11 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - 文档开始脚本：iOS `WKUserScript(.atDocumentStart)`、Android `WebViewCompat.addDocumentStartJavaScript`（模拟器 WebView 支持 DOCUMENT_START_SCRIPT）都只作用于之后的加载，两端在重载后的页面都执行了 ⇒ 首次发现 WebView 时「注册 + 对当前页 eval 同一钩子」。fetch 计数实测：点击后 1 → 请求结束 0；页内 setTimeout 不计（断言本身会重试）。
 - `source={{ html }}` 的页面重载后是空白 about:blank。Android `WebView.url` 不含 hash ⇒ `url()` 用页面里的 `location.href`。
 - Web：`<iframe srcdoc>` 经 `elementHandle.contentFrame()` 可用，fill / click / textContent / xpath / getByText / scrollIntoViewIfNeeded / evaluate 都正常；agent 查到的 iframe 宿主元素 props 里带 `ref`（含 fiber，循环巨大）⇒ 元素摘要要过滤 `ref`。
+
+## 6.9 证据与诊断 spike（2026-11-10，spikes/artifacts/video-logs.mts）
+- iOS 录像：`simctl io <udid> recordVideo --codec=h264 --force f.mp4`，stderr 出现「Recording started」用时 190–280 ms；SIGINT 停止 10–20 ms，得到完整 MP4（ftyp + moov）。两轮连续可用 ⇒ 按场景启停。
+- Android 录像：`adb shell screenrecord --bit-rate 4000000 /sdcard/x.mp4`（无输出，以 `pidof screenrecord` 判断已启动，~60 ms）；`pkill -INT screenrecord` 后进程退出时文件才写完，pull + rm 合计 0.5–0.6 s，MP4 完整。单段上限 3 分钟（`--time-limit` 默认 180 s）⇒ 场景超过时接续下一段。
+- Web 录像：Playwright 1.65 `page.screencast.start({ path })` / `stop()`，启动 ~1 ms、停止 ~40 ms，得到 WebM（EBML 头）⇒ 按场景启停，不需新 context。console 用 `page.on('console')`。
+- iOS 日志：`simctl spawn <udid> log stream --style compact --predicate 'process == "<可执行名>"'`；`--level debug` 3 s 71 行，大部分是 BackBoard 等系统子系统的噪声 ⇒ 默认用 info 级别。
+- Android 日志：`pm list packages -U <pkg>` 取 uid，`logcat -v threadtime -T 1 --uid=<uid>`（App 重启后 pid 变但 uid 不变），3 s 8 行，含 ReactHost 生命周期、原生警告。
+- 整页截图：agent 已有 Scrollable（offset / viewport / content / scrollTo），可按屏滚动；拼接在 core 用 png.ts 完成（第一屏取滚动区底边以上全部，后续每屏取新露出的条带，最后一屏补滚动区以下的固定区）；虚拟列表边滚边变长，以 offset 不再变化为结束。

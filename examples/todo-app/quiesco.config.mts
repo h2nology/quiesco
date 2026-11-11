@@ -22,8 +22,9 @@ export default defineConfig({
       binaryPath: 'android/app/build/outputs/apk/debug/app-debug.apk',
       // A dev client loading JS from Metro (`pnpm start:e2e`, port 8082).
       devClient: { scheme: 'quiescotodo', metroUrl },
-      // The mock backend (mock-server/server.mjs) on the host's localhost.
-      reversePorts: [3001],
+      // The mock backend (mock-server/server.mjs) on the host's localhost; MOCK_PORT moves it (the app then
+      // needs EXPO_PUBLIC_API_URL=http://localhost:<port> when bundling).
+      reversePorts: [Number(process.env['MOCK_PORT'] ?? 3001)],
     },
     ios: {
       bundleId: 'dev.quiesco.todo',

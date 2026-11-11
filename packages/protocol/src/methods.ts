@@ -16,6 +16,11 @@ export interface TrackerState {
 }
 
 /** Common option: disable the automatic wait-for-idle around a single call (§6.2 `{ sync: false }`). */
+/** Results of query / action / assert / webview / scrollView carry the ms spent waiting for idle (Phase 6.9). */
+export interface SyncTiming {
+  syncMs?: number;
+}
+
 export interface SyncOption {
   sync?: boolean;
   timeoutMs?: number;
@@ -23,13 +28,13 @@ export interface SyncOption {
 
 /** Methods the HOST calls on the AGENT. */
 export interface AgentMethods {
-  query: { params: { matcher: Matcher } & SyncOption; result: { elements: ElementSummary[] } };
+  query: { params: { matcher: Matcher } & SyncOption; result: { elements: ElementSummary[] } & SyncTiming };
   action: {
     params: { action: ActionSpec; mode: ActionMode } & SyncOption;
     /** `hostInput` is set when the host must perform the real input itself (web native mode). */
-    result: { element?: ElementSummary; hostInput?: HostInput };
+    result: { element?: ElementSummary; hostInput?: HostInput } & SyncTiming;
   };
-  assert: { params: { assertion: AssertionSpec } & SyncOption; result: { elements: ElementSummary[] } };
+  assert: { params: { assertion: AssertionSpec } & SyncOption; result: { elements: ElementSummary[] } & SyncTiming };
   waitForIdle: { params: { timeoutMs?: number }; result: { waitedMs: number } };
   getTree: { params: Record<string, never>; result: { root: TreeNode | null } };
   reset: { params: Record<string, never>; result: { durationMs: number } };
@@ -63,7 +68,25 @@ export interface AgentMethods {
    * one on screen), and on iOS / Android (@quiesco/native) evaluates `script` in its page. On the web the
    * WebView is an `<iframe>` the host reaches itself (Playwright frames): no `value`, the host uses `rect`.
    */
-  webview: { params: { matcher?: Matcher; script?: string } & SyncOption; result: WebViewCallResult };
+  webview: { params: { matcher?: Matcher; script?: string } & SyncOption; result: WebViewCallResult & SyncTiming };
+  /**
+   * A scroll view (Phase 6.9 full-page screenshots): the one containing the element matching `matcher`
+   * (default: the largest visible one). With `to`, scrolls it there first (programmatically) and waits
+   * for idle. `indicators`: show / hide its scroll indicators (native; they would end up in the
+   * screenshots). Reports where it is.
+   */
+  scrollView: { params: { matcher?: Matcher; to?: { x: number; y: number }; indicators?: boolean } & SyncOption; result: ScrollViewInfo & SyncTiming };
+}
+
+export interface ScrollViewInfo {
+  /** The scroll view's visible area in window coordinates. */
+  rect: Rect;
+  /** Content offset (how far it is scrolled). */
+  offset: { x: number; y: number };
+  /** Size of the scrollable content. */
+  content: { width: number; height: number };
+  /** With `indicators`: whether they were shown before (native only). */
+  indicatorsWere?: boolean;
 }
 
 export interface WebViewCallResult {

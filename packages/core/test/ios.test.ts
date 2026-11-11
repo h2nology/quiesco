@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import type { Exec } from '../src/devices/exec';
+import { fakeSpawner } from './helpers/fake-child';
 import { IOS_DEV_MENU_ARGS, IOS_RESTRICTION_FILES, IosProvider, chooseSimulator, iosLocaleArgs, nearestContentSize, runtimeMatches } from '../src/devices/ios';
 import type { IosProviderOptions, SimDevice } from '../src/devices/ios';
 
@@ -396,5 +397,43 @@ describe('IosProvider device state (Phase 6.6)', () => {
     await expect(p.resetDeviceState(inApp({ supported: true }))).resolves.toEqual({ relaunch: true });
     await p.launch({ port: 1, sessionId: 's' });
     expect(calls.at(-1)).not.toContain('AppleLanguages');
+  });
+});
+
+describe('IosProvider artifacts (Phase 6.9)', () => {
+  it('records video with simctl io recordVideo once it reports "Recording started"; SIGINT finishes it', async () => {
+    const s = fakeSpawner((c) => c.stderr.emit('data', 'Recording started\n'));
+    const { p } = provider([], { device: { device: 'iPhone 17', os: '27.0' }, spawnProcess: s.spawn });
+    await p.boot();
+    await p.startVideo('/tmp/a/video');
+    expect(s.children[0]?.args).toEqual(['simctl', 'io', 'NEW-17', 'recordVideo', '--codec=h264', '--force', '/tmp/a/video.mp4']);
+    expect(await p.stopVideo()).toEqual(['/tmp/a/video.mp4']);
+    expect(s.children[0]?.signals).toEqual(['SIGINT']);
+    expect(await p.stopVideo()).toEqual([]);
+  });
+
+  it('fails when the recorder exits instead of starting', async () => {
+    const s = fakeSpawner((c) => {
+      c.stderr.emit('data', 'No booted device');
+      c.exit(1);
+    });
+    const { p } = provider([], { device: { device: 'iPhone 17', os: '27.0' }, spawnProcess: s.spawn });
+    await p.boot();
+    await expect(p.startVideo('/tmp/v')).rejects.toThrow(/recordVideo exited \(1\): No booted device/);
+  });
+
+  it('streams the app process log (its executable from simctl appinfo), without the header lines', async () => {
+    const s = fakeSpawner();
+    const { p } = provider([[/simctl appinfo NEW-17 com.example.todo/, '{\n    CFBundleExecutable = QuiescoTodo;\n}']], { device: { device: 'iPhone 17', os: '27.0' }, spawnProcess: s.spawn });
+    await p.boot();
+    const since = Date.now();
+    await p.startDeviceLogs();
+    await p.startDeviceLogs();
+    expect(s.children).toHaveLength(1);
+    expect(s.children[0]?.args.at(-1)).toBe('process == "QuiescoTodo" AND NOT subsystem BEGINSWITH "com.apple.Accessibility"');
+    s.children[0]?.stdout.emit('data', 'Filtering the log data using "process == \\"QuiescoTodo\\""\nTimestamp  Ty Process\n2026 Df QuiescoTodo[1] hello\n');
+    expect(p.deviceLogs(since)).toEqual(['2026 Df QuiescoTodo[1] hello']);
+    await p.shutdown();
+    expect(s.children[0]?.signals).toEqual(['SIGINT']);
   });
 });

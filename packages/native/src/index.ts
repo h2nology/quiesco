@@ -166,6 +166,8 @@ export interface QuiescoNativeModule {
   webviewEval?(tag: number, script: string): Promise<string>;
   /** Run `source` at document start of the WebView's later page loads; false where unsupported. Absent before Phase 6.8. */
   webviewAddStartScript?(tag: number, source: string): Promise<boolean>;
+  /** Show / hide a scroll view's indicators (Phase 6.9 full-page screenshots); what they were: 1 shown, 0 hidden, -1 not found. */
+  setScrollIndicators?(tag: number, visible: boolean): Promise<number>;
 }
 
 export interface WebViewInfo {

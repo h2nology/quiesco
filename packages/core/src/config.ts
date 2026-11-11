@@ -14,6 +14,7 @@ import { toMatcher, toTextMatch } from './matcher.js';
 import type { MatcherInput } from './matcher.js';
 import type { Permission } from './devices/permissions.js';
 import type { TagNames } from './tags.js';
+import type { ArtifactsConfig } from './artifacts.js';
 
 export interface AndroidAppConfig {
   /** Application id, e.g. `com.example.myapp`. */
@@ -104,6 +105,12 @@ export interface QuiescoConfig {
     web?: WebDeviceConfig;
   };
   permissions?: Permission[];
+  /**
+   * Per-scenario artifacts (Phase 6.9): video, device logs and the timeline, each `none` / `failing` /
+   * `all`, written under `dir` (default `artifacts`). Default video none, logs and timeline failing;
+   * `QUIESCO_ARTIFACTS` overrides the three.
+   */
+  artifacts?: ArtifactsConfig;
   /**
    * Launch arguments every launch passes to the app (read there with `quiesco.launchArgs()`), any JSON.
    * `app.device.relaunch({ args })` merges its own over these (shallow).

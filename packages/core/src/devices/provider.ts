@@ -181,4 +181,15 @@ export interface DeviceProvider {
    * Permissions are restored by the caller (it knows the configured ones).
    */
   resetDeviceState?(app: InAppControls): Promise<StateChange>;
+
+  // ---- Phase 6.9 artifacts; missing = not available on that platform ----
+
+  /** Start recording the screen into `basePath` + the platform's extension (.mp4 / .webm). */
+  startVideo?(basePath: string): Promise<void>;
+  /** Stop recording; the files written (Android: one per 3-minute segment). */
+  stopVideo?(): Promise<string[]>;
+  /** Start collecting the app's device log (native log, browser console) for the rest of the session. */
+  startDeviceLogs?(): Promise<void>;
+  /** Lines collected since `since` (ms since the epoch, host clock). */
+  deviceLogs?(since: number): string[];
 }

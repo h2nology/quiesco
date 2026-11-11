@@ -177,6 +177,8 @@ export interface Scrollable {
   /** The content container (its size is the scrollable extent). */
   content(): Rect | null;
   scrollTo(x: number, y: number): void;
+  /** The native scroll view host (its view tag hides the indicators). */
+  host(): HostNode | null;
 }
 
 /** The ScrollView that contains `node` (or is `node`), or null. */
@@ -198,6 +200,7 @@ export function findScrollable(node: HostNode): Scrollable | null {
     },
     viewport: () => host().scroll?.measure() ?? null,
     content: () => host().content?.measure() ?? null,
+    host: () => host().scroll,
     scrollTo(x, y) {
       inst.call({ x: Math.max(0, x), y: Math.max(0, y), animated: false });
     },

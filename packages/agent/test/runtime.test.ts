@@ -130,13 +130,13 @@ describe('AgentRuntime', () => {
   it('native mode without @quiesco/native returns host input; device actions are delegated to the host', async () => {
     const { call, deps, target } = setup();
     sameRoot(target)(host('RCTView', { testID: 'x', ...R(0) }));
-    await expect(drive(call('action', { action: { type: 'tap', matcher: { id: 'x' } }, mode: 'native' }))).resolves.toEqual({
+    await expect(drive(call('action', { action: { type: 'tap', matcher: { id: 'x' } }, mode: 'native' }))).resolves.toEqual({ syncMs: expect.any(Number),
       element: expect.objectContaining({ testID: 'x' }),
       hostInput: { kind: 'tap', x: 50, y: 20 },
     });
-    await expect(call('action', { action: { type: 'pressBack' }, mode: 'js' })).resolves.toEqual({ hostInput: { kind: 'back' } });
-    await expect(call('action', { action: { type: 'openUrl', url: 'app://x' }, mode: 'js' })).resolves.toEqual({ hostInput: { kind: 'navigate', url: 'app://x' } });
-    await expect(drive(call('action', { action: { type: 'dismissKeyboard' }, mode: 'js' }))).resolves.toEqual({});
+    await expect(call('action', { action: { type: 'pressBack' }, mode: 'js' })).resolves.toEqual({ syncMs: expect.any(Number), hostInput: { kind: 'back' } });
+    await expect(call('action', { action: { type: 'openUrl', url: 'app://x' }, mode: 'js' })).resolves.toEqual({ syncMs: expect.any(Number), hostInput: { kind: 'navigate', url: 'app://x' } });
+    await expect(drive(call('action', { action: { type: 'dismissKeyboard' }, mode: 'js' }))).resolves.toEqual({ syncMs: expect.any(Number) });
     expect(deps.dismissKeyboard).toHaveBeenCalledOnce();
   });
 
@@ -151,7 +151,7 @@ describe('AgentRuntime', () => {
       openUrl,
     } as unknown as NonNullable<ReturnType<AppDeps['nativeModule']>>;
     const { call } = setup({ native });
-    await expect(drive(call('action', { action: { type: 'openUrl', url: 'app://todos' }, mode: 'js' }))).resolves.toEqual({});
+    await expect(drive(call('action', { action: { type: 'openUrl', url: 'app://todos' }, mode: 'js' }))).resolves.toEqual({ syncMs: expect.any(Number) });
     expect(openUrl).toHaveBeenCalledWith('app://todos');
 
     openUrl.mockResolvedValueOnce({ opened: false });
@@ -160,7 +160,7 @@ describe('AgentRuntime', () => {
       message: expect.stringContaining('other://x'),
     });
     // pressBack stays a host action; the iOS DeviceProvider rejects it.
-    await expect(call('action', { action: { type: 'pressBack' }, mode: 'native' })).resolves.toEqual({ hostInput: { kind: 'back' } });
+    await expect(call('action', { action: { type: 'pressBack' }, mode: 'native' })).resolves.toEqual({ syncMs: expect.any(Number), hostInput: { kind: 'back' } });
   });
 
   it('assert retries until the expectation holds', async () => {
@@ -307,6 +307,23 @@ describe('AgentRuntime', () => {
     expect(content).toMatchObject({ height: 3000, y: -2500 });
   });
 
+  it('scrollView (6.9 full-page screenshots): the largest visible one by default, or the one around an element; scrolls it when asked', async () => {
+    const { target, call } = setup();
+    const big = { x: 0, y: 100, width: 300, height: 500 };
+    const bigContent = { x: 0, y: 100, width: 300, height: 1500 };
+    const small = { x: 0, y: 0, width: 300, height: 80 };
+    const bigView = { scrollTo: vi.fn(({ y }: { y: number }) => void (bigContent.y = big.y - y)) };
+    const smallView = { scrollTo: vi.fn() };
+    sameRoot(target)(
+      classOf(smallView, host('RCTScrollView', { testID: 'tabs', __rect: small }, host('RCTScrollContentView', { __rect: { x: 0, y: 0, width: 600, height: 80 } }))),
+      classOf(bigView, host('RCTScrollView', { testID: 'feed', __rect: big }, host('RCTScrollContentView', { __rect: bigContent }, host('RCTView', { testID: 'row', ...R(130) })))),
+    );
+    expect(await drive(call('scrollView', {}))).toEqual({ rect: big, offset: { x: 0, y: 0 }, content: { width: 300, height: 1500 }, syncMs: expect.any(Number) });
+    expect(await drive(call('scrollView', { matcher: { id: 'row' }, to: { x: 0, y: 400 } }))).toMatchObject({ offset: { x: 0, y: 400 } });
+    expect(bigView.scrollTo).toHaveBeenCalledWith({ x: 0, y: 400, animated: false });
+    expect(smallView.scrollTo).not.toHaveBeenCalled();
+  });
+
   it('a point outside the element is rejected; pressKey reaches a field that is not visible', async () => {
     const { target, call } = setup();
     const onSubmitEditing = vi.fn();
@@ -420,7 +437,7 @@ describe('AgentRuntime', () => {
     }
     commit(host('RCTView', { testID: 'screen', ...R(0) }), { tag: 0, type: DateTimePicker, props: { testID: 'when', value: new Date(0), onChange }, children: [] });
     const d = new Date(2027, 2, 8, 12);
-    await expect(drive(call('action', { action: { type: 'setValue', matcher: { id: 'when' }, value: { date: d.toISOString() } }, mode: 'native', timeoutMs: 1000 }))).resolves.toEqual({});
+    await expect(drive(call('action', { action: { type: 'setValue', matcher: { id: 'when' }, value: { date: d.toISOString() } }, mode: 'native', timeoutMs: 1000 }))).resolves.toEqual({ syncMs: expect.any(Number) });
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ type: 'set' }), d);
     // Only id / type / index matchers reach such components.
     await expect(drive(call('action', { action: { type: 'setValue', matcher: { id: 'when', text: 'x' }, value: 1 }, mode: 'js', timeoutMs: 300 }), 400)).rejects.toMatchObject({ errorName: 'ELEMENT_NOT_FOUND' });
@@ -551,7 +568,7 @@ describe('AgentRuntime webview (Phase 6.8)', () => {
     sameRoot(target)(host('RCTView', { testID: 'page', ...R(0) }, host('RNCWebView', { testID: 'help', ...R(100) })));
     const r = await drive(call('webview', { script: 'document.title' }));
     // The content rect comes from the native view, below its inset.
-    expect(r).toEqual({ rect: { x: 0, y: 104, width: 390, height: 600 }, loading: false, value: 'ran:document.title' });
+    expect(r).toEqual({ syncMs: expect.any(Number), rect: { x: 0, y: 104, width: 390, height: 600 }, loading: false, value: 'ran:document.title' });
     await drive(call('webview', { matcher: { id: 'help' }, script: '1' }));
     expect(native.webviewAddStartScript).toHaveBeenCalledTimes(1);
     expect(native.webviewAddStartScript.mock.calls[0]?.[1]).toContain('__quiescoPending');
@@ -573,7 +590,7 @@ describe('AgentRuntime webview (Phase 6.8)', () => {
 
     const web = setup({ platform: 'web' });
     sameRoot(web.target)(host('div', { testID: 'help-box', ...R(0) }, host('iframe', { ...R(10) })));
-    expect(await drive(web.call('webview', { matcher: { id: 'help-box' }, script: '1' }))).toEqual({ rect: { x: 0, y: 10, width: 100, height: 40 }, viaHost: true });
+    expect(await drive(web.call('webview', { matcher: { id: 'help-box' }, script: '1' }))).toEqual({ syncMs: expect.any(Number), rect: { x: 0, y: 10, width: 100, height: 40 }, viaHost: true });
   });
 
   it('reports a native WebView without its content and evaluation failures', async () => {

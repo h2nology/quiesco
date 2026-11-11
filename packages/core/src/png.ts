@@ -150,6 +150,78 @@ export function cropPng(png: Buffer, rect: PixelRect): Buffer {
   return encodePng({ width: w, height: h, channels: img.channels, pixels: out });
 }
 
+/**
+ * Frame `rects` (pixels) with `thickness`-pixel borders of `color` (RGB), e.g. the elements of a failed
+ * step (Phase 6.9). Parts outside the image are clipped.
+ */
+export function drawRects(png: Buffer, rects: readonly PixelRect[], color: readonly [number, number, number] = [255, 0, 0], thickness = 4): Buffer {
+  const img = decodePng(png);
+  const put = (x: number, y: number): void => {
+    if (x < 0 || y < 0 || x >= img.width || y >= img.height) return;
+    const o = (y * img.width + x) * img.channels;
+    img.pixels[o] = color[0];
+    img.pixels[o + 1] = color[1];
+    img.pixels[o + 2] = color[2];
+    if (img.channels === 4) img.pixels[o + 3] = 255;
+  };
+  for (const r of rects) {
+    const x0 = Math.round(r.x);
+    const y0 = Math.round(r.y);
+    const x1 = Math.round(r.x + r.width) - 1;
+    const y1 = Math.round(r.y + r.height) - 1;
+    for (let t = 0; t < thickness; t++) {
+      for (let x = x0; x <= x1; x++) {
+        put(x, y0 + t);
+        put(x, y1 - t);
+      }
+      for (let y = y0; y <= y1; y++) {
+        put(x0 + t, y);
+        put(x1 - t, y);
+      }
+    }
+  }
+  return encodePng(img);
+}
+
+/** Rows `[from, to)` of a PNG. */
+export interface PngStrip {
+  png: Buffer;
+  from: number;
+  to: number;
+}
+
+/**
+ * Stack strips of PNGs of the same width top to bottom into one image (full-page screenshots). Strips
+ * are clamped to their image; RGB and RGBA may be mixed (the result is RGBA then).
+ */
+export function stackPng(strips: readonly PngStrip[]): Buffer {
+  const imgs = strips.map((s) => ({ img: decodePng(s.png), from: s.from, to: s.to }));
+  const first = imgs[0];
+  if (first === undefined) throw new Error('nothing to stack');
+  const width = first.img.width;
+  if (imgs.some((s) => s.img.width !== width)) throw new Error(`screenshots of different widths (${imgs.map((s) => s.img.width).join(', ')}) cannot be stacked`);
+  const channels: 3 | 4 = imgs.every((s) => s.img.channels === 3) ? 3 : 4;
+  const rows: Buffer[] = [];
+  for (const { img, from, to } of imgs) {
+    const y0 = Math.max(0, Math.floor(from));
+    const y1 = Math.min(img.height, Math.ceil(to));
+    for (let y = y0; y < y1; y++) {
+      const row = img.pixels.subarray(y * width * img.channels, (y + 1) * width * img.channels);
+      if (img.channels === channels) rows.push(row);
+      else {
+        const out = Buffer.alloc(width * 4);
+        for (let x = 0; x < width; x++) {
+          row.copy(out, x * 4, x * 3, x * 3 + 3);
+          out[x * 4 + 3] = 255;
+        }
+        rows.push(out);
+      }
+    }
+  }
+  if (rows.length === 0) throw new Error('the strips hold no rows');
+  return encodePng({ width, height: rows.length, channels, pixels: Buffer.concat(rows) });
+}
+
 /** Width × height of a PNG from its header. */
 export function pngSize(png: Buffer): { width: number; height: number } {
   if (png.length < 24 || !png.subarray(0, 8).equals(SIGNATURE)) throw new Error('not a PNG image');

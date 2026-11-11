@@ -28,6 +28,8 @@ import type { Logger } from '../logger.js';
 import { silentLogger } from '../logger.js';
 import type { Exec } from './exec.js';
 import { execCommand } from './exec.js';
+import { LogBuffer, exited, spawnProcess } from './streams.js';
+import type { ChildLike, SpawnProcess } from './streams.js';
 import { IosSystemRunner, PERMISSION_ALLOW, PERMISSION_DENY, dismissButton, screenNodes } from './ios-runner.js';
 import type { Permission } from './permissions.js';
 import type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions, SystemNode } from './provider.js';
@@ -109,6 +111,8 @@ export interface IosProviderOptions {
   runnerCacheDir?: string;
   /** The system UI runner (tests). Default: the XCUITest runner on the session's simulator. */
   systemRunner?: SystemRunnerLike;
+  /** Long-running processes: recordVideo, log stream (tests). */
+  spawnProcess?: SpawnProcess;
 }
 
 /** What IosProvider uses of IosSystemRunner. */
@@ -165,6 +169,10 @@ export class IosProvider implements DeviceProvider {
   private readonly logger: Logger;
   /** XCUITest runner for SpringBoard's UI, started on first use (Phase 6.7 batch C). */
   private runnerInstance: SystemRunnerLike | null = null;
+  /** Phase 6.9 artifacts: the running recorder and log stream. */
+  private recorder: { child: ChildLike; file: string } | null = null;
+  private logStream: ChildLike | null = null;
+  private readonly logs = new LogBuffer();
 
   constructor(private readonly options: IosProviderOptions) {
     this.exec = options.exec ?? execCommand;
@@ -610,7 +618,70 @@ export class IosProvider implements DeviceProvider {
     }
   }
 
+  // ---- Phase 6.9 artifacts ----
+
+  /** `simctl io recordVideo` (H.264 MP4); resolves once it reports that recording started. */
+  async startVideo(basePath: string): Promise<void> {
+    await this.stopVideo();
+    const file = `${basePath}.mp4`;
+    const child = (this.options.spawnProcess ?? spawnProcess)('xcrun', ['simctl', 'io', this.udid, 'recordVideo', '--codec=h264', '--force', file]);
+    let err = '';
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`recordVideo did not start within 10 s: ${err.slice(-300)}`)), 10_000);
+      child.stderr?.on('data', (d) => {
+        err += d.toString();
+        if (/Recording started/i.test(err)) {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+      child.once('exit', (code) => {
+        clearTimeout(timer);
+        reject(new Error(`recordVideo exited (${code}): ${err.slice(-300)}`));
+      });
+    });
+    this.recorder = { child, file };
+  }
+
+  /** SIGINT finishes the MP4 (findings 6.9: 10–20 ms). */
+  async stopVideo(): Promise<string[]> {
+    const r = this.recorder;
+    this.recorder = null;
+    if (r === null) return [];
+    r.child.kill('SIGINT');
+    await exited(r.child);
+    return [r.file];
+  }
+
+  /**
+   * The app process's unified log (`log stream`, info level and above), without the accessibility runtime's
+   * notifications (most of the volume, findings 6.9).
+   */
+  async startDeviceLogs(): Promise<void> {
+    if (this.logStream !== null) return;
+    const exe = await this.executableName();
+    const child = (this.options.spawnProcess ?? spawnProcess)('xcrun', ['simctl', 'spawn', this.udid, 'log', 'stream', '--style', 'compact', '--level', 'info', '--predicate', `process == "${exe}" AND NOT subsystem BEGINSWITH "com.apple.Accessibility"`]);
+    child.stdout?.on('data', (d) => this.logs.write(d));
+    this.logStream = child;
+  }
+
+  deviceLogs(since: number): string[] {
+    return this.logs.since(since).filter((l) => !/^(Timestamp|Filtering the log data)/.test(l));
+  }
+
+  /** CFBundleExecutable of the installed app (the process name in the log). */
+  private async executableName(): Promise<string> {
+    const info = await this.simctl(['appinfo', this.udid, this.bundleId]).catch(() => '');
+    const m = /CFBundleExecutable\s*=\s*"?([^";\n]+)"?;/.exec(info);
+    if (m?.[1] !== undefined) return m[1].trim();
+    if (this.options.app.binaryPath !== undefined) return path.basename(this.options.app.binaryPath, '.app');
+    throw new QuiescoError('DEVICE_ERROR', `cannot tell the executable of ${this.bundleId} (simctl appinfo)`);
+  }
+
   async shutdown(): Promise<void> {
+    await this.stopVideo().catch(() => undefined);
+    this.logStream?.kill('SIGINT');
+    this.logStream = null;
     await this.runnerInstance?.stop().catch(() => undefined);
     if (this.sim === null) return;
     if (this.bootedByUs && this.options.device?.shutdown === true) await this.simctl(['shutdown', this.sim.udid]).catch(() => undefined);

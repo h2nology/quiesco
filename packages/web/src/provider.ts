@@ -18,7 +18,7 @@
 import { LAUNCH_PARAM_PORT, LAUNCH_PARAM_SESSION, WEB_PARAMS_GLOBAL } from '@quiesco/protocol';
 import type { HostInput, Orientation, Rect } from '@quiesco/protocol';
 import type { ColorScheme, DeviceProvider, LaunchParams, LaunchUrlHandling, Logger, Permission, StateChange, StatusBarOptions, SystemNode, WebAppConfig, WebDeviceConfig } from '@quiesco/core';
-import { QuiescoError, silentLogger } from '@quiesco/core';
+import { LogBuffer, QuiescoError, silentLogger } from '@quiesco/core';
 import { chromium, firefox, webkit } from 'playwright';
 import type { Browser, BrowserContext, BrowserType, CDPSession, Dialog, Frame, Page, Route } from 'playwright';
 
@@ -100,6 +100,10 @@ export class WebProvider implements DeviceProvider {
   /** Permissions granted at runtime beyond / revoked from the configured ones. */
   private permissionsAtStart: string[] | null = null;
   private readonly pageErrors: string[] = [];
+  /** Phase 6.9 artifacts: the running screencast (segments) and the console log. */
+  private recording: { base: string; files: string[] } | null = null;
+  private logsOn = false;
+  private readonly logs = new LogBuffer();
   /** The JS dialog the page is blocked on (Phase 6.7). */
   private dialog: Dialog | null = null;
   private readonly dialogListeners = new Set<(message: string) => void>();
@@ -169,10 +173,16 @@ export class WebProvider implements DeviceProvider {
     page.on('pageerror', (e) => {
       this.pageErrors.push(e.message);
       if (this.pageErrors.length > 20) this.pageErrors.shift();
+      if (this.logsOn) this.logs.push(`pageerror: ${e.stack ?? e.message}`);
+    });
+    page.on('console', (m) => {
+      if (this.logsOn) this.logs.push(`${m.type()}: ${m.text()}`);
     });
     page.on('dialog', (d) => this.onDialog(page, d));
     this.context = context;
     this.page = page;
+    // A relaunch in the middle of a recorded scenario: the video goes on in a new segment.
+    if (this.recording !== null) await this.recordSegment(page);
     const target = params.url !== undefined ? webPathFor(params.url) : (this.options.app.path ?? '/');
     await page.goto(new URL(target, this.baseUrl).href);
     // After loading: an installed app starts offline too, a web page could not.
@@ -183,6 +193,8 @@ export class WebProvider implements DeviceProvider {
   async terminate(opts: { keepData?: boolean } = {}): Promise<void> {
     this.networkCdp = null; // detached with its page
     this.dialog = null; // closed with its page
+    // The page's screencast ends with it: finish the segment first.
+    if (this.recording !== null && this.page !== null) await this.page.screencast.stop().catch(() => undefined);
     const ctx = this.context;
     this.context = null;
     this.page = null;
@@ -401,6 +413,40 @@ export class WebProvider implements DeviceProvider {
     return page;
   }
 
+  // ---- Phase 6.9 artifacts ----
+
+  /** Playwright's per-page screencast (WebM); a relaunch continues in a new segment. */
+  async startVideo(basePath: string): Promise<void> {
+    await this.stopVideo();
+    this.recording = { base: basePath, files: [] };
+    await this.recordSegment(this.requirePage());
+  }
+
+  private async recordSegment(page: Page): Promise<void> {
+    const rec = this.recording;
+    if (rec === null) return;
+    const file = rec.files.length === 0 ? `${rec.base}.webm` : `${rec.base}-${rec.files.length + 1}.webm`;
+    rec.files.push(file);
+    await page.screencast.start({ path: file });
+  }
+
+  async stopVideo(): Promise<string[]> {
+    const rec = this.recording;
+    this.recording = null;
+    if (rec === null) return [];
+    await this.page?.screencast.stop().catch(() => undefined);
+    return rec.files;
+  }
+
+  /** The page's console messages and uncaught errors, from now on. */
+  async startDeviceLogs(): Promise<void> {
+    this.logsOn = true;
+  }
+
+  deviceLogs(since: number): string[] {
+    return this.logs.since(since);
+  }
+
   // ---- Phase 6.8 WebView (an <iframe> on the web) ----
 
   /**
@@ -501,6 +547,7 @@ export class WebProvider implements DeviceProvider {
   }
 
   async shutdown(): Promise<void> {
+    await this.stopVideo().catch(() => undefined);
     await this.terminate().catch(() => undefined);
     await this.browser?.close().catch(() => undefined);
     this.browser = null;

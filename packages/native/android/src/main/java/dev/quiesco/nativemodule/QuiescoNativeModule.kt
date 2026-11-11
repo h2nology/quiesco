@@ -89,6 +89,19 @@ class QuiescoNativeModule : Module() {
     }
 
     /** Where a view really is, and whether its window is the one receiving input. */
+    /**
+     * Show / hide the scrollbars of the view of `tag` (Phase 6.9 full-page screenshots: they stay drawn for
+     * a while after each scroll). Returns what they were: 1 shown, 0 hidden, -1 no view.
+     */
+    AsyncFunction("setScrollIndicators") { tag: Int, visible: Boolean ->
+      val view = findView(tag) ?: return@AsyncFunction -1
+      val was = if (view.isVerticalScrollBarEnabled) 1 else 0
+      view.isVerticalScrollBarEnabled = visible
+      view.isHorizontalScrollBarEnabled = visible
+      view.invalidate()
+      was
+    }.runOnQueue(Queues.MAIN)
+
     // ---- Phase 6.8 WebView (spike) ----
 
     /** The android.webkit.WebView inside the React view `tag` (react-native-webview): rect in dp and load state. */

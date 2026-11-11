@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { AndroidProvider, devClientLaunchUrl, parseUiNodes, primaryButton } from '../src/devices/android';
 import type { AndroidProviderOptions } from '../src/devices/android';
 import type { Exec } from '../src/devices/exec';
+import { fakeSpawner } from './helpers/fake-child';
 import { shq } from '../src/devices/exec';
 
 /** Fake adb: answers by matching the joined command line. */
@@ -579,5 +580,48 @@ describe('AndroidProvider system integration (Phase 6.7)', () => {
     await p.tapSystemNode(nodes[1]!);
     expect(calls).toEqual(['adb -s emulator-5554 shell input tap 540 1305']);
     expect(p.permissionDialog.deny).toContain('com.android.permissioncontroller:id/permission_deny_and_dont_ask_again_button');
+  });
+});
+
+describe('AndroidProvider artifacts (Phase 6.9)', () => {
+  it('screenrecord: waits until it runs, stops it with SIGINT, pulls and removes the file', async () => {
+    const s = fakeSpawner();
+    const { p, calls } = provider([...BOOTED, [/pidof screenrecord/, '4242\n']], { spawnProcess: s.spawn });
+    await p.boot();
+    await p.startVideo('/tmp/a/video');
+    const args = s.children[0]?.args ?? [];
+    expect(args.slice(0, 8)).toEqual(['-s', 'emulator-5554', 'shell', 'screenrecord', '--bit-rate', '4000000', '--time-limit', '180']);
+    const remote = args[8] as string;
+    calls.length = 0;
+    const stopped = p.stopVideo();
+    s.children[0]?.exit(0); // what pkill -INT does on the device
+    expect(await stopped).toEqual(['/tmp/a/video.mp4']);
+    expect(calls).toEqual(['adb -s emulator-5554 shell pkill -INT screenrecord', `adb -s emulator-5554 pull ${remote} /tmp/a/video.mp4`, `adb -s emulator-5554 shell rm -f '${remote}'`]);
+  });
+
+  it('records the next segment when the 3-minute limit ends one', async () => {
+    const s = fakeSpawner();
+    const { p } = provider([...BOOTED, [/pidof screenrecord/, '1\n']], { spawnProcess: s.spawn });
+    await p.boot();
+    await p.startVideo('/tmp/v');
+    s.children[0]?.exit(0); // time limit
+    await new Promise((r) => setTimeout(r, 10));
+    expect(s.children).toHaveLength(2);
+    const stopped = p.stopVideo();
+    s.children[1]?.exit(0);
+    expect(await stopped).toEqual(['/tmp/v-1.mp4', '/tmp/v-2.mp4']);
+    // Stopping does not start another one.
+    expect(s.children).toHaveLength(2);
+  });
+
+  it('logcat by the app uid', async () => {
+    const s = fakeSpawner();
+    const { p } = provider([...BOOTED, [/pm list packages -U/, 'package:com.example.todo uid:10232\npackage:com.example.todo.test uid:10233\n']], { spawnProcess: s.spawn });
+    await p.boot();
+    const since = Date.now();
+    await p.startDeviceLogs();
+    expect(s.children[0]?.args).toEqual(['-s', 'emulator-5554', 'logcat', '-v', 'threadtime', '-T', '1', '--uid=10232']);
+    s.children[0]?.stdout.emit('data', '--------- beginning of main\n11-10 W ReactNativeJS: hi\n');
+    expect(p.deviceLogs(since)).toEqual(['11-10 W ReactNativeJS: hi']);
   });
 });

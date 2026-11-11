@@ -62,6 +62,8 @@ const EDGE_FINGER: Record<Edge, Direction> = { top: 'down', bottom: 'up', left: 
  */
 const BACKGROUND_SKIPPED: ReadonlySet<string> = new Set(['frame-stable', 'timer', 'native']);
 const NONE: ReadonlySet<string> = new Set();
+/** Calls whose results report the time spent waiting for idle (`syncMs`, Phase 6.9 timeline). */
+const TIMED: ReadonlySet<string> = new Set(['query', 'action', 'assert', 'webview', 'scrollView']);
 
 export interface RuntimeOptions {
   adapter?: FiberAdapterOptions;
@@ -250,8 +252,14 @@ export class AgentRuntime {
   handle(method: string, params: unknown): Promise<unknown> {
     const h = (this.handlers as Record<string, ((p: unknown) => Promise<unknown>) | undefined>)[method];
     if (h === undefined) return Promise.reject(new MethodNotFound(method));
-    return h(params ?? {});
+    if (!TIMED.has(method)) return h(params ?? {});
+    // Phase 6.9 timeline: how much of the call was spent waiting for idle (calls run one at a time).
+    this.syncSpent = 0;
+    return h(params ?? {}).then((r) => (typeof r === 'object' && r !== null ? { ...r, syncMs: Math.round(this.syncSpent) } : r));
   }
+
+  /** Time spent in syncIfNeeded during the current timed call. */
+  private syncSpent = 0;
 
   private readonly handlers: Partial<Handlers> = {
     query: async (p) => {
@@ -307,6 +315,7 @@ export class AgentRuntime {
       return { suspended: await suspend() };
     },
     webview: async (p) => this.webview(p.matcher, p.script, p),
+    scrollView: async (p) => this.scrollView(p.matcher, p.to, p, p.indicators),
     reset: async () => {
       const start = this.clock.now();
       await this.resets.run(this.remount);
@@ -320,7 +329,13 @@ export class AgentRuntime {
   }
 
   private async syncIfNeeded(opts: SyncOption, timeoutMs = this.timeout(opts)): Promise<void> {
-    if (opts.sync !== false) await this.engine.waitForIdle({ timeoutMs, reportedTimeoutMs: this.timeout(opts) });
+    if (opts.sync === false) return;
+    const start = this.clock.now();
+    try {
+      await this.engine.waitForIdle({ timeoutMs, reportedTimeoutMs: this.timeout(opts) });
+    } finally {
+      this.syncSpent += this.clock.now() - start;
+    }
   }
 
   private sleep(ms: number): Promise<void> {
@@ -800,6 +815,51 @@ export class AgentRuntime {
       throw new QuiescoError('ACTION_NOT_SUPPORTED', `evaluating a script in ${what} failed: ${e instanceof Error ? e.message : String(e)}`, { action: 'webview', platform: this.deps.platform() });
     }
     return { rect: web, loading: info.loading === true, value };
+  }
+
+  /**
+   * The scroll view containing the element matching `matcher`, or the largest visible one (Phase 6.9
+   * full-page screenshots); scrolled to `to` first when given.
+   */
+  private async scrollView(matcher: Matcher | undefined, to: { x: number; y: number } | undefined, opts: SyncOption, indicators?: boolean): Promise<ResultOf<AgentMethods['scrollView']>> {
+    const deadline = this.clock.now() + this.timeout(opts);
+    let scrollable: js.Scrollable | null;
+    if (matcher !== undefined) {
+      const node = await this.resolveTarget(matcher, opts, deadline);
+      scrollable = js.findScrollable(node);
+      if (scrollable === null) {
+        throw new QuiescoError('ACTION_NOT_SUPPORTED', `${describeMatcher(matcher)} is not a scroll view nor inside one`, { action: 'scroll', platform: this.deps.platform() });
+      }
+    } else {
+      await this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now()));
+      const viewport = this.adapter.viewport();
+      let best: { s: js.Scrollable; area: number } | null = null;
+      // Scroll views clip their content (on the web RN's ScrollView is a plain div, without a 'scroll' type).
+      for (const n of findAll(this.adapter.getHostRoots(), {})) {
+        if (!n.clipsContent || !isVisible(n, viewport)) continue;
+        const s = js.findScrollable(n);
+        const r = s?.viewport();
+        if (s == null || r == null) continue;
+        const area = r.width * r.height;
+        if (best === null || area > best.area) best = { s, area };
+      }
+      if (best === null) throw new QuiescoError('ELEMENT_NOT_FOUND', 'No scroll view on screen (a full-page screenshot needs a ScrollView / FlatList)', { matcher: { type: 'scroll' } });
+      scrollable = best.s;
+    }
+    let indicatorsWere: boolean | undefined;
+    if (indicators !== undefined) {
+      const tag = scrollable.host()?.nativeTag() ?? null;
+      const was = tag === null ? -1 : await (this.nativeModule()?.setScrollIndicators?.(tag, indicators) ?? Promise.resolve(-1)).catch(() => -1);
+      if (was >= 0) indicatorsWere = was === 1;
+    }
+    if (to !== undefined) {
+      scrollable.scrollTo(to.x, to.y);
+      await this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now()));
+    }
+    const rect = scrollable.viewport();
+    const content = scrollable.content();
+    if (rect === null || content === null) throw new QuiescoError('ELEMENT_NOT_FOUND', 'The scroll view cannot be measured', { matcher: matcher ?? { type: 'scroll' } });
+    return { rect, offset: scrollable.offset(), content: { width: content.width, height: content.height }, ...(indicatorsWere !== undefined ? { indicatorsWere } : {}) };
   }
 
   /** The single visible WebView matching `matcher`, or the only one on screen. Waits for it like an action target. */

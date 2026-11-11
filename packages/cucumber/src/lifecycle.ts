@@ -18,6 +18,7 @@ export interface LifecycleOptions {
 export interface Attachment {
   data: Buffer | string;
   mediaType: string;
+  fileName?: string;
 }
 
 export interface ScenarioResult {
@@ -96,12 +97,18 @@ export class Lifecycle {
    * Before: `'skipped'` for scenarios tagged for other platforms, else reset the app. Pass the tags
    * grouped by Gherkin level ({@link tagLevels}) so the innermost platform tag decides.
    */
-  async before(tags: ScenarioTags): Promise<'skipped' | undefined> {
+  async before(tags: ScenarioTags, name = 'scenario'): Promise<'skipped' | undefined> {
     if (this.config === null || this.platform === null) throw new Error('Quiesco BeforeAll did not complete');
     if (!runsOnPlatform(tags, this.platform, tagNames(this.config.tags))) return 'skipped';
-    await this.current.beforeScenario({ tags: flattenTags(tags) });
+    // Artifacts first: the reset is part of the scenario's video and timeline.
+    await this.current.startScenario({ name });
+    this.started = true;
+    await this.current.beforeScenario({ tags: flattenTags(tags), name });
     return undefined;
   }
+
+  /** Whether the current scenario started (not skipped): only then does it have artifacts to end. */
+  private started = false;
 
   /**
    * After: on failure, evidence to attach (screenshot, element tree, idle state). On success, an app
@@ -109,18 +116,20 @@ export class Lifecycle {
    */
   async after(result: ScenarioResult): Promise<Attachment[]> {
     if (this.session === null) return [];
+    const started = this.started;
+    this.started = false;
     if (!result.failed) {
       const late = this.session.driver.takeAppError();
-      if (late !== null) throw late;
-      return [];
+      if (late !== null) {
+        if (started) await this.session.afterScenario({ failed: true }).catch(() => undefined);
+        throw late;
+      }
     }
-    const ev = await this.session.collectEvidence();
-    const out: Attachment[] = [];
-    if (ev.screenshot !== undefined) out.push({ data: ev.screenshot, mediaType: 'image/png' });
-    if (ev.tree !== undefined) out.push({ data: JSON.stringify({ elementTree: ev.tree }, null, 2), mediaType: 'application/json' });
-    if (ev.idle !== undefined) out.push({ data: JSON.stringify({ idleState: ev.idle }, null, 2), mediaType: 'application/json' });
-    if (ev.errors.length > 0) out.push({ data: `Quiesco could not collect: ${ev.errors.join('; ')}`, mediaType: 'text/plain' });
-    return out;
+    if (!started) {
+      // Skipped by platform (or the Before hook failed before the artifacts started): evidence only.
+      return result.failed ? (await this.session.afterScenario({ failed: true })).attachments : [];
+    }
+    return (await this.session.afterScenario({ failed: result.failed })).attachments;
   }
 
   /** AfterAll: close the connection and the device (per config). */

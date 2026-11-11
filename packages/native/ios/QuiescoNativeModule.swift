@@ -92,6 +92,26 @@ public class QuiescoNativeModule: Module {
     }
 
     /** Where a view really is, and whether a touch at its center would reach it. */
+    /**
+     * Show / hide the scroll indicators of the UIScrollView of `tag` (Phase 6.9 full-page screenshots).
+     * Returns what they were: 1 shown, 0 hidden, -1 no scroll view.
+     */
+    AsyncFunction("setScrollIndicators") { (tag: Int, visible: Bool) -> Int in
+      guard let root = QSTouchInjector.view(withReactTag: tag) else { return -1 }
+      var queue: [UIView] = [root]
+      while !queue.isEmpty {
+        let v = queue.removeFirst()
+        if let sv = v as? UIScrollView {
+          let was = sv.showsVerticalScrollIndicator ? 1 : 0
+          sv.showsVerticalScrollIndicator = visible
+          sv.showsHorizontalScrollIndicator = visible
+          return was
+        }
+        queue.append(contentsOf: v.subviews)
+      }
+      return -1
+    }.runOnQueue(.main)
+
     // ---- Phase 6.8 WebView (spike) ----
 
     /** The WKWebView inside the React view `tag` (react-native-webview): its rect in the window and load state. */

@@ -6,6 +6,7 @@ import { QuiescoServer } from '../src/server/ws-server';
 import { AGENT_CONFIG, NO_REPLY, connectAgent } from './helpers/fake-agent';
 import type { Handler } from './helpers/fake-agent';
 import { FakeProvider } from './helpers/fake-provider';
+import { Timeline } from '../src/timeline';
 
 /** A web-like provider whose page can open a JS dialog that blocks input until answered. */
 class DialogProvider extends FakeProvider {
@@ -39,14 +40,14 @@ afterEach(async () => {
   server = null;
 });
 
-async function setup(handler: Handler = () => ({}), opts: { nativeModule?: boolean; mode?: 'js' | 'native'; provider?: FakeProvider } = {}) {
+async function setup(handler: Handler = () => ({}), opts: { nativeModule?: boolean; mode?: 'js' | 'native'; provider?: FakeProvider; timeline?: Timeline } = {}) {
   server = new QuiescoServer({ port: 0, host: '127.0.0.1', agentConfig: AGENT_CONFIG });
   const port = await server.start();
   server.expectSession('s');
   const agent = connectAgent(port, { sessionId: 's', handler, ...(opts.nativeModule !== undefined ? { nativeModule: opts.nativeModule } : {}) });
   const conn: AgentConnection = await server.waitForConnection('s', 1000, () => '');
   const provider = opts.provider ?? new FakeProvider();
-  const driver = new Driver({ provider, connection: async () => conn, defaultTimeoutMs: 1000, ...(opts.mode !== undefined ? { mode: opts.mode } : {}) });
+  const driver = new Driver({ provider, connection: async () => conn, defaultTimeoutMs: 1000, ...(opts.mode !== undefined ? { mode: opts.mode } : {}), ...(opts.timeline !== undefined ? { timeline: opts.timeline } : {}) });
   driver.attach(conn);
   return { driver, agent, provider, conn };
 }
@@ -147,6 +148,23 @@ describe('Driver', () => {
 
     const none = await setup(() => ({ rect: { x: 0, y: 0, width: 10, height: 10 }, viaHost: true }));
     await expect(none.driver.webview().url()).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED' });
+  });
+
+  it('records agent calls in the timeline with the idle wait the agent reports, and remembers the last failure', async () => {
+    const timeline = new Timeline();
+    timeline.reset('s');
+    const { driver } = await setup((m) => {
+      if (m === 'assert') throw Object.assign(new Error('no'), { code: 1004, data: { name: 'ASSERTION_FAILED', elements: [{ rect: { x: 1, y: 2, width: 3, height: 4 } }] } });
+      return m === 'action' ? { syncMs: 42 } : { trackers: [] };
+    }, { timeline });
+    await driver.tap('save');
+    await driver.getIdleState();
+    await expect(driver.expectText('title', 'x')).rejects.toMatchObject({ errorName: 'ASSERTION_FAILED' });
+    expect(timeline.all.map((e) => [e.method, e.label, e.syncMs, e.error !== undefined])).toEqual([
+      ['action', 'tap {"id":"save"}', 42, false],
+      ['assert', 'text {"id":"title"}', undefined, true],
+    ]);
+    expect(driver.lastFailure?.data).toMatchObject({ elements: [{ rect: { x: 1, y: 2, width: 3, height: 4 } }] });
   });
 
   it('backdoor checks arguments on the host and returns the value; reset returns the duration', async () => {

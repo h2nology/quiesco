@@ -14,7 +14,10 @@ import { IosProvider } from './devices/ios.js';
 import type { DeviceProvider, LaunchParams, LaunchUrlHandling } from './devices/provider.js';
 import { DeviceApi } from './device.js';
 import type { AppRunState, DeviceHost } from './device.js';
+import { Artifacts } from './artifacts.js';
+import type { Attachment, ScenarioArtifacts } from './artifacts.js';
 import { Driver } from './driver.js';
+import { failureRects, highlight } from './screenshots.js';
 import { checkLaunchArgs, encodeLaunchArgs } from './launch-args.js';
 import type { LaunchArgs } from './launch-args.js';
 import { SyncApi } from './sync-api.js';
@@ -43,6 +46,8 @@ export interface Evidence {
 
 export interface ScenarioInfo {
   tags?: readonly string[];
+  /** The scenario's name: its artifacts directory (Phase 6.9). */
+  name?: string;
 }
 
 /** Packages providing a platform's DeviceProvider, loaded at runtime (core never imports them statically). */
@@ -84,6 +89,8 @@ export async function createProvider(platform: Platform, config: QuiescoConfig, 
 export class Session {
   readonly driver: Driver;
   readonly device: DeviceApi;
+  /** Per-scenario video, logs, timeline and saved screenshots (Phase 6.9). */
+  readonly artifacts: Artifacts;
   readonly sync: SyncApi;
   private connection: AgentConnection | null = null;
   /** What the test did to the app (Phase 6.5); element calls need `running`. */
@@ -100,7 +107,9 @@ export class Session {
     private readonly logger: Logger,
   ) {
     this.defaultArgs = config.launchArgs === undefined ? {} : checkLaunchArgs(config.launchArgs, 'config launchArgs');
+    this.artifacts = new Artifacts({ ...(config.artifacts !== undefined ? { config: config.artifacts } : {}), provider, logger });
     this.driver = new Driver({
+      timeline: this.artifacts.timeline,
       provider,
       connection: () => this.currentConnection(),
       defaultTimeoutMs: toAgentConfig(config).sync.timeoutMs,
@@ -167,12 +176,37 @@ export class Session {
     await this.driver.reset();
   }
 
+  /**
+   * Start a scenario's artifacts (timeline, video). Call before `beforeScenario` so its reset is in the
+   * video; `afterScenario` ends them.
+   */
+  async startScenario(info: ScenarioInfo = {}): Promise<void> {
+    this.driver.lastFailure = null;
+    await this.artifacts.beginScenario(info.name ?? 'scenario');
+  }
+
+  /**
+   * End a scenario: on failure the evidence (screenshot with the failed step's elements framed, element
+   * tree, idle state), plus video / logs / timeline per the artifacts policy, as attachments.
+   */
+  async afterScenario(result: { failed: boolean }): Promise<ScenarioArtifacts> {
+    const evidence: Attachment[] = [];
+    if (result.failed) {
+      const ev = await this.collectEvidence();
+      if (ev.screenshot !== undefined) evidence.push({ data: ev.screenshot, mediaType: 'image/png', fileName: 'failure.png' });
+      if (ev.tree !== undefined) evidence.push({ data: JSON.stringify({ elementTree: ev.tree }, null, 2), mediaType: 'application/json', fileName: 'element-tree.json' });
+      if (ev.idle !== undefined) evidence.push({ data: JSON.stringify({ idleState: ev.idle }, null, 2), mediaType: 'application/json', fileName: 'idle-state.json' });
+      if (ev.errors.length > 0) evidence.push({ data: `Quiesco could not collect: ${ev.errors.join('; ')}`, mediaType: 'text/plain', fileName: 'evidence-errors.txt' });
+    }
+    return this.artifacts.endScenario({ failed: result.failed, evidence });
+  }
+
   /** Best effort: each piece is collected independently, failures are listed in `errors`. */
   async collectEvidence(): Promise<Evidence> {
     const ev: Evidence = { errors: [] };
     await Promise.all([
       this.provider.screenshot().then(
-        (b) => (ev.screenshot = b),
+        async (b) => (ev.screenshot = await this.framed(b)),
         (e: unknown) => ev.errors.push(`screenshot: ${(e as Error).message}`),
       ),
       this.driver.getTree().then(
@@ -187,7 +221,20 @@ export class Session {
     return ev;
   }
 
+  /** The screenshot with the last failed call's elements framed in red (unchanged when it named none). */
+  private async framed(png: Buffer): Promise<Buffer> {
+    const rects = failureRects(this.driver.lastFailure?.data);
+    if (rects.length === 0) return png;
+    try {
+      const info = await this.driver.request('deviceInfo', {}, 3_000);
+      return highlight(png, rects, info.window.width);
+    } catch {
+      return png;
+    }
+  }
+
   async dispose(): Promise<void> {
+    await this.artifacts.dispose().catch(() => undefined);
     // Leave the device as it was: undo the last scenario's device-state changes (best effort).
     await this.device.resetDeviceState(this.config.permissions ?? [], { relaunch: false }).catch((e: unknown) =>
       this.logger.warn(`restoring the device state failed: ${(e as Error).message}`),
@@ -273,6 +320,9 @@ export class Session {
       },
       openUrl: (url) => this.driver.openUrl(url),
       pressBack: () => this.driver.pressBack(),
+      scrollView: (matcher, to, indicators) =>
+        this.driver.request('scrollView', { ...(matcher !== undefined ? { matcher } : {}), ...(to !== undefined ? { to } : {}), ...(indicators !== undefined ? { indicators } : {}) }),
+      saveArtifact: (name, data, mediaType, ext) => this.artifacts.save(name, data, mediaType, ext),
     };
   }
 

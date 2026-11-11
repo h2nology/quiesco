@@ -37,7 +37,9 @@ import { ElementExpectation, checkRatio } from './expect.js';
 import type { AgentConnection } from './server/ws-server.js';
 import type { AppRunState, DeviceApi } from './device.js';
 import type { SyncApi } from './sync-api.js';
+import type { Timeline } from './timeline.js';
 import { WebView } from './webview.js';
+import { cropToRect } from './screenshots.js';
 import type { WebViewHost } from './webview.js';
 
 export type { ActionOptions, CallOptions } from './options.js';
@@ -57,7 +59,12 @@ export interface DriverOptions {
   logger?: Logger;
   /** What the test did to the app (Phase 6.5): calls fail fast unless it is `running`. Default: running. */
   appState?: () => AppRunState;
+  /** Where calls are recorded (Phase 6.9 timeline). */
+  timeline?: Timeline;
 }
+
+/** Calls worth a line in the timeline (lifecycle polling such as deviceInfo is left out). */
+const TIMELINED: ReadonlySet<keyof AgentMethods> = new Set(['query', 'action', 'assert', 'waitForIdle', 'backdoor', 'reset', 'webview', 'scrollView']);
 
 /** Calls without side effects, repeated once when the connection drops mid-call. */
 const RETRYABLE: ReadonlySet<keyof AgentMethods> = new Set(['query', 'assert', 'waitForIdle', 'getTree', 'getIdleState']);
@@ -77,6 +84,8 @@ export class Driver {
   private warnedJsMode = false;
   private readonly logger: Logger;
   private lifecycle: { device: DeviceApi; sync: SyncApi } | null = null;
+  /** The last error an agent call failed with (failure screenshots frame its elements; Phase 6.9). */
+  lastFailure: QuiescoError | null = null;
 
   constructor(private readonly options: DriverOptions) {
     this.logger = options.logger ?? silentLogger;
@@ -231,6 +240,10 @@ export class Driver {
         return { rect: r.rect, value: await this.race(provider.webviewEval(r.rect, script)), loading: false };
       },
       tapAt: (point, opts) => this.tapAt(point, opts),
+      screenshotRect: async (rect) => {
+        const info = await this.request('deviceInfo', {}, 5_000);
+        return cropToRect(await this.options.provider.screenshot(), rect, info.window.width);
+      },
       defaultTimeoutMs: this.options.defaultTimeoutMs,
     };
   }
@@ -537,12 +550,22 @@ export class Driver {
       this.attach(conn);
       return this.race(conn.request(method, params, (timeoutMs ?? this.options.defaultTimeoutMs) * steps + HOST_MARGIN_MS));
     };
+    const attempt = async (): Promise<ResultOf<AgentMethods[M]>> => {
+      try {
+        return await send();
+      } catch (e) {
+        // A page reload / relaunch dropped the connection mid-call: read-only calls are safe to repeat
+        // once the app is back (requirements.md §6.2: reconnecting is not an error).
+        if (e instanceof QuiescoError && e.errorName === 'AGENT_DISCONNECTED' && RETRYABLE.has(method)) return send();
+        throw e;
+      }
+    };
+    const timeline = this.options.timeline;
+    const run = timeline === undefined || !TIMELINED.has(method) ? attempt() : timeline.measure(method, describeCall(method, params), attempt, (r) => (r as { syncMs?: number }).syncMs);
     try {
-      return await send();
+      return await run;
     } catch (e) {
-      // A page reload / relaunch dropped the connection mid-call: read-only calls are safe to repeat
-      // once the app is back (requirements.md §6.2: reconnecting is not an error).
-      if (e instanceof QuiescoError && e.errorName === 'AGENT_DISCONNECTED' && RETRYABLE.has(method)) return send();
+      if (e instanceof QuiescoError) this.lastFailure = e;
       throw e;
     }
   }
@@ -574,6 +597,16 @@ export class Driver {
       for (const l of [...this.appErrorListeners]) l(e);
     });
   }
+}
+
+/** A short label of an agent call for the timeline: `tap { id: "save" }`. */
+function describeCall(method: string, params: unknown): string {
+  const p = (params ?? {}) as Record<string, unknown>;
+  const spec = (p['action'] ?? p['assertion']) as Record<string, unknown> | undefined;
+  const matcher = spec?.['matcher'] ?? p['matcher'];
+  const what = spec !== undefined ? String(spec['type']) : method === 'backdoor' ? String(p['name']) : '';
+  const m = matcher === undefined ? '' : JSON.stringify(matcher);
+  return [what, m.length > 120 ? `${m.slice(0, 117)}...` : m].filter((x) => x !== '').join(' ');
 }
 
 function checkPoint(p: Point, name: string): Point {

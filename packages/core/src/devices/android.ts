@@ -39,6 +39,8 @@ import type { Logger } from '../logger.js';
 import { silentLogger } from '../logger.js';
 import type { Exec, Spawn } from './exec.js';
 import { execCommand, shq, spawnDetached } from './exec.js';
+import { LogBuffer, exited, spawnProcess } from './streams.js';
+import type { ChildLike, SpawnProcess } from './streams.js';
 import type { Permission } from './permissions.js';
 import type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions, SystemNode } from './provider.js';
 
@@ -63,7 +65,12 @@ export interface AndroidProviderOptions {
   emulatorPath?: string;
   /** Polling interval while waiting for the emulator to boot. */
   pollMs?: number;
+  /** Long-running processes: screenrecord, logcat (tests). */
+  spawnProcess?: SpawnProcess;
 }
+
+/** screenrecord's own limit per file (findings 6.9): longer scenarios get several segments. */
+const SCREENRECORD_LIMIT_S = 180;
 
 function sdkTool(rel: string, fallback: string): string {
   const home = process.env['ANDROID_HOME'] ?? process.env['ANDROID_SDK_ROOT'];
@@ -89,6 +96,10 @@ export class AndroidProvider implements DeviceProvider {
   private readonly logger: Logger;
   private readonly adb: string;
   private readonly emulator: string;
+  /** Phase 6.9 artifacts: the screen recording (segments on the device) and the logcat stream. */
+  private recording: { base: string; remotes: string[]; child: ChildLike | null; stopping: boolean } | null = null;
+  private logcat: ChildLike | null = null;
+  private readonly logs = new LogBuffer();
 
   constructor(private readonly options: AndroidProviderOptions) {
     this.exec = options.exec ?? execCommand;
@@ -652,7 +663,80 @@ export class AndroidProvider implements DeviceProvider {
     }
   }
 
+  // ---- Phase 6.9 artifacts ----
+
+  /** `screenrecord` on the device, a new segment every 3 minutes; resolves once it runs. */
+  async startVideo(basePath: string): Promise<void> {
+    await this.stopVideo();
+    const rec = { base: basePath, remotes: [] as string[], child: null as ChildLike | null, stopping: false };
+    this.recording = rec;
+    await this.recordSegment(rec);
+  }
+
+  private async recordSegment(rec: NonNullable<AndroidProvider['recording']>): Promise<void> {
+    const remote = `/sdcard/quiesco-video-${Date.now()}-${rec.remotes.length}.mp4`;
+    rec.remotes.push(remote);
+    const child = (this.options.spawnProcess ?? spawnProcess)(this.adb, ['-s', this.requireSerial(), 'shell', 'screenrecord', '--bit-rate', '4000000', '--time-limit', String(SCREENRECORD_LIMIT_S), remote]);
+    rec.child = child;
+    // The time limit ended this segment while the scenario goes on: record the next one.
+    child.once('exit', () => {
+      if (!rec.stopping && this.recording === rec) void this.recordSegment(rec).catch((e: unknown) => this.logger.warn(`screenrecord: ${(e as Error).message}`));
+    });
+    // It prints nothing when it starts (findings 6.9): wait until its process is there.
+    const deadline = Date.now() + 5_000;
+    while (Date.now() < deadline && child.exitCode === null) {
+      if ((await this.shell('pidof screenrecord').catch(() => '')).trim() !== '') return;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    if (child.exitCode !== null) throw new QuiescoError('DEVICE_ERROR', 'screenrecord exited at once (is the screen locked or another recording running?)');
+  }
+
+  /** SIGINT ends screenrecord (the file is complete when it exits), then the segments are pulled. */
+  async stopVideo(): Promise<string[]> {
+    const rec = this.recording;
+    this.recording = null;
+    if (rec === null) return [];
+    rec.stopping = true;
+    await this.shell('pkill -INT screenrecord').catch(() => undefined);
+    if (rec.child !== null) await exited(rec.child);
+    const files: string[] = [];
+    for (const [i, remote] of rec.remotes.entries()) {
+      const file = rec.remotes.length === 1 ? `${rec.base}.mp4` : `${rec.base}-${i + 1}.mp4`;
+      try {
+        await this.adbRun(['pull', remote, file], 60_000);
+        files.push(file);
+      } catch (e) {
+        this.logger.warn(`pulling the video failed: ${(e as Error).message}`);
+      }
+      await this.shell(`rm -f ${shq(remote)}`).catch(() => undefined);
+    }
+    return files;
+  }
+
+  /** The app's logcat lines (by uid: it survives app restarts, its pid does not). */
+  async startDeviceLogs(): Promise<void> {
+    if (this.logcat !== null) return;
+    const listing = await this.shell(`pm list packages -U ${shq(this.pkg)}`);
+    const uid = new RegExp(`package:${this.pkg.replace(/\./g, '\\.')}\\s+uid:(\\d+)`).exec(listing)?.[1];
+    if (uid === undefined) throw new QuiescoError('DEVICE_ERROR', `cannot find the uid of ${this.pkg} (pm list packages -U)`);
+    const child = (this.options.spawnProcess ?? spawnProcess)(this.adb, ['-s', this.requireSerial(), 'logcat', '-v', 'threadtime', '-T', '1', `--uid=${uid}`]);
+    child.stdout?.on('data', (d) => this.logs.write(d));
+    this.logcat = child;
+  }
+
+  deviceLogs(since: number): string[] {
+    return this.logs.since(since).filter((l) => !l.startsWith('--------- beginning of'));
+  }
+
+  private requireSerial(): string {
+    if (this.serial === null) throw new QuiescoError('DEVICE_ERROR', 'Android device not booted (call boot() first)');
+    return this.serial;
+  }
+
   async shutdown(): Promise<void> {
+    await this.stopVideo().catch(() => undefined);
+    this.logcat?.kill('SIGINT');
+    this.logcat = null;
     if (this.serial === null) return;
     await this.adbRun(['reverse', '--remove-all']).catch(() => undefined);
     if (this.bootedByUs && this.options.device?.shutdown === true) await this.adbRun(['emu', 'kill']).catch(() => undefined);

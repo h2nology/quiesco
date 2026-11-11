@@ -61,6 +61,8 @@ export type NativeModuleLike = NativeBridge & {
   webviewEval?(tag: number, script: string): Promise<string>;
   /** Run `source` at document start of the WebView's later loads; false where the WebView cannot. */
   webviewAddStartScript?(tag: number, source: string): Promise<boolean>;
+  /** Show / hide a scroll view's indicators (Phase 6.9 full-page screenshots); what they were: 1 shown, 0 hidden, -1 not found. */
+  setScrollIndicators?(tag: number, visible: boolean): Promise<number>;
 };
 
 interface RN {

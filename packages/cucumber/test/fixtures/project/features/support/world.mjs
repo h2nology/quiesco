@@ -19,7 +19,16 @@ registerQuiesco({
   createSession: async () => ({
     driver,
     beforeScenario: async ({ tags }) => log.push(`reset ${tags.includes('@hard-reset') ? 'hard' : 'soft'}`),
-    collectEvidence: async () => ({ screenshot: Buffer.from('PNG'), tree: { type: 'RCTView', children: [] }, errors: [] }),
+    startScenario: async () => undefined,
+    afterScenario: async ({ failed }) => ({
+      files: [],
+      attachments: failed
+        ? [
+            { data: Buffer.from('PNG'), mediaType: 'image/png', fileName: 'failure.png' },
+            { data: '{"elementTree":{}}', mediaType: 'application/json', fileName: 'element-tree.json' },
+          ]
+        : [],
+    }),
     dispose: async () => log.push('dispose'),
   }),
 });

@@ -4,7 +4,7 @@
  * Platform differences live in the DeviceProviders; this class only orders the steps and keeps track of
  * whether the app is running, so element calls fail fast instead of waiting for a reconnect.
  */
-import type { DeviceInfo, Orientation, Rect } from '@quiesco/protocol';
+import type { DeviceInfo, Matcher, Orientation, Rect, ScrollViewInfo } from '@quiesco/protocol';
 
 import type { Permission } from './devices/permissions.js';
 import type { ColorScheme, DeviceProvider, InAppControls, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions, SystemNode } from './devices/provider.js';
@@ -13,7 +13,9 @@ import { checkLaunchArgs } from './launch-args.js';
 import type { LaunchArgs } from './launch-args.js';
 import type { Logger } from './logger.js';
 import type { MatcherInput } from './matcher.js';
-import { cropPng, pngSize } from './png.js';
+import { toMatcher } from './matcher.js';
+import { cropToRect, fullElementScreenshot, fullPageScreenshot } from './screenshots.js';
+import type { ScreenshotHost } from './screenshots.js';
 import { SYSTEM_WAIT_MS, checkSystemQuery, describeSystemQuery, matchesSystemQuery, seenTexts } from './system-ui.js';
 import type { SystemQuery, SystemWaitOptions } from './system-ui.js';
 
@@ -55,6 +57,10 @@ export interface DeviceHost {
   reapplyConfig(): Promise<void>;
   waitForIdle(): Promise<void>;
   elementRect(target: MatcherInput): Promise<Rect>;
+  /** The scroll view containing `matcher` (default: the largest on screen), scrolled to `to` first (Phase 6.9). */
+  scrollView(matcher: Matcher | undefined, to?: { x: number; y: number }, indicators?: boolean): Promise<ScrollViewInfo>;
+  /** Save a named artifact of the current scenario (attached to the report); its path. */
+  saveArtifact(name: string, data: Buffer, mediaType: string, ext: string): Promise<string>;
   openUrl(url: string): Promise<void>;
   pressBack(): Promise<void>;
 }
@@ -249,21 +255,52 @@ export class DeviceApi {
   }
 
   /**
-   * PNG of the screen, or of one element (cut out of the screen by its rectangle; only the part on the
-   * screen). Saving it is up to the caller.
+   * A PNG (Phase 6.5, extended in 6.9):
+   * - `screenshot()`: the screen as shown (web: the browser viewport);
+   * - `screenshot(target)`: one element as far as it is on screen; `{ full: true }`: all of it, scrolled and
+   *   stitched when it is taller than its scroll view;
+   * - `screenshot({ fullPage: true })`: the whole content of the screen's main scroll view (the largest one),
+   *   or of the scroll view matching `fullPage`, a screenful at a time, stitched; fixed headers and tab
+   *   bars appear once; the scroll position is restored.
+   * `name`: also saved in the scenario's artifacts directory and attached to the report.
    */
-  async screenshot(target?: MatcherInput): Promise<Buffer> {
-    if (target === undefined) return this.host.provider.screenshot();
-    this.requireRunning('screenshot(element)');
-    const rect = await this.host.elementRect(target);
-    const info = await this.host.deviceInfo();
-    const png = await this.host.provider.screenshot();
-    const scale = pngSize(png).width / info.window.width;
-    try {
-      return cropPng(png, { x: rect.x * scale, y: rect.y * scale, width: rect.width * scale, height: rect.height * scale });
-    } catch (e) {
-      throw new QuiescoError('DEVICE_ERROR', `element screenshot failed: ${(e as Error).message}`);
+  async screenshot(target?: MatcherInput | { fullPage: true | MatcherInput }, opts: { full?: boolean; name?: string } = {}): Promise<Buffer> {
+    let png: Buffer;
+    if (target === undefined) {
+      png = await this.host.provider.screenshot();
+    } else if (isFullPage(target)) {
+      this.requireRunning('screenshot(fullPage)');
+      const container = target.fullPage === true ? undefined : toMatcher(target.fullPage);
+      png = await this.wrapScreenshot(() => fullPageScreenshot(this.screenshotHost(), container));
+    } else {
+      this.requireRunning('screenshot(element)');
+      const element = target;
+      const rect = await this.host.elementRect(element);
+      const width = (await this.host.deviceInfo()).window.width;
+      png = await this.wrapScreenshot(async () => {
+        if (opts.full === true) return fullElementScreenshot(this.screenshotHost(), toMatcher(element), rect);
+        return cropToRect(await this.host.provider.screenshot(), rect, width);
+      });
     }
+    if (opts.name !== undefined) await this.host.saveArtifact(opts.name, png, 'image/png', '.png');
+    return png;
+  }
+
+  private async wrapScreenshot(fn: () => Promise<Buffer>): Promise<Buffer> {
+    try {
+      return await fn();
+    } catch (e) {
+      if (e instanceof QuiescoError) throw e;
+      throw new QuiescoError('DEVICE_ERROR', `screenshot failed: ${(e as Error).message}`);
+    }
+  }
+
+  private screenshotHost(): ScreenshotHost {
+    return {
+      screenshot: () => this.host.provider.screenshot(),
+      windowWidth: async () => (await this.host.deviceInfo()).window.width,
+      scrollView: (m, to, indicators) => this.host.scrollView(m, to, indicators),
+    };
   }
 
   /** Make host `port` reachable from the device as localhost:`port` (Android); a no-op where the device shares the host's network. */
@@ -598,6 +635,10 @@ const BACKGROUND_HINT: Record<DeviceProvider['platform'], string> = {
   android: '',
   web: 'a browser page driven by Playwright stays visible (no real background state, findings 6.5); tag the scenario @ios / @android',
 };
+
+function isFullPage(t: MatcherInput | { fullPage: true | MatcherInput }): t is { fullPage: true | MatcherInput } {
+  return typeof t === 'object' && t !== null && !(t instanceof RegExp) && Object.prototype.hasOwnProperty.call(t, 'fullPage');
+}
 
 function notSupported(action: string, platform: string, hint?: string): QuiescoError {
   return new QuiescoError('ACTION_NOT_SUPPORTED', `${action} is not supported on ${platform}${hint !== undefined && hint !== '' ? `: ${hint}` : ''}`, {

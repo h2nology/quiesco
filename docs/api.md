@@ -191,6 +191,7 @@ await this.app.device.sendToBackground();                         // Home button
 await this.app.device.bringToForeground();                        // same process, waits until active and idle
 await this.app.device.terminate();
 const png = await this.app.device.screenshot('avatar');           // one element; no argument: the screen
+await this.app.device.screenshot({ fullPage: true }, { name: 'todos' }); // the whole list, stitched; saved + attached
 await this.app.device.reversePort(3001);                          // Android: adb reverse; elsewhere a no-op
 ```
 
@@ -200,7 +201,7 @@ await this.app.device.reversePort(3001);                          // Android: ad
 | `terminate()` | Stop the app. Until `relaunch()`, every element call fails at once with `APP_NOT_RUNNING` (no waiting) |
 | `sendToBackground()` / `bringToForeground()` | Home screen and back without restarting. In between, element calls fail with `APP_IN_BACKGROUND`. Not on the web (`ACTION_NOT_SUPPORTED`) |
 | `install()` / `uninstall()` | Install `binaryPath` / remove the app |
-| `screenshot(target?)` | PNG (`Buffer`) of the screen, or of one element cut out of it (only its part on the screen) |
+| `screenshot(target?, { full, name }?)` | PNG (`Buffer`). No target: the screen as shown (web: the browser viewport). An element: cut out of the screen (its part on the screen); `full: true`: all of it — a scroll view with its whole content, an element partly scrolled away together with the rest — scrolled and stitched. `{ fullPage: true }`: the whole content of the screen's main (largest) scroll view; `{ fullPage: 'list' }`: of that scroll view. See [Screenshots](#screenshots). `name`: also saved in the scenario's artifacts directory and attached to the report |
 | `reversePort(port)` / `unreversePort(port)` | Make a host port reachable as `localhost:port` from an Android device; a no-op on the iOS simulator and the web |
 | `openUrl(url)` / `pressBack()` | Same as `this.app.openUrl` / `this.app.pressBack` |
 | `appState` | `'running'`, `'background'` or `'terminated'` — what the test did to the app |
@@ -294,6 +295,26 @@ soon as the dialog is up (without waiting for idle), and any other call on the a
 `DIALOG_OPEN` naming the dialog (answer it first); a screenshot too, the page does not paint. A dialog still
 open when the scenario ends is dismissed before the next one, with a warning. `beforeunload` prompts are
 always accepted (leaving or reloading the page is never held up).
+
+### Screenshots
+
+```ts
+await this.app.device.screenshot();                                   // the screen
+await this.app.device.screenshot('avatar');                           // an element (its part on the screen)
+await this.app.device.screenshot('terms', { full: true });            // all of it, scrolled and stitched
+await this.app.device.screenshot({ fullPage: true });                 // the main scroll view's whole content
+await this.app.device.screenshot({ fullPage: 'todo-list' });          // that scroll view's
+await this.app.webview('help').element({ css: '#chart' }).screenshot(); // an element of a WebView page
+await this.app.device.screenshot(undefined, { name: 'home' });        // + artifacts/<run>/<scenario>/home.png, attached
+```
+
+A full-page screenshot is the same on every platform: Quiesco scrolls the scroll view to the top
+(programmatically, as `scrollToEdge` does in js mode), takes a screenshot per screenful and stitches them —
+everything above the scroll view (status bar, header) from the first one, the newly revealed strip of each
+next one, what is below the scroll view (tab bar) from the last one — so fixed headers and footers appear
+once. A virtualized list that renders more rows as it scrolls is followed to its end. Scroll indicators are
+hidden meanwhile (native) and the scroll position is put back afterwards. Content that changes while it
+scrolls (sticky section headers, animations) shows as it was when each screenful was taken.
 
 ### WebView (`this.app.webview()`)
 
@@ -526,8 +547,29 @@ Failures are `QuiescoError`s with `errorName`, a message that says what to do, a
 | `APP_NOT_RUNNING` / `APP_IN_BACKGROUND` | The test terminated the app / sent it to the background (`this.app.device`); relaunch it / bring it back first |
 | `DIALOG_OPEN` | Web: the page shows a JavaScript dialog (`data.message`); answer it with `app.device.system.tap({ text: 'OK' })` / `{ text: 'Cancel' }` first |
 
-When a scenario fails, `@quiesco/cucumber` attaches a screenshot, the element tree and the tracker
-states to the report.
+## Artifacts
+
+Per scenario, under `artifacts/<date-time>-<platform>/<nnn>-<scenario>/`, and attached to the report:
+
+| Artifact | When | What |
+|---|---|---|
+| Failure evidence | the scenario failed | `failure.png` — the screen with the elements of the failed call framed in red (an assertion's elements, an obscured target, several matches); `element-tree.json`; `idle-state.json` (what was busy) |
+| Saved screenshots | `screenshot(…, { name })` | `<name>.png` |
+| `video` | per policy | iOS `simctl io recordVideo` (MP4); Android `screenrecord` (MP4, a new segment every 3 minutes); web Playwright's screencast (WebM). Attached as a file path |
+| `logs` | per policy | `device.log`: iOS the app process's unified log (`log stream`, info and above), Android logcat of the app's uid, web the page console and uncaught errors. The last 300 lines inline |
+| `timeline` | per policy | every call on the app with its duration and how much of it was waiting for idle, failed calls with their error: `timeline.html` (inline) and `timeline.trace.json` (Chrome trace: `chrome://tracing`, ui.perfetto.dev) |
+
+```ts
+export default defineConfig({
+  artifacts: { dir: 'artifacts', video: 'failing', logs: 'failing', timeline: 'failing' },
+});
+```
+
+Policies: `none`, `failing` (recorded for every scenario, kept when it fails) or `all`. Defaults: video
+`none` (recording costs a little on every scenario; turn it on in CI), logs and timeline `failing`.
+`QUIESCO_ARTIFACTS=all` (or `failing`, `none`) sets all three for one run. Other runners use the same
+through the session: `session.startScenario({ name })` before `beforeScenario`, then
+`session.afterScenario({ failed })` returns the attachments and files.
 
 ## Using Quiesco without Cucumber
 
@@ -540,15 +582,18 @@ import { createSession, loadConfig, resolvePlatform } from '@quiesco/core';
 
 const { config } = await loadConfig();
 const session = await createSession({ config, platform: resolvePlatform() }); // server, device, install, launch, connect
+await session.startScenario({ name: 'logs in' });                           // artifacts: timeline, video
 await session.beforeScenario({ tags: ['@smoke'] });                          // soft (or hard) reset
 await session.driver.tap('login-button');                                     // the Driver
-const evidence = await session.collectEvidence();                            // screenshot, tree, idle state (on failure)
+const { attachments, files } = await session.afterScenario({ failed });      // evidence + artifacts per policy
 await session.dispose();
 ```
 
 Map them onto the runner's lifecycle: `createSession` in a before-all hook (it boots the device and
-launches the app, so give the hook a long timeout), `beforeScenario` before each test, `collectEvidence`
-when a test fails, `dispose` in an after-all hook. A complete Vitest file is in the
+launches the app, so give the hook a long timeout), `startScenario` + `beforeScenario` before each test,
+`afterScenario` after it (on failure: the framed screenshot, element tree and idle state, plus video /
+logs / timeline per [the artifacts policy](#artifacts)), `dispose` in an after-all hook.
+`collectEvidence()` still returns the failure evidence alone. A complete Vitest file is in the
 [README](../README.md#other-test-runners-jest-vitest).
 
 Runs are serial: one session drives one device. `cucumber-js --parallel` is refused; with Vitest set

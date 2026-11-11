@@ -21,12 +21,13 @@ export function registerQuiesco(options: RegisterOptions = {}): Lifecycle {
   setDefaultTimeout(options.stepTimeoutMs ?? 60_000);
 
   BeforeAll({ name: 'quiesco: start session', timeout: options.setupTimeoutMs ?? 600_000 }, () => lifecycle.beforeAll());
-  Before({ name: 'quiesco: reset app' }, ({ pickle, gherkinDocument }) => lifecycle.before(tagLevels(pickle.tags, gherkinDocument)));
+  Before({ name: 'quiesco: reset app' }, ({ pickle, gherkinDocument }) => lifecycle.before(tagLevels(pickle.tags, gherkinDocument), pickle.name));
   After({ name: 'quiesco: evidence' }, async function (this: QuiescoWorld, { pickle, result }) {
     const failed = result !== undefined && result.status !== Status.PASSED && result.status !== Status.SKIPPED;
     for (const a of await lifecycle.after({ tags: pickle.tags.map((t) => t.name), failed })) {
-      if (typeof a.data === 'string') this.attach(a.data, a.mediaType);
-      else this.attach(a.data, a.mediaType);
+      const opts = a.fileName !== undefined ? { mediaType: a.mediaType, fileName: a.fileName } : { mediaType: a.mediaType };
+      if (typeof a.data === 'string') this.attach(a.data, opts);
+      else this.attach(a.data, opts);
     }
   });
   AfterAll({ name: 'quiesco: stop session', timeout: 120_000 }, () => lifecycle.afterAll());
