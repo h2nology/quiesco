@@ -439,3 +439,4 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - iOS 日志：`simctl spawn <udid> log stream --style compact --predicate 'process == "<可执行名>"'`；`--level debug` 3 s 71 行，大部分是 BackBoard 等系统子系统的噪声 ⇒ 默认用 info 级别。
 - Android 日志：`pm list packages -U <pkg>` 取 uid，`logcat -v threadtime -T 1 --uid=<uid>`（App 重启后 pid 变但 uid 不变），3 s 8 行，含 ReactHost 生命周期、原生警告。
 - 整页截图：agent 已有 Scrollable（offset / viewport / content / scrollTo），可按屏滚动；拼接在 core 用 png.ts 完成（第一屏取滚动区底边以上全部，后续每屏取新露出的条带，最后一屏补滚动区以下的固定区）；虚拟列表边滚边变长，以 offset 不再变化为结束。
+- 实现补充：RN-web 的 ScrollView 是普通 div（无 scroll 语义类型）⇒ 默认滚动容器按 clipsContent 节点里面积最大的找；Android 滚动后滚动条会显示一段时间、每屏截图都带上 ⇒ 原生 setScrollIndicators 截图期间隐藏、结束后恢复原状态；iOS log stream 里 com.apple.Accessibility 约占 60% ⇒ 过滤掉。
