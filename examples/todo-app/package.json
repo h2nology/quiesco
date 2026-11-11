@@ -38,6 +38,7 @@
     "@quiesco/cucumber": "workspace:*",
     "@quiesco/expo-plugin": "workspace:*",
     "@quiesco/jest": "workspace:*",
+    "@quiesco/steps": "workspace:*",
     "@quiesco/vitest": "workspace:*",
     "@quiesco/web": "workspace:*",
     "@types/react": "~19.3.0",
@@ -61,7 +62,8 @@
     "build:web": "EXPO_PUBLIC_QUIESCO=1 expo export --platform web",
     "test:e2e:web": "QUIESCO_PLATFORM=web cucumber-js",
     "test:vitest": "vitest run --config vitest.e2e.config.mts",
-    "test:jest": "jest --config jest.e2e.config.cjs"
+    "test:jest": "jest --config jest.e2e.config.cjs",
+    "test:steps": "cucumber-js --config cucumber.steps.mjs"
   },
   "private": true
 }

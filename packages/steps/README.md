@@ -43,5 +43,53 @@ for the app to become idle like any other Quiesco call — no sleeps.
 | `notVisible` | `元素 "todo-title-error" 不可见` | `要素 "todo-title-error" が表示されていない` | `the element "todo-title-error" is not visible` |
 | `hasText` | `元素 "greeting" 的文本是 "a@example.com"` | `要素 "greeting" のテキストが "a@example.com" である` | `the element "greeting" has the text "a@example.com"` |
 | `count` | `元素 "todo-item" 共有 2 个` | `要素 "todo-item" が 2 個ある` | `there are 2 elements "todo-item"` |
+| `doubleTap` | `双击 "photo"` | `"photo" をダブルタップする` | `I double tap "photo"` |
+| `replaceText` | `把 "todo-title" 的内容替换为 "买面包"` | `"todo-title" の入力を "パンを買う" に置き換える` | `I replace the text of "todo-title" with "Buy bread"` |
+| `pressEnter` | `在 "todo-title" 中按回车` | `"todo-title" でエンターキーを押す` | `I press enter in "todo-title"` |
+| `scroll` | `在 "todo-list" 中向下滚动` | `"todo-list" を下にスクロールする` | `I scroll "todo-list" down` |
+| `scrollToEdge` | `把 "todo-list" 滚动到底部` | `"todo-list" を一番下までスクロールする` | `I scroll "todo-list" to the bottom` |
+| `swipe` | `在 "todo-item" 上向左滑动` | `"todo-item" を左にスワイプする` | `I swipe left on "todo-item"` |
+| `drag` | `把 "item-1" 拖到 "item-3"` | `"item-1" を "item-3" までドラッグする` | `I drag "item-1" to "item-3"` |
+| `pinch` | `在 "photo" 上双指缩放到 2 倍` | `"photo" を 2 倍にピンチする` | `I pinch "photo" to 2 times` |
+| `setSlider` | `把滑块 "volume" 设为 30` | `スライダー "volume" を 30 にする` | `I set the slider "volume" to 30` |
+| `switchOn` | `打开开关 "notify"` | `スイッチ "notify" をオンにする` | `I turn on the switch "notify"` |
+| `switchOff` | `关闭开关 "notify"` | `スイッチ "notify" をオフにする` | `I turn off the switch "notify"` |
+| `select` | `在 "priority" 中选择 "高"` | `"priority" で "高" を選ぶ` | `I select "High" in "priority"` |
+| `enabled` | `元素 "save" 可用` | `要素 "save" が有効である` | `the element "save" is enabled` |
+| `disabled` | `元素 "save" 不可用` | `要素 "save" が無効である` | `the element "save" is disabled` |
+| `checked` | `元素 "notify" 已选中` | `要素 "notify" がオンである` | `the element "notify" is checked` |
+| `notChecked` | `元素 "notify" 未选中` | `要素 "notify" がオフである` | `the element "notify" is not checked` |
+| `focused` | `元素 "todo-title" 获得焦点` | `要素 "todo-title" にフォーカスがある` | `the element "todo-title" has the focus` |
+| `hasValue` | `元素 "priority" 的值是 "high"` | `要素 "priority" の値が "high" である` | `the element "priority" has the value "high"` |
+| `sliderValue` | `滑块 "volume" 的值是 30` | `スライダー "volume" の値が 30 である` | `the slider "volume" has the value 30` |
+| `background` | `把 App 切到后台` | `アプリをバックグラウンドにする` | `I send the app to the background` |
+| `foreground` | `把 App 切回前台` | `アプリをフォアグラウンドに戻す` | `I bring the app to the foreground` |
+| `relaunch` | `重新启动 App` | `アプリを再起動する` | `I relaunch the app` |
+| `orientation` | `把设备转到横屏` | `画面を横向きにする` | `I rotate the device to landscape` |
+| `appearance` | `把外观设为深色模式` | `外観をダークモードにする` | `I switch to dark mode` |
+| `location` | `把设备位置设为 35.68, 139.76` | `端末の位置を 35.68, 139.76 にする` | `I set the device location to 35.68, 139.76` |
+| `offline` | `把设备切换到离线` | `端末をオフラインにする` | `I go offline` |
+| `online` | `把设备切换到在线` | `端末をオンラインにする` | `I go online` |
+| `grantPermission` | `授予 App 定位权限` | `アプリに位置情報の権限を与える` | `I grant the location permission` |
+| `revokePermission` | `撤销 App 的定位权限` | `アプリの位置情報の権限を取り消す` | `I revoke the location permission` |
+| `allowDialog` | `在系统弹窗中允许` | `システムダイアログで許可する` | `I allow in the system dialog` |
+| `denyDialog` | `在系统弹窗中拒绝` | `システムダイアログで拒否する` | `I deny in the system dialog` |
+| `shake` | `摇动设备` | `端末を振る` | `I shake the device` |
+| `screenshot` | `截图并保存为 "列表"` | `スクリーンショットを "一覧" として保存する` | `I take a screenshot named "list"` |
 
 `pressBack` is not available on iOS (no back button); Quiesco reports `ACTION_NOT_SUPPORTED` there.
+
+Some steps take a word instead of a quoted value (any of the languages' words works in every language):
+
+| Word | Values |
+|---|---|
+| Direction (`scroll`, `swipe`: the finger's direction for a swipe) | 上 下 左 右 / up down left right |
+| Edge (`scrollToEdge`) | 顶部 底部 最左边 最右边 / 一番上 一番下 左端 右端 / top bottom left right |
+| Orientation | 竖屏 横屏 / 縦向き 横向き / portrait landscape |
+| Appearance | 浅色 深色 / ライト ダーク / light dark |
+| Permission | 相机 麦克风 定位 通知 通讯录 照片 日历 / カメラ マイク 位置情報 通知 連絡先 写真 カレンダー / camera microphone location notifications contacts photos calendar |
+
+An unknown word fails the step with the list of accepted ones. Device and system steps (`background`,
+`orientation`, `offline`, `grantPermission`, `allowDialog`, `shake`, …) call `this.app.device`; where a
+platform cannot do something Quiesco reports `ACTION_NOT_SUPPORTED` with the reason
+([platform differences](../../docs/platforms.md)).

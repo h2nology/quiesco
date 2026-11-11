@@ -296,6 +296,9 @@ importers:
       '@quiesco/jest':
         specifier: workspace:*
         version: link:../../packages/jest
+      '@quiesco/steps':
+        specifier: workspace:*
+        version: link:../../packages/steps
       '@quiesco/vitest':
         specifier: workspace:*
         version: link:../../packages/vitest
