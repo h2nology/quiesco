@@ -176,6 +176,7 @@ Platform tags go in test or `describe` titles (Jest has no test options). Run ei
 - [CLI](docs/cli.md)
 - [Troubleshooting](docs/troubleshooting.md) and [known issues](docs/known-issues.md)
 - [Benchmarks](docs/benchmarks.md)
+- [Quiesco and Detox](docs/detox-comparison.md) — item-by-item comparison with Detox 20.51.4
 
 ## Using Quiesco from source
 

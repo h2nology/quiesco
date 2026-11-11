@@ -4,6 +4,7 @@
  *
  *   node bench/suite.mts --platform ios --runs 20
  *   node bench/suite.mts --platform android --runs 5
+ *   node bench/suite.mts --platform web --runs 5 -- --name '^(登录后|新建的待办)'   (the rest goes to cucumber-js)
  *
  * Needs the same setup as the e2e tests (Metro in e2e mode for native, devices running or bootable).
  * Wall time is measured around `cucumber-js`, so it includes install, launch and session setup.
@@ -28,10 +29,13 @@ if (platform !== 'web' && platform !== 'android' && platform !== 'ios') {
   process.exit(2);
 }
 const runs = Number(arg('runs', '5'));
+// Arguments after `--` are passed to cucumber-js (e.g. `--name` to time a subset comparable with an older run).
+const dashes = process.argv.indexOf('--');
+const extra = dashes === -1 ? [] : process.argv.slice(dashes + 1);
 
 const results: Run[] = [];
 for (let i = 1; i <= runs; i++) {
-  const args = ['cucumber-js', '--format', 'summary'];
+  const args = ['cucumber-js', '--format', 'summary', ...extra];
   const started = performance.now();
   const r = spawnSync('npx', args, { env: { ...process.env, QUIESCO_PLATFORM: platform }, encoding: 'utf8' });
   const seconds = Math.round((performance.now() - started) / 100) / 10;

@@ -2,7 +2,10 @@
  * Performance benchmark (requirements.md §8 性能): soft reset, one tap including sync, full suite.
  * Prints a Markdown section for docs/benchmarks.md.
  *
- *   QUIESCO_PLATFORM=android node bench/run.mts [iterations=20]
+ *   QUIESCO_PLATFORM=android node bench/run.mts [iterations=20] [-- cucumber-js args]
+ *
+ * The suite is timed in both action modes, so pass a subset that runs in `js` mode too (scenarios that need
+ * real touches cannot), e.g. `-- --name '^(登录后看到自己的待办列表|…)$'` for the Phase 2 baseline.
  *
  * Needs Metro in e2e mode (`pnpm start:e2e`) and a running emulator, like the e2e tests.
  */
@@ -59,9 +62,12 @@ async function measure(mode: ActionMode, base: QuiescoConfig): Promise<Record<st
   return { 'soft reset (agent)': stats(resetAgent), 'soft reset (host round trip)': stats(resetWall), 'tap incl. sync (host round trip)': stats(tap) };
 }
 
+const dashes = process.argv.indexOf('--');
+const extra = dashes === -1 ? [] : process.argv.slice(dashes + 1);
+
 function suite(mode: ActionMode): number {
   const t = performance.now();
-  const r = spawnSync('npx', ['cucumber-js', '--format', 'summary'], {
+  const r = spawnSync('npx', ['cucumber-js', '--format', 'summary', ...extra], {
     env: { ...process.env, QUIESCO_PLATFORM: platform, ...(mode === 'js' ? { QUIESCO_ACTION_MODE: 'js' } : {}) },
     encoding: 'utf8',
   });

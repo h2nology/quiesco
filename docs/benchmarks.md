@@ -96,3 +96,46 @@ production / e2e (control group) artifacts:
 | `QuiescoNative` (native module name) | — | 0 / 3 | — |
 | `QSTouchInjector` (iOS touch injector) | — | — | 0 / 38 |
 | `IOHIDEventCreateDigitizerEvent` (private IOKit) | — | — | 0 / 4 |
+
+## Phase 6.11 regression check (2026-11-11)
+
+Same workload as Phase 4 (the 6 scenarios / 34 steps of login, new-todo and clear-todos, selected with
+`--name`; the suite has 86 scenarios now), measured with `bench/suite.mts … -- --name '<those six>'`.
+Same host, devices, dev clients and Metro development bundle as Phase 4.
+
+| Platform | Phase 4 median (s) | 6.11, other devices running (s) | 6.11, only the measured device (s) | 6.11, artifacts off (s) |
+|---|---|---|---|---|
+| iOS | 16.1 (20 runs) | 18.2 (20 / 20 passed; min 17.9, max 19.9) | 17.6 (5 / 5; min 17.6, max 18.1) | 18.1 (5 / 5, other devices running) |
+| Android | 18.5 (5 runs) | 21.8 (5 / 5; min 21.4, max 22.3) | 20.1 (3 settled runs: 20.5, 20.1, 20.1) | 20.9 (5 / 5, other devices running) |
+| Web, static export (`distDir`) | 6.4 (5 runs) | — | 6.6 (5 / 5; min 6.5, max 6.9) | 6.6 (5 / 5) |
+
+- "Other devices running": the Android emulator plus two other simulators (iOS 27 iPhone and iPad) while
+  iOS was measured, the simulators while Android was measured. Phase 4 had only the measured device
+  running; with that setup restored iOS and Android are about 0.6 s and 1.7 s faster.
+- Android, only the measured device: the emulator was cold-booted first; the warm-up run (59.7 s) and
+  the two runs after it (38.7 s, 24.6 s) are the system still settling, as noted for Phase 4, and are not
+  in the median.
+- The web through the Metro dev server (`QUIESCO_WEB_URL`) takes 8.3 s (min 7.9, max 9.2): the
+  development bundle is larger; Phase 4 measured the static export.
+- Artifacts (`QUIESCO_ARTIFACTS=none` vs the default `failing` logs and timeline) cost about 0.9 s per
+  run on Android (logcat per scenario) and nothing measurable on iOS and the web.
+- **Not explained yet:** with the same setup, iOS and Android runs take about 1.5 s (9 %) longer than
+  in Phase 4. It is not in the actions: the per-call numbers below are the same or better. Per scenario,
+  the Before hook (soft reset and per-scenario setup) takes 80–110 ms on iOS and 145–155 ms on Android
+  (first scenario 276 / 537 ms).
+
+Per-call numbers, Android, 20 iterations (`bench/run.mts 20 -- --name '<the six>'`), other devices
+running:
+
+| Metric (ms) | Mode | Median | p90 | Min | Max | 2026-11-07 median |
+|---|---|---|---|---|---|---|
+| soft reset (agent) | native | 147 | 153 | 88 | 154 | 195 |
+| soft reset (host round trip) | native | 149 | 155 | 91 | 155 | 198 |
+| tap incl. sync (host round trip) | native | 400 | 417 | 283 | 417 | 416 |
+| soft reset (agent) | js | 145 | 153 | 132 | 153 | 196 |
+| soft reset (host round trip) | js | 147 | 155 | 133 | 156 | 198 |
+| tap incl. sync (host round trip) | js | 264 | 271 | 249 | 273 | 266 |
+
+| The six scenarios (s, incl. install + launch) | native | js |
+|---|---|---|
+| `cucumber-js` | 20.5 | 18.4 |
