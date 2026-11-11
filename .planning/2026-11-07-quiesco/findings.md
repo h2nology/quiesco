@@ -468,3 +468,9 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - **Jest 跨文件共享**：自定义 testEnvironment 模块加载在外层 realm，模块级单例在同一进程（--runInBand / maxWorkers 1）跨文件保留；`globalTeardown` 拿到同一个模块实例 ⇒ 可在那里 dispose。env 构造参数 `config.globalConfig.maxWorkers` 可用于串行校验。环境可以是 ESM（.mjs，可 import 纯 ESM 包）。
 - Jest 事件（jest-circus `dispatch` 逐个 await `handleTestEvent`）：`test_start` 在跳过判断之前 ⇒ 设 `test.mode = 'skip'` 可按平台跳过；`test_started` 之后才跑 beforeEach（适合重置）；`test_done` 在 afterEach 之后（失败 = `test.errors.length > 0`）。证据路径要同时改 `message` 和 `stack` 才会出现在输出里。
 - Jest 测试文件默认 CJS，`@quiesco/*` 是纯 ESM（exports 只有 import 条件）⇒ 测试里不 import 适配器，环境注入全局 `quiesco`（类似 Detox 的全局 `device`）。
+
+## 6.11 回归排查（2026-11-11）
+- 「整套耗时」基准会把示例 App 的行为变化算进去：示例 App 为演示新能力改了行为（autoFocus、按钮被键盘挡住）后，同一组场景要多做事。比较工具本身是否退化，要固定被测 App（worktree 里 `git checkout <基线> -- examples/todo-app/src`）。
+- 方法：git worktree + 旧提交构建 + 独立 Metro 端口（先 curl 预热 bundle，否则 Android 首次连接超时）+ 复用主仓库 dev client（原生模块只增不减，旧 JS 可用）；用 cucumber `--format json` 的逐步 duration 定位到具体步骤。
+- 精度：iOS 每组 ±0.2s，Android ±0.5s；同时开着的其他模拟器 / emulator 会让 iOS 慢约 0.6s、Android 慢约 1.7s。
+- iOS 第一次安装（模拟器刚开机）`simctl install` 约 5.9s，之后约 0.5s：基准前先热身。

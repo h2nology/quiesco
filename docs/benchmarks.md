@@ -119,10 +119,23 @@ Same host, devices, dev clients and Metro development bundle as Phase 4.
   development bundle is larger; Phase 4 measured the static export.
 - Artifacts (`QUIESCO_ARTIFACTS=none` vs the default `failing` logs and timeline) cost about 0.9 s per
   run on Android (logcat per scenario) and nothing measurable on iOS and the web.
-- **Not explained yet:** with the same setup, iOS and Android runs take about 1.5 s (9 %) longer than
-  in Phase 4. It is not in the actions: the per-call numbers below are the same or better. Per scenario,
-  the Before hook (soft reset and per-scenario setup) takes 80–110 ms on iOS and 145–155 ms on Android
-  (first scenario 276 / 537 ms).
+- **Where the rest comes from** (investigated 2026-11-11): each commit since Phase 4 checked out in a
+  worktree, built and timed with its own Metro against the same dev client and devices (all devices
+  running; 3–5 runs each, iOS spread ±0.2 s, Android ±0.5 s):
+
+  | | Phase 4 tool + Phase 4 example app | current tool + Phase 4 example app | current tool + current example app |
+  |---|---|---|---|
+  | iOS | 16.2 s | 16.5 s | 18.1 s |
+  | Android | 20.0 s | 20.5 s | 21.6 s |
+
+  Most of it is the example app, which later phases changed to demonstrate features: on iOS
+  `autoFocus` on the new-todo title (Phase 6.1, focus assertions; the keyboard comes up and is
+  dismissed before the next tap, +1.2 s) and the save button pinned to the bottom so the keyboard covers
+  it (Phase 5.2, keyboard dismissal, +0.5 s) — per-step cucumber durations show the time in exactly those
+  two steps. Android emulators show no software keyboard (hardware keyboard), so there the app's other
+  changes (gesture-handler root view, the extra switch) account for about 1.1 s; not split further.
+  Quiesco itself: about +0.3 s on iOS (1.5 %) and +0.5 s on Android (2.5 %, within the spread) for the
+  same app; the per-call numbers below are the same or better.
 
 Per-call numbers, Android, 20 iterations (`bench/run.mts 20 -- --name '<the six>'`), other devices
 running:
