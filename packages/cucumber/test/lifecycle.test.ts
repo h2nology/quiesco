@@ -103,11 +103,11 @@ describe('Lifecycle', () => {
     await l.beforeAll();
     await l.before([], 'a');
     const a = await l.after({ tags: [], failed: true });
-    expect(a.map((x) => x.fileName)).toEqual(['failure.png', 'element-tree.json']);
+    expect(a.attachments.map((x) => x.fileName)).toEqual(['failure.png', 'element-tree.json']);
     await l.before([], 'b');
-    expect(await l.after({ tags: [], failed: false })).toEqual([]);
+    expect((await l.after({ tags: [], failed: false })).attachments).toEqual([]);
     // A skipped scenario has no artifacts to end.
-    expect(await l.after({ tags: [], failed: false })).toEqual([]);
+    expect(await l.after({ tags: [], failed: false })).toEqual({ attachments: [], files: [] });
     expect(calls.filter((c) => Array.isArray(c) && c[0] === 'afterScenario')).toEqual([
       ['afterScenario', { failed: true }],
       ['afterScenario', { failed: false }],
@@ -135,5 +135,15 @@ describe('Lifecycle', () => {
   it('requires a platform', async () => {
     const l = new Lifecycle({ config, env: {} });
     await expect(l.beforeAll()).rejects.toThrow(/QUIESCO_PLATFORM/);
+  });
+});
+
+describe('titleTags (core)', () => {
+  it('reads @tags from a test or suite title', async () => {
+    const { titleTags } = await import('@quiesco/core');
+    expect(titleTags('adds a todo @ios @smoke')).toEqual(['@ios', '@smoke']);
+    expect(titleTags('@android only')).toEqual(['@android']);
+    expect(titleTags('mail a@example.com and @web')).toEqual(['@web']);
+    expect(titleTags('no tags')).toEqual([]);
   });
 });

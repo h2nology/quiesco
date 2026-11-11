@@ -13,6 +13,8 @@ export { consoleLogger, silentLogger } from './logger.js';
 export type { Logger } from './logger.js';
 export type { ElementQuery, MatcherInput, TextQuery } from './matcher.js';
 export { Session, createSession, createProvider } from './session.js';
+export { Lifecycle, titleTags } from './lifecycle.js';
+export type { AfterResult, LifecycleOptions, ScenarioResult } from './lifecycle.js';
 export { attachToRunningApp } from './attach.js';
 export type { AttachOptions, AttachedApp } from './attach.js';
 export { DEFAULT_TAGS, flattenTags, runsOnPlatform, tagNames } from './tags.js';

@@ -16,11 +16,11 @@ module.exports = {
       comment: '@quiesco/core must not depend on runner adapters or the web provider.',
       severity: 'error',
       from: { path: '^packages/core/src/' },
-      to: { path: '^packages/(cucumber|web|steps|cli)/' },
+      to: { path: '^packages/(cucumber|jest|vitest|web|steps|cli)/' },
     },
     {
       name: 'cli-runs-cucumber-as-a-process',
-      comment: 'quiesco (cli) starts cucumber-js as a child process; it must not import a test runner or Playwright.',
+      comment: 'quiesco (cli) starts the test runner (cucumber-js, Jest, Vitest) as a child process; it must not import one or Playwright.',
       severity: 'error',
       from: { path: '^packages/cli/src/' },
       to: { path: '(^|/node_modules/)(@cucumber|@playwright|playwright|playwright-core|jest|vitest|mocha)(/|$)' },

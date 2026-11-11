@@ -34,10 +34,14 @@ e2e apps.
 ```sh
 npx quiesco test --platform web
 npx quiesco test --platform android --tags @smoke features/login.feature
+npx quiesco test --platform ios --runner vitest --config vitest.e2e.config.mts
+npx quiesco test --platform web --runner jest e2e/todo.test.js
 ```
 
-Sets `QUIESCO_PLATFORM` and runs the project's `cucumber-js`; all other arguments are passed to it
-unchanged. `--parallel` is refused: Quiesco drives one device at a time.
+Sets `QUIESCO_PLATFORM` and runs the project's test runner — `cucumber-js` (default), `jest` or
+`vitest run` (`--runner`); all other arguments are passed to it unchanged. Parallel runs are refused
+(`--parallel`; Jest `-w` / `--maxWorkers`; Vitest `--fileParallelism` / `--maxWorkers`): Quiesco drives one
+device at a time.
 
 ## `quiesco doctor`
 

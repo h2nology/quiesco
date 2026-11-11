@@ -37,11 +37,15 @@
     "@quiesco/core": "workspace:*",
     "@quiesco/cucumber": "workspace:*",
     "@quiesco/expo-plugin": "workspace:*",
+    "@quiesco/jest": "workspace:*",
+    "@quiesco/vitest": "workspace:*",
     "@quiesco/web": "workspace:*",
     "@types/react": "~19.3.0",
+    "jest": "30.5.2",
     "playwright": "1.65.0",
     "quiesco": "workspace:*",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "vitest": "5.1.0"
   },
   "scripts": {
     "start": "expo start --dev-client",
@@ -55,7 +59,9 @@
     "bench:android": "QUIESCO_PLATFORM=android node bench/run.mts",
     "bench:suite": "node bench/suite.mts",
     "build:web": "EXPO_PUBLIC_QUIESCO=1 expo export --platform web",
-    "test:e2e:web": "QUIESCO_PLATFORM=web cucumber-js"
+    "test:e2e:web": "QUIESCO_PLATFORM=web cucumber-js",
+    "test:vitest": "vitest run --config vitest.e2e.config.mts",
+    "test:jest": "jest --config jest.e2e.config.cjs"
   },
   "private": true
 }

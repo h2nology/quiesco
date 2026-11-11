@@ -13,7 +13,7 @@ export const HELP = `Usage: quiesco <command> [options]
 Commands:
   init     Set Quiesco up in this Expo project (dependencies, config plugin, Metro, entry, config, features)
              --platforms ios,android,web   --packages <dir> (install from tarballs)   --skip-install
-  test     Run the features with cucumber-js; other arguments go to cucumber-js unchanged
+  test     Run the tests with cucumber-js (or --runner jest|vitest); other arguments go to the runner unchanged
              --platform ios|android|web
   doctor   Check the tools and the project setup
              --platform ios|android|web

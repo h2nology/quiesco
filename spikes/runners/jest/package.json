@@ -1,0 +1,6 @@
+{
+  "name": "quiesco-spike-jest",
+  "private": true,
+  "description": "Phase 6.10 spike: one session across Jest test files (custom environment)",
+  "devDependencies": { "jest": "30.5.2", "jest-environment-node": "30.5.2" }
+}

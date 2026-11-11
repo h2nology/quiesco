@@ -1,0 +1,31 @@
+{
+  "name": "@quiesco/vitest",
+  "version": "0.0.0",
+  "description": "Quiesco for Vitest: one session for the run, `app` as a test fixture, a reset before every test",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "import": "./dist/config.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@quiesco/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "vitest": ">=5.1"
+  }
+}

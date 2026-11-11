@@ -1,0 +1,43 @@
+{
+  "name": "@quiesco/jest",
+  "version": "0.0.0",
+  "description": "Quiesco for Jest: a preset whose test environment runs one session for the run and gives tests `quiesco.app`",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./environment": {
+      "types": "./dist/environment.d.ts",
+      "import": "./dist/environment.js"
+    },
+    "./teardown": {
+      "types": "./dist/teardown.d.ts",
+      "import": "./dist/teardown.js"
+    },
+    "./jest-preset": "./jest-preset.cjs"
+  },
+  "files": [
+    "dist",
+    "jest-preset.cjs"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@quiesco/core": "workspace:*",
+    "jest-environment-node": "30.5.2"
+  },
+  "devDependencies": {
+    "@jest/environment": "30.5.2",
+    "@jest/types": "30.5.1"
+  },
+  "peerDependencies": {
+    "jest": ">=30"
+  }
+}

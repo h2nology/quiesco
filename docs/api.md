@@ -6,7 +6,7 @@
 - [Configuration (`quiesco.config.ts`)](#configuration)
 - [Scenario tags](#scenario-tags)
 - [Errors](#errors)
-- [Using Quiesco without Cucumber](#using-quiesco-without-cucumber)
+- [Using Quiesco without Cucumber](#using-quiesco-without-cucumber) — Jest, Vitest and other runners
 
 ## Driver (`this.app`)
 
@@ -573,30 +573,48 @@ through the session: `session.startScenario({ name })` before `beforeScenario`, 
 
 ## Using Quiesco without Cucumber
 
-`@quiesco/core` does not depend on any test runner, so Jest, Vitest, Mocha or a plain script can drive
-the app as well as Cucumber. Everything Cucumber steps do through `this.app` is `session.driver`; a
-runner needs four calls:
+**Jest and Vitest** have adapters, `@quiesco/jest` and `@quiesco/vitest` (examples in the
+[README](../README.md#other-test-runners-jest-vitest) and
+[examples/todo-app/e2e](../examples/todo-app/e2e)). They behave like the Cucumber one:
+
+| | Vitest (`@quiesco/vitest`) | Jest (`@quiesco/jest`) |
+|---|---|---|
+| Setup | `test: { ...quiesco() }` from `@quiesco/vitest/config` | `preset: '@quiesco/jest'`, `maxWorkers: 1`, a `testTimeout` |
+| The Driver | `test('…', async ({ app, session }) => …)` | the global `quiesco.app` / `quiesco.session` |
+| Session | one per run: a worker fixture, every file in one worker | one per run: kept by the test environment, closed by the preset's `globalTeardown` |
+| Platform tags | in `describe` / test titles and `{ tags }` (declared by `quiesco()`) | in `describe` / test titles |
+| Before each test | skipped if tagged for another platform, else reset | same (Jest's `test_start` / `test_started` events) |
+| After a failure | evidence written to the artifacts directory, its files listed in the failure message | same |
+| Parallel runs | refused (`maxWorkers` > 1): every worker would drive the same device | same |
+
+The innermost level with a platform tag decides, as in Gherkin: a test tagged `@android` in a
+`describe('… @native')` runs on Android only. A session that fails to start fails the remaining tests at
+once instead of starting again for each. With Jest, a config's own `globalTeardown` replaces the
+preset's: call `@quiesco/jest/teardown` from it (see the example). The first test of a Vitest run also
+waits for the session to start (booting a device can take minutes): `quiesco()` sets `testTimeout` to
+300 s for that reason.
+
+**Any other runner** (Mocha, a plain script) uses `@quiesco/core` directly. `Lifecycle` maps a run onto
+four calls — the adapters above are thin layers over it:
 
 ```ts
-import { createSession, loadConfig, resolvePlatform } from '@quiesco/core';
+import { Lifecycle, titleTags } from '@quiesco/core';
 
-const { config } = await loadConfig();
-const session = await createSession({ config, platform: resolvePlatform() }); // server, device, install, launch, connect
-await session.startScenario({ name: 'logs in' });                           // artifacts: timeline, video
-await session.beforeScenario({ tags: ['@smoke'] });                          // soft (or hard) reset
-await session.driver.tap('login-button');                                     // the Driver
-const { attachments, files } = await session.afterScenario({ failed });      // evidence + artifacts per policy
-await session.dispose();
+const lifecycle = new Lifecycle();                                 // config from quiesco.config.*, QUIESCO_PLATFORM
+await lifecycle.beforeAll();                                        // server, device, install, launch, connect
+if ((await lifecycle.before([titleTags(name)], name)) !== 'skipped') {   // tags by level; reset
+  await lifecycle.current.driver.tap('login-button');               // the Driver
+}
+const { attachments, files } = await lifecycle.after({ tags, failed });  // evidence + artifacts per policy
+await lifecycle.afterAll();
 ```
 
-Map them onto the runner's lifecycle: `createSession` in a before-all hook (it boots the device and
-launches the app, so give the hook a long timeout), `startScenario` + `beforeScenario` before each test,
+Or the session itself: `createSession`, then `startScenario` + `beforeScenario` before each test,
 `afterScenario` after it (on failure: the framed screenshot, element tree and idle state, plus video /
-logs / timeline per [the artifacts policy](#artifacts)), `dispose` in an after-all hook.
-`collectEvidence()` still returns the failure evidence alone. A complete Vitest file is in the
-[README](../README.md#other-test-runners-jest-vitest).
+logs / timeline per [the artifacts policy](#artifacts)), `dispose` at the end. `collectEvidence()` still
+returns the failure evidence alone.
 
-Runs are serial: one session drives one device. `cucumber-js --parallel` is refused; with Vitest set
-`fileParallelism: false`, with Jest pass `--runInBand`. `quiesco test` only starts `cucumber-js` — for
-other runners set `QUIESCO_PLATFORM` (or pass the platform to `resolvePlatform`) and start the runner
-yourself.
+Runs are serial: one session drives one device. `quiesco test --runner cucumber|jest|vitest` sets
+`QUIESCO_PLATFORM` and starts the runner; for other runners set `QUIESCO_PLATFORM` (or pass the platform
+to `resolvePlatform`) and start the runner yourself.
+

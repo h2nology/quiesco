@@ -24,6 +24,12 @@
     },
     {
       "path": "packages/steps"
+    },
+    {
+      "path": "packages/vitest"
+    },
+    {
+      "path": "packages/jest"
     }
   ]
 }

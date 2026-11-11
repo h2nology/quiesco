@@ -17,6 +17,11 @@ export default tseslint.config(
     },
   },
   {
+    // Jest e2e tests: Jest's globals and the `quiesco` global of @quiesco/jest.
+    files: ['examples/**/e2e/jest/**/*.test.js'],
+    languageOptions: { globals: { ...globals.jest, quiesco: 'readonly' } },
+  },
+  {
     files: ['**/*.cjs', '**/metro.config.js', '**/app.plugin.js'],
     languageOptions: { sourceType: 'commonjs' },
     rules: { '@typescript-eslint/no-require-imports': 'off' },

@@ -458,3 +458,13 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - 全局 fetch 确实是 Quiesco 的包装（name 为空、非 getter）⇒ agent 安装时 winter runtime 的 lazy getter 已经被读取 / 覆盖过，没有出现「Expo 之后重新覆盖」的问题（源码推测不成立）。原生端包装的底层就是 expo/fetch：它在响应头到达时 resolve（body 流式读），所以 tracker 在 `await res.json()` 期间已判空闲 ⇒ **Detox #4973 的同类问题在 Quiesco 表现为「响应体阶段失明」+「直接 import expo/fetch 完全失明」**。
 - expo/fetch 的导出：`expo/fetch` → `src/winter/fetch/index.ts` 的 `export *`，实测为 getter、configurable=false、无 setter（iOS）⇒ 运行时改不了，只能在打包阶段处理（withQuiesco 的 Metro resolver 把 App 代码里的 `expo/fetch` 指到 Quiesco 的包装模块）。
 - iOS spike 第一轮挂起：SSE 用例后 dispose 卡住（iOS 无 EventSource，挂在别处），与网络跟踪无关，按 Ctrl-C 处理。
+
+## 6.10 批次 B 运行器 spike（2026-11-11，spikes/runners/{vitest,jest}）
+- 版本：Vitest 5.1.0、Jest 30.5.2（npm 最新）。
+- **Vitest 跨文件共享**：默认 `isolate: true`（forks）每个文件一个新进程，模块单例不共享；`isolate: false`（forks / threads 均可）+ `fileParallelism: false` 时同一进程、单例共享。worker 结束时**不触发** `beforeExit` / `exit` ⇒ 不能靠进程事件 dispose。
+- **Vitest worker 作用域 fixture**（`test.extend({ x: [fn, { scope: 'worker' }] })`）：isolate false 时只 setup 一次、**最后异步 teardown 会执行**；isolate true 时退化为每文件一次（仍会 teardown）⇒ session 用 worker fixture。
+- Vitest 测试级 fixture：teardown 时 `task.result.state` 已是 'fail'（`onTestFailed` 回调在 teardown 之后）；fixture 里 `skip(note)` 可按平台跳过；`annotate()` 在测试结束后（teardown / onTestFailed）都抛「Cannot annotate tests outside of the test run」⇒ 证据路径追加到 `task.result.errors[0].message`，报告里可见。
+- Vitest 5 原生 tags：`test(name, { tags })` / `describe(name, { tags })`，必须先在 `test.tags: [{ name }]` 声明（否则文件加载报错）；名字可带 @；`task.tags` 是继承合并后的列表、`suite.tags` 同理 ⇒ 按层级还原 = 自身减去父级。
+- **Jest 跨文件共享**：自定义 testEnvironment 模块加载在外层 realm，模块级单例在同一进程（--runInBand / maxWorkers 1）跨文件保留；`globalTeardown` 拿到同一个模块实例 ⇒ 可在那里 dispose。env 构造参数 `config.globalConfig.maxWorkers` 可用于串行校验。环境可以是 ESM（.mjs，可 import 纯 ESM 包）。
+- Jest 事件（jest-circus `dispatch` 逐个 await `handleTestEvent`）：`test_start` 在跳过判断之前 ⇒ 设 `test.mode = 'skip'` 可按平台跳过；`test_started` 之后才跑 beforeEach（适合重置）；`test_done` 在 afterEach 之后（失败 = `test.errors.length > 0`）。证据路径要同时改 `message` 和 `stack` 才会出现在输出里。
+- Jest 测试文件默认 CJS，`@quiesco/*` 是纯 ESM（exports 只有 import 条件）⇒ 测试里不 import 适配器，环境注入全局 `quiesco`（类似 Detox 的全局 `device`）。

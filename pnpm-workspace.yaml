@@ -8,3 +8,8 @@ autoInstallPeers: false
 # Metro and Expo autolinking work most reliably with a flat node_modules layout.
 # (pnpm 12 reads its settings here; pnpm-specific keys in .npmrc are ignored.)
 nodeLinker: hoisted
+
+# Dependency install scripts: @parcel/watcher (Jest's watch mode) ships prebuilt binaries as optional
+# dependencies; its script only compiles a fallback, not needed.
+allowBuilds:
+  '@parcel/watcher': false

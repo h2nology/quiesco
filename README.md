@@ -6,8 +6,8 @@ Gray-box end-to-end testing for Expo apps on **iOS, Android and the web**, drive
 A small agent inside the e2e build of your app tells the test runner when the app is idle — no pending
 network requests, timers, React renders or animations — so tests never sleep and never poll. The same
 tests run unchanged on an iOS simulator, an Android emulator and Chromium. Cucumber gets a ready-made
-adapter (`@quiesco/cucumber`, below); Jest and Vitest call the runner-independent `@quiesco/core`
-directly ([other test runners](#other-test-runners-jest-vitest)).
+adapter (`@quiesco/cucumber`, below), and so do Jest and Vitest (`@quiesco/jest`, `@quiesco/vitest`,
+[other test runners](#other-test-runners-jest-vitest)).
 
 ```gherkin
 Scenario: A new todo appears at the top of the list
@@ -106,34 +106,50 @@ EAS build profile with `EXPO_PUBLIC_QUIESCO=1` produces the same e2e build; see
 
 ## Other test runners (Jest, Vitest)
 
-`@quiesco/core` does not depend on any test runner. With Jest or Vitest, create one session per test
-file and reset before every test — the same `Driver` that Cucumber steps reach as `this.app`:
+`@quiesco/vitest` and `@quiesco/jest` do for Vitest and Jest what `@quiesco/cucumber` does for
+Cucumber: one session (device and app) for the whole run, a reset before every test, tests tagged for
+another platform skipped (`@ios`, `@android`, `@web`, `@native`; the innermost level wins), and a
+failure's message lists the evidence files (screenshot, element tree, idle state, logs).
+
+**Vitest** — `app` is a test fixture:
 
 ```ts
-// e2e/todo.e2e.test.ts (Vitest; with Jest, use the globals and beforeAll / beforeEach / afterAll alike)
-import { afterAll, beforeAll, beforeEach, test } from 'vitest';
-import { createSession, loadConfig, resolvePlatform, type Session } from '@quiesco/core';
+// vitest.config.ts
+import { quiesco } from '@quiesco/vitest/config';
+import { defineConfig } from 'vitest/config';
+export default defineConfig({ test: { ...quiesco(), include: ['e2e/**/*.test.ts'] } });
 
-let session: Session;
-beforeAll(async () => {
-  const { config } = await loadConfig();
-  session = await createSession({ config, platform: resolvePlatform() }); // QUIESCO_PLATFORM=ios|android|web
-}, 300_000);
-beforeEach(() => session.beforeScenario());                              // soft reset
-afterAll(() => session?.dispose());
+// e2e/todo.test.ts
+import { test } from '@quiesco/vitest';
 
-test('a new todo appears at the top of the list', async () => {
-  const app = session.driver;
+test('a new todo appears at the top', async ({ app }) => {
   await app.tap('add-todo');                      // waits until the app is idle, then taps
   await app.type('todo-title', 'Buy milk');
   await app.tap({ role: 'button', text: 'Save' });
   await app.expectText({ id: 'todo-item', index: 0 }, 'Buy milk');
 });
+test('Android only', { tags: ['@android'] }, async ({ app }) => { /* … */ });
 ```
 
-Run test files serially — one session drives one device (Vitest: `fileParallelism: false`; Jest:
-`--runInBand`) — and set `QUIESCO_PLATFORM` yourself: `quiesco test` only starts `cucumber-js`. See
-[using Quiesco without Cucumber](docs/api.md#using-quiesco-without-cucumber) for tags and failure evidence.
+`quiesco()` runs every file in one worker (`isolate: false`, `fileParallelism: false`), so the app
+starts once for the run, and declares the platform tags.
+
+**Jest** — a preset; tests reach the app through the global `quiesco`:
+
+```js
+// jest.config.js
+module.exports = { preset: '@quiesco/jest', maxWorkers: 1, testTimeout: 120_000 };
+
+// e2e/todo.test.js
+test('a new todo appears at the top @ios', async () => {
+  await quiesco.app.tap('add-todo');
+});
+```
+
+Platform tags go in test or `describe` titles (Jest has no test options). Run either with
+`npx quiesco test --platform ios --runner vitest|jest`. Both are in
+[examples/todo-app/e2e](examples/todo-app/e2e); details in
+[using Quiesco without Cucumber](docs/api.md#using-quiesco-without-cucumber).
 
 ## Packages
 
@@ -145,6 +161,8 @@ Run test files serially — one session drives one device (Vitest: `fileParallel
 | [`@quiesco/expo-plugin`](packages/expo-plugin) | Config plugin: excludes the native module from production builds, allows the local connection in e2e builds |
 | [`@quiesco/core`](packages/core) | Host side: WebSocket server, `Driver` (`this.app`), sessions, iOS / Android device providers. Runner-independent |
 | [`@quiesco/cucumber`](packages/cucumber) | cucumber-js World (`this.app`) and lifecycle hooks |
+| [`@quiesco/vitest`](packages/vitest) | Vitest: `test` with the `app` fixture, `quiesco()` config |
+| [`@quiesco/jest`](packages/jest) | Jest: preset with the Quiesco test environment, global `quiesco` |
 | [`@quiesco/web`](packages/web) | Web device provider (Playwright library) |
 | [`@quiesco/steps`](packages/steps/README.md) | Optional generic steps in Chinese, Japanese and English — for prototyping only |
 | [`@quiesco/protocol`](packages/protocol) | Types and constants shared by agent and host |
