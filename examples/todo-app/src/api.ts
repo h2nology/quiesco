@@ -5,7 +5,7 @@ export interface Todo {
 }
 
 // Android reaches the host's localhost through `adb reverse` (apps.android.reversePorts in quiesco.config.ts).
-const BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001';
+export const BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {

@@ -18,6 +18,11 @@
  *   `setup-env`, which Metro runs before the app entry; a hook installed later is never seen by the
  *   renderer in release builds (no React DevTools hook there).
  *
+ * - e2e build: `expo/fetch` imported by the app or a library resolves to `src/expo-fetch.js`, which
+ *   re-exports it with a tracked `fetch` (Phase 6.10: the real module's exports are non-configurable
+ *   getters, so the network tracker cannot patch them at runtime). Expo's own code reaches its fetch
+ *   through relative paths and is not affected; the global fetch is tracked separately.
+ *
  * Plain CommonJS on purpose: Node loads metro.config.js without a TypeScript step.
  */
 const fs = require('node:fs');
@@ -27,6 +32,7 @@ const AGENT = '@quiesco/agent';
 const AGENT_SRC = path.join(__dirname, 'src');
 const STUB = path.join(AGENT_SRC, 'stub.ts');
 const EARLY = path.join(AGENT_SRC, 'early.ts');
+const EXPO_FETCH = path.join(AGENT_SRC, 'expo-fetch.js');
 
 /**
  * @param {NodeJS.ProcessEnv} env
@@ -74,6 +80,9 @@ function withQuiesco(config, options = {}) {
     if (!enabled && moduleName === AGENT) return { type: 'sourceFile', filePath: STUB };
     if (buildConfigFile !== null && moduleName === './build-config' && path.dirname(context.originModulePath) === AGENT_SRC) {
       return { type: 'sourceFile', filePath: buildConfigFile };
+    }
+    if (enabled && moduleName === 'expo/fetch' && path.resolve(context.originModulePath) !== EXPO_FETCH) {
+      return { type: 'sourceFile', filePath: EXPO_FETCH };
     }
     return upstream !== null ? upstream(context, moduleName, platform) : context.resolveRequest(context, moduleName, platform);
   }

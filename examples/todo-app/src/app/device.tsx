@@ -1,15 +1,18 @@
 /**
  * Hidden device-state page (opened by the `openDevice` backdoor), for features/device.feature (Phase 6.6):
  * what the app sees of orientation, color scheme, text size, language, location and its permission, the
- * network (NetInfo and a request to the mock backend) and the clipboard.
+ * network (NetInfo and a request to the mock backend) and the clipboard. Phase 6.10: a response whose body
+ * arrives late through `expo/fetch` imported directly, and a WebSocket with a slow handshake — the steps
+ * read the result once, without retrying, so they pass only if Quiesco waited for both.
  */
 import { useNetInfo } from '@react-native-community/netinfo';
 import * as Clipboard from 'expo-clipboard';
+import { fetch as expoFetch } from 'expo/fetch';
 import * as Location from 'expo-location';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 
-import { api } from '../api';
+import { BASE, api } from '../api';
 import { ScreenTransition } from '../components/ScreenTransition';
 
 /** What the "复制" button puts on the clipboard. */
@@ -21,6 +24,8 @@ export default function Device() {
   const [position, setPosition] = useState('');
   const [request, setRequest] = useState('');
   const [clipboard, setClipboard] = useState('');
+  const [slowBody, setSlowBody] = useState('');
+  const [socket, setSocket] = useState('');
   const net = useNetInfo();
   const dark = scheme === 'dark';
 
@@ -46,6 +51,27 @@ export default function Device() {
     } catch {
       setRequest('失败');
     }
+  };
+
+  const loadSlowBody = async () => {
+    setSlowBody('…');
+    try {
+      const res = await expoFetch(`${BASE}/slow-body`);
+      const { items } = (await res.json()) as { items: number[] };
+      setSlowBody(`${items.length} 条`);
+    } catch {
+      setSlowBody('失败');
+    }
+  };
+
+  const connectSocket = () => {
+    setSocket('…');
+    const ws = new WebSocket(`${BASE.replace(/^http/, 'ws')}/ws`);
+    ws.onopen = () => {
+      setSocket('已连接');
+      ws.close();
+    };
+    ws.onerror = () => setSocket('失败');
   };
 
   const button = (testID: string, title: string, onPress: () => void) => (
@@ -82,6 +108,18 @@ export default function Device() {
           {button('send-request', '发送请求', () => void sendRequest())}
           <Text testID="request-result" style={dark && styles.darkText}>
             {request}
+          </Text>
+        </View>
+        <View style={styles.row}>
+          {button('load-slow-body', '慢响应体', () => void loadSlowBody())}
+          <Text testID="slow-body-result" style={dark && styles.darkText}>
+            {slowBody}
+          </Text>
+        </View>
+        <View style={styles.row}>
+          {button('connect-socket', '连接 WebSocket', connectSocket)}
+          <Text testID="socket-result" style={dark && styles.darkText}>
+            {socket}
           </Text>
         </View>
         <View style={styles.row}>

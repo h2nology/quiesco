@@ -128,3 +128,19 @@ Then('截图附到报告', async function (this: QuiescoWorld) {
   assert.ok(png.length > 0);
   this.attach(png, 'image/png');
 });
+
+// Phase 6.10: Quiesco waits for the late body of an `expo/fetch` response and for a WebSocket handshake.
+// These steps read the result once, right after the action's wait for idle, without retrying: they
+// fail if the network tracker let go too early.
+When('通过 expo\\/fetch 读取一个响应体很慢的接口', async function (this: QuiescoWorld) {
+  await this.app.tap('load-slow-body');
+});
+
+When('连接一个握手很慢的 WebSocket', async function (this: QuiescoWorld) {
+  await this.app.tap('connect-socket');
+});
+
+Then('不重试，设备状态页的 {string} 立即是 {string}', async function (this: QuiescoWorld, id: string, text: string) {
+  const [el] = await this.app.query({ id }, { sync: true });
+  assert.equal(el?.text, text);
+});

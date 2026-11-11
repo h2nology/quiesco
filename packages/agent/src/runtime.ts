@@ -44,7 +44,7 @@ import { defaultAppDeps } from './platform';
 import { ResetManager } from './reset';
 import { defaultStorageAdapters } from './reset/storage-defaults';
 import { describeMatcher, findAll, getTree, isVisible, structureLines, summarize, toRegExp } from './query';
-import type { Clock, IdleTracker, TimerGlobals } from './sync';
+import type { Clock, FetchFn, IdleTracker, TimerGlobals } from './sync';
 import { FrameStableTracker, IdleCallbackTracker, NetworkTracker, OfflineGate, ReactTracker, SyncEngine, TimerTracker, ownConnection, realClock } from './sync';
 import { AGENT_VERSION } from './version';
 
@@ -165,6 +165,7 @@ export class AgentRuntime {
         build: buildConfig,
       });
       this.offline.setExempt(ownConnection(params.port));
+      this.network?.setExempt(ownConnection(params.port));
       this.client = new AgentClient({
         params,
         hello: { platform: this.deps.platform(), agentVersion: AGENT_VERSION, nativeModule: native !== null },
@@ -224,7 +225,16 @@ export class AgentRuntime {
     }, 0);
   }
 
-  configure(config: AgentConfig): void {
+  /**
+   * A fetch function that the offline mode and the network tracker see like the global one: `expo/fetch`
+   * imported directly (src/expo-fetch.js, swapped in by withQuiesco()).
+   */
+  wrapFetch(original: FetchFn): FetchFn {
+    const blocked = this.offline.wrapFetch(original);
+    return this.network?.wrapFetch(blocked) ?? blocked;
+  }
+
+    configure(config: AgentConfig): void {
     this.config = config;
     this.offline.setOffline(config.network?.offline === true);
     this.network?.setIgnoreUrls(config.sync.ignoreUrls.map(toRegExp));

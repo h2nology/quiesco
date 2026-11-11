@@ -56,6 +56,20 @@ Feature: 设备状态（设备状态页）
     When 发送请求
     Then 设备状态页显示请求结果 "成功"
 
+  # Phase 6.10：直接 import 的 expo/fetch、响应头先到响应体后到、WebSocket 握手，Quiesco 都会等到结束。
+  Scenario: 等待 expo/fetch 的慢响应体
+    When 通过 expo/fetch 读取一个响应体很慢的接口
+    Then 不重试，设备状态页的 "slow-body-result" 立即是 "3 条"
+
+  Scenario: 离线时 expo/fetch 也失败
+    When 把设备切换到离线
+    And 通过 expo/fetch 读取一个响应体很慢的接口
+    Then 不重试，设备状态页的 "slow-body-result" 立即是 "失败"
+
+  Scenario: 等待 WebSocket 握手
+    When 连接一个握手很慢的 WebSocket
+    Then 不重试，设备状态页的 "socket-result" 立即是 "已连接"
+
   Scenario: App 读到测试写入的剪贴板
     When 把剪贴板设为 "Quiesco 剪贴板"
     And 读取剪贴板

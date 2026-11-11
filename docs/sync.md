@@ -9,7 +9,7 @@ in the same tick does not slip through).
 
 | Tracker | Busy while | Notes |
 |---|---|---|
-| `network` | a `fetch` / `XMLHttpRequest` is in flight | WebSockets never count (nor does the agent's own connection). `sync.ignoreUrls` excludes long polling, SSE, analytics. A `fetch` built on XHR (React Native) counts once. |
+| `network` | a `fetch` / `XMLHttpRequest` is in flight, a response body is being read, or a `WebSocket` / `EventSource` is connecting | `fetch` counts until the response arrives; a body read (`json()`, `text()`, …) started right after keeps it busy until the body is in, and a later read counts again. `expo/fetch` imported directly is tracked too (`withQuiesco()` swaps in a tracked re-export in e2e builds). A `WebSocket` / `EventSource` counts only until it opens, fails or closes; open connections never count (nor does the agent's own connection). `sync.ignoreUrls` excludes long polling, SSE, analytics. A `fetch` built on XHR (React Native) counts once. |
 | `timer` | a `setTimeout` with a delay ≤ `sync.timerThresholdMs` (1.5 s) is pending | Longer timers (session expiry, polling every 30 s) do not block. `setInterval` only counts with `sync.countIntervals: true`. |
 | `react` | React has uncommitted work: a root with pending lanes or a scheduled callback, or a pending task in React's scheduler (render work, passive effects) | Reads React's own bookkeeping through the DevTools hook — nothing in the app needs to change. |
 | `idle-callback` | a `requestIdleCallback` is pending (and `InteractionManager` work on React Native versions that still have it) | |

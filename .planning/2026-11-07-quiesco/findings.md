@@ -440,3 +440,21 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - Android 日志：`pm list packages -U <pkg>` 取 uid，`logcat -v threadtime -T 1 --uid=<uid>`（App 重启后 pid 变但 uid 不变），3 s 8 行，含 ReactHost 生命周期、原生警告。
 - 整页截图：agent 已有 Scrollable（offset / viewport / content / scrollTo），可按屏滚动；拼接在 core 用 png.ts 完成（第一屏取滚动区底边以上全部，后续每屏取新露出的条带，最后一屏补滚动区以下的固定区）；虚拟列表边滚边变长，以 offset 不再变化为结束。
 - 实现补充：RN-web 的 ScrollView 是普通 div（无 scroll 语义类型）⇒ 默认滚动容器按 clipsContent 节点里面积最大的找；Android 滚动后滚动条会显示一段时间、每屏截图都带上 ⇒ 原生 setScrollIndicators 截图期间隐藏、结束后恢复原状态；iOS log stream 里 com.apple.Accessibility 约占 60% ⇒ 过滤掉。
+
+## 6.10 网络同步 spike（2026-11-11，spikes/network/network.mts + server.mjs，临时 backdoor netProbe）
+- 测法：每种请求 1.5 s，看 agent 回答 backdoor 前的空闲等待时长（runtime 在 backdoor 后 waitForIdle）+ tracker begin/end 时刻。注意：backdoor 本身会等空闲，第一版 spike 在 backdoor 之后再测，误判为「全部看不到」。
+- 结果（iOS 26.5 / Android 模拟器 / Chromium，三端一致，Web 例外已注明）：
+
+| 请求 | iOS | Android | Web |
+|---|---|---|---|
+| 全局 fetch，响应头慢 | ✅ 1565 ms | ✅ 1583 ms | ✅ 1519 ms |
+| 全局 fetch，响应体慢（头立即到） | ❌ 2 ms 就 end | ❌ 19 ms | ❌ 1 ms |
+| `import { fetch } from 'expo/fetch'` | ❌ 完全没跟踪 | ❌ | ✅（web 版 = globalThis.fetch） |
+| expo/fetch，响应体慢 | ❌ | ❌ | ❌ 1 ms |
+| XHR | ✅ | ✅ | ✅ |
+| WebSocket 握手 1.5 s | ❌ 不跟踪 | ❌ | ❌ |
+| EventSource | 无此全局 | 无此全局 | ❌ 不跟踪 |
+
+- 全局 fetch 确实是 Quiesco 的包装（name 为空、非 getter）⇒ agent 安装时 winter runtime 的 lazy getter 已经被读取 / 覆盖过，没有出现「Expo 之后重新覆盖」的问题（源码推测不成立）。原生端包装的底层就是 expo/fetch：它在响应头到达时 resolve（body 流式读），所以 tracker 在 `await res.json()` 期间已判空闲 ⇒ **Detox #4973 的同类问题在 Quiesco 表现为「响应体阶段失明」+「直接 import expo/fetch 完全失明」**。
+- expo/fetch 的导出：`expo/fetch` → `src/winter/fetch/index.ts` 的 `export *`，实测为 getter、configurable=false、无 setter（iOS）⇒ 运行时改不了，只能在打包阶段处理（withQuiesco 的 Metro resolver 把 App 代码里的 `expo/fetch` 指到 Quiesco 的包装模块）。
+- iOS spike 第一轮挂起：SSE 用例后 dispose 卡住（iOS 无 EventSource，挂在别处），与网络跟踪无关，按 Ctrl-C 处理。

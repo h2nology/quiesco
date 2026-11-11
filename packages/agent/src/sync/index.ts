@@ -1,7 +1,7 @@
 export type { Clock, IdleTracker } from './tracker';
 export { realClock } from './tracker';
 export { NetworkTracker } from './network';
-export type { NetworkTrackerOptions, UrlPattern } from './network';
+export type { FetchFn, NetworkTrackerOptions, UrlPattern } from './network';
 export { TimerTracker } from './timer';
 export type { TimerGlobals, TimerTrackerOptions } from './timer';
 export { ReactTracker } from './react';

@@ -15,7 +15,7 @@ import { isFunction, patch } from './tracker';
 export const OFFLINE_HTTP_URL = 'http://offline.quiesco.invalid/';
 export const OFFLINE_WS_URL = 'ws://offline.quiesco.invalid/';
 
-type FetchFn = (this: unknown, input: unknown, init?: unknown) => Promise<unknown>;
+export type FetchFn = (this: unknown, input: unknown, init?: unknown) => Promise<unknown>;
 type OpenFn = (this: unknown, method: string, url: string | URL, ...rest: unknown[]) => unknown;
 type SocketCtor = new (url: string | URL, ...rest: unknown[]) => object;
 
@@ -74,21 +74,23 @@ export class OfflineGate {
     return this.offline && !this.exempt(url);
   }
 
+  /** A fetch function that is blocked like the global one (used for `expo/fetch` imported directly). */
+  wrapFetch(original: FetchFn): FetchFn {
+    const self = this;
+    return function (this: unknown, input: unknown, init?: unknown) {
+      if (!self.blocks(urlOf(input))) return original.call(this, input, init);
+      // A Request object carries its method and signal; its body is irrelevant, the request fails.
+      const req = typeof input === 'object' && input !== null && typeof (input as { url?: unknown }).url === 'string' ? (input as { method?: unknown; signal?: unknown }) : null;
+      const merged = req === null ? init : { method: req.method, ...(req.signal !== undefined ? { signal: req.signal } : {}), ...(init as object | undefined) };
+      return original.call(this, OFFLINE_HTTP_URL, merged);
+    } as FetchFn;
+  }
+
   install(): void {
     if (this.restores.length > 0) return;
     const self = this;
     if (isFunction(this.target.fetch)) {
-      this.restores.push(
-        patch(this.target, 'fetch', (original) =>
-          function (this: unknown, input: unknown, init?: unknown) {
-            if (!self.blocks(urlOf(input))) return (original as FetchFn).call(this, input, init);
-            // A Request object carries its method and signal; its body is irrelevant, the request fails.
-            const req = typeof input === 'object' && input !== null && typeof (input as { url?: unknown }).url === 'string' ? (input as { method?: unknown; signal?: unknown }) : null;
-            const merged = req === null ? init : { method: req.method, ...(req.signal !== undefined ? { signal: req.signal } : {}), ...(init as object | undefined) };
-            return (original as FetchFn).call(this, OFFLINE_HTTP_URL, merged);
-          } as FetchFn,
-        ),
-      );
+      this.restores.push(patch(this.target, 'fetch', (original) => this.wrapFetch(original as FetchFn)));
     }
     const proto = this.target.XMLHttpRequest?.prototype;
     if (proto !== undefined && isFunction(proto.open)) {
