@@ -9,6 +9,7 @@ Feature: 设备状态（设备状态页）
   Scenario: 横屏
     When 把设备转到横屏
     Then 设备状态页显示方向 "landscape"
+    And 设备状态页分成左右两栏
 
   # 依赖场景顺序（Cucumber 按文件顺序执行）：紧接在「横屏」之后，确认它在本场景开始前被恢复。
   Scenario: 上一个场景的横屏已恢复

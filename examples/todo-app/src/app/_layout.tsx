@@ -33,6 +33,9 @@ function App() {
       <Stack.Screen name="lifecycle" options={{ title: '生命周期' }} />
       <Stack.Screen name="device" options={{ title: '设备状态' }} />
       <Stack.Screen name="system" options={{ title: '系统集成' }} />
+      <Stack.Screen name="showcase" options={{ title: '能力一览' }} />
+      {/* Rows are dragged vertically; no back swipe on a page whose content is dragged. */}
+      <Stack.Screen name="reorder" options={{ title: '拖拽排序', gestureEnabled: false }} />
     </Stack>
   );
 }

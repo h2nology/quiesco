@@ -56,6 +56,15 @@ Then('设备状态页显示方向 {string}', async function (this: QuiescoWorld,
   await this.app.expectText('orientation', orientation);
 });
 
+// The landscape layout: the state column on the left, the actions column to its right, tops aligned.
+Then('设备状态页分成左右两栏', async function (this: QuiescoWorld) {
+  const state = (await this.app.attributes('device-state')).rect;
+  const actions = (await this.app.attributes('device-actions')).rect;
+  assert.ok(state !== null && actions !== null, 'both columns are laid out');
+  assert.ok(actions.x >= state.x + state.width, `actions column (x ${actions.x}) is right of the state column (ends at ${state.x + state.width})`);
+  assert.ok(Math.abs(actions.y - state.y) < 1, `columns start at the same height (${state.y} / ${actions.y})`);
+});
+
 Then('设备状态页的方向与开始时相同', async function (this: QuiescoWorld) {
   assert.ok(initialOrientation !== null, 'the device page was never opened');
   await this.app.expectText('orientation', initialOrientation);

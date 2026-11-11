@@ -65,6 +65,11 @@ quiesco.backdoor('openWebView', () => {
   router.push('/webview');
 });
 
+// The capability index (src/app/showcase.tsx), used by features/showcase.feature.
+quiesco.backdoor('openShowcase', () => {
+  router.push('/showcase');
+});
+
 quiesco.onReset(async () => {
   await api.replaceTodos([]);
   store.clear();

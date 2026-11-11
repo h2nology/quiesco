@@ -28,6 +28,7 @@ export default function Device() {
   const [socket, setSocket] = useState('');
   const net = useNetInfo();
   const dark = scheme === 'dark';
+  const landscape = width > height;
 
   const readLocation = async () => {
     setPosition('…');
@@ -91,43 +92,48 @@ export default function Device() {
 
   return (
     <ScreenTransition>
-      <View testID="device" style={[styles.container, dark && styles.dark]}>
-        {row('方向', 'orientation', width > height ? 'landscape' : 'portrait')}
-        {row('窗口', 'window-size', `${Math.round(width)}x${Math.round(height)}`)}
-        {row('外观', 'color-scheme', scheme ?? 'unknown')}
-        {row('字号倍数', 'font-scale', fontScale.toFixed(3))}
-        {row('语言', 'locale', Intl.DateTimeFormat().resolvedOptions().locale)}
-        <View style={styles.row}>
-          {button('read-location', '读取位置', () => void readLocation())}
-          <Text testID="position" style={dark && styles.darkText}>
-            {position}
-          </Text>
+      <View testID="device" style={[styles.container, landscape && styles.columns, dark && styles.dark]}>
+        {/* Landscape: two columns side by side (state left, actions right); portrait: one column. */}
+        <View testID="device-state" style={styles.column}>
+          {row('方向', 'orientation', landscape ? 'landscape' : 'portrait')}
+          {row('窗口', 'window-size', `${Math.round(width)}x${Math.round(height)}`)}
+          {row('外观', 'color-scheme', scheme ?? 'unknown')}
+          {row('字号倍数', 'font-scale', fontScale.toFixed(3))}
+          {row('语言', 'locale', Intl.DateTimeFormat().resolvedOptions().locale)}
+          {row('网络', 'net-state', net.isConnected === null ? 'unknown' : net.isConnected ? 'online' : 'offline')}
         </View>
-        {row('网络', 'net-state', net.isConnected === null ? 'unknown' : net.isConnected ? 'online' : 'offline')}
-        <View style={styles.row}>
-          {button('send-request', '发送请求', () => void sendRequest())}
-          <Text testID="request-result" style={dark && styles.darkText}>
-            {request}
-          </Text>
-        </View>
-        <View style={styles.row}>
-          {button('load-slow-body', '慢响应体', () => void loadSlowBody())}
-          <Text testID="slow-body-result" style={dark && styles.darkText}>
-            {slowBody}
-          </Text>
-        </View>
-        <View style={styles.row}>
-          {button('connect-socket', '连接 WebSocket', connectSocket)}
-          <Text testID="socket-result" style={dark && styles.darkText}>
-            {socket}
-          </Text>
-        </View>
-        <View style={styles.row}>
-          {button('read-clipboard', '读取剪贴板', () => void Clipboard.getStringAsync().then(setClipboard))}
-          {button('copy-text', '复制', () => void Clipboard.setStringAsync(COPIED_TEXT).then(() => setClipboard('已复制')))}
-          <Text testID="clipboard-text" style={dark && styles.darkText}>
-            {clipboard}
-          </Text>
+        <View testID="device-actions" style={styles.column}>
+          <View style={styles.row}>
+            {button('read-location', '读取位置', () => void readLocation())}
+            <Text testID="position" style={dark && styles.darkText}>
+              {position}
+            </Text>
+          </View>
+          <View style={styles.row}>
+            {button('send-request', '发送请求', () => void sendRequest())}
+            <Text testID="request-result" style={dark && styles.darkText}>
+              {request}
+            </Text>
+          </View>
+          <View style={styles.row}>
+            {button('load-slow-body', '慢响应体', () => void loadSlowBody())}
+            <Text testID="slow-body-result" style={dark && styles.darkText}>
+              {slowBody}
+            </Text>
+          </View>
+          <View style={styles.row}>
+            {button('connect-socket', '连接 WebSocket', connectSocket)}
+            <Text testID="socket-result" style={dark && styles.darkText}>
+              {socket}
+            </Text>
+          </View>
+          <View style={styles.row}>
+            {button('read-clipboard', '读取剪贴板', () => void Clipboard.getStringAsync().then(setClipboard))}
+            {button('copy-text', '复制', () => void Clipboard.setStringAsync(COPIED_TEXT).then(() => setClipboard('已复制')))}
+            <Text testID="clipboard-text" style={dark && styles.darkText}>
+              {clipboard}
+            </Text>
+          </View>
         </View>
       </View>
     </ScreenTransition>
@@ -136,6 +142,8 @@ export default function Device() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, gap: 12, backgroundColor: '#fff' },
+  columns: { flexDirection: 'row', gap: 24 },
+  column: { flex: 1, gap: 12 },
   dark: { backgroundColor: '#111' },
   darkText: { color: '#eee' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 16 },
