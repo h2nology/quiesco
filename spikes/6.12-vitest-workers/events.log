@@ -1,0 +1,6 @@
+9744 pool=2 worker=2 session setup
+9743 pool=1 worker=1 session setup
+9744 pool=2 worker=3 teardown start
+9743 pool=1 worker=4 teardown start
+9743 pool=1 worker=4 teardown done (3s async)
+9744 pool=2 worker=3 teardown done (3s async)

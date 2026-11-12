@@ -474,3 +474,16 @@ JS（`expo export --platform all`，在 Web JS 和 iOS/Android 的 Hermes 字节
 - 方法：git worktree + 旧提交构建 + 独立 Metro 端口（先 curl 预热 bundle，否则 Android 首次连接超时）+ 复用主仓库 dev client（原生模块只增不减，旧 JS 可用）；用 cucumber `--format json` 的逐步 duration 定位到具体步骤。
 - 精度：iOS 每组 ±0.2s，Android ±0.5s；同时开着的其他模拟器 / emulator 会让 iOS 慢约 0.6s、Android 慢约 1.7s。
 - iOS 第一次安装（模拟器刚开机）`simctl install` 约 5.9s，之后约 0.5s：基准前先热身。
+
+## Phase 6.12 批次 A spike（2026-11-12）
+- **Android 每 worker 独立 AVD 可行**：只复制 base 的 `config.ini`（改 `avd.ini.displayname`），另写 `<name>.ini`（`path` / `path.rel` / `target` 照抄 base），emulator `-list-avds` 立即识别；不需要 avdmanager / cmdline-tools。userdata、sdcard、cache 首次启动时由 emulator 自动生成。
+- **与 base 的可写实例同时运行没有冲突**：base `Medium_Phone_API_37.0` 可写（`-port 5554`）+ clone `Medium_Phone_quiesco_1`（`-port 5556`），都 `-no-snapshot-load -no-snapshot-save`，同时冷启动：base 24s、clone 41s（首次生成数据）到 `sys.boot_completed=1`；6 分钟后 system_server pid 不变（没有用户空间重启）。`ro.boot.qemu.avd_name` 能区分两者 ⇒ 按 AVD 名绑定 serial，不必固定端口。
+- **clone 磁盘占用**：首次启动后约 1.4G（base 11G 是长期使用累积的 userdata）。
+- **免 binaryPath 复制 App（Android）**：base 上 `pm path <pkg>`（可能多行 split APK）→ `adb pull` → worker 上 `install-multiple -r`；示例 dev client（230MB 单个 base.apk）pull + 安装共约 1s。
+- **免 binaryPath 复制 App（iOS）**：`simctl get_app_container <base> <bundleId> app` 得到 base 上已安装的 .app（示例 226MB）→ `simctl install <worker> <path>`，约 6s。base 与 worker 同时 boot + bootstatus 共 75s（冷）。
+- **worker 模拟器必须同时按名字和 runtime 匹配**：本机有 Phase 4 留下的 `iPhone 17 (Quiesco 1)` 两台，分别在 iOS 27.0 和 26.5；只按名字找会拿错。`simctl install` 不检查 runtime 是否与 base 一致（27.0 上的 App 装到 26.5 的 worker 也成功）⇒ Quiesco 自己保证 worker 的 deviceType + runtime 与 base 相同，名字只用于显示。
+- **Jest 30 worker 的收尾**（spikes/6.12-jest-workers）：
+  - worker 模式：测试结束后 Jest 给每个 worker 子进程发 SIGTERM，约 0.5s 后强制杀掉（「A worker process has failed to exit gracefully and has been force exited」）；`globalTeardown` 只在主进程执行，拿不到 worker 里的 session。SIGTERM 里做 3s 的异步 dispose 做不完，session 启动的子进程（xcodebuild runner、录像、日志流等）**会被遗留**。SIGTERM 处理函数里**同步**杀掉子进程再 `process.exit(0)` ⇒ `exit` 事件里的同步 kill 生效，子进程全部清掉。
+  - **`maxWorkers > 1` 也可能 in-band**：Jest 按缓存的耗时判断（测试都很快时）会在主进程里直接跑。这时 session 在主进程里，现有的 globalTeardown 收尾照常有效；session 的子进程没关时会出现「Jest did not exit one second after the test run has completed」。⇒ 两种模式都要支持：worker 里在 SIGTERM / exit 时同步杀掉 session 的子进程；主进程里的 globalTeardown 再按 worker 写下的登记文件补一次异步清理（terminate App、停 runner），作为兜底。
+- **Vitest 5.1 并行**（spikes/6.12-vitest-workers）：`pool: 'forks'`、`isolate: false`、`fileParallelism: true`、`maxWorkers: 2` ⇒ 每个 worker 的 worker 作用域 fixture 只 setup 一次，3s 的异步 teardown 完整执行。worker 编号用 `VITEST_POOL_ID`（1..N，在 worker 进程内不变）；`VITEST_WORKER_ID` 每个文件都会变，不能用。
+- **iOS XCUITest runner**：同一个缓存的 `.xctestrun` 可以同时在两台模拟器上 `test-without-building`（端口不同），两个都能起来（冷启动均 47s）。并发风险只在首次构建：现有代码先看缓存里有没有 `.xctestrun`，没有就直接构建到缓存目录，多个 worker 会同时构建、互相踩，也可能读到构建到一半的产物 ⇒ 改为构建到 `<key>.tmp-<pid>` 再原子 rename，rename 失败（别的 worker 已经完成）就丢弃自己的结果；不需要文件锁。

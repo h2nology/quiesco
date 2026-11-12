@@ -1,0 +1,19 @@
+8725 w1 env ctor maxWorkers=2
+8726 w2 env ctor maxWorkers=2
+8726 w2 session start child=8730
+8725 w1 session start child=8729
+5145 w1 dispose 1s
+8725 w1 env teardown
+8726 w2 env teardown
+8726 w2 env ctor maxWorkers=2
+8725 w1 env ctor maxWorkers=2
+5145 w1 dispose 2s
+5145 w1 dispose 3s
+5145 w1 dispose done
+5145 w1 exit code=0
+5145 w1 killed child in exit
+8725 w1 env teardown
+8726 w2 env teardown
+8725 w1 SIGTERM -> async dispose 3s
+8726 w2 SIGTERM -> async dispose 3s
+8630 main globalTeardown
