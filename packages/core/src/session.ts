@@ -11,7 +11,8 @@ import type { QuiescoConfig } from './config.js';
 import { DEFAULT_CONNECT_TIMEOUT_MS, ignoredAppErrors, serverPort, toAgentConfig } from './config.js';
 import { AndroidProvider } from './devices/android.js';
 import { IosProvider } from './devices/ios.js';
-import type { DeviceProvider, LaunchParams, LaunchUrlHandling } from './devices/provider.js';
+import { SERIAL_WORKER } from './devices/provider.js';
+import type { DeviceProvider, LaunchParams, LaunchUrlHandling, WorkerInfo } from './devices/provider.js';
 import { DeviceApi } from './device.js';
 import type { AppRunState, DeviceHost } from './device.js';
 import { Artifacts } from './artifacts.js';
@@ -34,6 +35,11 @@ export interface SessionOptions {
   logger?: Logger;
   /** Override the device provider (tests, custom providers). */
   provider?: DeviceProvider;
+  /**
+   * The parallel test worker this session belongs to (Phase 6.12): its own device, server port
+   * (`server.port + index`) and artifacts directory. Default: the only worker.
+   */
+  worker?: WorkerInfo;
 }
 
 export interface Evidence {
@@ -55,14 +61,14 @@ const PROVIDER_PACKAGES: Partial<Record<Platform, { name: string; install: strin
   web: { name: '@quiesco/web', install: 'npm i -D @quiesco/web playwright && npx playwright install chromium' },
 };
 
-type ProviderModule = { createWebProvider(options: { app: unknown; device?: unknown; logger: Logger }): DeviceProvider };
+type ProviderModule = { createWebProvider(options: { app: unknown; device?: unknown; logger: Logger; worker?: WorkerInfo }): DeviceProvider };
 
-export async function createProvider(platform: Platform, config: QuiescoConfig, logger: Logger): Promise<DeviceProvider> {
+export async function createProvider(platform: Platform, config: QuiescoConfig, logger: Logger, worker: WorkerInfo = SERIAL_WORKER): Promise<DeviceProvider> {
   switch (platform) {
     case 'android': {
       const app = config.apps.android;
       if (app === undefined) throw new QuiescoError('CONFIG_ERROR', 'apps.android is missing in quiesco.config');
-      return new AndroidProvider({ app, ...(config.devices?.android !== undefined ? { device: config.devices.android } : {}), logger });
+      return new AndroidProvider({ app, ...(config.devices?.android !== undefined ? { device: config.devices.android } : {}), logger, worker });
     }
     case 'web': {
       const app = config.apps.web;
@@ -76,12 +82,12 @@ export async function createProvider(platform: Platform, config: QuiescoConfig, 
       } catch (e) {
         throw new QuiescoError('CONFIG_ERROR', `Testing on the web needs ${pkg.name} (${(e as Error).message}). Install it: ${pkg.install}`);
       }
-      return mod.createWebProvider({ app, ...(config.devices?.web !== undefined ? { device: config.devices.web } : {}), logger });
+      return mod.createWebProvider({ app, ...(config.devices?.web !== undefined ? { device: config.devices.web } : {}), logger, worker });
     }
     case 'ios': {
       const app = config.apps.ios;
       if (app === undefined) throw new QuiescoError('CONFIG_ERROR', 'apps.ios is missing in quiesco.config');
-      return new IosProvider({ app, ...(config.devices?.ios !== undefined ? { device: config.devices.ios } : {}), logger });
+      return new IosProvider({ app, ...(config.devices?.ios !== undefined ? { device: config.devices.ios } : {}), logger, worker });
     }
   }
 }
@@ -105,9 +111,10 @@ export class Session {
     readonly server: QuiescoServer,
     readonly launchParams: LaunchParams,
     private readonly logger: Logger,
+    readonly worker: WorkerInfo = SERIAL_WORKER,
   ) {
     this.defaultArgs = config.launchArgs === undefined ? {} : checkLaunchArgs(config.launchArgs, 'config launchArgs');
-    this.artifacts = new Artifacts({ ...(config.artifacts !== undefined ? { config: config.artifacts } : {}), provider, logger });
+    this.artifacts = new Artifacts({ ...(config.artifacts !== undefined ? { config: config.artifacts } : {}), provider, logger, worker });
     this.driver = new Driver({
       timeline: this.artifacts.timeline,
       provider,
@@ -131,11 +138,12 @@ export class Session {
   static async create(options: SessionOptions): Promise<Session> {
     const logger = options.logger ?? consoleLogger;
     const { config } = options;
+    const worker = options.worker ?? SERIAL_WORKER;
     // The provider first: the agent config carries its gesture thresholds.
-    const provider: DeviceProvider = options.provider ?? (await createProvider(options.platform, config, logger));
+    const provider: DeviceProvider = options.provider ?? (await createProvider(options.platform, config, logger, worker));
     const server = new QuiescoServer({
-      port: serverPort(config),
-      agentConfig: toAgentConfig(config, provider.gestureSlop),
+      port: serverPort(config, worker.index),
+      agentConfig: toAgentConfig(config, provider.gestureSlop, worker.index),
       logger,
       ...(config.server?.host !== undefined ? { host: config.server.host } : {}),
     });
@@ -143,7 +151,7 @@ export class Session {
     const sessionId = randomUUID();
     // JS-only builds cannot read launch parameters and say `sessionId: null`; accept them for this session.
     server.expectSession(sessionId, { acceptAnonymous: true });
-    const session = new Session(config, provider, server, { port, sessionId }, logger);
+    const session = new Session(config, provider, server, { port, sessionId }, logger, worker);
     try {
       await provider.boot();
       await provider.install();

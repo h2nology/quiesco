@@ -97,6 +97,8 @@ export class AgentRuntime {
     logLevel: 'warn',
   };
   private readonly deps: AppDeps;
+  /** Whether the host has sent its config (hello / configure). */
+  private configured = false;
   /** `app.device.setNetwork('offline')` (Phase 6.6). */
   private readonly offline: OfflineGate;
   private readonly clock: Clock;
@@ -184,6 +186,11 @@ export class AgentRuntime {
     return this.native;
   }
 
+  /** The parallel worker index the host sent with its config (Phase 6.12); null before the host connected. */
+  workerIndex(): number | null {
+    return this.configured ? (this.config.workerIndex ?? 0) : null;
+  }
+
   /**
    * The test launch arguments (`app.device.relaunch({ args })` / config `launchArgs`), read once per JS
    * context. JS-only native builds cannot read them: `{}` with a warning.
@@ -236,6 +243,7 @@ export class AgentRuntime {
 
     configure(config: AgentConfig): void {
     this.config = config;
+    this.configured = true;
     this.offline.setOffline(config.network?.offline === true);
     this.network?.setIgnoreUrls(config.sync.ignoreUrls.map(toRegExp));
     this.timer?.configure({ thresholdMs: config.sync.timerThresholdMs, countIntervals: config.sync.countIntervals });

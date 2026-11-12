@@ -7,4 +7,5 @@ export const quiesco: QuiescoApi = {
   onReset: (hook) => getRuntime().resets.onReset(hook),
   registerStorage: (adapter) => getRuntime().resets.registerStorage(adapter),
   launchArgs: () => getRuntime().launchArgs(),
+  workerIndex: () => getRuntime().workerIndex(),
 };

@@ -15,7 +15,37 @@ export interface ChildLike {
 
 export type SpawnProcess = (file: string, args: readonly string[]) => ChildLike;
 
-export const spawnProcess: SpawnProcess = (file, args) => spawn(file, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+/**
+ * Child processes a session started that must not outlive it (recorders, log streams, the iOS XCUITest
+ * runner). Emulators are spawned detached and are not listed: they are kept for the next run.
+ */
+const tracked = new Set<{ readonly exitCode: number | null; kill(signal?: NodeJS.Signals): boolean; once(event: 'exit', cb: () => void): unknown }>();
+
+/** List a child for killChildProcessesSync(); it leaves the list when it exits. */
+export function trackChildProcess<C extends { readonly exitCode: number | null; kill(signal?: NodeJS.Signals): boolean; once(event: 'exit', cb: () => void): unknown }>(child: C): C {
+  tracked.add(child);
+  child.once('exit', () => tracked.delete(child));
+  return child;
+}
+
+/**
+ * Kill every tracked child that is still running, synchronously (Phase 6.12). For runners that end a
+ * worker process without waiting for async teardown: Jest sends SIGTERM and kills the worker about
+ * 0.5 s later, so the session's dispose() never finishes (findings 6.12 batch A).
+ */
+export function killChildProcessesSync(): number {
+  let n = 0;
+  for (const c of tracked) {
+    if (c.exitCode === null) {
+      c.kill('SIGKILL');
+      n++;
+    }
+  }
+  tracked.clear();
+  return n;
+}
+
+export const spawnProcess: SpawnProcess = (file, args) => trackChildProcess(spawn(file, args, { stdio: ['ignore', 'pipe', 'pipe'] }));
 
 /** Lines received from a stream, stamped with the host clock; the oldest dropped beyond `max`. */
 export class LogBuffer {

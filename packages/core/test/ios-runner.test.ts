@@ -1,8 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
+import { describe, expect, it } from 'vitest';
+import type { Exec } from '../src/devices/exec';
+import { silentLogger } from '../src/logger';
 import { IosProvider } from '../src/devices/ios';
 import type { SystemRunnerLike } from '../src/devices/ios';
-import { PERMISSION_ALLOW, PERMISSION_ALLOW_ONCE, PERMISSION_DENY, dismissButton, runnerCacheKey, screenNodes } from '../src/devices/ios-runner';
+import { IosSystemRunner, PERMISSION_ALLOW, PERMISSION_ALLOW_ONCE, PERMISSION_DENY, dismissButton, runnerCacheKey, screenNodes } from '../src/devices/ios-runner';
 import type { RunnerScreen } from '../src/devices/ios-runner';
 
 const f = (y: number) => [57, y, 140, 48];
@@ -108,5 +113,36 @@ describe('IosProvider system UI (6.7 batch C)', () => {
     expect(calls).toEqual(['tap 127,515']); // the cancel button
     await p.shutdown();
     expect(calls.at(-1)).toBe('stop');
+  });
+});
+
+describe('IosSystemRunner build (Phase 6.12)', () => {
+  it('parallel workers building at once each build aside and end up with one cached runner', async () => {
+    const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'quiesco-runner-'));
+    try {
+      let builds = 0;
+      const exec: Exec = async (file, args) => {
+        if (args[0] === '-version') return { stdout: Buffer.from('Xcode 27.2\nBuild version 27C1\n'), stderr: '' };
+        builds++;
+        const derived = args[args.indexOf('-derivedDataPath') + 1] as string;
+        await new Promise((r) => setTimeout(r, 20));
+        fs.mkdirSync(path.join(derived, 'Build/Products'), { recursive: true });
+        fs.writeFileSync(path.join(derived, 'Build/Products/Runner_iphonesimulator.xctestrun'), file);
+        return { stdout: Buffer.from(''), stderr: '' };
+      };
+      const runner = () => new IosSystemRunner({ udid: 'U', exec, logger: silentLogger, cacheDir }) as unknown as { build(): Promise<string> };
+      const [a, b] = await Promise.all([runner().build(), runner().build()]);
+      expect(builds).toBe(2);
+      expect(a).toBe(b);
+      expect(fs.existsSync(a)).toBe(true);
+      // Only the final directory is left (no half-built or temporary copies).
+      expect(fs.readdirSync(cacheDir)).toHaveLength(1);
+      expect(fs.readdirSync(cacheDir)[0]).not.toMatch(/\.tmp-/);
+      // The next session reuses it without building.
+      await runner().build();
+      expect(builds).toBe(2);
+    } finally {
+      fs.rmSync(cacheDir, { recursive: true, force: true });
+    }
   });
 });

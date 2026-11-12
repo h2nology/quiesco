@@ -24,6 +24,7 @@ describe('config', () => {
         ignoreElements: [],
       },
       logLevel: 'info',
+      workerIndex: 0,
     });
   });
 

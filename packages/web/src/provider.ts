@@ -17,7 +17,7 @@
  */
 import { LAUNCH_PARAM_PORT, LAUNCH_PARAM_SESSION, WEB_PARAMS_GLOBAL } from '@quiesco/protocol';
 import type { HostInput, Orientation, Rect } from '@quiesco/protocol';
-import type { ColorScheme, DeviceProvider, LaunchParams, LaunchUrlHandling, Logger, Permission, StateChange, StatusBarOptions, SystemNode, WebAppConfig, WebDeviceConfig } from '@quiesco/core';
+import type { ColorScheme, DeviceProvider, LaunchParams, LaunchUrlHandling, Logger, Permission, StateChange, StatusBarOptions, SystemNode, WebAppConfig, WebDeviceConfig, WorkerInfo } from '@quiesco/core';
 import { LogBuffer, QuiescoError, silentLogger } from '@quiesco/core';
 import { chromium, firefox, webkit } from 'playwright';
 import type { Browser, BrowserContext, BrowserType, CDPSession, Dialog, Frame, Page, Route } from 'playwright';
@@ -70,6 +70,11 @@ export interface WebProviderOptions {
   app: WebAppConfig;
   device?: WebDeviceConfig;
   logger?: Logger;
+  /**
+   * The parallel worker (Phase 6.12). Nothing to allocate: every worker process launches its own browser,
+   * and the file server / `expo serve` take a free port.
+   */
+  worker?: WorkerInfo;
 }
 
 export class WebProvider implements DeviceProvider {

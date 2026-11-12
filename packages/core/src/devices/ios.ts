@@ -10,6 +10,10 @@
  * - The simulator shares the Mac's network: no port forwarding.
  * - Device input: no system back button on iOS; deep links are opened inside the app by
  *   @quiesco/native, because `simctl openurl` shows a SpringBoard confirmation alert.
+ * - Parallel workers (Phase 6.12): `udids[N]`; or worker 0 uses the chosen simulator and worker N > 0 one
+ *   named "<name> (Quiesco N)" with the base's device type and runtime (both must match: the same name
+ *   exists once per runtime), created with `simctl create` on first use and kept. `simctl clone` refuses a
+ *   booted source. Without `binaryPath`, a worker copies the app installed on the base simulator.
  * - Phase 6.5: launch arguments as `-quiescoArgs <base64 JSON>`; a launch URL as `-quiescoUrl`, which
  *   @quiesco/native hands to expo-linking; background = `-[UIApplication suspend]` inside the app (home
  *   screen), or opening the Settings app for apps without @quiesco/native; foreground = `simctl launch`
@@ -32,7 +36,8 @@ import { LogBuffer, exited, spawnProcess } from './streams.js';
 import type { ChildLike, SpawnProcess } from './streams.js';
 import { IosSystemRunner, PERMISSION_ALLOW, PERMISSION_DENY, dismissButton, screenNodes } from './ios-runner.js';
 import type { Permission } from './permissions.js';
-import type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions, SystemNode } from './provider.js';
+import { SERIAL_WORKER } from './provider.js';
+import type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions, SystemNode, WorkerInfo } from './provider.js';
 
 /** `simctl privacy` services; camera and notifications have none (Xcode 27). */
 const IOS_PRIVACY: Partial<Record<Permission, string[]>> = {
@@ -100,7 +105,20 @@ export interface SimDevice {
   dataPath?: string;
   /** Runtime identifier, e.g. `com.apple.CoreSimulator.SimRuntime.iOS-27-0`. */
   runtime: string;
+  /** Device type identifier, e.g. `com.apple.CoreSimulator.SimDeviceType.iPhone-17`. */
+  deviceType?: string;
 }
+
+/** Name of the simulator parallel worker `index` (> 0) uses next to the base simulator `baseName`. */
+export function workerSimulatorName(baseName: string, index: number): string {
+  return `${baseName} (Quiesco ${index})`;
+}
+
+/** Simulators Quiesco created for parallel workers (`quiesco devices --prune` removes them). */
+export const WORKER_SIMULATOR = / \(Quiesco \d+\)$/;
+
+const shortRuntime = (runtime: string): string => runtime.replace(/^.*SimRuntime\./, '');
+const shortType = (type: string | undefined): string => (type ?? 'unknown type').replace(/^.*SimDeviceType\./, '');
 
 export interface IosProviderOptions {
   app: IosAppConfig;
@@ -113,6 +131,8 @@ export interface IosProviderOptions {
   systemRunner?: SystemRunnerLike;
   /** Long-running processes: recordVideo, log stream (tests). */
   spawnProcess?: SpawnProcess;
+  /** The parallel worker this provider serves (Phase 6.12). Default: the only worker. */
+  worker?: WorkerInfo;
 }
 
 /** What IosProvider uses of IosSystemRunner. */
@@ -124,8 +144,12 @@ export function runtimeMatches(runtime: string, version: string): boolean {
   return runtime.endsWith(`.iOS-${v}`) || runtime.includes(`.iOS-${v}-`);
 }
 
-/** Choose a simulator: udid, else name (+ os), preferring a booted one; else the only booted one. */
-export function chooseSimulator(devices: readonly SimDevice[], cfg: IosDeviceConfig): SimDevice {
+/**
+ * Choose a simulator: udid, else name (+ os), preferring a booted one; else the first booted one.
+ * Simulators created for parallel workers are only chosen by udid.
+ */
+export function chooseSimulator(all: readonly SimDevice[], cfg: IosDeviceConfig): SimDevice {
+  const devices = cfg.udid !== undefined ? all : all.filter((d) => !WORKER_SIMULATOR.test(d.name));
   const describe = (ds: readonly SimDevice[]): string => ds.map((d) => `${d.name} (${d.runtime.replace(/^.*SimRuntime\./, '')}, ${d.state})`).join(', ') || 'none';
   if (cfg.udid !== undefined) {
     const d = devices.find((x) => x.udid === cfg.udid);
@@ -183,6 +207,10 @@ export class IosProvider implements DeviceProvider {
     return this.options.app.bundleId;
   }
 
+  private get worker(): WorkerInfo {
+    return this.options.worker ?? SERIAL_WORKER;
+  }
+
   private get udid(): string {
     if (this.sim === null) throw new QuiescoError('DEVICE_ERROR', 'iOS simulator not booted (call boot() first)');
     return this.sim.udid;
@@ -196,16 +224,61 @@ export class IosProvider implements DeviceProvider {
   /** Available simulators from `simctl list devices available --json`. */
   async devices(): Promise<SimDevice[]> {
     const json = JSON.parse(await this.simctl(['list', 'devices', 'available', '--json'])) as {
-      devices: Record<string, { udid: string; name: string; state: string; dataPath?: string; isAvailable?: boolean }[]>;
+      devices: Record<string, { udid: string; name: string; state: string; dataPath?: string; deviceTypeIdentifier?: string; isAvailable?: boolean }[]>;
     };
     return Object.entries(json.devices).flatMap(([runtime, ds]) =>
-      ds.map((d) => ({ udid: d.udid, name: d.name, state: d.state, runtime, ...(d.dataPath !== undefined ? { dataPath: d.dataPath } : {}) })),
+      ds.map((d) => ({
+        udid: d.udid,
+        name: d.name,
+        state: d.state,
+        runtime,
+        ...(d.dataPath !== undefined ? { dataPath: d.dataPath } : {}),
+        ...(d.deviceTypeIdentifier !== undefined ? { deviceType: d.deviceTypeIdentifier } : {}),
+      })),
     );
+  }
+
+  /** The base simulator (worker 0's) when this worker uses another one; for copying the app. */
+  private base: SimDevice | null = null;
+
+  /** The simulator this worker uses (see the file comment). */
+  private async pickSimulator(cfg: IosDeviceConfig): Promise<SimDevice> {
+    const worker = this.worker;
+    const all = await this.devices();
+    if (cfg.udids !== undefined && cfg.udids.length > 0) {
+      const udid = cfg.udids[worker.index];
+      if (udid === undefined) {
+        throw new QuiescoError('CONFIG_ERROR', `devices.ios.udids lists ${cfg.udids.length} simulator(s), but this is worker ${worker.index} of ${worker.count}; list one udid per worker`);
+      }
+      const listed = cfg.udids.map((u) => all.find((d) => d.udid === u)).filter((d): d is SimDevice => d !== undefined);
+      const kinds = new Set(listed.map((d) => `${shortType(d.deviceType)} / ${shortRuntime(d.runtime)}`));
+      if (worker.index === 0 && kinds.size > 1) {
+        this.logger.warn(`devices.ios.udids mixes ${[...kinds].join(', ')}: a scenario may pass on one worker and fail on another (parallel workers should be identical)`);
+      }
+      return chooseSimulator(all, { udid });
+    }
+    if (worker.count > 1 && cfg.udid !== undefined) {
+      throw new QuiescoError('CONFIG_ERROR', `devices.ios.udid pins one simulator, but ${worker.count} workers run in parallel; set devices.ios.udids (one per worker) or devices.ios.device`);
+    }
+    const base = chooseSimulator(all, cfg);
+    if (worker.index === 0) return base;
+    this.base = base;
+    const name = workerSimulatorName(base.name, worker.index);
+    // Same name, device type and runtime: "iPhone 17 (Quiesco 1)" exists once per runtime.
+    const existing = all.find((d) => d.name === name && d.runtime === base.runtime && (base.deviceType === undefined || d.deviceType === base.deviceType));
+    if (existing !== undefined) return existing;
+    if (base.deviceType === undefined) throw new QuiescoError('DEVICE_ERROR', `Cannot tell the device type of ${base.name} to create "${name}"; set devices.ios.udids`);
+    this.logger.info(`worker ${worker.index}: creating iOS simulator "${name}" (${shortType(base.deviceType)}, ${shortRuntime(base.runtime)})`);
+    const udid = (await this.simctl(['create', name, base.deviceType, base.runtime])).trim();
+    const created = (await this.devices()).find((d) => d.udid === udid);
+    if (created === undefined) throw new QuiescoError('DEVICE_ERROR', `simctl create "${name}" did not produce an available simulator (got "${udid}")`);
+    return created;
   }
 
   async boot(): Promise<void> {
     const cfg = this.options.device ?? {};
-    this.sim = chooseSimulator(await this.devices(), cfg);
+    this.sim = await this.pickSimulator(cfg);
+    if (this.worker.count > 1) this.logger.info(`worker ${this.worker.index}: iOS simulator ${this.sim.name} (${this.sim.udid})`);
     const timeoutMs = cfg.bootTimeoutMs ?? 180_000;
     if (this.sim.state !== 'Booted') {
       this.logger.info(`booting iOS simulator ${this.sim.name} (${this.sim.udid})`);
@@ -247,11 +320,46 @@ export class IosProvider implements DeviceProvider {
       await this.simctl(['install', this.udid, path.resolve(app)], 300_000);
       return;
     }
+    if (this.base !== null) {
+      // A worker simulator: install what the base simulator has (a dev client installed by hand), every
+      // session, so a rebuilt app reaches the workers too.
+      const source = await this.installedApp(this.base);
+      await this.simctl(['install', this.udid, source], 300_000);
+      return;
+    }
     try {
       await this.simctl(['get_app_container', this.udid, this.bundleId]);
     } catch {
       throw new QuiescoError('DEVICE_ERROR', `${this.bundleId} is not installed on ${this.sim?.name}; set apps.ios.binaryPath or install the dev client first`);
     }
+  }
+
+  /**
+   * The `.app` of this bundle installed on `sim`: `simctl get_app_container` (booted simulators), else
+   * found in its data directory by the bundle id in each app's Info.plist.
+   */
+  private async installedApp(sim: SimDevice): Promise<string> {
+    const missing = (): QuiescoError =>
+      new QuiescoError('DEVICE_ERROR', `${this.bundleId} is not installed on the base simulator ${sim.name} (${shortRuntime(sim.runtime)}), so worker ${this.worker.index} cannot copy it; set apps.ios.binaryPath or install the app there first`);
+    if (sim.state === 'Booted') {
+      const p = (await this.simctl(['get_app_container', sim.udid, this.bundleId, 'app']).catch(() => '')).trim();
+      if (p !== '') return p;
+      throw missing();
+    }
+    if (sim.dataPath === undefined) throw missing();
+    const root = path.join(sim.dataPath, 'Containers/Bundle/Application');
+    for (const container of await fs.readdir(root).catch(() => [] as string[])) {
+      for (const entry of await fs.readdir(path.join(root, container)).catch(() => [] as string[])) {
+        if (!entry.endsWith('.app')) continue;
+        const app = path.join(root, container, entry);
+        const id = await this.exec('plutil', ['-extract', 'CFBundleIdentifier', 'raw', path.join(app, 'Info.plist')]).then(
+          (r) => r.stdout.toString().trim(),
+          () => '',
+        );
+        if (id === this.bundleId) return app;
+      }
+    }
+    throw missing();
   }
 
   async launch(params: LaunchParams): Promise<LaunchUrlHandling | void> {

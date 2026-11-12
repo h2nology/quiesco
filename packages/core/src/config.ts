@@ -35,6 +35,11 @@ export interface AndroidDeviceConfig {
   avd?: string;
   /** Use exactly this adb serial (e.g. `emulator-5554`). */
   serial?: string;
+  /**
+   * Parallel runs (Phase 6.12): worker N uses `serials[N]`. Without it, worker 0 uses the device above and
+   * worker N > 0 an AVD of its own, `<avd>_quiesco_N`, created from `avd` on first use and kept.
+   */
+  serials?: string[];
   bootTimeoutMs?: number;
   /** Shut down an emulator Quiesco booted when the session ends. Default false (faster reruns). */
   shutdown?: boolean;
@@ -56,6 +61,12 @@ export interface IosDeviceConfig {
   os?: string;
   /** Use exactly this simulator. */
   udid?: string;
+  /**
+   * Parallel runs (Phase 6.12): worker N uses `udids[N]`. Without it, worker 0 uses the simulator above and
+   * worker N > 0 one named "<name> (Quiesco N)" of the same device type and runtime, created on first use
+   * and kept.
+   */
+  udids?: string[];
   bootTimeoutMs?: number;
   /** Shut down a simulator Quiesco booted when the session ends. Default false (faster reruns). */
   shutdown?: boolean;
@@ -178,21 +189,39 @@ export function ignoredAppErrors(config: QuiescoConfig): RegExp[] {
   return config.appErrors?.ignoreDefaults === false ? own : [...DEFAULT_IGNORED_APP_ERRORS, ...own];
 }
 
-export function defineConfig(config: QuiescoConfig): QuiescoConfig {
+/** What a config function receives (Phase 6.12): the config is evaluated once per test worker. */
+export interface ConfigContext {
+  /** Parallel worker index, 0-based (0 when running serially). */
+  workerIndex: number;
+  /** Number of parallel workers (1 when running serially). */
+  workerCount: number;
+}
+
+/** A config object, or a function computing it per worker (e.g. `reversePorts: [3001 + workerIndex]`). */
+export type QuiescoConfigInput = QuiescoConfig | ((context: ConfigContext) => QuiescoConfig);
+
+export function defineConfig(config: QuiescoConfig): QuiescoConfig;
+export function defineConfig(config: (context: ConfigContext) => QuiescoConfig): (context: ConfigContext) => QuiescoConfig;
+export function defineConfig(config: QuiescoConfigInput): QuiescoConfigInput {
   return config;
+}
+
+export function resolveConfig(input: QuiescoConfigInput, context: ConfigContext): QuiescoConfig {
+  return typeof input === 'function' ? input(context) : input;
 }
 
 export const DEFAULT_CONNECT_TIMEOUT_MS = 30_000;
 
-export function serverPort(config: QuiescoConfig): number {
-  return config.server?.port ?? DEFAULT_PORT;
+/** The Quiesco server port: worker N listens on `server.port + N` (Phase 6.12). */
+export function serverPort(config: QuiescoConfig, workerIndex = 0): number {
+  return (config.server?.port ?? DEFAULT_PORT) + workerIndex;
 }
 
 /**
  * The agent's settings. `gestureSlop`: the provider's recognizer thresholds (pinch / rotate compensate
  * for them), overridden per field by `actions.gestureSlop`.
  */
-export function toAgentConfig(config: QuiescoConfig, gestureSlop?: GestureSlop): AgentConfig {
+export function toAgentConfig(config: QuiescoConfig, gestureSlop?: GestureSlop, workerIndex = 0): AgentConfig {
   const s = config.sync ?? {};
   const own = config.actions?.gestureSlop;
   const gestures = gestureSlop === undefined && own === undefined ? undefined : { pinch: own?.pinch ?? gestureSlop?.pinch ?? 0, rotation: own?.rotation ?? gestureSlop?.rotation ?? 0 };
@@ -208,6 +237,7 @@ export function toAgentConfig(config: QuiescoConfig, gestureSlop?: GestureSlop):
     },
     logLevel: config.logLevel ?? 'warn',
     ...(gestures !== undefined ? { gestures } : {}),
+    workerIndex,
   };
 }
 
@@ -227,15 +257,20 @@ const CONFIG_FILES = ['quiesco.config.ts', 'quiesco.config.mts', 'quiesco.config
  * Load the config file. TypeScript configs are imported directly (Node ≥ 23.6 strips types natively,
  * so only erasable syntax is allowed in the config file).
  */
-export async function loadConfig(options: { cwd?: string; file?: string } = {}): Promise<{ config: QuiescoConfig; file: string }> {
+export async function loadConfig(options: { cwd?: string; file?: string; worker?: ConfigContext } = {}): Promise<{ config: QuiescoConfig; file: string }> {
   const cwd = options.cwd ?? process.cwd();
   const file = options.file !== undefined ? path.resolve(cwd, options.file) : CONFIG_FILES.map((f) => path.join(cwd, f)).find((f) => fs.existsSync(f));
   if (file === undefined || !fs.existsSync(file)) {
     throw new QuiescoError('CONFIG_ERROR', `No Quiesco config found in ${cwd} (looked for ${CONFIG_FILES.join(', ')})`);
   }
-  const mod = (await import(pathToFileURL(file).href)) as { default?: QuiescoConfig };
-  if (mod.default === undefined || typeof mod.default !== 'object') {
+  const mod = (await import(pathToFileURL(file).href)) as { default?: unknown };
+  const input = mod.default;
+  if (input === null || (typeof input !== 'object' && typeof input !== 'function')) {
     throw new QuiescoError('CONFIG_ERROR', `${file} must default-export the config (export default defineConfig({ ... }))`);
   }
-  return { config: mod.default, file };
+  const config = resolveConfig(input as QuiescoConfigInput, options.worker ?? { workerIndex: 0, workerCount: 1 });
+  if (config === null || typeof config !== 'object') {
+    throw new QuiescoError('CONFIG_ERROR', `the config function in ${file} must return the config object`);
+  }
+  return { config, file };
 }

@@ -9,6 +9,8 @@ import { loadConfig, resolvePlatform } from './config.js';
 import type { QuiescoConfig } from './config.js';
 import type { Platform } from '@quiesco/protocol';
 import { QuiescoError } from './errors.js';
+import { SERIAL_WORKER } from './devices/provider.js';
+import type { WorkerInfo } from './devices/provider.js';
 import { createSession } from './session.js';
 import type { Session, SessionOptions } from './session.js';
 import { flattenTags, runsOnPlatform, tagNames } from './tags.js';
@@ -22,6 +24,11 @@ export interface LifecycleOptions {
   /** Session factory (tests, custom setups). */
   createSession?: (options: SessionOptions) => Promise<Session>;
   env?: NodeJS.ProcessEnv;
+  /**
+   * The parallel worker this lifecycle runs in (Phase 6.12), from the runner adapter: the config function
+   * gets it, and the session takes its own device, port and artifacts directory. Default: the only worker.
+   */
+  worker?: WorkerInfo;
   /**
    * Called first in `beforeAll`: a message when the runner runs tests in parallel (every worker would
    * drive the same device), which fails the run with CONFIG_ERROR before any device is touched.
@@ -69,9 +76,12 @@ export class Lifecycle {
     const env = this.options.env ?? process.env;
     const parallel = this.options.checkSerial?.(env) ?? null;
     if (parallel !== null) throw new QuiescoError('CONFIG_ERROR', parallel);
-    this.config = this.options.config ?? (await loadConfig(env['QUIESCO_CONFIG'] !== undefined ? { file: env['QUIESCO_CONFIG'] } : {})).config;
+    const worker = this.options.worker ?? SERIAL_WORKER;
+    this.config =
+      this.options.config ??
+      (await loadConfig({ ...(env['QUIESCO_CONFIG'] !== undefined ? { file: env['QUIESCO_CONFIG'] } : {}), worker: { workerIndex: worker.index, workerCount: worker.count } })).config;
     this.platform = this.options.platform ?? resolvePlatform(undefined, env);
-    this.session = await (this.options.createSession ?? createSession)({ config: this.config, platform: this.platform });
+    this.session = await (this.options.createSession ?? createSession)({ config: this.config, platform: this.platform, worker });
   }
 
   /** Whether a test with these tags (grouped outermost level first) runs on this run's platform. */

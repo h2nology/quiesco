@@ -7,6 +7,11 @@
  *   restarts its userspace about 30 s after "boot completed" (adb reverse and the app are gone). A
  *   cold boot took 14 s vs 40 s for snapshot + restart (API 37).
  * - install: `am force-stop` before `install -r` (see install()).
+ * - Parallel workers (Phase 6.12): `serials[N]`; or worker 0 uses the device above and worker N > 0 an AVD
+ *   of its own, `<avd>_quiesco_N`: only the base AVD's config.ini is copied (the emulator creates the data
+ *   on first boot), so every instance stays writable. Booting several instances of ONE AVD would need
+ *   `-read-only` on all of them, which a user's writable emulator rules out (Phase 4.8). Without
+ *   `binaryPath`, a worker copies the APKs installed on the base emulator (`pm path` + pull).
  * - launch: `adb reverse` for the Quiesco port (and Metro for dev clients), pre-grant
  *   ACCESS_LOCAL_NETWORK (Android 17; ignored where unknown), then `am start` with the connection
  *   parameters as intent extras. The whole device command is one quoted string: the device shell would
@@ -28,6 +33,8 @@ export function devClientLaunchUrl(url: string, metroUrl: string): string {
   const sep = base.includes('?') ? (base.endsWith('?') || base.endsWith('&') ? '' : '&') : '?';
   return `${base}${sep}__expo_url=${encodeURIComponent(metroUrl)}&${DEV_LAUNCHER_FLAGS}${frag}`;
 }
+import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 
 import { LAUNCH_PARAM_ARGS, LAUNCH_PARAM_PORT, LAUNCH_PARAM_SESSION } from '@quiesco/protocol';
@@ -42,7 +49,8 @@ import { execCommand, shq, spawnDetached } from './exec.js';
 import { LogBuffer, exited, spawnProcess } from './streams.js';
 import type { ChildLike, SpawnProcess } from './streams.js';
 import type { Permission } from './permissions.js';
-import type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions, SystemNode } from './provider.js';
+import { SERIAL_WORKER } from './provider.js';
+import type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions, SystemNode, WorkerInfo } from './provider.js';
 
 const ANDROID_PERMISSIONS: Record<Permission, string[]> = {
   camera: ['android.permission.CAMERA'],
@@ -67,6 +75,39 @@ export interface AndroidProviderOptions {
   pollMs?: number;
   /** Long-running processes: screenrecord, logcat (tests). */
   spawnProcess?: SpawnProcess;
+  /** The parallel worker this provider serves (Phase 6.12). Default: the only worker. */
+  worker?: WorkerInfo;
+  /** Where AVDs live. Default `$ANDROID_AVD_HOME`, else `~/.android/avd`. */
+  avdHome?: string;
+}
+
+/** The AVD parallel worker `index` (> 0) uses next to the base AVD `avd`. */
+export function workerAvdName(avd: string, index: number): string {
+  return `${avd}_quiesco_${index}`;
+}
+
+/** AVDs Quiesco created for parallel workers (`quiesco devices --prune` removes them). */
+export const WORKER_AVD = /_quiesco_\d+$/;
+
+/** The worker AVD's config.ini: the base's, with its own display name. */
+export function workerAvdConfig(baseConfig: string, index: number): string {
+  const lines = baseConfig.split('\n');
+  const at = lines.findIndex((l) => l.startsWith('avd.ini.displayname='));
+  const name = at >= 0 ? (lines[at] as string).slice('avd.ini.displayname='.length) : 'AVD';
+  const display = `avd.ini.displayname=${name} (Quiesco ${index})`;
+  if (at >= 0) lines[at] = display;
+  else lines.unshift(display);
+  return lines.join('\n');
+}
+
+/** `key=value` lines of an AVD .ini file. */
+function iniValues(text: string): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const line of text.split('\n')) {
+    const i = line.indexOf('=');
+    if (i > 0) m.set(line.slice(0, i).trim(), line.slice(i + 1).trim());
+  }
+  return m;
 }
 
 /** screenrecord's own limit per file (findings 6.9): longer scenarios get several segments. */
@@ -86,6 +127,8 @@ export class AndroidProvider implements DeviceProvider {
    */
   readonly gestureSlop = { pinch: 26, rotation: (9 * Math.PI) / 180 };
   private serial: string | null = null;
+  /** Worker N > 0 on its own AVD: the base AVD, whose emulator has the app to copy. */
+  private baseAvd: string | null = null;
   private bootedByUs = false;
   /** Shell commands that undo device-state changes (resetDeviceState), by setting. */
   private readonly restore = new Map<string, string[]>();
@@ -111,6 +154,14 @@ export class AndroidProvider implements DeviceProvider {
 
   private get pkg(): string {
     return this.options.app.package;
+  }
+
+  private get worker(): WorkerInfo {
+    return this.options.worker ?? SERIAL_WORKER;
+  }
+
+  private get avdHome(): string {
+    return this.options.avdHome ?? process.env['ANDROID_AVD_HOME'] ?? path.join(os.homedir(), '.android', 'avd');
   }
 
   private async adbRun(args: readonly string[], timeoutMs?: number): Promise<string> {
@@ -160,7 +211,30 @@ export class AndroidProvider implements DeviceProvider {
   async boot(): Promise<void> {
     const cfg = this.options.device ?? {};
     const online = await this.devices();
-    if (cfg.serial !== undefined) {
+    const worker = this.worker;
+    if (cfg.serials !== undefined && cfg.serials.length > 0) {
+      const serial = cfg.serials[worker.index];
+      if (serial === undefined) {
+        throw new QuiescoError('CONFIG_ERROR', `devices.android.serials lists ${cfg.serials.length} device(s), but this is worker ${worker.index} of ${worker.count}; list one serial per worker`);
+      }
+      if (!online.includes(serial)) throw new QuiescoError('DEVICE_ERROR', `Android device ${serial} is not connected (adb devices: ${online.join(', ') || 'none'})`);
+      this.serial = serial;
+      if (worker.index === 0) await this.warnMixedDevices(cfg.serials.filter((s) => online.includes(s)));
+    } else if (worker.count > 1 && cfg.serial !== undefined) {
+      throw new QuiescoError('CONFIG_ERROR', `devices.android.serial pins one device, but ${worker.count} workers run in parallel; set devices.android.serials (one per worker) or devices.android.avd`);
+    } else if (worker.index > 0) {
+      if (cfg.avd === undefined) {
+        throw new QuiescoError('CONFIG_ERROR', `worker ${worker.index} needs an emulator of its own: set devices.android.avd (each worker gets a copy of it) or devices.android.serials`);
+      }
+      this.baseAvd = cfg.avd;
+      const avd = workerAvdName(cfg.avd, worker.index);
+      for (const s of online) if ((await this.avdName(s)) === avd) this.serial = s;
+      if (this.serial === null) {
+        const wipe = await this.prepareWorkerAvd(cfg.avd, worker.index);
+        this.serial = await this.bootAvd(avd, online, cfg.bootTimeoutMs ?? 180_000, wipe);
+      }
+      this.logger.info(`worker ${worker.index}: Android emulator ${avd} (${this.serial})`);
+    } else if (cfg.serial !== undefined) {
       if (!online.includes(cfg.serial)) {
         throw new QuiescoError('DEVICE_ERROR', `Android device ${cfg.serial} is not connected (adb devices: ${online.join(', ') || 'none'})`);
       }
@@ -193,7 +267,46 @@ export class AndroidProvider implements DeviceProvider {
     }
   }
 
-  private async bootAvd(avd: string, before: string[], timeoutMs: number): Promise<string> {
+  /**
+   * Create or update the worker AVD from the base AVD (`<home>/<avd>.ini` → its directory's config.ini).
+   * Returns true when its config changed (a new system image or hardware): boot it with `-wipe-data`.
+   */
+  private async prepareWorkerAvd(base: string, index: number): Promise<boolean> {
+    const home = this.avdHome;
+    const name = workerAvdName(base, index);
+    const baseIni = await fs.readFile(path.join(home, `${base}.ini`), 'utf8').catch(() => {
+      throw new QuiescoError('DEVICE_ERROR', `AVD ${base} not found in ${home} (no ${base}.ini); check devices.android.avd (emulator -list-avds)`);
+    });
+    const ini = iniValues(baseIni);
+    const baseDir = ini.get('path') ?? path.join(home, `${base}.avd`);
+    const baseConfig = await fs.readFile(path.join(baseDir, 'config.ini'), 'utf8').catch(() => {
+      throw new QuiescoError('DEVICE_ERROR', `AVD ${base} has no config.ini in ${baseDir}`);
+    });
+    const dir = path.join(home, `${name}.avd`);
+    const config = workerAvdConfig(baseConfig, index);
+    const current = await fs.readFile(path.join(dir, 'config.ini'), 'utf8').catch(() => null);
+    if (current === config) return false;
+    this.logger.info(current === null ? `worker ${index}: creating AVD ${name} from ${base}` : `worker ${index}: AVD ${base} changed; updating ${name} (its data is wiped)`);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, 'config.ini'), config);
+    const lines = ['avd.ini.encoding=UTF-8', `path=${dir}`, `path.rel=avd/${name}.avd`];
+    const target = ini.get('target');
+    if (target !== undefined) lines.push(`target=${target}`);
+    await fs.writeFile(path.join(home, `${name}.ini`), `${lines.join('\n')}\n`);
+    return current !== null;
+  }
+
+  /** `serials` with different models or Android versions: results would depend on the worker (warning). */
+  private async warnMixedDevices(serials: readonly string[]): Promise<void> {
+    const kinds = new Set<string>();
+    for (const s of serials) {
+      const prop = async (p: string): Promise<string> => (await this.exec(this.adb, ['-s', s, 'shell', `getprop ${p}`]).then((r) => r.stdout.toString().trim(), () => '?'));
+      kinds.add(`${await prop('ro.product.model')} / API ${await prop('ro.build.version.sdk')}`);
+    }
+    if (kinds.size > 1) this.logger.warn(`devices.android.serials mixes ${[...kinds].join(', ')}: a scenario may pass on one worker and fail on another (parallel workers should be identical)`);
+  }
+
+  private async bootAvd(avd: string, before: string[], timeoutMs: number, wipe = false): Promise<string> {
     if (await this.avdProcessRunning(avd)) {
       throw new QuiescoError(
         'DEVICE_ERROR',
@@ -202,7 +315,7 @@ export class AndroidProvider implements DeviceProvider {
       );
     }
     this.logger.info(`booting Android emulator ${avd}`);
-    this.spawn(this.emulator, ['-avd', avd, '-no-boot-anim', '-no-snapshot-load', '-no-snapshot-save']);
+    this.spawn(this.emulator, ['-avd', avd, '-no-boot-anim', '-no-snapshot-load', '-no-snapshot-save', ...(wipe ? ['-wipe-data'] : [])]);
     this.bootedByUs = true;
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
@@ -252,9 +365,44 @@ export class AndroidProvider implements DeviceProvider {
       await this.adbRun(['install', '-r', '-g', path.resolve(apk)], 300_000);
       return;
     }
+    if (this.baseAvd !== null) {
+      await this.copyAppFromBase(this.baseAvd);
+      return;
+    }
     const out = await this.shell(`pm path ${shq(this.pkg)}`).catch(() => '');
     if (!out.includes('package:')) {
       throw new QuiescoError('DEVICE_ERROR', `${this.pkg} is not installed on ${this.serial}; set apps.android.binaryPath or install the dev client first`);
+    }
+  }
+
+  /**
+   * A worker emulator without `binaryPath`: install the APKs the base emulator has (a dev client
+   * installed by hand), every session, so a rebuilt app reaches the workers too.
+   */
+  private async copyAppFromBase(baseAvd: string): Promise<void> {
+    let base: string | null = null;
+    for (const s of await this.devices()) if ((await this.avdName(s)) === baseAvd) base = s;
+    const fail = (why: string): QuiescoError =>
+      new QuiescoError('DEVICE_ERROR', `worker ${this.worker.index} cannot copy ${this.pkg} from the base emulator ${baseAvd}: ${why}; set apps.android.binaryPath`);
+    if (base === null) throw fail('it is not running');
+    const listed = (await this.exec(this.adb, ['-s', base, 'shell', `pm path ${shq(this.pkg)}`]).then((r) => r.stdout.toString(), () => ''))
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.startsWith('package:'))
+      .map((l) => l.slice('package:'.length));
+    if (listed.length === 0) throw fail('the app is not installed there');
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'quiesco-apk-'));
+    try {
+      const local: string[] = [];
+      for (const [i, remote] of listed.entries()) {
+        const file = path.join(dir, `${i}-${path.basename(remote)}`);
+        await this.exec(this.adb, ['-s', base, 'pull', remote, file], { timeoutMs: 300_000 });
+        local.push(file);
+      }
+      await this.shell(`am force-stop ${shq(this.pkg)}`).catch(() => undefined);
+      await this.adbRun(['install-multiple', '-r', '-g', ...local], 300_000);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
     }
   }
 

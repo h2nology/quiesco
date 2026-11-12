@@ -1,8 +1,8 @@
 export { PROTOCOL_VERSION } from '@quiesco/protocol';
 export type { ActionMode, ElementSummary, JsonValue, Platform, Rect, TrackerState, TreeNode } from '@quiesco/protocol';
 
-export { defineConfig, loadConfig, resolvePlatform, serverPort, toAgentConfig, ignoredAppErrors, DEFAULT_CONNECT_TIMEOUT_MS, DEFAULT_IGNORED_APP_ERRORS } from './config.js';
-export type { AndroidAppConfig, AndroidDeviceConfig, IosAppConfig, IosDeviceConfig, QuiescoConfig, WebAppConfig, WebDeviceConfig, WebViewport } from './config.js';
+export { defineConfig, loadConfig, resolveConfig, resolvePlatform, serverPort, toAgentConfig, ignoredAppErrors, DEFAULT_CONNECT_TIMEOUT_MS, DEFAULT_IGNORED_APP_ERRORS } from './config.js';
+export type { AndroidAppConfig, AndroidDeviceConfig, ConfigContext, QuiescoConfigInput, IosAppConfig, IosDeviceConfig, QuiescoConfig, WebAppConfig, WebDeviceConfig, WebViewport } from './config.js';
 export { Driver } from './driver.js';
 export { ElementExpectation } from './expect.js';
 export type { VisibleOptions } from './expect.js';
@@ -23,7 +23,7 @@ export type { Evidence, ScenarioInfo, SessionOptions } from './session.js';
 export { AndroidProvider } from './devices/android.js';
 export { IosProvider, IOS_DEV_MENU_ARGS } from './devices/ios.js';
 export type { IosProviderOptions } from './devices/ios.js';
-export type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions, SystemNode } from './devices/provider.js';
+export type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions, SystemNode, WorkerInfo } from './devices/provider.js';
 export type { SystemQuery, SystemWaitOptions } from './system-ui.js';
 export { DeviceApi } from './device.js';
 export type { AppRunState, RelaunchOptions } from './device.js';
@@ -43,4 +43,7 @@ export { Timeline } from './timeline.js';
 export type { TimelineEntry } from './timeline.js';
 export { drawRects, stackPng } from './png.js';
 export { failureRects, fullPageScreenshot, highlight } from './screenshots.js';
-export { LogBuffer } from './devices/streams.js';
+export { LogBuffer, killChildProcessesSync, trackChildProcess } from './devices/streams.js';
+export { SERIAL_WORKER } from './devices/provider.js';
+export { WORKER_SIMULATOR, workerSimulatorName } from './devices/ios.js';
+export { WORKER_AVD, workerAvdName } from './devices/android.js';

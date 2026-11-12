@@ -10,7 +10,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import type { DeviceProvider } from './devices/provider.js';
+import type { DeviceProvider, WorkerInfo } from './devices/provider.js';
 import type { Logger } from './logger.js';
 import { Timeline } from './timeline.js';
 
@@ -81,6 +81,11 @@ interface Current {
   video: boolean;
 }
 
+/** `-w<N>` for parallel workers, '' when running serially (the run directory keeps its old name). */
+export function workerSuffix(worker: WorkerInfo | undefined): string {
+  return worker === undefined || worker.count <= 1 ? '' : `-w${worker.index}`;
+}
+
 export class Artifacts {
   readonly timeline = new Timeline();
   readonly config: Required<ArtifactsConfig>;
@@ -90,18 +95,26 @@ export class Artifacts {
   private logsStarted = false;
 
   constructor(
-    private readonly options: { config?: ArtifactsConfig; provider: DeviceProvider; logger: Logger; env?: NodeJS.ProcessEnv; cwd?: string },
+    private readonly options: {
+      config?: ArtifactsConfig;
+      provider: DeviceProvider;
+      logger: Logger;
+      env?: NodeJS.ProcessEnv;
+      cwd?: string;
+      /** Parallel runs (Phase 6.12): each worker writes to its own run directory, `…-<platform>-w<N>`. */
+      worker?: WorkerInfo;
+    },
   ) {
     this.config = resolveArtifacts(options.config, options.env);
   }
 
-  /** `<dir>/<date-time>-<platform>`, created on first use. */
+  /** `<dir>/<date-time>-<platform>` (`-w<N>` per parallel worker), created on first use. */
   private run(): string {
     if (this.runDir === null) {
       const d = new Date();
       const p = (n: number): string => String(n).padStart(2, '0');
       const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
-      this.runDir = path.resolve(this.options.cwd ?? process.cwd(), this.config.dir, `${stamp}-${this.options.provider.platform}`);
+      this.runDir = path.resolve(this.options.cwd ?? process.cwd(), this.config.dir, `${stamp}-${this.options.provider.platform}${workerSuffix(this.options.worker)}`);
     }
     return this.runDir;
   }

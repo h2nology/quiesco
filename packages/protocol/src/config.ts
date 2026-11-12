@@ -38,6 +38,12 @@ export interface AgentConfig {
    * for older hosts (online).
    */
   network?: { offline: boolean };
+  /**
+   * Index of the parallel test worker this app is connected to (0 when running serially; Phase 6.12).
+   * Lets e2e code pick per-worker resources, e.g. a mock backend on `3001 + workerIndex`. Optional for
+   * older hosts.
+   */
+  workerIndex?: number;
 }
 
 export interface GestureSlop {

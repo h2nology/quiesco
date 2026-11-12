@@ -22,4 +22,11 @@ export interface QuiescoApi {
    * their JSON types. `{}` when there are none, in production, and in JS-only native builds.
    */
   launchArgs(): Record<string, JsonValue>;
+  /**
+   * Index of the parallel test worker driving this app (0 when tests run serially; Phase 6.12). `null`
+   * until the host has connected (it connects before the first test command) and in production. For
+   * resources the app needs at startup (an API URL), pass them as launch arguments instead: the config
+   * can be a function of the worker index (`({ workerIndex }) => ({ launchArgs: { … } })`).
+   */
+  workerIndex(): number | null;
 }

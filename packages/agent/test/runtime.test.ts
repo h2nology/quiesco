@@ -486,6 +486,16 @@ describe('AgentRuntime lifecycle (Phase 6.5)', () => {
     expect(setup({ native: native(null) }).rt.launchArgs()).toEqual({});
   });
 
+  it('workerIndex() is null until the host sends its config, then the worker it serves (Phase 6.12)', () => {
+    const { rt } = setup();
+    expect(rt.workerIndex()).toBeNull();
+    rt.configure({ ...rt.config, workerIndex: 2 });
+    expect(rt.workerIndex()).toBe(2);
+    // Older hosts send no index: the only worker.
+    rt.configure({ sync: rt.config.sync, logLevel: 'warn' });
+    expect(rt.workerIndex()).toBe(0);
+  });
+
   it('configure replaces the agent config at runtime (tracker switches, ignoreUrls)', async () => {
     const { rt, call } = setup();
     await call('configure', { config: { ...CONFIG, sync: { ...CONFIG.sync, trackers: { fake: false } as never, timeoutMs: 777 } } });

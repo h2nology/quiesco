@@ -15,6 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { QuiescoError } from '../errors.js';
+import { trackChildProcess } from './streams.js';
 import type { Logger } from '../logger.js';
 import type { Exec } from './exec.js';
 import type { SystemNode } from './provider.js';
@@ -104,6 +105,7 @@ export class IosSystemRunner {
       env: { ...process.env, TEST_RUNNER_QUIESCO_PORT: String(this.port) },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    trackChildProcess(proc);
     const keep = (d: Buffer) => {
       this.output = (this.output + d.toString()).slice(-8000);
     };
@@ -151,14 +153,28 @@ export class IosSystemRunner {
     const products = path.join(dir, 'Build/Products');
     const existing = await findXctestrun(products);
     if (existing !== null) return existing;
+    // Parallel workers may all build at once (Phase 6.12): each builds into its own directory and renames
+    // it into place when done, so nobody reads a half-built runner; the losers drop their copy.
+    const tmp = `${dir}.tmp-${process.pid}-${Date.now()}`;
     logger.info(`building the iOS system UI runner (once per Xcode version) into ${dir}`);
-    await exec(
-      'xcodebuild',
-      ['build-for-testing', '-project', path.join(RUNNER_SOURCE, 'QuiescoSystemUI.xcodeproj'), '-scheme', 'Runner', '-destination', 'generic/platform=iOS Simulator', '-derivedDataPath', dir, '-quiet'],
-      { timeoutMs: 600_000 },
-    ).catch((e: unknown) => {
-      throw new QuiescoError('DEVICE_ERROR', `building the iOS system UI runner failed: ${(e as Error).message.slice(-1500)}`);
-    });
+    try {
+      await exec(
+        'xcodebuild',
+        ['build-for-testing', '-project', path.join(RUNNER_SOURCE, 'QuiescoSystemUI.xcodeproj'), '-scheme', 'Runner', '-destination', 'generic/platform=iOS Simulator', '-derivedDataPath', tmp, '-quiet'],
+        { timeoutMs: 600_000 },
+      ).catch((e: unknown) => {
+        throw new QuiescoError('DEVICE_ERROR', `building the iOS system UI runner failed: ${(e as Error).message.slice(-1500)}`);
+      });
+      if ((await findXctestrun(path.join(tmp, 'Build/Products'))) === null) {
+        throw new QuiescoError('DEVICE_ERROR', `building the iOS system UI runner produced no .xctestrun in ${tmp}/Build/Products`);
+      }
+      await fs.rename(tmp, dir).catch(async (e: unknown) => {
+        // Another worker finished first (the directory exists and is not empty): use its runner.
+        if ((await findXctestrun(products)) === null) throw e;
+      });
+    } finally {
+      await fs.rm(tmp, { recursive: true, force: true });
+    }
     const built = await findXctestrun(products);
     if (built === null) throw new QuiescoError('DEVICE_ERROR', `building the iOS system UI runner produced no .xctestrun in ${products}`);
     return built;

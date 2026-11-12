@@ -24,4 +24,5 @@ export const quiesco: QuiescoApi = {
   onReset: () => noop,
   registerStorage: () => noop,
   launchArgs: () => ({}),
+  workerIndex: () => null,
 };

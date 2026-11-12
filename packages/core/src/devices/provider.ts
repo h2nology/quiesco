@@ -3,6 +3,16 @@ import type { GestureSlop, HostInput, Orientation, Platform, Rect } from '@quies
 
 import type { Permission } from './permissions.js';
 
+/** The parallel test worker a provider serves (Phase 6.12); each worker needs its own device. */
+export interface WorkerInfo {
+  /** 0-based worker index. */
+  index: number;
+  /** Number of workers in the run (1 when running serially). */
+  count: number;
+}
+
+export const SERIAL_WORKER: WorkerInfo = { index: 0, count: 1 };
+
 export interface LaunchParams {
   port: number;
   sessionId: string;

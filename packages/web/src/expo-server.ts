@@ -11,6 +11,8 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 
+import { trackChildProcess } from '@quiesco/core';
+
 import type { StaticServer } from './static-server.js';
 
 const READY_TIMEOUT_MS = 60_000;
@@ -33,7 +35,8 @@ export interface ExpoServerDeps {
 }
 
 export const defaultExpoServerDeps: ExpoServerDeps = {
-  spawn: (command, args, options) => nodeSpawn(command, args, { cwd: options.cwd, stdio: ['ignore', 'pipe', 'pipe'], shell: process.platform === 'win32' }),
+  // Tracked: a parallel worker ended without async teardown kills it synchronously (Phase 6.12).
+  spawn: (command, args, options) => trackChildProcess(nodeSpawn(command, args, { cwd: options.cwd, stdio: ['ignore', 'pipe', 'pipe'], shell: process.platform === 'win32' })),
   freePort: () =>
     new Promise((resolve, reject) => {
       const srv = net.createServer();

@@ -42,7 +42,7 @@ describe('Lifecycle', () => {
     const create = vi.fn<(o: SessionOptions) => Promise<Session>>(async () => session);
     const l = new Lifecycle({ config, createSession: create, env: { QUIESCO_PLATFORM: 'android' } });
     await l.beforeAll();
-    expect(create).toHaveBeenCalledWith({ config, platform: 'android' });
+    expect(create).toHaveBeenCalledWith({ config, platform: 'android', worker: { index: 0, count: 1 } });
     expect(l.current).toBe(session);
   });
 
