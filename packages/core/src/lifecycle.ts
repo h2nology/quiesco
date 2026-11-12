@@ -8,7 +8,6 @@ import type { Attachment } from './artifacts.js';
 import { loadConfig, resolvePlatform } from './config.js';
 import type { QuiescoConfig } from './config.js';
 import type { Platform } from '@quiesco/protocol';
-import { QuiescoError } from './errors.js';
 import { SERIAL_WORKER } from './devices/provider.js';
 import type { WorkerInfo } from './devices/provider.js';
 import { createSession } from './session.js';
@@ -29,11 +28,6 @@ export interface LifecycleOptions {
    * gets it, and the session takes its own device, port and artifacts directory. Default: the only worker.
    */
   worker?: WorkerInfo;
-  /**
-   * Called first in `beforeAll`: a message when the runner runs tests in parallel (every worker would
-   * drive the same device), which fails the run with CONFIG_ERROR before any device is touched.
-   */
-  checkSerial?: (env: NodeJS.ProcessEnv) => string | null;
 }
 
 export interface ScenarioResult {
@@ -74,8 +68,6 @@ export class Lifecycle {
   /** Load the config, start the server and device, launch the app, wait for the agent. */
   async beforeAll(): Promise<void> {
     const env = this.options.env ?? process.env;
-    const parallel = this.options.checkSerial?.(env) ?? null;
-    if (parallel !== null) throw new QuiescoError('CONFIG_ERROR', parallel);
     const worker = this.options.worker ?? SERIAL_WORKER;
     this.config =
       this.options.config ??

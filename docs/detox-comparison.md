@@ -103,7 +103,7 @@ supports it on that platform only.
 | Detox | Quiesco | Verified by |
 |---|---|---|
 | Jest only | Cucumber (zh / ja / en step libraries), Jest, Vitest | full example suite; `e2e/jest`, `e2e/vitest`; `features-generic` |
-| parallel workers | not yet: serial only (`--parallel` refused with a clear error); planned in Phase 6.12 | unit tests (lifecycle) |
+| parallel workers | cucumber-js `--parallel`, Jest `maxWorkers`, Vitest `quiesco({ workers })`; a device per worker, created and kept by Quiesco (iOS `simctl create`, Android an AVD copy per worker, so a writable emulator you have open is no obstacle); per-worker config function, ports, artifacts; [parallel.md](parallel.md) | unit tests + three platforms × three runners (Phase 6.12) |
 | `retries` | **Alternative**: the runner's own retry (`cucumber-js --retry`, Jest `jest.retryTimes`, Vitest `retry`) | — (runner features) |
 | artifacts: screenshots, video, logs, uiHierarchy, instruments | screenshot + element tree + logs on failure, per-scenario video (MP4 / WebM), device log, timeline (Chrome trace) | screenshots; unit tests (artifacts) |
 | iOS real devices: not supported (#95) | planned (Phase 6.13) | — |
@@ -164,7 +164,7 @@ Decided not to build (2026-11-11), with the alternative:
 - **`retries`:** the runner's own retry option.
 - **`by.traits`:** `{ role }` and the semantic `{ type }`.
 
-Still to come: parallel runs (6.12), real devices (6.13), LLM-driven steps (6.14).
+Still to come: real devices (6.13), LLM-driven steps (6.14).
 
 ## Results
 

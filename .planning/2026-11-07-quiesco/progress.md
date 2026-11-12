@@ -311,3 +311,7 @@
 - 单元测试：core 新增 test/parallel.test.ts 22 项 + runner 并发构建 1 项，agent workerIndex 1 项；pnpm check（build / lint / depcruise / 630 测试 / 示例类型检查）通过
 - 实机：两个 worker 同时起 session 三端通过（findings）；串行回归 Web 73/73、iOS 80/80（第一次 78/80，两个 Face ID 场景失败，之后连续两次整套 80/80，暂记偶发，iOS 20 次基准时重点观察）、Android 81/81（第一次因 SystemUI ANR 对话框 27 个失败，关掉 worker 设备后全过，见 findings）
 - 另：示例 `dist/` 是 6.11 排查时用 `localhost:3101` 构建的，Web 回归全部 Failed to fetch；`pnpm build:web` 重建后恢复
+- 批次 C 进行中（未提交）：三种运行器去掉串行限制（cucumber 按 CUCUMBER_WORKER_ID、Jest 按 JEST_WORKER_ID + SIGTERM 同步杀子进程 + globalTeardown 登记文件兜底、Vitest 按 VITEST_POOL_ID + `quiesco({ workers })`）；CLI `--workers N`、`quiesco devices [--prune]`（实机列出 3 台 worker 设备）；Android ANR 对话框自动点 Wait（实机验证）+ Driver 遇「被遮挡」时关掉对话框重试一次；示例 App 按 worker 选后端端口、三种运行器每 worker 一个 mock 后端、`quiesco.config` 改为函数、parallel 脚本；单元测试全部通过
+- 实跑：Web `--parallel 2` 73/73（45s，artifacts -w0/-w1 同一秒创建）；iOS `--parallel 2` 78/80（Face ID 匹配、前台推送两个场景在负载下超时，见 findings）。Android 并行、Jest / Vitest 并行、文档尚未做
+- 批次 C 完成：Face ID 等待（coreauthd 日志）、iOS 推送无权限的明确错误 + 示例场景补 Given、runner 失效时重启、iOS dismissSystemAlerts + Driver 在「不在窗口里」时也重试、Jest worker 收到 END 消息即收尾（不再出现 failed to exit gracefully）、文档（docs/parallel.md、cli、api、README、troubleshooting、detox-comparison、示例 README、requirements.md §6.9）
+- 实跑（最终代码）：cucumber --parallel 2：Web 73/73（45s）、iOS 80/80（148s；残留弹窗被关闭、runner 重启一次）、Android 81/81（233s，base 是之前串行可写启动的模拟器 ⇒ Phase 4 遗留问题已解决）；Jest / Vitest 2 workers：三端各一次通过，无遗留进程；串行：Web 73/73、iOS 80/80、Android 81/81；pnpm check 655 测试通过

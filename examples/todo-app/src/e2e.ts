@@ -6,8 +6,16 @@ import { quiesco } from '@quiesco/agent';
 import { router } from 'expo-router';
 import { PermissionsAndroid, Platform } from 'react-native';
 
-import { api } from './api';
+import { DEFAULT_API_BASE, api, setApiBase } from './api';
 import { store } from './store';
+
+// Parallel test workers each run their own mock backend on its port + worker index (Phase 6.12;
+// features/support/mock-server.ts). The index arrives with the host connection, before any test step.
+setApiBase(() => {
+  const url = new URL(DEFAULT_API_BASE);
+  url.port = String(Number(url.port || 80) + (quiesco.workerIndex() ?? 0));
+  return url.origin;
+});
 
 quiesco.backdoor('loginAs', async (email: string) => {
   const session = await api.login(email, 'e2e-password');

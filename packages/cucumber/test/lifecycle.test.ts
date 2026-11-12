@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { QuiescoConfig, Session, SessionOptions } from '@quiesco/core';
 
-import { Lifecycle, tagLevels } from '../src/lifecycle';
+import { Lifecycle, cucumberWorker, tagLevels } from '../src/lifecycle';
 
 function fakeSession(opts: { lateError?: Error } = {}) {
   const calls: unknown[] = [];
@@ -46,11 +46,19 @@ describe('Lifecycle', () => {
     expect(l.current).toBe(session);
   });
 
-  it('refuses cucumber-js --parallel before touching any device', async () => {
-    const create = vi.fn<(o: SessionOptions) => Promise<Session>>();
-    const l = new Lifecycle({ config, createSession: create, env: { QUIESCO_PLATFORM: 'android', CUCUMBER_PARALLEL: 'true', CUCUMBER_TOTAL_WORKERS: '2', CUCUMBER_WORKER_ID: '0' } });
-    await expect(l.beforeAll()).rejects.toThrow(/does not support cucumber-js --parallel/);
-    expect(create).not.toHaveBeenCalled();
+  it('gives each cucumber-js --parallel worker thread its own session (Phase 6.12)', async () => {
+    const { session } = fakeSession();
+    const create = vi.fn<(o: SessionOptions) => Promise<Session>>(async () => session);
+    const l = new Lifecycle({ config, createSession: create, env: { QUIESCO_PLATFORM: 'android', CUCUMBER_PARALLEL: 'true', CUCUMBER_TOTAL_WORKERS: '3', CUCUMBER_WORKER_ID: '2' } });
+    await l.beforeAll();
+    expect(create).toHaveBeenCalledWith({ config, platform: 'android', worker: { index: 2, count: 3 } });
+  });
+
+  it('reads the worker from cucumber-js environment variables', () => {
+    expect(cucumberWorker({})).toEqual({ index: 0, count: 1 });
+    expect(cucumberWorker({ CUCUMBER_TOTAL_WORKERS: '2', CUCUMBER_WORKER_ID: '1' })).toEqual({ index: 1, count: 2 });
+    expect(cucumberWorker({ CUCUMBER_TOTAL_WORKERS: '1', CUCUMBER_WORKER_ID: '0' })).toEqual({ index: 0, count: 1 });
+    expect(cucumberWorker({ CUCUMBER_TOTAL_WORKERS: '2' })).toEqual({ index: 0, count: 1 });
   });
 
   it('skips scenarios tagged for other platforms and resets before the others', async () => {

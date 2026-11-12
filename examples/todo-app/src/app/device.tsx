@@ -12,7 +12,7 @@ import * as Location from 'expo-location';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 
-import { BASE, api } from '../api';
+import { api, apiBase } from '../api';
 import { ScreenTransition } from '../components/ScreenTransition';
 
 /** What the "复制" button puts on the clipboard. */
@@ -57,7 +57,7 @@ export default function Device() {
   const loadSlowBody = async () => {
     setSlowBody('…');
     try {
-      const res = await expoFetch(`${BASE}/slow-body`);
+      const res = await expoFetch(`${apiBase()}/slow-body`);
       const { items } = (await res.json()) as { items: number[] };
       setSlowBody(`${items.length} 条`);
     } catch {
@@ -67,7 +67,7 @@ export default function Device() {
 
   const connectSocket = () => {
     setSocket('…');
-    const ws = new WebSocket(`${BASE.replace(/^http/, 'ws')}/ws`);
+    const ws = new WebSocket(`${apiBase().replace(/^http/, 'ws')}/ws`);
     ws.onopen = () => {
       setSocket('已连接');
       ws.close();

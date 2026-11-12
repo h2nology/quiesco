@@ -579,13 +579,13 @@ through the session: `session.startScenario({ name })` before `beforeScenario`, 
 
 | | Vitest (`@quiesco/vitest`) | Jest (`@quiesco/jest`) |
 |---|---|---|
-| Setup | `test: { ...quiesco() }` from `@quiesco/vitest/config` | `preset: '@quiesco/jest'`, `maxWorkers: 1`, a `testTimeout` |
+| Setup | `test: { ...quiesco() }` from `@quiesco/vitest/config` | `preset: '@quiesco/jest'`, `maxWorkers`, a `testTimeout` |
 | The Driver | `test('…', async ({ app, session }) => …)` | the global `quiesco.app` / `quiesco.session` |
-| Session | one per run: a worker fixture, every file in one worker | one per run: kept by the test environment, closed by the preset's `globalTeardown` |
+| Session | one per worker: a worker fixture | one per worker process: kept by the test environment, closed when Jest ends the worker (in band: by the preset's `globalTeardown`) |
 | Platform tags | in `describe` / test titles and `{ tags }` (declared by `quiesco()`) | in `describe` / test titles |
 | Before each test | skipped if tagged for another platform, else reset | same (Jest's `test_start` / `test_started` events) |
 | After a failure | evidence written to the artifacts directory, its files listed in the failure message | same |
-| Parallel runs | refused (`maxWorkers` > 1): every worker would drive the same device | same |
+| Parallel runs | `quiesco({ workers: N })`: each worker on a device of its own ([parallel.md](parallel.md)) | `maxWorkers: N`, same |
 
 The innermost level with a platform tag decides, as in Gherkin: a test tagged `@android` in a
 `describe('… @native')` runs on Android only. A session that fails to start fails the remaining tests at

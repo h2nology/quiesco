@@ -747,7 +747,40 @@ export class AndroidProvider implements DeviceProvider {
     await this.shell(`input tap ${(x1 + x2) >> 1} ${(y1 + y2) >> 1}`);
   }
 
+  /**
+   * Android's "<app> isn't responding" dialog (an ANR; under heavy load, often for System UI) covers the
+   * app until someone answers it. Another app's dialog only: when the app under test itself hangs, that
+   * is the test's finding (the dialog stays). A cheap window check first (`dumpsys window`, ~0.1 s); only when one is
+   * up, the dialog's buttons are read (uiautomator) and "Wait" is tapped.
+   */
+  async dismissSystemAlerts(): Promise<string[]> {
+    const closed: string[] = [];
+    for (let round = 0; round < 3; round++) {
+      const windows = await this.shell('dumpsys window windows').catch(() => '');
+      const anr = /Application Not Responding: ([\w.]+)/.exec(windows);
+      if (anr === null) break;
+      if (anr[1] === this.pkg) {
+        // The app under test hangs: a real failure, not the machine's load. Leave the dialog to fail the test.
+        this.logger.warn(`${this.serial}: Android reports that ${this.pkg} itself isn't responding (ANR); Quiesco leaves its dialog up`);
+        break;
+      }
+      const nodes = parseUiNodes(await this.uiDump().catch(() => ''));
+      const wait = nodes.find((n) => n.resourceId === 'android:id/aerr_wait') ?? nodes.find((n) => n.clickable && /^wait$/i.test(n.text));
+      if (wait === undefined) break;
+      const { x1, y1, x2, y2 } = wait.bounds;
+      await this.shell(`input tap ${(x1 + x2) >> 1} ${(y1 + y2) >> 1}`);
+      const who = anr[1] as string;
+      closed.push(`"${who} isn't responding"`);
+      this.logger.warn(
+        `${this.serial}: Android showed "${who} isn't responding" over the app; Quiesco chose Wait. ` +
+          `The machine is overloaded (load average ${os.loadavg().map((l) => l.toFixed(1)).join(' / ')}, ${os.cpus().length} CPUs): run fewer parallel workers.`,
+      );
+    }
+    return closed;
+  }
+
   async resetDeviceState(): Promise<StateChange> {
+    await this.dismissSystemAlerts();
     // Restoring the font scale or the language recreates the activity again (see setFontScale).
     const relaunch = this.restore.has('fontScale') || this.restore.has('locale');
     for (const cmds of this.restore.values()) for (const c of cmds) await this.shell(c).catch(() => undefined);

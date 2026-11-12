@@ -7,7 +7,7 @@ import type { Exec } from '../src/devices/exec';
 import { silentLogger } from '../src/logger';
 import { IosProvider } from '../src/devices/ios';
 import type { SystemRunnerLike } from '../src/devices/ios';
-import { IosSystemRunner, PERMISSION_ALLOW, PERMISSION_ALLOW_ONCE, PERMISSION_DENY, dismissButton, runnerCacheKey, screenNodes } from '../src/devices/ios-runner';
+import { IosSystemRunner, PERMISSION_ALLOW, isConnectionRefused, PERMISSION_ALLOW_ONCE, PERMISSION_DENY, dismissButton, runnerCacheKey, screenNodes } from '../src/devices/ios-runner';
 import type { RunnerScreen } from '../src/devices/ios-runner';
 
 const f = (y: number) => [57, y, 140, 48];
@@ -114,6 +114,17 @@ describe('IosProvider system UI (6.7 batch C)', () => {
     await p.shutdown();
     expect(calls.at(-1)).toBe('stop');
   });
+
+  it('dismissSystemAlerts starts the runner when needed and closes an alert covering the app (Phase 6.12)', async () => {
+    const { runner, calls } = fakeRunner([{ alerts: [FACE_ID_ALERT], others: [] }, { alerts: [], others: [] }]);
+    const p = make(runner);
+    // No runner use yet in this session: the per-scenario check skips it, an action's retry does not.
+    await p.resetDeviceState({} as never);
+    expect(calls).toEqual([]);
+    expect(await p.dismissSystemAlerts()).toEqual([FACE_ID_ALERT.label]);
+    expect(calls).toEqual(['tap 127,515']);
+    expect(await p.dismissSystemAlerts()).toEqual([]);
+  });
 });
 
 describe('IosSystemRunner build (Phase 6.12)', () => {
@@ -144,5 +155,47 @@ describe('IosSystemRunner build (Phase 6.12)', () => {
     } finally {
       fs.rmSync(cacheDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('IosSystemRunner restart (Phase 6.12)', () => {
+  const refused = Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNREFUSED' } });
+
+  /** A runner whose process and HTTP calls are stubbed: `answers` are the request results in order. */
+  function stubbed(answers: (unknown | Error)[]) {
+    const runner = new IosSystemRunner({ udid: 'U', exec: async () => ({ stdout: Buffer.from(''), stderr: '' }), logger: silentLogger });
+    const counts = { start: 0, stop: 0, requests: 0 };
+    const r = runner as unknown as { start(): Promise<void>; stop(): Promise<void>; request(m: string, p: string): Promise<unknown> };
+    r.start = async () => void counts.start++;
+    r.stop = async () => void counts.stop++;
+    r.request = async () => {
+      const a = answers[counts.requests++];
+      if (a instanceof Error) throw a;
+      return a;
+    };
+    return { runner, counts };
+  }
+
+  it('recognises a refused connection', () => {
+    expect(isConnectionRefused(refused)).toBe(true);
+    expect(isConnectionRefused(new Error('connect ECONNREFUSED 127.0.0.1:1'))).toBe(true);
+    expect(isConnectionRefused(new Error('iOS system UI runner: /tap: 500'))).toBe(false);
+    expect(isConnectionRefused(null)).toBe(false);
+  });
+
+  it('restarts a runner that stopped listening, once', async () => {
+    const screen = { alerts: [], others: [] };
+    const { runner, counts } = stubbed([refused, screen]);
+    await expect(runner.screen()).resolves.toEqual(screen);
+    expect(counts).toEqual({ start: 2, stop: 1, requests: 2 });
+  });
+
+  it('does not restart for other errors, nor more than once', async () => {
+    const other = stubbed([new Error('iOS system UI runner: /tap: 500')]);
+    await expect(other.runner.tap(1, 2)).rejects.toThrow(/500/);
+    expect(other.counts.stop).toBe(0);
+    const twice = stubbed([refused, refused]);
+    await expect(twice.runner.tap(1, 2)).rejects.toBe(refused);
+    expect(twice.counts).toEqual({ start: 2, stop: 1, requests: 2 });
   });
 });

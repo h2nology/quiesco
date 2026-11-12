@@ -244,3 +244,68 @@ describe('Driver', () => {
     expect(agent.requests.at(-1)?.params['mode']).toBe('native');
   });
 });
+
+describe('Driver and system "isn\'t responding" dialogs (Phase 6.12)', () => {
+  class AnrProvider extends FakeProvider {
+    dialogs: number;
+    constructor(dialogs: number) {
+      super();
+      this.dialogs = dialogs;
+    }
+    async dismissSystemAlerts(): Promise<string[]> {
+      if (this.dialogs === 0) return [];
+      this.dialogs--;
+      return [`"com.android.systemui isn't responding"`];
+    }
+  }
+  const obscured = { code: 1014, message: '<RCTView testID="x"> is covered by another window', data: { name: 'ELEMENT_OBSCURED' } };
+
+  it('retries an action once after closing the dialog that covered its element', async () => {
+    let attempts = 0;
+    const provider = new AnrProvider(1);
+    const { driver } = await setup(
+      (m) => {
+        if (m !== 'action') return {};
+        attempts++;
+        if (attempts === 1) throw obscured;
+        return { element: { testID: 'x' } };
+      },
+      { provider },
+    );
+    await driver.tap('x');
+    expect(attempts).toBe(2);
+  });
+
+  it('also retries when the element is outside any window (an iOS alert over the app)', async () => {
+    let attempts = 0;
+    const { driver } = await setup(
+      (m) => {
+        if (m !== 'action') return {};
+        attempts++;
+        if (attempts === 1) throw { code: 1001, message: 'The element has no native view in a window (unmounted?)', data: { name: 'ELEMENT_NOT_FOUND', reason: 'not-in-window' } };
+        return { element: { testID: 'x' } };
+      },
+      { provider: new AnrProvider(1) },
+    );
+    await driver.tap('x');
+    expect(attempts).toBe(2);
+    // A plain ELEMENT_NOT_FOUND is not retried.
+    const plain = await setup(() => {
+      throw { code: 1001, message: 'No element matches', data: { name: 'ELEMENT_NOT_FOUND' } };
+    }, { provider: new AnrProvider(1) });
+    await expect(plain.driver.tap('x')).rejects.toMatchObject({ errorName: 'ELEMENT_NOT_FOUND' });
+  });
+
+  it('fails as before when nothing was closed (a real overlay)', async () => {
+    let attempts = 0;
+    const { driver } = await setup(
+      (m) => {
+        if (m === 'action') attempts++;
+        throw obscured;
+      },
+      { provider: new AnrProvider(0) },
+    );
+    await expect(driver.tap('x')).rejects.toMatchObject({ errorName: 'ELEMENT_OBSCURED' });
+    expect(attempts).toBe(1);
+  });
+});

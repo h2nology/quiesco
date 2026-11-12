@@ -8,15 +8,16 @@
  *   });
  *   test('Android only', { tags: ['@android'] }, async ({ app }) => { … });
  *
- * - One session (device + app) for the whole run, as a worker fixture: with `quiesco()` from
- *   `@quiesco/vitest/config` every file runs in one worker. Closed when the run ends.
+ * - One session (device + app) per worker, as a worker fixture: with `quiesco()` from
+ *   `@quiesco/vitest/config` every file runs in one worker; `quiesco({ workers: N })` runs files on N
+ *   devices in parallel (Phase 6.12). Closed when the worker ends.
  * - Before each test that uses `app` (or `session`): skipped when tagged for another platform (in its
  *   title or `{ tags }`, the innermost level decides), else the app is reset.
  * - After a failed test: the evidence (screenshot, element tree, idle state, logs) is written to the
  *   artifacts directory and its path is added to the failure message.
  */
 import { Lifecycle } from '@quiesco/core';
-import type { Driver, Session } from '@quiesco/core';
+import type { Driver, Session, WorkerInfo } from '@quiesco/core';
 import { test as base } from 'vitest';
 
 import { fullName, tagLevelsOf } from './tags.js';
@@ -27,13 +28,19 @@ export type { QuiescoVitestOptions } from './config.js';
 export { fullName, tagLevelsOf } from './tags.js';
 export type { TaskLike } from './tags.js';
 
-/** Vitest runs test files in parallel workers: each would start its own session on the same device. */
-export function vitestParallel(): string | null {
-  // Internal, best effort: the worker's resolved config (absent → no check).
-  const config = (globalThis as { __vitest_worker__?: { config?: { maxWorkers?: number } } }).__vitest_worker__?.config;
-  return config?.maxWorkers !== undefined && config.maxWorkers > 1
-    ? `Quiesco needs Vitest to run test files one at a time (maxWorkers is ${config.maxWorkers}): every worker would drive the same device. Use quiesco() from '@quiesco/vitest/config' (fileParallelism: false).`
-    : null;
+/**
+ * The worker this process is (Phase 6.12): VITEST_POOL_ID (1…maxWorkers) is fixed for a worker process,
+ * unlike VITEST_WORKER_ID, which changes with every file (findings 6.12). The count comes from the
+ * worker's resolved config (internal, best effort): one worker when files do not run in parallel.
+ */
+export function vitestWorker(
+  env: NodeJS.ProcessEnv = process.env,
+  config: { maxWorkers?: number; fileParallelism?: boolean } | undefined = (globalThis as { __vitest_worker__?: { config?: { maxWorkers?: number; fileParallelism?: boolean } } }).__vitest_worker__?.config,
+): WorkerInfo {
+  const count = config?.fileParallelism === false || config?.maxWorkers === undefined ? 1 : Math.max(1, config.maxWorkers);
+  const id = Number.parseInt(env['VITEST_POOL_ID'] ?? '', 10);
+  if (count === 1 || !(id >= 1)) return { index: 0, count };
+  return { index: Math.min(id, count) - 1, count };
 }
 
 interface FailedTask extends TaskLike {
@@ -61,7 +68,7 @@ export const test = base.extend<{
     // eslint-disable-next-line no-empty-pattern
     async ({}, use) => {
       if (startFailure !== null) throw startFailure;
-      const lifecycle = new Lifecycle({ checkSerial: vitestParallel });
+      const lifecycle = new Lifecycle({ worker: vitestWorker() });
       try {
         await lifecycle.beforeAll();
       } catch (e) {

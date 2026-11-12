@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { addEvidence, fullName, quiesco, tagLevelsOf, vitestParallel } from '../src/index';
+import { addEvidence, fullName, quiesco, tagLevelsOf, vitestWorker } from '../src/index';
 
 describe('tagLevelsOf', () => {
   it('groups title tags and own { tags } by level, outermost first', () => {
@@ -35,24 +35,29 @@ describe('addEvidence', () => {
 describe('quiesco()', () => {
   it('runs files one at a time in one worker and declares the platform tags', () => {
     const c = quiesco({ tags: { web: '@browser' }, extraTags: ['@smoke'] });
-    expect(c).toMatchObject({ pool: 'forks', isolate: false, fileParallelism: false, testTimeout: 300_000 });
+    expect(c).toMatchObject({ pool: 'forks', isolate: false, fileParallelism: false, maxWorkers: 1, testTimeout: 300_000 });
     expect(c.tags.map((t) => t.name)).toEqual(['@ios', '@android', '@browser', '@native', '@hard-reset', '@smoke']);
+  });
+
+  it('runs files in parallel on `workers` devices (Phase 6.12)', () => {
+    expect(quiesco({ workers: 3 })).toMatchObject({ isolate: false, fileParallelism: true, maxWorkers: 3 });
+    expect(quiesco({ workers: 0 })).toMatchObject({ fileParallelism: false, maxWorkers: 1 });
   });
 });
 
-describe('vitestParallel', () => {
-  const g = globalThis as { __vitest_worker__?: { config?: { maxWorkers?: number } } };
+describe('vitestWorker', () => {
+  const g = globalThis as { __vitest_worker__?: { config?: { maxWorkers?: number; fileParallelism?: boolean } } };
   const saved = g.__vitest_worker__;
   afterEach(() => {
     g.__vitest_worker__ = saved;
   });
 
-  it('refuses more than one worker, and does not check without the worker config', () => {
-    g.__vitest_worker__ = { config: { maxWorkers: 4 } };
-    expect(vitestParallel()).toMatch(/one at a time \(maxWorkers is 4\)/);
-    g.__vitest_worker__ = { config: { maxWorkers: 1 } };
-    expect(vitestParallel()).toBeNull();
-    g.__vitest_worker__ = {};
-    expect(vitestParallel()).toBeNull();
+  it('numbers workers from VITEST_POOL_ID; serial runs are worker 0 of 1', () => {
+    expect(vitestWorker({ VITEST_POOL_ID: '2' }, { maxWorkers: 3, fileParallelism: true })).toEqual({ index: 1, count: 3 });
+    expect(vitestWorker({ VITEST_POOL_ID: '2' }, { maxWorkers: 3, fileParallelism: false })).toEqual({ index: 0, count: 1 });
+    expect(vitestWorker({ VITEST_POOL_ID: '1' }, { maxWorkers: 1 })).toEqual({ index: 0, count: 1 });
+    expect(vitestWorker({}, {})).toEqual({ index: 0, count: 1 });
+    g.__vitest_worker__ = { config: { maxWorkers: 2, fileParallelism: true } };
+    expect(vitestWorker({ VITEST_POOL_ID: '2' })).toEqual({ index: 1, count: 2 });
   });
 });

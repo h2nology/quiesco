@@ -441,7 +441,7 @@ export class Driver {
     // and Playwright's input — until the test answers it: the action is done once the dialog is up.
     const dialog = this.watchDialog();
     try {
-      const r = await dialog.race(() => this.call('action', params, opts.timeoutMs, steps));
+      const r = await dialog.race(() => this.actionCall(params, opts.timeoutMs, steps));
       if (r === DIALOG) return undefined;
       const input = r.hostInput;
       if (input !== undefined) {
@@ -458,6 +458,24 @@ export class Driver {
       return r.element;
     } finally {
       dialog.stop();
+    }
+  }
+
+  /**
+   * The action; when its element is covered (or outside any window) and the device closed a system dialog
+   * that was over it — Android's "isn't responding" under load, an iOS alert left by an earlier run
+   * (Phase 6.12) — once more.
+   */
+  private async actionCall(params: ParamsOf<AgentMethods['action']>, timeoutMs: number | undefined, steps: number): Promise<ResultOf<AgentMethods['action']>> {
+    try {
+      return await this.call('action', params, timeoutMs, steps);
+    } catch (e) {
+      const dismiss = this.options.provider.dismissSystemAlerts?.bind(this.options.provider);
+      const covered = e instanceof QuiescoError && (e.errorName === 'ELEMENT_OBSCURED' || (e.errorName === 'ELEMENT_NOT_FOUND' && e.data['reason'] === 'not-in-window'));
+      if (!covered || dismiss === undefined) throw e;
+      const closed = await dismiss().catch(() => [] as string[]);
+      if (closed.length === 0) throw e;
+      return this.call('action', params, timeoutMs, steps);
     }
   }
 

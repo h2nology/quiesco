@@ -28,6 +28,11 @@ export function trackChildProcess<C extends { readonly exitCode: number | null; 
   return child;
 }
 
+/** Pids of the tracked children still running (Jest workers register them for globalTeardown). */
+export function trackedChildPids(): number[] {
+  return [...tracked].filter((c) => c.exitCode === null).map((c) => (c as { pid?: number }).pid).filter((p): p is number => typeof p === 'number');
+}
+
 /**
  * Kill every tracked child that is still running, synchronously (Phase 6.12). For runners that end a
  * worker process without waiting for async teardown: Jest sends SIGTERM and kills the worker about

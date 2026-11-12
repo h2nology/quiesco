@@ -39,9 +39,20 @@ npx quiesco test --platform web --runner jest e2e/todo.test.js
 ```
 
 Sets `QUIESCO_PLATFORM` and runs the project's test runner — `cucumber-js` (default), `jest` or
-`vitest run` (`--runner`); all other arguments are passed to it unchanged. Parallel runs are refused
-(`--parallel`; Jest `-w` / `--maxWorkers`; Vitest `--fileParallelism` / `--maxWorkers`): Quiesco drives one
-device at a time.
+`vitest run` (`--runner`); all other arguments are passed to it unchanged. `--workers N` runs N workers,
+each on a device of its own ([parallel.md](parallel.md)): it becomes `--parallel N` for cucumber-js,
+`--maxWorkers N` for Jest and `--fileParallelism --maxWorkers N` for Vitest (the runners' own flags work as
+well).
+
+## `quiesco devices`
+
+```sh
+npx quiesco devices            # the simulators / AVDs Quiesco created for parallel workers
+npx quiesco devices --prune    # shut them down and delete them
+```
+
+Lists `"<name> (Quiesco N)"` simulators and `<avd>_quiesco_N` AVDs (with `[running]` when they are);
+`--prune` deletes them. The next parallel run creates them again; your own devices are never touched.
 
 ## `quiesco doctor`
 

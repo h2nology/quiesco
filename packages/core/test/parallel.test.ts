@@ -389,3 +389,71 @@ describe('killChildProcessesSync', () => {
     expect(killChildProcessesSync()).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------- ANR dialogs (HU 2026-11-12)
+
+describe('Android "isn\'t responding" dialogs', () => {
+  const DUMP = '<hierarchy><node text="Close app" resource-id="android:id/aerr_close" package="android" clickable="true" enabled="true" bounds="[100,1000][900,1100]"/><node text="Wait" resource-id="android:id/aerr_wait" package="android" clickable="true" enabled="true" bounds="[100,1200][900,1300]"/></hierarchy>';
+
+  function anrDevice(pkgs: string[]) {
+    const left = [...pkgs];
+    const x = fakeExec((line) => {
+      if (line === 'adb devices') return 'List of devices attached\nemulator-5554\tdevice\n';
+      if (line.includes('getprop sys.boot_completed')) return '1\n';
+      if (line.includes('dumpsys window windows')) return left.length > 0 ? `Window{1 u0 Application Not Responding: ${left[0]}}\n` : 'Window{2 u0 dev.app/.Main}\n';
+      if (line.includes('cat /sdcard/quiesco-ui.xml')) return DUMP;
+      if (line.includes('input tap 500 1250')) left.shift();
+      return undefined;
+    });
+    const warnings: string[] = [];
+    const p = new AndroidProvider({ app: { package: 'dev.app' }, device: { serial: 'emulator-5554' }, adbPath: 'adb', exec: x.exec, pollMs: 1, logger: { ...quiet, warn: (m: string) => void warnings.push(m) } });
+    return { p, calls: x.calls, warnings };
+  }
+
+  it('chooses Wait on another app\'s dialog and warns about the load', async () => {
+    const { p, calls, warnings } = anrDevice(['com.android.systemui']);
+    await p.boot();
+    expect(await p.dismissSystemAlerts()).toEqual([`"com.android.systemui isn't responding"`]);
+    expect(calls).toContain('adb -s emulator-5554 shell input tap 500 1250');
+    expect(warnings[0]).toMatch(/com.android.systemui isn't responding.*chose Wait.*load average .* run fewer parallel workers/);
+  });
+
+  it('is a cheap window check when nothing is up', async () => {
+    const { p, calls } = anrDevice([]);
+    await p.boot();
+    expect(await p.dismissSystemAlerts()).toEqual([]);
+    expect(calls.some((c) => c.includes('uiautomator'))).toBe(false);
+  });
+
+  it('leaves the dialog up when the app under test itself hangs', async () => {
+    const { p, calls, warnings } = anrDevice(['dev.app']);
+    await p.boot();
+    expect(await p.dismissSystemAlerts()).toEqual([]);
+    expect(calls.some((c) => c.includes('input tap'))).toBe(false);
+    expect(warnings[0]).toMatch(/dev.app itself isn't responding/);
+  });
+
+  it('runs before each scenario (resetDeviceState)', async () => {
+    const { p } = anrDevice(['com.android.systemui']);
+    await p.boot();
+    await p.resetDeviceState();
+    expect(await p.dismissSystemAlerts()).toEqual([]);
+  });
+});
+
+describe('iOS sendNotification without permission (Phase 6.12)', () => {
+  it('explains a simulator where the app may not show notifications', async () => {
+    const x = fakeExec((line) => {
+      if (line.includes('list devices available --json')) return simList({ [R27]: [{ udid: 'W1', name: 'iPhone 17 (Quiesco 1)', state: 'Booted', deviceTypeIdentifier: T17 }] });
+      if (line.includes('simctl push')) return new Error('xcrun simctl push W1 … failed: Repository could not save notification. Source is not authorized.');
+      return undefined;
+    });
+    const p = new IosProvider({ app: { bundleId: 'dev.app' }, device: { udid: 'W1' }, exec: x.exec, logger: quiet });
+    await p.boot();
+    await expect(p.sendNotification({ title: 'Hi' })).rejects.toMatchObject({
+      errorName: 'DEVICE_ERROR',
+      message: expect.stringMatching(/dev.app may not show notifications on iPhone 17 \(Quiesco 1\)/),
+      data: { hint: expect.stringMatching(/allowPermission/) },
+    });
+  });
+});

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Exec } from '../src/devices/exec';
 import { fakeSpawner } from './helpers/fake-child';
-import { IOS_DEV_MENU_ARGS, IOS_RESTRICTION_FILES, IosProvider, chooseSimulator, iosLocaleArgs, nearestContentSize, runtimeMatches } from '../src/devices/ios';
+import { BIOMETRIC_LOG_PREDICATE, IOS_DEV_MENU_ARGS, IOS_RESTRICTION_FILES, IosProvider, biometricPending, logTime, chooseSimulator, iosLocaleArgs, nearestContentSize, runtimeMatches } from '../src/devices/ios';
 import type { IosProviderOptions, SimDevice } from '../src/devices/ios';
 
 const R27 = 'com.apple.CoreSimulator.SimRuntime.iOS-27-0';
@@ -286,16 +286,22 @@ describe('IosProvider device state (Phase 6.6)', () => {
   });
 
   it('Face ID / Touch ID, shake and keychain through simctl (notifyutil inside the simulator); enrollment restored on reset', async () => {
-    const { p, calls } = provider([[/notifyutil -g/, 'com.apple.BiometricKit.enrollmentChanged 0\n']]);
+    const sp = fakeSpawner();
+    const { p, calls: all } = provider([[/notifyutil -g/, 'com.apple.BiometricKit.enrollmentChanged 0\n']], { spawnProcess: sp.spawn });
+    // Only the device commands; the coreauthd log reads are covered by their own test.
+    const calls = (): string[] => all.filter((c) => !c.includes(' log '));
+    const started = () => sp.children.find((c) => c.args.includes('stream'))?.stdout.emit('data', 'coreauthd: MechanismPearl[55](run) will start matching user 502\n');
     await p.boot();
-    calls.length = 0;
+    all.length = 0;
     await expect(p.setBiometricEnrollment(true)).resolves.toEqual({ leftApp: false });
+    started();
     await p.presentBiometric(true);
+    started();
     await p.presentBiometric(false);
     await p.shake();
     await p.clearKeychain();
     const n = (...a: string[]) => `xcrun simctl spawn NEW-17 notifyutil ${a.join(' ')}`;
-    expect(calls).toEqual([
+    expect(calls()).toEqual([
       n('-g', 'com.apple.BiometricKit.enrollmentChanged'),
       n('-s', 'com.apple.BiometricKit.enrollmentChanged', '1'),
       n('-p', 'com.apple.BiometricKit.enrollmentChanged'),
@@ -306,10 +312,10 @@ describe('IosProvider device state (Phase 6.6)', () => {
       n('-p', 'com.apple.UIKit.SimulatorShake'),
       'xcrun simctl keychain NEW-17 reset',
     ]);
-    calls.length = 0;
+    all.length = 0;
     await p.setBiometricEnrollment(false); // the value to restore stays the one from before the first change
     await p.resetDeviceState(inApp({ supported: true }));
-    expect(calls).toEqual([
+    expect(calls()).toEqual([
       n('-s', 'com.apple.BiometricKit.enrollmentChanged', '0'),
       n('-p', 'com.apple.BiometricKit.enrollmentChanged'),
       n('-s', 'com.apple.BiometricKit.enrollmentChanged', '0'),
@@ -435,5 +441,79 @@ describe('IosProvider artifacts (Phase 6.9)', () => {
     expect(p.deviceLogs(since)).toEqual(['2026 Df QuiescoTodo[1] hello']);
     await p.shutdown();
     expect(s.children[0]?.signals).toEqual(['SIGINT']);
+  });
+});
+
+describe('IosProvider Face ID timing (Phase 6.12)', () => {
+  const START = 'coreauthd: MechanismPearl[55](run)(par:56) will start matching user 502\n';
+  const ANSWER = 'coreauthd: (BiometricKit) -[BKMatchOperation simulateMatching:type:]: 1\n';
+
+  it('reads whether a match is waiting from coreauthd lines', () => {
+    expect(biometricPending([])).toBe(false);
+    expect(biometricPending([START])).toBe(true);
+    expect(biometricPending([START, ANSWER])).toBe(false);
+    expect(biometricPending([ANSWER, START])).toBe(true);
+    expect(biometricPending(['other'], true)).toBe(true);
+  });
+
+  it('posts the match only once the authentication has started', async () => {
+    const sp = fakeSpawner();
+    const { p, calls } = provider([], { spawnProcess: sp.spawn });
+    await p.boot();
+    await p.setBiometricEnrollment(true);
+    const stream = sp.children.find((c) => c.args.includes('stream'));
+    expect(stream?.args).toEqual(['simctl', 'spawn', 'NEW-17', 'log', 'stream', '--style', 'compact', '--predicate', BIOMETRIC_LOG_PREDICATE]);
+    let posted = false;
+    const done = p.presentBiometric(true).then(() => (posted = true));
+    await new Promise((r) => setTimeout(r, 120));
+    expect(posted).toBe(false);
+    expect(calls.some((c) => c.includes('pearl.match'))).toBe(false);
+    stream?.stdout.emit('data', START);
+    await done;
+    expect(calls).toContain('xcrun simctl spawn NEW-17 notifyutil -p com.apple.BiometricKit_Sim.pearl.match');
+    await p.shutdown();
+    expect(stream?.signals).toEqual(['SIGINT']);
+  });
+
+  it('started late, it reads the last seconds of the log first', async () => {
+    const sp = fakeSpawner();
+    const { p } = provider([[/log show --start/, `${ANSWER}${START}`]], { spawnProcess: sp.spawn });
+    await p.boot();
+    await p.presentBiometric(true); // no enroll() in this session: the start is in the recent log
+  });
+
+  it('reads the log back while waiting: the stream misses what happens while it attaches', async () => {
+    const sp = fakeSpawner();
+    let started = false;
+    const calls: string[] = [];
+    // The start lands in the log once the app asked, but the stream never reports it.
+    const exec: Exec = async (file, args) => {
+      const line = `${file} ${args.join(' ')}`;
+      calls.push(line);
+      if (line.includes('list devices available --json')) return { stdout: Buffer.from(LIST), stderr: '' };
+      if (line.includes('log show --start')) return { stdout: Buffer.from(started ? START : ''), stderr: '' };
+      return { stdout: Buffer.from(''), stderr: '' };
+    };
+    const p = new IosProvider({ app: { bundleId: 'com.example.todo' }, exec, spawnProcess: sp.spawn });
+    await p.boot();
+    await p.setBiometricEnrollment(true);
+    const done = p.presentBiometric(true);
+    started = true;
+    await done;
+    expect(calls.filter((c) => c.includes('log show --start')).length).toBeGreaterThanOrEqual(2);
+    expect(calls).toContain('xcrun simctl spawn NEW-17 notifyutil -p com.apple.BiometricKit_Sim.pearl.match');
+  });
+
+  it('formats --start in local time', () => {
+    expect(logTime(new Date(2026, 10, 12, 9, 5, 7, 900).getTime())).toBe('2026-11-12 09:05:07');
+  });
+
+  it('presents anyway, with a warning, when no authentication starts', async () => {
+    const sp = fakeSpawner();
+    const { p, calls, warnings } = provider([], { spawnProcess: sp.spawn, biometricWaitMs: 50 });
+    await p.boot();
+    await p.presentBiometric(false);
+    expect(warnings.join('\n')).toMatch(/biometrics.fail\(\): no Face ID \/ Touch ID authentication started within 50 ms/);
+    expect(calls).toContain('xcrun simctl spawn NEW-17 notifyutil -p com.apple.BiometricKit_Sim.pearl.nomatch');
   });
 });

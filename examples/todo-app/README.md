@@ -34,14 +34,21 @@ installs the `.app`, launches it with the expo-dev-menu switched off (no menu, o
 button) and turns off password AutoFill on the simulator (`devices.ios.disablePasswordAutoFill`), so
 iOS's "Save Password?" sheet never covers the app after the login form.
 
-## Serial only
+## Parallel runs
 
-Quiesco drives one device per run, so `cucumber-js --parallel` is refused with a clear error. Emulators
-that Quiesco boots itself (`QUIESCO_AVD`) start writable and cold (`-no-snapshot-load`, about 14 s): a
+```sh
+pnpm test:e2e:ios:parallel        # cucumber-js --parallel 2 (also :android, :web)
+QUIESCO_PLATFORM=android pnpm test:jest:parallel
+QUIESCO_PLATFORM=web pnpm test:vitest:parallel
+```
+
+Every worker gets a device of its own, the same model as the base one: worker 1 uses `"<simulator>
+(Quiesco 1)"` on iOS and the AVD `<QUIESCO_AVD>_quiesco_1` on Android, both created on first use and kept
+(`npx quiesco devices --prune` deletes them), and a mock backend of its own on 3001 + worker index (the app
+picks it from `quiesco.workerIndex()`, `src/e2e.ts`). See [docs/parallel.md](../../docs/parallel.md).
+
+Emulators that Quiesco boots itself start writable and cold (`-no-snapshot-load`, about 14 s): a
 quick-boot snapshot goes stale once the app is reinstalled and makes Android restart after boot.
-
-Simulators named `"<name> (Quiesco N)"` were created by an earlier version for parallel workers and are
-no longer used; remove them with `xcrun simctl delete "iPhone 17 (Quiesco 1)"`.
 
 ## EAS builds for e2e
 

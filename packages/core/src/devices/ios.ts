@@ -133,6 +133,8 @@ export interface IosProviderOptions {
   spawnProcess?: SpawnProcess;
   /** The parallel worker this provider serves (Phase 6.12). Default: the only worker. */
   worker?: WorkerInfo;
+  /** How long match() / fail() wait for the app's authentication to start (tests). Default 10 s. */
+  biometricWaitMs?: number;
 }
 
 /** What IosProvider uses of IosSystemRunner. */
@@ -168,6 +170,35 @@ export function chooseSimulator(all: readonly SimDevice[], cfg: IosDeviceConfig)
   return booted[0] as SimDevice;
 }
 
+/**
+ * coreauthd's log lines (Phase 6.12, findings): a Face ID / Touch ID match starts after the system sheet
+ * appeared ("…Mechanism…(run) will start matching user N"), and the simulator's match / no-match lands as
+ * "-[BKMatchOperation simulateMatching:type:]". A notification posted before the match started is lost.
+ */
+export const BIOMETRIC_LOG_PREDICATE = 'process == "coreauthd" AND (eventMessage CONTAINS "will start matching" OR eventMessage CONTAINS "simulateMatching")';
+
+/** Whether a match is waiting after these coreauthd lines (oldest first): the last start is newer than the last answer. */
+export function biometricPending(lines: readonly string[], pending = false): boolean {
+  let p = pending;
+  for (const l of lines) {
+    if (l.includes('will start matching')) p = true;
+    else if (l.includes('simulateMatching')) p = false;
+  }
+  return p;
+}
+
+/** How long match() / fail() wait for the app's authentication to start before posting anyway. */
+const BIOMETRIC_WAIT_MS = 10_000;
+/** While waiting, how often the log is read back too (a `log stream` misses what happens while it attaches). */
+const BIOMETRIC_RECHECK_MS = 1_000;
+
+/** `log show --start` takes the simulator's local time: `YYYY-MM-DD HH:MM:SS`. */
+export function logTime(ms: number): string {
+  const d = new Date(ms);
+  const p = (n: number): string => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
 /** Darwin notification state BiometricKit_Sim reads for "enrolled" (1 / 0). */
 const BIOMETRIC_ENROLLMENT = 'com.apple.BiometricKit.enrollmentChanged';
 
@@ -196,6 +227,8 @@ export class IosProvider implements DeviceProvider {
   /** Phase 6.9 artifacts: the running recorder and log stream. */
   private recorder: { child: ChildLike; file: string } | null = null;
   private logStream: ChildLike | null = null;
+  /** coreauthd's match starts and answers (Phase 6.12): whether an authentication is waiting for a face / finger. */
+  private biometricWatch: { child: ChildLike; pending: boolean; since: number } | null = null;
   private readonly logs = new LogBuffer();
 
   constructor(private readonly options: IosProviderOptions) {
@@ -532,7 +565,34 @@ export class IosProvider implements DeviceProvider {
     return this.simctl(['spawn', this.udid, 'notifyutil', ...args]);
   }
 
+  /**
+   * Follow coreauthd's match starts (a `log stream`). Started with enroll(), before the app asks; started
+   * later (by match() / fail()), it first reads the last few seconds of the log.
+   */
+  private async watchBiometrics(): Promise<{ child: ChildLike; pending: boolean; since: number }> {
+    if (this.biometricWatch !== null && this.biometricWatch.child.exitCode === null) return this.biometricWatch;
+    const child = (this.options.spawnProcess ?? spawnProcess)('xcrun', ['simctl', 'spawn', this.udid, 'log', 'stream', '--style', 'compact', '--predicate', BIOMETRIC_LOG_PREDICATE]);
+    // `since`: where read-backs start (a second early: log times have whole seconds in --start).
+    const watch = { child, pending: false, since: Date.now() - 20_000 };
+    const lines = new LogBuffer(50);
+    child.stdout?.on('data', (d) => {
+      const before = Date.now();
+      lines.write(d);
+      watch.pending = biometricPending(lines.since(before), watch.pending);
+    });
+    this.biometricWatch = watch;
+    if (!watch.pending) watch.pending = await this.biometricPendingInLog(watch.since);
+    return watch;
+  }
+
+  /** Read the log back from `since`: is a match waiting? (Lines the stream delivered meanwhile win.) */
+  private async biometricPendingInLog(since: number): Promise<boolean> {
+    const out = await this.simctl(['spawn', this.udid, 'log', 'show', '--start', logTime(since - 1000), '--style', 'compact', '--predicate', BIOMETRIC_LOG_PREDICATE]).catch(() => '');
+    return biometricPending(out.split('\n'));
+  }
+
   async setBiometricEnrollment(enrolled: boolean): Promise<{ leftApp: boolean }> {
+    if (enrolled) await this.watchBiometrics();
     if (!this.changed.has('biometrics')) this.changed.set('biometrics', /\s(\d+)\s*$/.exec(await this.notify('-g', BIOMETRIC_ENROLLMENT).catch(() => ''))?.[1] ?? '0');
     await this.setEnrollment(enrolled ? '1' : '0');
     return { leftApp: false };
@@ -546,6 +606,26 @@ export class IosProvider implements DeviceProvider {
   /** Face ID (`pearl`) and Touch ID (`fingerTouch`): the simulator's model only listens to its own kind. */
   async presentBiometric(match: boolean): Promise<void> {
     const outcome = match ? 'match' : 'nomatch';
+    // Wait until the app's authentication is actually matching (under load the sheet takes seconds).
+    const watch = await this.watchBiometrics();
+    const waitMs = this.options.biometricWaitMs ?? BIOMETRIC_WAIT_MS;
+    const deadline = Date.now() + waitMs;
+    let recheck = Date.now() + 200;
+    while (!watch.pending && Date.now() < deadline) {
+      if (Date.now() >= recheck) {
+        // The stream may have missed the start while it attached: read the log back.
+        if (await this.biometricPendingInLog(watch.since)) watch.pending = true;
+        recheck = Date.now() + BIOMETRIC_RECHECK_MS;
+        continue;
+      }
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    if (!watch.pending) {
+      this.logger.warn(`biometrics.${match ? 'match' : 'fail'}(): no Face ID / Touch ID authentication started within ${waitMs} ms (did the app ask?); presenting anyway`);
+    }
+    watch.pending = false;
+    // What came before this answer is used up: later read-backs start here.
+    watch.since = Date.now();
     await this.notify('-p', `com.apple.BiometricKit_Sim.pearl.${outcome}`);
     await this.notify('-p', `com.apple.BiometricKit_Sim.fingerTouch.${outcome}`);
   }
@@ -570,7 +650,17 @@ export class IosProvider implements DeviceProvider {
     const file = path.join(dir, 'payload.json');
     try {
       await fs.writeFile(file, JSON.stringify(payload));
-      await this.simctl(['push', this.udid, this.bundleId, file]);
+      await this.simctl(['push', this.udid, this.bundleId, file]).catch((e: unknown) => {
+        // The app has no notification permission on this simulator (never allowed, or denied).
+        if (/not authorized/i.test((e as Error).message)) {
+          throw new QuiescoError('DEVICE_ERROR', `sendNotification: ${this.bundleId} may not show notifications on ${this.sim?.name ?? this.udid} (iOS: "Source is not authorized")`, {
+            action: 'sendNotification',
+            platform: 'ios',
+            hint: 'let the app request the permission and allow it first (app.device.system.allowPermission()); each simulator, parallel workers included, keeps its own answer',
+          });
+        }
+        throw e;
+      });
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
@@ -634,6 +724,26 @@ export class IosProvider implements DeviceProvider {
       const [x = 0, y = 0, w = 0, h = 0] = button.frame;
       await this.runner.tap(x + w / 2, y + h / 2).catch(() => undefined);
     }
+  }
+
+  /**
+   * A system alert left over by an earlier run or scenario covers the app (Phase 6.12: before the runner
+   * was started in this session, nothing removed it). Called when an action finds its element covered or
+   * outside any window: starts the runner if needed and dismisses the alerts.
+   */
+  async dismissSystemAlerts(): Promise<string[]> {
+    const closed: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const alert = (await this.runner.screen().catch(() => null))?.alerts[0];
+      if (alert === undefined) break;
+      const button = dismissButton(alert);
+      if (button === undefined) break;
+      this.logger.warn(`dismissing a system alert covering the app: ${JSON.stringify(alert.label)}`);
+      const [x = 0, y = 0, w = 0, h = 0] = button.frame;
+      await this.runner.tap(x + w / 2, y + h / 2).catch(() => undefined);
+      closed.push(alert.label);
+    }
+    return closed;
   }
 
   async resetDeviceState(app: InAppControls): Promise<StateChange> {
@@ -790,6 +900,8 @@ export class IosProvider implements DeviceProvider {
     await this.stopVideo().catch(() => undefined);
     this.logStream?.kill('SIGINT');
     this.logStream = null;
+    this.biometricWatch?.child.kill('SIGINT');
+    this.biometricWatch = null;
     await this.runnerInstance?.stop().catch(() => undefined);
     if (this.sim === null) return;
     if (this.bootedByUs && this.options.device?.shutdown === true) await this.simctl(['shutdown', this.sim.udid]).catch(() => undefined);

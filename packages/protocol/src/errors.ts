@@ -35,7 +35,8 @@ export type ErrorName = keyof typeof ErrorCode;
 
 /** Structured `error.data` for each Quiesco error code. */
 export interface ErrorDataMap {
-  ELEMENT_NOT_FOUND: { matcher: Matcher };
+  /** `reason: 'not-in-window'`: React rendered it, but no window shows it (e.g. a system alert is over the app; Phase 6.12). */
+  ELEMENT_NOT_FOUND: { matcher: Matcher; reason?: 'not-in-window' };
   MULTIPLE_MATCHES: { matcher: Matcher; matches: ElementSummary[] };
   SYNC_TIMEOUT: { timeoutMs: number; busy: TrackerState[] };
   ASSERTION_FAILED: { expected: JsonValue; actual: JsonValue; elements: ElementSummary[] };

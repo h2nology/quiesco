@@ -1,12 +1,12 @@
 /**
  * cucumber-js on top of core's runner-independent Lifecycle (requirements.md §6.10): Gherkin tag levels
- * and the refusal of `--parallel`. Kept free of cucumber imports so it can be unit-tested.
+ * and `--parallel` workers (Phase 6.12). Kept free of cucumber imports so it can be unit-tested.
  */
 import { Lifecycle as CoreLifecycle } from '@quiesco/core';
-import type { LifecycleOptions as CoreOptions } from '@quiesco/core';
+import type { LifecycleOptions as CoreOptions, WorkerInfo } from '@quiesco/core';
 
 export type { Attachment, ScenarioResult } from '@quiesco/core';
-export type LifecycleOptions = Omit<CoreOptions, 'checkSerial'>;
+export type LifecycleOptions = CoreOptions;
 
 interface TaggedNode {
   tags: readonly { id: string }[];
@@ -51,15 +51,19 @@ export function tagLevels(pickleTags: readonly { name: string; astNodeId: string
   return out;
 }
 
-/** cucumber-js --parallel runs worker threads that would all launch the same device and port. */
-export function cucumberParallel(env: NodeJS.ProcessEnv): string | null {
-  return Number.parseInt(env['CUCUMBER_TOTAL_WORKERS'] ?? '1', 10) > 1
-    ? 'Quiesco does not support cucumber-js --parallel: every worker would drive the same device. Run the features serially (drop --parallel).'
-    : null;
+/**
+ * The worker this thread is: cucumber-js `--parallel N` runs N worker threads and sets
+ * CUCUMBER_WORKER_ID ("0"…) and CUCUMBER_TOTAL_WORKERS in each one's environment (findings 4.6).
+ */
+export function cucumberWorker(env: NodeJS.ProcessEnv): WorkerInfo {
+  const count = Number.parseInt(env['CUCUMBER_TOTAL_WORKERS'] ?? '', 10);
+  const index = Number.parseInt(env['CUCUMBER_WORKER_ID'] ?? '', 10);
+  if (!(count > 1) || !(index >= 0)) return { index: 0, count: 1 };
+  return { index, count };
 }
 
 export class Lifecycle extends CoreLifecycle {
   constructor(options: LifecycleOptions = {}) {
-    super({ ...options, checkSerial: cucumberParallel });
+    super({ worker: cucumberWorker(options.env ?? process.env), ...options });
   }
 }

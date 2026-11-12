@@ -131,14 +131,14 @@ test('a new todo appears at the top', async ({ app }) => {
 test('Android only', { tags: ['@android'] }, async ({ app }) => { /* … */ });
 ```
 
-`quiesco()` runs every file in one worker (`isolate: false`, `fileParallelism: false`), so the app
-starts once for the run, and declares the platform tags.
+`quiesco()` keeps the app across files (`isolate: false`), runs them one at a time (or on N devices with
+`quiesco({ workers: N })`) and declares the platform tags.
 
 **Jest** — a preset; tests reach the app through the global `quiesco`:
 
 ```js
 // jest.config.js
-module.exports = { preset: '@quiesco/jest', maxWorkers: 1, testTimeout: 120_000 };
+module.exports = { preset: '@quiesco/jest', maxWorkers: 1, testTimeout: 120_000 }; // maxWorkers: N = N devices
 
 // e2e/todo.test.js
 test('a new todo appears at the top @ios', async () => {
@@ -155,7 +155,7 @@ Platform tags go in test or `describe` titles (Jest has no test options). Run ei
 
 | Package | What it is |
 |---|---|
-| [`quiesco`](packages/cli) | CLI: `init`, `test`, `doctor`, `tree` ([docs](docs/cli.md)) |
+| [`quiesco`](packages/cli) | CLI: `init`, `test`, `doctor`, `tree`, `devices` ([docs](docs/cli.md)) |
 | [`@quiesco/agent`](packages/agent) | In-app agent: element queries, sync trackers, actions, reset, backdoors; `withQuiesco()` for Metro |
 | [`@quiesco/native`](packages/native) | Expo module for real touches and text input on iOS / Android (e2e builds only) |
 | [`@quiesco/expo-plugin`](packages/expo-plugin) | Config plugin: excludes the native module from production builds, allows the local connection in e2e builds |
@@ -173,6 +173,7 @@ Platform tags go in test or `describe` titles (Jest has no test options). Run ei
 - [Synchronization](docs/sync.md) — what "idle" means and how to deal with busy apps
 - [Platform differences](docs/platforms.md) — iOS, Android and web side by side, permissions
 - [Driver pattern](docs/driver-pattern.md) — business-language steps on top of `this.app`
+- [Parallel runs](docs/parallel.md) — a device per worker, cucumber-js / Jest / Vitest
 - [CLI](docs/cli.md)
 - [Troubleshooting](docs/troubleshooting.md) and [known issues](docs/known-issues.md)
 - [Benchmarks](docs/benchmarks.md)

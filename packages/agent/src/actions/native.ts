@@ -183,7 +183,8 @@ export function nativePerformer(ctx: NativeContext): ActionPerformer {
           await sleep(STABLE_POLL_MS);
           continue;
         }
-        throw new QuiescoError('ELEMENT_NOT_FOUND', 'The element has no native view in a window (unmounted?)', { matcher: ctx.matcher });
+        // `reason`: the host may close a system alert covering the app and try again (Phase 6.12).
+        throw new QuiescoError('ELEMENT_NOT_FOUND', 'The element has no native view in a window (unmounted?)', { matcher: ctx.matcher, reason: 'not-in-window' });
       }
       const rect = { x: loc.x, y: loc.y, width: loc.width, height: loc.height };
       const same = loc.settling !== true && prev !== null && Math.abs(prev.x - rect.x) < 0.5 && Math.abs(prev.y - rect.y) < 0.5 && Math.abs(prev.width - rect.width) < 0.5;

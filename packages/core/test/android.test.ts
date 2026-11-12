@@ -275,6 +275,7 @@ describe('AndroidProvider device state (Phase 6.6)', () => {
     calls.length = 0;
     await expect(p.resetDeviceState()).resolves.toEqual({ relaunch: true });
     expect(calls).toEqual([
+      s('dumpsys window windows'), // no "isn't responding" dialog to answer (Phase 6.12)
       s('settings put system accelerometer_rotation 1'),
       s('settings put system user_rotation 0'),
       s('cmd uimode night auto'),
@@ -327,7 +328,7 @@ describe('AndroidProvider device state (Phase 6.6)', () => {
     ]);
     calls.length = 0;
     await expect(p.resetDeviceState()).resolves.toEqual({ relaunch: false });
-    expect(calls).toEqual([demo('exit'), s('settings put global sysui_demo_allowed 0')]);
+    expect(calls).toEqual([s('dumpsys window windows'), demo('exit'), s('settings put global sysui_demo_allowed 0')]);
     calls.length = 0;
     await p.resetStatusBar();
     expect(calls).toEqual([]);
@@ -359,7 +360,7 @@ describe('AndroidProvider device state (Phase 6.6)', () => {
     ]);
     calls.length = 0;
     await p.resetDeviceState();
-    expect(calls).toEqual([s('svc wifi enable'), s('svc data disable')]);
+    expect(calls).toEqual([s('dumpsys window windows'), s('svc wifi enable'), s('svc data disable')]);
   });
 
   it('clipboard goes through the app; without @quiesco/native it is not supported', async () => {

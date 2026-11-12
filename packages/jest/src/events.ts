@@ -78,9 +78,13 @@ export async function handleEvent(lifecycle: Lifecycle, event: EventLike): Promi
   }
 }
 
-/** Jest runs test files in worker processes when maxWorkers > 1: each would start a session on the same device. */
-export function jestParallel(maxWorkers: number | undefined): string | null {
-  return maxWorkers !== undefined && maxWorkers > 1
-    ? `Quiesco needs Jest to run test files one at a time (maxWorkers is ${maxWorkers}): every worker would drive the same device. Set maxWorkers: 1 in the Jest config (or run with --runInBand).`
-    : null;
+/**
+ * The worker this process is (Phase 6.12): Jest numbers its worker processes JEST_WORKER_ID = 1…maxWorkers.
+ * In-band runs (also chosen by Jest itself for fast suites, findings 6.12) are worker 0.
+ */
+export function jestWorker(maxWorkers: number | undefined, env: NodeJS.ProcessEnv, inWorkerProcess: boolean): { index: number; count: number } {
+  const count = maxWorkers !== undefined && maxWorkers > 1 ? maxWorkers : 1;
+  const id = Number.parseInt(env['JEST_WORKER_ID'] ?? '', 10);
+  if (!inWorkerProcess || count === 1 || !(id >= 1)) return { index: 0, count };
+  return { index: Math.min(id, count) - 1, count };
 }

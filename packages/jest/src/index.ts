@@ -2,14 +2,15 @@
  * @quiesco/jest (Phase 6.10): Quiesco for Jest.
  *
  *   // jest.config.js
- *   module.exports = { preset: '@quiesco/jest', maxWorkers: 1, testTimeout: 60_000 };
+ *   module.exports = { preset: '@quiesco/jest', maxWorkers: 2, testTimeout: 60_000 };
  *
  *   // e2e/todo.test.js — `quiesco` is a global, like Jest's own `test` / `expect`
  *   test('a new todo appears at the top @ios', async () => {
  *     await quiesco.app.tap('add-todo');
  *   });
  *
- * One session (device + app) for the whole run, a reset before every test, a test tagged for another
+ * One session (device + app) per worker process (one device each; `maxWorkers: 1` runs serially), a
+ * reset before every test, a test tagged for another
  * platform (in its or a describe's title; the innermost wins) is skipped, and a failure's message names
  * the evidence files. TypeScript: add `"types": ["@quiesco/jest"]` for the `quiesco` global.
  */
@@ -24,5 +25,6 @@ declare global {
   var quiesco: QuiescoGlobal;
 }
 
-export { addEvidence, fullName, handleEvent, jestParallel, tagLevelsOf } from './events.js';
+export { addEvidence, fullName, handleEvent, jestWorker, tagLevelsOf } from './events.js';
+export { registryDir, sweepRegistry } from './shared.js';
 export type { BlockLike, EventLike, TestLike } from './events.js';

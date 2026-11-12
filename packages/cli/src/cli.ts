@@ -1,6 +1,7 @@
 /** Command dispatch for the `quiesco` binary (requirements.md §6.12). */
 import { createRequire } from 'node:module';
 
+import { devicesCommand } from './commands/devices.js';
 import { doctorCommand } from './commands/doctor.js';
 import { initCommand } from './commands/init.js';
 import { testCommand } from './commands/test.js';
@@ -14,11 +15,13 @@ Commands:
   init     Set Quiesco up in this Expo project (dependencies, config plugin, Metro, entry, config, features)
              --platforms ios,android,web   --packages <dir> (install from tarballs)   --skip-install
   test     Run the tests with cucumber-js (or --runner jest|vitest); other arguments go to the runner unchanged
-             --platform ios|android|web
+             --platform ios|android|web   --workers N (N devices in parallel)
   doctor   Check the tools and the project setup
              --platform ios|android|web
   tree     Print the element tree of the running app (to find testIDs)
              --launch (boot the device and launch the app first)   --json   --timeout <ms>   --platform …
+  devices  List the simulators / AVDs Quiesco created for parallel workers
+             --prune (shut them down and delete them)
 
 Options:
   -h, --help     Show this help
@@ -41,6 +44,8 @@ export async function main(argv: readonly string[], ctx: CliContext = defaultCon
         return await doctorCommand(args, ctx);
       case 'tree':
         return await treeCommand(args, ctx);
+      case 'devices':
+        return await devicesCommand(args, ctx);
       case '-v':
       case '--version':
         ctx.out(version());

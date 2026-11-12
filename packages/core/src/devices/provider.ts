@@ -187,6 +187,13 @@ export interface DeviceProvider {
   /** Ids of the permission dialog's buttons, in order of preference (several variants exist). */
   readonly permissionDialog?: { allow: readonly string[]; deny: readonly string[] };
   /**
+   * Close system dialogs covering the app (Phase 6.12): Android's "isn't responding" (ANR, under heavy
+   * load; "Wait", HU 2026-11-12), iOS alerts left by an earlier run or scenario. Returns what it closed
+   * (empty when nothing was there). Called when an action finds its element covered or outside any
+   * window; Android also checks before each scenario (cheap there).
+   */
+  dismissSystemAlerts?(): Promise<string[]>;
+  /**
    * Undo every device-state change made since the last call (before each scenario, HU 2026-11-09).
    * Permissions are restored by the caller (it knows the configured ones).
    */

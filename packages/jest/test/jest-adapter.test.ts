@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { Lifecycle } from '@quiesco/core';
 
-import { addEvidence, fullName, handleEvent, jestParallel, tagLevelsOf } from '../src/events';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+import { addEvidence, fullName, handleEvent, jestWorker, tagLevelsOf } from '../src/events';
+import { registryDir, sweepRegistry } from '../src/shared';
 import type { TestLike } from '../src/events';
 
 function testIn(name: string, ...describes: string[]): TestLike {
@@ -85,7 +90,7 @@ describe('handleEvent', () => {
   });
 });
 
-describe('addEvidence / jestParallel', () => {
+describe('addEvidence / jestWorker', () => {
   it('handles plain errors and nothing to add', () => {
     const t = testIn('t');
     const e = new Error('boom');
@@ -95,9 +100,33 @@ describe('addEvidence / jestParallel', () => {
     addEvidence(testIn('no errors'), ['/x']);
   });
 
-  it('refuses more than one worker', () => {
-    expect(jestParallel(4)).toMatch(/maxWorkers is 4/);
-    expect(jestParallel(1)).toBeNull();
-    expect(jestParallel(undefined)).toBeNull();
+  it('numbers worker processes from JEST_WORKER_ID; in band is worker 0 (Phase 6.12)', () => {
+    expect(jestWorker(4, { JEST_WORKER_ID: '3' }, true)).toEqual({ index: 2, count: 4 });
+    expect(jestWorker(2, { JEST_WORKER_ID: '1' }, false)).toEqual({ index: 0, count: 2 });
+    expect(jestWorker(1, { JEST_WORKER_ID: '1' }, true)).toEqual({ index: 0, count: 1 });
+    expect(jestWorker(undefined, {}, false)).toEqual({ index: 0, count: 1 });
+  });
+});
+
+describe('worker registry (Phase 6.12)', () => {
+  it('kills the registered children still alive and removes the registry', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'quiesco-jest-test-'));
+    const dir = registryDir(4242, tmp);
+    expect(dir).toBe(path.join(tmp, 'quiesco-jest-4242'));
+    fs.mkdirSync(dir);
+    fs.writeFileSync(path.join(dir, '100.json'), JSON.stringify([11, 12]));
+    fs.writeFileSync(path.join(dir, '101.json'), JSON.stringify([13, 'x']));
+    fs.writeFileSync(path.join(dir, '102.json'), 'not json');
+    const alive = new Set([11, 13]);
+    const killed: number[] = [];
+    const kill = (pid: number, signal?: NodeJS.Signals | 0) => {
+      if (!alive.has(pid)) throw new Error('ESRCH');
+      if (signal === 'SIGKILL') killed.push(pid);
+    };
+    expect(sweepRegistry(dir, kill)).toBe(2);
+    expect(killed.sort()).toEqual([11, 13]);
+    expect(fs.existsSync(dir)).toBe(false);
+    expect(sweepRegistry(dir, kill)).toBe(0);
+    fs.rmSync(tmp, { recursive: true, force: true });
   });
 });

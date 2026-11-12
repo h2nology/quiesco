@@ -6,8 +6,9 @@
  *   import { quiesco } from '@quiesco/vitest/config';
  *   export default defineConfig({ test: { ...quiesco(), include: ['e2e/**\/*.test.ts'] } });
  *
- * - `isolate: false` + `fileParallelism: false`: every test file runs in one worker, so the session (the
- *   device and the app) is started once for the whole run (findings 6.10 batch B).
+ * - `isolate: false`: a worker keeps its session (the device and the app) across test files (findings
+ *   6.10 batch B). `workers` (default 1) worker processes run files in parallel, each on its own device
+ *   (Phase 6.12): `quiesco({ workers: 2 })`, or `--fileParallelism --maxWorkers 2` on the command line.
  * - The platform tags are declared, so `test(name, { tags: ['@ios'] }, …)` is accepted.
  * - `testTimeout`: the first test also waits for the session (booting a device can take minutes).
  */
@@ -21,6 +22,8 @@ export interface QuiescoVitestOptions {
   testTimeout?: number;
   /** Extra tags of your own to declare, e.g. `['@smoke']`. */
   extraTags?: readonly string[];
+  /** Parallel workers, each with its own device (Phase 6.12). Default 1 (serial). */
+  workers?: number;
 }
 
 export function quiesco(options: QuiescoVitestOptions = {}) {
@@ -29,7 +32,9 @@ export function quiesco(options: QuiescoVitestOptions = {}) {
   return {
     pool: 'forks' as const,
     isolate: false,
-    fileParallelism: false,
+    // Serial unless asked for; `vitest --fileParallelism --maxWorkers N` overrides both.
+    fileParallelism: (options.workers ?? 1) > 1,
+    maxWorkers: Math.max(1, options.workers ?? 1),
     testTimeout: options.testTimeout ?? 300_000,
     hookTimeout: options.testTimeout ?? 300_000,
     teardownTimeout: 120_000,

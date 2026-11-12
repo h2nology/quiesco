@@ -124,18 +124,32 @@ export class IosSystemRunner {
   }
 
   async screen(): Promise<RunnerScreen> {
-    await this.start();
-    return this.request<RunnerScreen>('GET', '/screen');
+    return this.call(() => this.request<RunnerScreen>('GET', '/screen'));
   }
 
   async tap(x: number, y: number): Promise<void> {
-    await this.start();
-    await this.request('POST', `/tap?x=${x.toFixed(1)}&y=${y.toFixed(1)}`);
+    await this.call(() => this.request('POST', `/tap?x=${x.toFixed(1)}&y=${y.toFixed(1)}`));
   }
 
   async openNotificationCenter(): Promise<void> {
+    await this.call(() => this.request('POST', '/notificationCenter'));
+  }
+
+  /**
+   * A request to the running runner. The runner's test can die while xcodebuild lives on (seen in parallel
+   * runs, Phase 6.12): nothing listens on its port any more. Then the runner is restarted once.
+   */
+  private async call<T>(request: () => Promise<T>): Promise<T> {
     await this.start();
-    await this.request('POST', '/notificationCenter');
+    try {
+      return await request();
+    } catch (e) {
+      if (!isConnectionRefused(e)) throw e;
+      this.options.logger.warn(`the iOS system UI runner stopped answering; restarting it. Its last output:\n${this.output.slice(-1500)}`);
+      await this.stop();
+      await this.start();
+      return request();
+    }
   }
 
   async stop(): Promise<void> {
@@ -186,6 +200,12 @@ export class IosSystemRunner {
     if (!r.ok) throw new QuiescoError('DEVICE_ERROR', `iOS system UI runner: ${p}: ${body.error ?? r.status}`);
     return body;
   }
+}
+
+/** fetch() to a port nobody listens on: `TypeError: fetch failed` caused by ECONNREFUSED. */
+export function isConnectionRefused(e: unknown): boolean {
+  const cause = (e as { cause?: { code?: string } } | null)?.cause;
+  return cause?.code === 'ECONNREFUSED' || /ECONNREFUSED/.test(String((e as Error | null)?.message ?? ''));
 }
 
 async function findXctestrun(dir: string): Promise<string | null> {

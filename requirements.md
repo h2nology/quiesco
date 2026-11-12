@@ -360,7 +360,7 @@ export default function App() {
   - `After`：失败时附加截图与元素树 JSON 到报告。
   - `AfterAll`：关闭连接，按配置决定是否关闭设备。
 - step definition 中通过 `this.app` 访问 Driver。
-- 只支持串行执行：以 cucumber-js 的 `--parallel` 运行时明确报错（HU 2026-11-08 决定撤销并行支持）。
+- 并行执行（Phase 6.12 重做，HU 2026-11-08 决定重做；2026-11-12 确认方案）：cucumber-js `--parallel`、Jest `maxWorkers`、Vitest 多 worker；每个 worker 一台设备（iOS 同机型同 runtime 的 `"<name> (Quiesco N)"`，Android 每 worker 一个从 base 复制的 AVD，Web 各自的浏览器），自动创建并复用；配置可写成 `({ workerIndex }) => config`；端口、artifacts 按 worker 分开。
 - **目标平台切换**：通过环境变量或 CLI 参数选择平台，例如 `QUIESCO_PLATFORM=web`、`quiesco test --platform android`。同一份 feature 与 step definition 不做任何修改即可在三端运行。
 - **平台专属场景**：用 tag 标注只在某些平台成立的场景（如 `@ios`、`@android`、`@web`、`@native`），运行时自动跳过不匹配当前平台的场景。tag 名称可配置。
 - **兼容 Driver 模式**：`this.app` 的接口设计要允许用户实现自己的业务 Driver 包装层（Ports & Adapters），例如在 Quiesco 之外再接一个纯 API 层的 Driver。文档中给出示例。

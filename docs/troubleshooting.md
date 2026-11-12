@@ -46,6 +46,20 @@ Typical causes: a dialog or sheet still open, a toast, content under a transluce
 (iOS 26+), an element still animating into place. A software keyboard over the target is dismissed
 automatically.
 
+## "… isn't responding" on Android (parallel runs)
+
+Quiesco warns `Android showed "com.android.systemui isn't responding" over the app; Quiesco chose Wait`:
+the machine runs more devices than it can carry (each worker is a full emulator). Quiesco answers these
+dialogs so the run goes on, but run fewer workers (`--workers`, [parallel.md](parallel.md)). When the
+dialog is for **your app** (`<package> itself isn't responding`), Quiesco leaves it: the app hung.
+
+## A scenario passes alone but fails in parallel runs
+
+Workers run their own share of the scenarios in their own order, each on a fresh device. A scenario that
+relied on an earlier one (a permission granted, data left behind) has to set that up in its own `Given`
+steps. On iOS, `sendNotification` reports "may not show notifications" when the app was never allowed to
+on that simulator.
+
 ## `AGENT_TIMEOUT`
 
 The agent did not answer: the app's JS thread is blocked by a long synchronous task, or the app crashed.

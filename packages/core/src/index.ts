@@ -43,7 +43,7 @@ export { Timeline } from './timeline.js';
 export type { TimelineEntry } from './timeline.js';
 export { drawRects, stackPng } from './png.js';
 export { failureRects, fullPageScreenshot, highlight } from './screenshots.js';
-export { LogBuffer, killChildProcessesSync, trackChildProcess } from './devices/streams.js';
+export { LogBuffer, killChildProcessesSync, trackChildProcess, trackedChildPids } from './devices/streams.js';
 export { SERIAL_WORKER } from './devices/provider.js';
 export { WORKER_SIMULATOR, workerSimulatorName } from './devices/ios.js';
 export { WORKER_AVD, workerAvdName } from './devices/android.js';
