@@ -78,6 +78,12 @@ export class DeviceApi {
   /** setNetwork('offline') and clipboard.set() this scenario, undone before the next one. */
   private offline = false;
   private clipboardSet = false;
+  /**
+   * The window's shape before this scenario's first `setOrientation()` (Phase 6.12): the reset before
+   * the next scenario waits for it to come back. Rotating is animated; a screen pushed while the
+   * rotation still runs can be lost on iOS (react-native-screens: header pushed, content not).
+   */
+  private shapeBeforeRotation: Orientation | null = null;
 
   /**
    * Face ID / Touch ID / fingerprint (Phase 6.7). `enroll(true)` enrolls one (Android: through Settings, with
@@ -321,6 +327,10 @@ export class DeviceApi {
     if (orientation !== 'portrait' && orientation !== 'landscape') throw new RangeError(`orientation must be 'portrait' or 'landscape', got ${String(orientation)}`);
     const p = this.provider('setOrientation');
     this.requireRunning('setOrientation');
+    if (this.shapeBeforeRotation === null) {
+      const w = (await this.host.deviceInfo(5_000)).window;
+      this.shapeBeforeRotation = w.width > w.height ? 'landscape' : 'portrait';
+    }
     await p.setOrientation(orientation, this.inApp);
     await this.waitForApp(
       (i) => (orientation === 'landscape' ? i.window.width > i.window.height : i.window.height >= i.window.width),
@@ -497,6 +507,15 @@ export class DeviceApi {
     if (p.resetDeviceState !== undefined) {
       const change = await p.resetDeviceState(this.inApp);
       relaunch ||= change.relaunch;
+    }
+    const shape = this.shapeBeforeRotation;
+    this.shapeBeforeRotation = null;
+    if (shape !== null && !relaunch && this.host.appState === 'running') {
+      // The provider rotated the app back above; let the rotation finish before the scenario starts.
+      await this.waitForApp(
+        (i) => (shape === 'landscape' ? i.window.width > i.window.height : i.window.height >= i.window.width),
+        (i) => `the app's window is still ${i.window.width}×${i.window.height} after rotating it back to ${shape}`,
+      ).catch((e: unknown) => this.host.logger.warn(`restoring the orientation: ${(e as Error).message}`));
     }
     if (this.offline) {
       // The provider brought the device's network back above.

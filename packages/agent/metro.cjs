@@ -23,6 +23,14 @@
  *   getters, so the network tracker cannot patch them at runtime). Expo's own code reaches its fetch
  *   through relative paths and is not affected; the global fetch is tracked separately.
  *
+ * - Always: the artifacts directory (`options.artifactsDir`, default `artifacts`, relative to the project
+ *   root; `false` for none) is added to `resolver.blockList` (Phase 6.12).
+ *   Metro sends every connected app an HMR update for any watched file that changes, even one outside
+ *   the bundle; the dev client then shows its "Refreshing..." window over the app, and a touch from
+ *   another parallel worker lands on that window. Screenshots and JSON written there would do that.
+ *   `.expo/devices.json` is blocked for the same reason: Expo's dev server rewrites it on every manifest
+ *   request, i.e. every time a dev client app starts (`ManifestMiddleware.saveDevicesAsync`).
+ *
  * Plain CommonJS on purpose: Node loads metro.config.js without a TypeScript step.
  */
 const fs = require('node:fs');
@@ -58,10 +66,29 @@ function writeBuildConfig(projectRoot, env) {
   return file;
 }
 
+/** @param {string} p absolute path */
+const escapePath = (p) => path.resolve(p).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /**
- * @template {{ projectRoot?: string; resolver?: { resolveRequest?: Function | null }; serializer?: { getModulesRunBeforeMainModule?: (entryFilePath: string) => string[] } }} T
+ * `blockList` (a RegExp, a list of them, or unset) plus the given files and directories (with everything
+ * under them).
+ * @param {RegExp | RegExp[] | undefined | null} blockList
+ * @param {{ files: string[]; dirs: string[] }} paths absolute paths
+ * @returns {RegExp[]}
+ */
+function blockPaths(blockList, { files, dirs }) {
+  const existing = blockList === undefined || blockList === null ? [] : Array.isArray(blockList) ? blockList : [blockList];
+  return [
+    ...existing,
+    ...files.map((f) => new RegExp(`^${escapePath(f)}$`)),
+    ...dirs.map((d) => new RegExp(`^${escapePath(d)}(?:[\\\\/].*)?$`)),
+  ];
+}
+
+/**
+ * @template {{ projectRoot?: string; resolver?: { resolveRequest?: Function | null; blockList?: RegExp | RegExp[] | null }; serializer?: { getModulesRunBeforeMainModule?: (entryFilePath: string) => string[] } }} T
  * @param {T} config Metro config (e.g. from expo/metro-config)
- * @param {{ enabled?: boolean; env?: NodeJS.ProcessEnv; projectRoot?: string }} [options]
+ * @param {{ enabled?: boolean; env?: NodeJS.ProcessEnv; projectRoot?: string; artifactsDir?: string | false }} [options]
  * @returns {T}
  */
 function withQuiesco(config, options = {}) {
@@ -70,6 +97,11 @@ function withQuiesco(config, options = {}) {
   const projectRoot = options.projectRoot ?? config.projectRoot ?? process.cwd();
   const buildConfigFile = enabled ? writeBuildConfig(projectRoot, env) : null;
   const upstream = config.resolver?.resolveRequest ?? null;
+  const artifactsDir = options.artifactsDir ?? 'artifacts';
+  const blockList = blockPaths(config.resolver?.blockList, {
+    files: [path.join(projectRoot, '.expo', 'devices.json')],
+    dirs: artifactsDir === false ? [] : [path.resolve(projectRoot, artifactsDir)],
+  });
 
   /**
    * @param {{ originModulePath: string; resolveRequest: Function }} context
@@ -87,7 +119,8 @@ function withQuiesco(config, options = {}) {
     return upstream !== null ? upstream(context, moduleName, platform) : context.resolveRequest(context, moduleName, platform);
   }
 
-  if (!enabled) return { ...config, resolver: { ...config.resolver, resolveRequest } };
+  const resolver = { ...config.resolver, resolveRequest, blockList };
+  if (!enabled) return { ...config, resolver };
 
   // Metro compares these paths with the (real) paths of modules in the graph.
   const early = fs.realpathSync(EARLY);
@@ -103,7 +136,7 @@ function withQuiesco(config, options = {}) {
   if (config.serializer !== undefined && config.serializer !== null) config.serializer.getModulesRunBeforeMainModule = getModulesRunBeforeMainModule;
   return {
     ...config,
-    resolver: { ...config.resolver, resolveRequest },
+    resolver,
     serializer: { ...config.serializer, getModulesRunBeforeMainModule },
   };
 }

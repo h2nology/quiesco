@@ -206,6 +206,9 @@ const BIOMETRIC_ENROLLMENT = 'com.apple.BiometricKit.enrollmentChanged';
 const NOTIFICATION_WAIT_MS = 10_000;
 const BANNER_WAIT_MS = 2_000;
 const NOTIFICATION_POLL_MS = 250;
+/** After tapping a notification: how long it may stay on screen before it is tapped again, and how often. */
+const NOTIFICATION_TAP_CONFIRM_MS = 1_500;
+const NOTIFICATION_TAPS = 3;
 
 export class IosProvider implements DeviceProvider {
   readonly platform = 'ios' as const;
@@ -692,12 +695,23 @@ export class IosProvider implements DeviceProvider {
     const find = async () => (await this.runner.screen()).others.find((o) => o.label.split(', ').includes(title) || o.label.includes(title));
     const deadline = Date.now() + NOTIFICATION_WAIT_MS;
     let centerOpened = false;
+    let taps = 0;
     for (;;) {
       const hit = await find();
       if (hit !== undefined) {
-        const b = screenNodes({ alerts: [], others: [hit] })[0]!.bounds;
+        // The banner slides in: tap only once two reads agree on where it is, and tap again while the
+        // notification is still on screen (a tap during the animation misses; the app then stays in the
+        // background, suspended — batch D 2026-11-13).
+        const again = await find();
+        if (again === undefined || JSON.stringify(again.frame) !== JSON.stringify(hit.frame)) continue;
+        const b = screenNodes({ alerts: [], others: [again] })[0]!.bounds;
         await this.runner.tap((b.x1 + b.x2) / 2, (b.y1 + b.y2) / 2);
-        return;
+        if (++taps >= NOTIFICATION_TAPS) return;
+        const until = Date.now() + NOTIFICATION_TAP_CONFIRM_MS;
+        while (Date.now() < until && (await find()) !== undefined) await new Promise((r) => setTimeout(r, NOTIFICATION_POLL_MS));
+        if ((await find()) === undefined) return;
+        this.logger.warn(`openNotification: "${title}" is still on screen after the tap; tapping it again`);
+        continue;
       }
       if (Date.now() > deadline) {
         const seen = (await this.runner.screen().catch(() => ({ alerts: [], others: [] }))).others.map((o) => JSON.stringify(o.label)).slice(0, 8);

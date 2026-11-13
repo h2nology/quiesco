@@ -7,8 +7,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const { withQuiesco } = require('../metro.cjs') as {
-  withQuiesco: <T extends object>(config: T, options?: { enabled?: boolean; env?: Record<string, string>; projectRoot?: string }) => T & {
-    resolver: { resolveRequest: (ctx: unknown, name: string, platform: string | null) => unknown };
+  withQuiesco: <T extends object>(config: T, options?: { enabled?: boolean; env?: Record<string, string>; projectRoot?: string; artifactsDir?: string | false }) => T & {
+    resolver: { resolveRequest: (ctx: unknown, name: string, platform: string | null) => unknown; blockList?: RegExp[] };
     serializer?: { getModulesRunBeforeMainModule?: (entry: string) => string[] };
   };
 };
@@ -91,5 +91,47 @@ describe('package', () => {
   it('AGENT_VERSION matches package.json', async () => {
     const { AGENT_VERSION } = await import('../src/version');
     expect(AGENT_VERSION).toBe((require('../package.json') as { version: string }).version);
+  });
+
+  describe('artifacts directory (Phase 6.12)', () => {
+    // A watched file that changes makes Metro send every app an HMR update; the dev client's
+    // "Refreshing..." window then covers the app while another parallel worker taps.
+    it('keeps Metro from watching <projectRoot>/artifacts, after the existing blockList', () => {
+      const existing = /\/__tests__\//;
+      const config = withQuiesco({ projectRoot: '/work/my.app', resolver: { blockList: [existing] } }, { env: {} });
+      const list = config.resolver.blockList ?? [];
+      expect(list[0]).toBe(existing);
+      const own = list[2] as RegExp;
+      expect(own.test('/work/my.app/artifacts')).toBe(true);
+      expect(own.test('/work/my.app/artifacts/20261113-ios-w0/001-x/failure.png')).toBe(true);
+      expect(own.test('/work/my.app/artifacts-old/x.png')).toBe(false);
+      expect(own.test('/work/myXapp/artifacts/x.png')).toBe(false);
+      expect(own.test('/work/my.app/src/artifacts.ts')).toBe(false);
+    });
+
+    it('takes a single RegExp blockList, a custom directory, and e2e builds', () => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'quiesco-metro-'));
+      const config = withQuiesco({ projectRoot: root, resolver: { blockList: /x/ } }, { env: { EXPO_PUBLIC_QUIESCO: '1' }, artifactsDir: 'out/e2e' });
+      const list = config.resolver.blockList ?? [];
+      expect(list).toHaveLength(3);
+      expect(list[2]?.test(path.join(root, 'out', 'e2e', 'a.json'))).toBe(true);
+      expect(list[2]?.test(path.join(root, 'artifacts', 'a.json'))).toBe(false);
+    });
+
+    it('blocks only .expo/devices.json with artifactsDir: false', () => {
+      const existing = /x/;
+      const list = withQuiesco({ projectRoot: '/p', resolver: { blockList: existing } }, { env: {}, artifactsDir: false }).resolver.blockList ?? [];
+      expect(list).toHaveLength(2);
+      expect(list[0]).toBe(existing);
+    });
+
+    // Expo's dev server rewrites it whenever a dev client app starts (one worker's launch would reload
+    // the others); the rest of .expo stays visible: the agent's build-config lives there.
+    it('keeps Metro from watching .expo/devices.json, but not the rest of .expo', () => {
+      const devices = withQuiesco({ projectRoot: '/p', resolver: {} }, { env: {} }).resolver.blockList?.[0] as RegExp;
+      expect(devices.test('/p/.expo/devices.json')).toBe(true);
+      expect(devices.test('/p/.expo/quiesco/build-config.js')).toBe(false);
+      expect(devices.test('/p/.expo/devices.json.bak')).toBe(false);
+    });
   });
 });

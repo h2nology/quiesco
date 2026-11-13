@@ -213,8 +213,13 @@ export class WebElement {
     return r.elements[0] as PageElement;
   }
 
-  /** Wait for the single match, scroll it into view, and compute its center in window coordinates. */
+  /**
+   * Wait for the single match, scroll it into view, and compute its center in window coordinates. The
+   * point must be the same in two reads in a row (Phase 6.12): right after scrolling or while the page
+   * still lays out, a tap at the first point can miss the element (seen under load on iOS).
+   */
   private async reveal(deadline: number, opts: CallOptions): Promise<{ element: PageElement; point: Point }> {
+    let prev: Point | null = null;
     for (;;) {
       await this.view.settle(deadline, opts);
       const { value: r, rect } = await this.view.pageWithRect<FindResult>({ op: 'reveal', locator: this.locator }, opts);
@@ -223,8 +228,15 @@ export class WebElement {
       if (el !== undefined && el.visible && !el.disabled) {
         // Page CSS pixels to window units: the page is laid out across the WebView's width.
         const f = r.innerWidth > 0 ? rect.width / r.innerWidth : 1;
-        return { element: el, point: { x: rect.x + (el.rect.x + el.rect.width / 2) * f, y: rect.y + (el.rect.y + el.rect.height / 2) * f } };
+        const point = { x: rect.x + (el.rect.x + el.rect.width / 2) * f, y: rect.y + (el.rect.y + el.rect.height / 2) * f };
+        const stable = prev !== null && Math.abs(prev.x - point.x) < 0.5 && Math.abs(prev.y - point.y) < 0.5;
+        // Out of time, the last point is the best there is.
+        if (stable || Date.now() >= deadline) return { element: el, point };
+        prev = point;
+        await sleep(POLL_MS);
+        continue;
       }
+      prev = null;
       if (Date.now() >= deadline) {
         const why = el === undefined ? 'No element of the page matches' : el.disabled ? 'The element is disabled:' : 'The element is not visible:';
         throw new QuiescoError('ELEMENT_NOT_FOUND', `${why} ${describeLocator(this.locator)} (WebView)`, { locator: this.locator as unknown as JsonValue });

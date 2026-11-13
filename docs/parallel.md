@@ -56,12 +56,18 @@ worker it is connected to (`null` before the first connection and in production)
 worker's mock backend; the example app does this in `src/e2e.ts`, and its mock backend runs once per worker
 (`features/support/mock-server.ts`, `e2e/jest/global-setup.mjs`, `e2e/vitest/mock-server.setup.ts`).
 
+Artifacts are written while other workers' apps are running. `withQuiesco()` keeps Metro from watching
+`artifacts/`, or every screenshot would make Metro reload the other apps (the dev client covers them with
+its "Refreshing..." window); with another `artifacts.dir`, pass it as `withQuiesco(config, { artifactsDir })`.
+
 Scenarios must not depend on each other: each worker runs its own share of them in its own order. A
 scenario that needs a state (a granted permission, a signed-in user) sets it up in its `Given` steps.
 
 ## How many workers
 
-Each worker is a full device. On a 15-core Mac, two iOS simulators or two Android emulators run well; with
+Each worker is a full device. On a 15-core Mac, two iOS simulators or two Android emulators run well (an
+Android emulator must render on the GPU: Quiesco boots them with `-gpu host` on macOS; one rendering on the
+CPU takes about four cores by itself, see [troubleshooting](troubleshooting.md#android)); with
 more devices than the machine can carry, Android starts showing "<app> isn't responding" dialogs (often for
 System UI). Quiesco answers another app's dialog with **Wait** before each scenario and when an action finds
 its element covered, and warns with the load average; when you see that warning, run fewer workers. A

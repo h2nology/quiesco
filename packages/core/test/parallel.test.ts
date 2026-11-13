@@ -16,6 +16,7 @@ import { killChildProcessesSync, trackChildProcess } from '../src/devices/stream
 import { workerSuffix } from '../src/artifacts';
 import { Lifecycle } from '../src/lifecycle';
 import type { Session, SessionOptions } from '../src/session';
+import { launchConnectTimeout } from '../src/session';
 
 const tmpDirs: string[] = [];
 function tmp(): string {
@@ -33,7 +34,7 @@ function fakeExec(answer: (line: string) => string | Error | undefined) {
   const exec: Exec = async (file, args) => {
     const line = `${file} ${args.join(' ')}`;
     calls.push(line);
-    const out = answer(line);
+    const out = line.endsWith('shell pm path android') ? 'package:/system/framework/framework-res.apk\n' : answer(line);
     if (out instanceof Error) throw out;
     return { stdout: Buffer.from(out ?? ''), stderr: '' };
   };
@@ -271,7 +272,7 @@ describe('Android worker AVDs', () => {
   it('worker N creates <avd>_quiesco_N and cold-boots it writable next to the base emulator', async () => {
     const home = avdHome();
     const adb = fakeAdbWithWorker();
-    const p = new AndroidProvider({ app: { package: 'p' }, device: { avd: 'Medium' }, adbPath: 'adb', emulatorPath: 'emulator', exec: adb.exec, spawn: adb.spawn, pollMs: 1, logger: quiet, worker: { index: 1, count: 2 }, avdHome: home });
+    const p = new AndroidProvider({ app: { package: 'p' }, device: { avd: 'Medium' }, adbPath: 'adb', emulatorPath: 'emulator', exec: adb.exec, spawn: adb.spawn, pollMs: 1, logger: quiet, worker: { index: 1, count: 2 }, avdHome: home, hostPlatform: 'linux' });
     await p.boot();
     expect(adb.spawned()).toEqual(['emulator', '-avd', 'Medium_quiesco_1', '-no-boot-anim', '-no-snapshot-load', '-no-snapshot-save']);
     expect(adb.spawned()).not.toContain('-read-only');
@@ -455,5 +456,13 @@ describe('iOS sendNotification without permission (Phase 6.12)', () => {
       message: expect.stringMatching(/dev.app may not show notifications on iPhone 17 \(Quiesco 1\)/),
       data: { hint: expect.stringMatching(/allowPermission/) },
     });
+  });
+});
+
+describe('connect timeout of the first launch (Phase 6.12)', () => {
+  it('gives the session\'s first launch (right after installing) three times as long, unless configured', () => {
+    expect(launchConnectTimeout({ apps: {} }, { first: true })).toBe(90_000);
+    expect(launchConnectTimeout({ apps: {} }, { first: false })).toBe(30_000);
+    expect(launchConnectTimeout({ apps: {}, connectTimeoutMs: 45_000 }, { first: true })).toBe(45_000);
   });
 });

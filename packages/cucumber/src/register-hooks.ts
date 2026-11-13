@@ -11,6 +11,11 @@ export interface RegisterOptions extends LifecycleOptions {
   stepTimeoutMs?: number;
   /** BeforeAll timeout: booting an emulator can take minutes. Default 10 min. */
   setupTimeoutMs?: number;
+  /**
+   * Timeout of the per-scenario reset (Before). It can start the app again when it is gone, which waits up to
+   * 3 × the connect timeout. Default 3 min.
+   */
+  resetTimeoutMs?: number;
 }
 
 /** Register the World and the lifecycle hooks with cucumber-js. Call once, from a support file. */
@@ -21,7 +26,7 @@ export function registerQuiesco(options: RegisterOptions = {}): Lifecycle {
   setDefaultTimeout(options.stepTimeoutMs ?? 60_000);
 
   BeforeAll({ name: 'quiesco: start session', timeout: options.setupTimeoutMs ?? 600_000 }, () => lifecycle.beforeAll());
-  Before({ name: 'quiesco: reset app' }, ({ pickle, gherkinDocument }) => lifecycle.before(tagLevels(pickle.tags, gherkinDocument), pickle.name));
+  Before({ name: 'quiesco: reset app', timeout: options.resetTimeoutMs ?? 180_000 }, ({ pickle, gherkinDocument }) => lifecycle.before(tagLevels(pickle.tags, gherkinDocument), pickle.name));
   After({ name: 'quiesco: evidence' }, async function (this: QuiescoWorld, { pickle, result }) {
     const failed = result !== undefined && result.status !== Status.PASSED && result.status !== Status.SKIPPED;
     for (const a of (await lifecycle.after({ tags: pickle.tags.map((t) => t.name), failed })).attachments) {

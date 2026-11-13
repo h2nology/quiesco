@@ -9,7 +9,7 @@ import { silentLogger } from '../src/logger';
 import { cropPng, decodePng, encodePng, pngSize } from '../src/png';
 import { Driver } from '../src/driver';
 import { Session } from '../src/session';
-import { connectAgent } from './helpers/fake-agent';
+import { NO_REPLY, connectAgent } from './helpers/fake-agent';
 import type { FakeAgent } from './helpers/fake-agent';
 import { FakeProvider } from './helpers/fake-provider';
 
@@ -152,7 +152,7 @@ const config = (extra: Partial<QuiescoConfig> = {}): QuiescoConfig => ({
 
 /** Agents answering like the app would; `appState` is what deviceInfo reports. */
 function setup(opts: { nativeModule?: boolean } = {}) {
-  const state = { appState: 'active' as string };
+  const state = { appState: 'active' as string, unansweredResets: 0 };
   const agents: FakeAgent[] = [];
   const provider = new LifecycleProvider((p) =>
     agents.push(
@@ -167,6 +167,10 @@ function setup(opts: { nativeModule?: boolean } = {}) {
               state.appState = 'background';
               return { suspended: true };
             case 'reset':
+              if (state.unansweredResets > 0) {
+                state.unansweredResets--;
+                return NO_REPLY;
+              }
               return { durationMs: 1 };
             case 'query':
             case 'assert':
@@ -227,6 +231,34 @@ describe('app.device', () => {
     const action = jsOnly.agents[1]?.requests.find((r) => r.method === 'action');
     expect(action?.params['action']).toEqual({ type: 'openUrl', url: 'todo://playground' });
   });
+
+  it('an app that went away and does not come back is started again before the next scenario (Phase 6.12)', async () => {
+    const { provider, agents } = setup();
+    session = await Session.create({ config: config({ connectTimeoutMs: 300 }), platform: 'android', provider, logger: silentLogger });
+    await session.driver.waitForIdle();
+    // The app dies (or never finishes a relaunch) and nothing reconnects.
+    agents[0]?.ws.terminate();
+    await agents[0]?.closed;
+    provider.calls.length = 0;
+    await session.beforeScenario({});
+    expect(provider.calls.slice(-2)).toEqual(['terminate', 'launch']);
+    expect(agents).toHaveLength(2);
+    await session.driver.waitForIdle();
+    expect(methods(agents[1])).toContain('waitForIdle');
+  });
+
+  it('an app that is connected but does not answer the reset (left suspended) is started again (batch D)', async () => {
+    const { provider, agents, state } = setup();
+    session = await Session.create({ config: config(), platform: 'android', provider, logger: silentLogger });
+    await session.driver.waitForIdle();
+    // The app stops answering (frozen in the background): the reset times out (AGENT_TIMEOUT).
+    state.unansweredResets = 1;
+    provider.calls.length = 0;
+    await session.beforeScenario({});
+    expect(methods(agents[0])).toContain('reset');
+    expect(provider.calls.slice(-2)).toEqual(['terminate', 'launch']);
+    expect(agents).toHaveLength(2);
+  }, 40_000);
 
   it('terminate: element calls fail fast with APP_NOT_RUNNING; the next scenario starts the app again', async () => {
     const { provider, agents } = setup();

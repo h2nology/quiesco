@@ -48,6 +48,19 @@ describe('WebView (core)', () => {
     expect(ops.find((o) => o.op === 'reveal')).toEqual({ op: 'reveal', locator: { text: 'Go' } });
   });
 
+  it('taps only once the element stays put: after a scroll or relayout the first point can be stale (Phase 6.12)', async () => {
+    const ys = [300, 120, 20, 20];
+    let reveals = 0;
+    const { view, taps } = fakeView((op) => {
+      if (op.op === 'state') return idle;
+      return { count: 1, elements: [el({ rect: { x: 10, y: ys[Math.min(reveals++, ys.length - 1)] as number, width: 100, height: 40 } })], innerWidth: 100 };
+    });
+    await view.element({ text: 'Go' }).tap();
+    // y = 20 twice in a row: center 40 → 100 + 40 × 2 = 180.
+    expect(taps).toEqual([{ x: 120, y: 180 }]);
+    expect(reveals).toBe(4);
+  });
+
   it('types after a tap; replaceText replaces; RegExp text locators and index are passed on', async () => {
     const { view, ops, taps } = fakeView((op) => (op.op === 'state' ? idle : { count: 1, elements: [el({ tag: 'input', value: 'Bob' })], innerWidth: 100 }));
     await view.element({ css: '#name' }).type('Alice');

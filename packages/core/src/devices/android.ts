@@ -79,6 +79,22 @@ export interface AndroidProviderOptions {
   worker?: WorkerInfo;
   /** Where AVDs live. Default `$ANDROID_AVD_HOME`, else `~/.android/avd`. */
   avdHome?: string;
+  /** The host OS (tests). Default `process.platform`. */
+  hostPlatform?: NodeJS.Platform;
+}
+
+/** GPU modes that render on the host CPU: several cores per emulator, which starves parallel runs. */
+export const CPU_GPU_MODES = /^(lavapipe|swiftshader.*|guest)$/;
+
+/**
+ * The `-gpu` argument for an emulator Quiesco boots: `configured` (devices.android.gpu), else the AVD's
+ * `hw.gpu.mode`; `auto` (or none) becomes `host` on macOS, where the emulator resolves it to `lavapipe`
+ * (findings 2026-11-13: ~400% CPU per idle emulator vs ~6% with `host`). Undefined: let the emulator pick.
+ */
+export function emulatorGpu(configured: string | undefined, avdMode: string | undefined, hostPlatform: NodeJS.Platform): string | undefined {
+  if (configured !== undefined) return configured;
+  if (avdMode !== undefined && avdMode !== 'auto') return undefined;
+  return hostPlatform === 'darwin' ? 'host' : undefined;
 }
 
 /** The AVD parallel worker `index` (> 0) uses next to the base AVD `avd`. */
@@ -109,6 +125,11 @@ function iniValues(text: string): Map<string, string> {
   }
   return m;
 }
+
+/** Install errors of a device still starting up or overloaded, worth another attempt (Phase 6.12). */
+export const TRANSIENT_INSTALL_ERROR = /Failure calling service package|Broken pipe|Can't find service: package|device offline/i;
+const INSTALL_ATTEMPTS = 3;
+const INSTALL_RETRY_MS = 2000;
 
 /** screenrecord's own limit per file (findings 6.9): longer scenarios get several segments. */
 const SCREENRECORD_LIMIT_S = 180;
@@ -162,6 +183,31 @@ export class AndroidProvider implements DeviceProvider {
 
   private get avdHome(): string {
     return this.options.avdHome ?? process.env['ANDROID_AVD_HOME'] ?? path.join(os.homedir(), '.android', 'avd');
+  }
+
+  /** The AVD's directory (`path=` in `<home>/<avd>.ini`), or null when the AVD is unknown. */
+  private async avdDir(avd: string): Promise<string | null> {
+    const ini = await fs.readFile(path.join(this.avdHome, `${avd}.ini`), 'utf8').catch(() => null);
+    if (ini === null) return null;
+    return iniValues(ini).get('path') ?? path.join(this.avdHome, `${avd}.avd`);
+  }
+
+  /** `key` from one of the AVD's ini files (config.ini: as configured; hardware-qemu.ini: as running). */
+  private async avdSetting(avd: string, file: 'config.ini' | 'hardware-qemu.ini', key: string): Promise<string | undefined> {
+    const dir = await this.avdDir(avd);
+    if (dir === null) return undefined;
+    const text = await fs.readFile(path.join(dir, file), 'utf8').catch(() => null);
+    return text === null ? undefined : iniValues(text).get(key);
+  }
+
+  /** A running emulator Quiesco reuses renders on the CPU: say so (it can starve parallel workers). */
+  private async warnCpuRenderer(avd: string, serial: string): Promise<void> {
+    const mode = await this.avdSetting(avd, 'hardware-qemu.ini', 'hw.gpu.mode');
+    if (mode === undefined || !CPU_GPU_MODES.test(mode)) return;
+    this.logger.warn(
+      `Android emulator ${avd} (${serial}) renders with ${mode}, on the CPU (several cores per emulator): tests run slowly and the system may stop responding. ` +
+        'Restart it with -gpu host (or let Quiesco boot it: it uses host on macOS).',
+    );
   }
 
   private async adbRun(args: readonly string[], timeoutMs?: number): Promise<string> {
@@ -229,7 +275,8 @@ export class AndroidProvider implements DeviceProvider {
       this.baseAvd = cfg.avd;
       const avd = workerAvdName(cfg.avd, worker.index);
       for (const s of online) if ((await this.avdName(s)) === avd) this.serial = s;
-      if (this.serial === null) {
+      if (this.serial !== null) await this.warnCpuRenderer(avd, this.serial);
+      else {
         const wipe = await this.prepareWorkerAvd(cfg.avd, worker.index);
         this.serial = await this.bootAvd(avd, online, cfg.bootTimeoutMs ?? 180_000, wipe);
       }
@@ -241,7 +288,8 @@ export class AndroidProvider implements DeviceProvider {
       this.serial = cfg.serial;
     } else if (cfg.avd !== undefined) {
       for (const s of online) if ((await this.avdName(s)) === cfg.avd) this.serial = s;
-      if (this.serial === null) this.serial = await this.bootAvd(cfg.avd, online, cfg.bootTimeoutMs ?? 180_000);
+      if (this.serial !== null) await this.warnCpuRenderer(cfg.avd, this.serial);
+      else this.serial = await this.bootAvd(cfg.avd, online, cfg.bootTimeoutMs ?? 180_000);
     } else {
       if (online.length === 0) throw new QuiescoError('DEVICE_ERROR', 'No Android device or emulator is running; set devices.android.avd to boot one');
       this.serial = online[0] as string;
@@ -314,13 +362,17 @@ export class AndroidProvider implements DeviceProvider {
           'Set devices.android.serial to use it, or restart adb (`adb kill-server`).',
       );
     }
-    this.logger.info(`booting Android emulator ${avd}`);
-    this.spawn(this.emulator, ['-avd', avd, '-no-boot-anim', '-no-snapshot-load', '-no-snapshot-save', ...(wipe ? ['-wipe-data'] : [])]);
+    const gpu = emulatorGpu(this.options.device?.gpu, await this.avdSetting(avd, 'config.ini', 'hw.gpu.mode'), this.options.hostPlatform ?? process.platform);
+    this.logger.info(`booting Android emulator ${avd}${gpu !== undefined ? ` (-gpu ${gpu})` : ''}`);
+    this.spawn(this.emulator, ['-avd', avd, '-no-boot-anim', '-no-snapshot-load', '-no-snapshot-save', ...(gpu !== undefined ? ['-gpu', gpu] : []), ...(wipe ? ['-wipe-data'] : [])]);
     this.bootedByUs = true;
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
-      const added = (await this.devices()).filter((s) => !before.includes(s));
-      if (added.length > 0) return added[0] as string;
+      // Ours is the new device reporting this AVD: parallel workers boot emulators at the same time, and
+      // the first new serial may be another worker's (Phase 6.12). The name shows up once adbd is up.
+      for (const s of (await this.devices()).filter((d) => !before.includes(d))) {
+        if ((await this.avdName(s)) === avd) return s;
+      }
       await this.sleep(this.options.pollMs ?? 1000);
     }
     throw new QuiescoError('DEVICE_ERROR', `Emulator ${avd} did not appear in adb devices within ${timeoutMs}ms`);
@@ -342,7 +394,7 @@ export class AndroidProvider implements DeviceProvider {
     for (;;) {
       const users = await this.shell('dumpsys user').catch(() => '');
       const state = /State:\s*(\w+)/.exec(users)?.[1] ?? 'unknown';
-      if (state === 'RUNNING_UNLOCKED' || users === '') return; // empty: dumpsys unavailable, do not block
+      if (state === 'RUNNING_UNLOCKED' || users === '') break; // empty: dumpsys unavailable, do not block
       if (Date.now() >= deadline) {
         throw new QuiescoError(
           'DEVICE_ERROR',
@@ -351,6 +403,14 @@ export class AndroidProvider implements DeviceProvider {
       }
       await this.shell('input keyevent KEYCODE_WAKEUP').catch(() => undefined);
       await this.shell('wm dismiss-keyguard').catch(() => undefined);
+      await this.sleep(this.options.pollMs ?? 1000);
+    }
+    // Then the package manager: under load it answers "Failure calling service package" for a while
+    // after boot completed and the user unlocked (Phase 6.12), and installing fails.
+    for (;;) {
+      const pm = await this.shell('pm path android').catch(() => '');
+      if (pm.includes('package:')) return;
+      if (Date.now() >= deadline) throw new QuiescoError('DEVICE_ERROR', `the package manager on ${this.serial} did not come up within ${timeoutMs}ms`);
       await this.sleep(this.options.pollMs ?? 1000);
     }
   }
@@ -362,7 +422,7 @@ export class AndroidProvider implements DeviceProvider {
       // in that task, and when the update finishes SystemUI relaunches the task's base intent with
       // CLEAR_TASK and no extras, racing (and replacing) our `am start` with the connection parameters.
       await this.shell(`am force-stop ${shq(this.pkg)}`).catch(() => undefined);
-      await this.adbRun(['install', '-r', '-g', path.resolve(apk)], 300_000);
+      await this.installRetrying(['install', '-r', '-g'], [path.resolve(apk)]);
       return;
     }
     if (this.baseAvd !== null) {
@@ -400,9 +460,28 @@ export class AndroidProvider implements DeviceProvider {
         local.push(file);
       }
       await this.shell(`am force-stop ${shq(this.pkg)}`).catch(() => undefined);
-      await this.adbRun(['install-multiple', '-r', '-g', ...local], 300_000);
+      await this.installRetrying(['install-multiple', '-r', '-g'], local);
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
+    }
+  }
+
+  /**
+   * `adb install` with retries for what a busy device answers while it starts (Phase 6.12, two emulators
+   * cold-booting at once): "Failure calling service package" and a streamed install's "Broken pipe".
+   * Retries copy the APK first (`--no-streaming`) instead of streaming it.
+   */
+  private async installRetrying(command: string[], files: string[]): Promise<void> {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await this.adbRun([...command, ...(attempt > 1 ? ['--no-streaming'] : []), ...files], 300_000);
+        return;
+      } catch (e) {
+        const msg = (e as Error).message;
+        if (attempt >= INSTALL_ATTEMPTS || !TRANSIENT_INSTALL_ERROR.test(msg)) throw e;
+        this.logger.warn(`${this.serial}: installing failed (${msg.slice(msg.lastIndexOf(':') + 1).trim()}); trying again without streaming`);
+        await this.sleep(INSTALL_RETRY_MS * attempt);
+      }
     }
   }
 
@@ -677,8 +756,28 @@ export class AndroidProvider implements DeviceProvider {
     }
     const cooldown = this.lastBiometricFailure + FAILURE_LOCKOUT_MS - Date.now();
     if (cooldown > 0) await new Promise((r) => setTimeout(r, cooldown));
-    await this.adbRun(['emu', 'finger', 'touch', match ? '1' : '2']);
-    this.lastBiometricFailure = match ? 0 : Date.now();
+    if (!match) {
+      await this.adbRun(['emu', 'finger', 'touch', '2']);
+      this.lastBiometricFailure = Date.now();
+      return;
+    }
+    // A matching touch ends the authentication. Under load the HAL's lockout after a failed attempt can
+    // outlast the cooldown and the touch is dropped (the prompt keeps waiting; batch D 2026-11-13): touch
+    // again until the authentication is no longer waiting.
+    for (let touch = 1; ; touch++) {
+      await this.adbRun(['emu', 'finger', 'touch', '1']);
+      const until = Date.now() + MATCH_CONFIRM_MS;
+      while (Date.now() < until) {
+        if (!AUTH_STARTED.test(await this.shell('dumpsys fingerprint').catch(() => ''))) {
+          this.lastBiometricFailure = 0;
+          return;
+        }
+        await new Promise((r) => setTimeout(r, AUTH_POLL_MS));
+      }
+      if (touch >= MATCH_TOUCHES) break;
+      this.logger.warn(`biometrics.match: the fingerprint authentication is still waiting ${MATCH_CONFIRM_MS}ms after the touch (dropped during the sensor's lockout?); touching again`);
+    }
+    this.lastBiometricFailure = 0;
   }
 
   /**
@@ -957,6 +1056,9 @@ const AUTH_STARTED = /FingerprintAuthenticationClient[^\n]*State: 2\b/;
 const AUTH_WAIT_MS = 5_000;
 /** The HAL's timed lockout after one failed attempt (about 500 ms measured), with a margin. */
 const FAILURE_LOCKOUT_MS = 1_000;
+/** How long a matching touch may take to end the authentication before it is repeated, and how often. */
+const MATCH_CONFIRM_MS = 2_000;
+const MATCH_TOUCHES = 3;
 const AUTH_POLL_MS = 100;
 const NOTIFICATION_WAIT_MS = 5_000;
 const NOTIFICATION_POLL_MS = 300;

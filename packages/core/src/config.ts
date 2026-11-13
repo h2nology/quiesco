@@ -41,6 +41,13 @@ export interface AndroidDeviceConfig {
    */
   serials?: string[];
   bootTimeoutMs?: number;
+  /**
+   * `-gpu` mode of the emulators Quiesco boots (`host`, `lavapipe`, `swiftshader_indirect`, …). Default: the
+   * AVD's `hw.gpu.mode`, except `auto` (or none) on macOS, which becomes `host`: there the emulator resolves
+   * `auto` to `lavapipe`, a CPU renderer that keeps ~4 cores busy per emulator. Emulators already running
+   * keep their mode (Quiesco warns when it is a CPU renderer).
+   */
+  gpu?: string;
   /** Shut down an emulator Quiesco booted when the session ends. Default false (faster reruns). */
   shutdown?: boolean;
 }
@@ -159,7 +166,10 @@ export interface QuiescoConfig {
     /** Interface to listen on. Default: all interfaces. */
     host?: string;
   };
-  /** How long to wait for the app to connect after launch. Default 30 s. */
+  /**
+   * How long to wait for the app to connect after launch. Default 30 s, and 90 s for the session's first
+   * launch (right after installing, when Android verifies the new APK; Phase 6.12). Set, it is used for all.
+   */
   connectTimeoutMs?: number;
   /** Minimum app console level forwarded to the host log. Default `warn`. */
   logLevel?: LogLevel | 'off';

@@ -315,3 +315,21 @@
 - 实跑：Web `--parallel 2` 73/73（45s，artifacts -w0/-w1 同一秒创建）；iOS `--parallel 2` 78/80（Face ID 匹配、前台推送两个场景在负载下超时，见 findings）。Android 并行、Jest / Vitest 并行、文档尚未做
 - 批次 C 完成：Face ID 等待（coreauthd 日志）、iOS 推送无权限的明确错误 + 示例场景补 Given、runner 失效时重启、iOS dismissSystemAlerts + Driver 在「不在窗口里」时也重试、Jest worker 收到 END 消息即收尾（不再出现 failed to exit gracefully）、文档（docs/parallel.md、cli、api、README、troubleshooting、detox-comparison、示例 README、requirements.md §6.9）
 - 实跑（最终代码）：cucumber --parallel 2：Web 73/73（45s）、iOS 80/80（148s；残留弹窗被关闭、runner 重启一次）、Android 81/81（233s，base 是之前串行可写启动的模拟器 ⇒ Phase 4 遗留问题已解决）；Jest / Vitest 2 workers：三端各一次通过，无遗留进程；串行：Web 73/73、iOS 80/80、Android 81/81；pnpm check 655 测试通过
+- 批次 D 开始（2026-11-12 23:2x）：cucumber --parallel 2 稳定性基准，顺序 Web ×5 → 关 iOS 模拟器 → Android ×5 → 关 Android 模拟器 → iOS ×20（脚本与日志在 scratchpad/bench，结果写入 docs/benchmarks.md）
+
+## 2026-11-13 6.12 批次 D（暂停）
+- 复现：修复后冷启动 + 复用的 6 次运行反而越来越差（71→64→46→30 通过，再 BeforeAll 失败）。查出：① cucumber Before 钩子默认 60s < 断连恢复 90s（已改 180s，`resetTimeoutMs`）；② worker 模拟器 GNSS HAL 挂掉后 system_server 每 ~90s 被看门狗杀掉（模拟器坏状态，重启才恢复）；③ 根因：Quiesco 启动模拟器未传 `-gpu`，`auto` 在 macOS 上是 lavapipe（CPU 渲染，每台 ~400% CPU），主机负载 12–15
+- HU 选「auto 时改用 host」：实现 `emulatorGpu`、`devices.android.gpu`、复用 CPU 渲染模拟器时警告；测试 + 文档；pnpm check 通过（667）
+- 验证：冷启动 + 复用 3 次 4/4 全过（155–238s），负载中位数 3.2
+- 正式基准开始后 HU 要求暂停：Android 4/5（第 5 次指纹场景失败）、iOS 第 1 次 2 个失败；日志存 bench-6.12d/；恢复步骤见 task_plan 6.12「批次 D 暂停时的状态」
+
+## 2026-11-13 6.12 批次 D 恢复
+- 查 3 个失败并修复（findings「更正 + 3 个失败的原因」）：Android 匹配指纹确认认证结束、否则重触；iOS 通知横幅位置稳定后再点、仍在屏幕上就重点；beforeScenario 遇 AGENT_TIMEOUT 也重启 App。单元测试 + pnpm check 通过（670）
+- 重启 Metro（`pnpm start:e2e`，8082），开始正式基准 Android ×5 → iOS ×20 → Web ×5（`bench-6.12d/all.sh`；暂停前的部分结果移到 `bench-6.12d/paused-run/`）
+- 正式基准（GPU 修复后）：Android 5/5 全过（约 172s）、Web 5/5 全过（约 47s）、iOS 20 次中只有 3 次全过。根因见 findings：Metro 监视 artifacts/，产物写入触发 HMR，「Refreshing...」窗口挡住了另一个 worker 的 App。按 HU 的选择修复（withQuiesco 默认把产物目录加进 blockList），单元测试和 HMR 实测都已通过。旧结果移到 bench-6.12d/metro-hmr/，重跑 iOS ×20。
+- iOS ×20 第二轮 12/20：`.expo/devices.json` 每次启动 App 都被 Expo 改写，也会触发 HMR → withQuiesco 的 blockList 加上这个文件（只排这一个文件，`.expo/quiesco/` 不受影响）。旧结果移到 bench-6.12d/devices-json/
+- iOS ×20 第三轮 18/20：「上一个场景的横屏已恢复」失败，原因是恢复方向后没等旋转动画结束，就在旋转中 push 了页面 → DeviceApi 记录旋转前窗口的形状，下个场景开始前等它恢复。旧结果移到 bench-6.12d/orientation-restore/
+- iOS ×20 第四轮 **20/20**（每次约 130s，23:46–00:27）
+- 收尾（Android ×5、Web ×5、三端串行，`bench-6.12d/final.sh`）第一次的结果作废：00:32 起 Mac 进入 Idle Sleep（只有 DarkWake 的 45 秒窗口能运行），Android 第 2、4 次各跑了约 20 分钟，出现超时和「被遮挡」，Web 串行跑了 17 分钟。日志移到 bench-6.12d/sleep/；用 `caffeinate -dimsu final.sh` 重跑（基准期间必须阻止睡眠，文档里注明）
+- 防睡眠重跑：Web ×5 5/5（46.5s），三端串行 Web 73/73（88.1s）、iOS 80/80（271.4s）、Android 81/81；Android ×5 5/5，但 217–241s（刚从睡眠唤醒）。用 JSON 报告对照实验（开 / 关 / 开：189 含冷启动 / 164 / 159s）排除方向等待的影响；之后重跑 Android ×5 5/5（159.3–161.9s，负载中位数 2.9），串行 305.4s。唤醒后的结果移到 bench-6.12d/after-wake/
+- docs/benchmarks.md「Phase 6.12: parallel runs」；pnpm check 通过（675）；提交批次 D ⇒ 6.12 完成

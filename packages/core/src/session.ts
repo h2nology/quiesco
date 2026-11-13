@@ -29,6 +29,23 @@ import type { AgentConnection } from './server/ws-server.js';
 import { QuiescoServer } from './server/ws-server.js';
 import { tagNames } from './tags.js';
 
+/** The session's first launch waits this many times the default connect timeout. */
+export const FIRST_LAUNCH_CONNECT_FACTOR = 3;
+
+/** Errors of the per-scenario reset after which the app is started again instead of failing the scenario. */
+const RESTART_ON: ReadonlySet<string> = new Set(['CONNECT_TIMEOUT', 'AGENT_DISCONNECTED', 'AGENT_TIMEOUT']);
+
+/**
+ * How long a launch waits for the app. The session's first launch comes right after installing the app
+ * (every session installs `binaryPath`) and maybe a boot: Android verifies and compiles the new APK on
+ * that start, which took over 30 s on a busy machine (Phase 6.12, two emulators). A configured timeout
+ * always wins.
+ */
+export function launchConnectTimeout(config: QuiescoConfig, launch: { first: boolean }): number {
+  if (config.connectTimeoutMs !== undefined) return config.connectTimeoutMs;
+  return launch.first ? FIRST_LAUNCH_CONNECT_FACTOR * DEFAULT_CONNECT_TIMEOUT_MS : DEFAULT_CONNECT_TIMEOUT_MS;
+}
+
 export interface SessionOptions {
   config: QuiescoConfig;
   platform: Platform;
@@ -170,6 +187,25 @@ export class Session {
    * `reset.default: 'hard'`).
    */
   async beforeScenario(info: ScenarioInfo = {}): Promise<void> {
+    try {
+      await this.resetForScenario(info);
+    } catch (e) {
+      // The app went away during the previous scenario (or this reset) and did not come back in time, or
+      // dropped the reset request:
+      // start it again rather than failing every scenario that follows on the same lost connection
+      // (Phase 6.12: a font-scale relaunch on a busy machine took over 30 s, then 9 scenarios failed).
+      // AGENT_TIMEOUT: still connected but not answering, e.g. left suspended in the background when the
+      // previous scenario's notification tap did not bring it back (batch D 2026-11-13).
+      if (!(e instanceof QuiescoError) || !RESTART_ON.has(e.errorName)) throw e;
+      this.logger.warn(`the app is gone or not answering (${e.message.split('\n')[0]}); starting it again for this scenario`);
+      await this.provider.terminate().catch(() => undefined);
+      this.appState = 'terminated';
+      await this.launch({}, { recovering: true });
+      this.appState = 'running';
+    }
+  }
+
+  private async resetForScenario(info: ScenarioInfo): Promise<void> {
     await this.sync.reset();
     await this.device.resetDeviceState(this.config.permissions ?? []);
     const hard = info.tags?.includes(tagNames(this.config.tags).hardReset) === true || this.config.reset?.default === 'hard';
@@ -346,11 +382,12 @@ export class Session {
     await this.driver.request('configure', { config: this.server.agentConfig });
   }
 
-  private async launch(extra: { args?: LaunchArgs; url?: string } = {}): Promise<LaunchUrlHandling | void> {
+  private async launch(extra: { args?: LaunchArgs; url?: string } = {}, how: { recovering?: boolean } = {}): Promise<LaunchUrlHandling | void> {
     const previous = this.connection;
     const params = this.paramsFor(extra);
     const urlHandling = await this.provider.launch(params);
-    const timeoutMs = this.config.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
+    // A start after the app was lost is as slow as the first (Android is still busy compiling it).
+    const timeoutMs = launchConnectTimeout(this.config, { first: previous === null || how.recovering === true });
     let conn: AgentConnection;
     try {
       conn = await this.server.waitForConnection(this.launchParams.sessionId, timeoutMs, () => '', previous);

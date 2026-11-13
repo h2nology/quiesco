@@ -68,13 +68,18 @@ describe('iOS system UI runner screens (6.7 batch C)', () => {
 });
 
 /** A runner whose screen changes as the test says; records taps. */
-function fakeRunner(screens: RunnerScreen[]) {
+/** `missTaps`: taps that do not land (the notification stays on screen); others open it (it goes away). */
+function fakeRunner(screens: RunnerScreen[], missTaps = 0) {
   const calls: string[] = [];
   const empty: RunnerScreen = { alerts: [], others: [] };
   const runner: SystemRunnerLike = {
     running: true,
     screen: async () => (screens.length > 1 ? screens.shift()! : (screens[0] ?? empty)),
-    tap: async (x, y) => void calls.push(`tap ${x},${y}`),
+    tap: async (x, y) => {
+      calls.push(`tap ${x},${y}`);
+      if (missTaps-- > 0) return;
+      for (const sc of screens) sc.others = [];
+    },
     openNotificationCenter: async () => {
       calls.push('center');
       screens.splice(0, screens.length, { alerts: [], others: [{ label: '2 分前, Reminder, body', id: 'cell', frame: [0, 300, 400, 80] }] });
@@ -103,6 +108,14 @@ describe('IosProvider system UI (6.7 batch C)', () => {
     const gone = fakeRunner([{ alerts: [], others: [] }]);
     await make(gone.runner).openNotification('Reminder');
     expect(gone.calls).toEqual(['center', 'tap 200,340']);
+  });
+
+  it('taps a notification only where two reads agree, and again while it is still there (batch D)', async () => {
+    const at = (y: number) => ({ alerts: [], others: [{ label: '今, Reminder, body', id: 'ShortLook.Platter.Content.Seamless', frame: [8, y, 386, 66] }] });
+    // Sliding in: 20 → 40 → 58, then still at 58; the first tap misses.
+    const { runner, calls } = fakeRunner([at(20), at(40), at(58), at(58)], 1);
+    await make(runner).openNotification('Reminder');
+    expect(calls).toEqual(['tap 201,91', 'tap 201,91']);
   });
 
   it('dismisses alerts left over by the previous scenario before the next one, and stops the runner', async () => {

@@ -46,4 +46,4 @@ export { failureRects, fullPageScreenshot, highlight } from './screenshots.js';
 export { LogBuffer, killChildProcessesSync, trackChildProcess, trackedChildPids } from './devices/streams.js';
 export { SERIAL_WORKER } from './devices/provider.js';
 export { WORKER_SIMULATOR, workerSimulatorName } from './devices/ios.js';
-export { WORKER_AVD, workerAvdName } from './devices/android.js';
+export { CPU_GPU_MODES, WORKER_AVD, emulatorGpu, workerAvdName } from './devices/android.js';

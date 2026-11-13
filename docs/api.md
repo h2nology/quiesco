@@ -431,6 +431,12 @@ The app imports the agent on the first line of its entry file and wraps its root
 (`npx quiesco init` sets both up). In builds without `EXPO_PUBLIC_QUIESCO=1`, `withQuiesco()` in
 `metro.config.js` replaces the package with a no-op stub, so this code can stay in the app.
 
+`withQuiesco(config, options?)` also keeps Metro from watching the artifacts directory: Metro sends the app
+an HMR update for every watched file that changes, and the dev client's "Refreshing..." window would cover
+the app while another worker taps. `options.artifactsDir` (default `'artifacts'`, relative to the project
+root) must match `artifacts.dir` when you change it (`false`: none). `.expo/devices.json` is excluded too:
+Expo's dev server rewrites it every time a dev client app starts.
+
 ```ts
 import { QuiescoRoot, quiesco } from '@quiesco/agent';
 
@@ -489,6 +495,7 @@ export default defineConfig({
 | `devices.ios.device` / `os` / `udid` | the booted simulator | Which simulator; booted if needed |
 | `devices.ios.disablePasswordAutoFill` | `true` | Keep iOS's "Save Password?" sheet from covering the app |
 | `devices.android.avd` / `serial` | a running device | Which emulator / device; the AVD is booted (cold) if not running |
+| `devices.android.gpu` | the AVD's mode; `auto` → `host` on macOS | `-gpu` of the emulators Quiesco boots. On macOS the emulator turns `auto` into `lavapipe`, a CPU renderer (~4 cores per idle emulator) |
 | `devices.*.shutdown` | `false` | Shut down a device Quiesco booted when the run ends |
 | `devices.web.browser` / `headless` / `viewport` | `chromium`, headless | Browser and screen size (nothing is built in) |
 | `permissions` | `[]` | Granted before launch: `camera`, `microphone`, `location`, `notifications`, `contacts`, `photos`, `calendar` ([per platform](platforms.md#permissions)) |

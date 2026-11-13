@@ -152,3 +152,38 @@ running:
 | The six scenarios (s, incl. install + launch) | native | js |
 |---|---|---|
 | `cucumber-js` | 20.5 | 18.4 |
+
+## Phase 6.12: parallel runs
+
+The whole example suite (86 scenarios; 80 run on iOS, 81 on Android, 73 on the web, the rest are tagged for
+other platforms) with `cucumber-js --parallel 2` (`pnpm test:e2e:<platform>:parallel`) against the same
+suite run serially (`pnpm test:e2e:<platform>`). Apple M5 Pro (15 cores, 24 GB), macOS 26; iPhone 17 /
+iOS 27.0 simulators; `Medium_Phone_API_37.0` emulators (emulator 37.2, `-gpu host`); Chromium with the
+static export (`distDir`); dev clients on the Metro development bundle. 2026-11-13 / 14. Wall-clock time of
+the whole command, including booting devices that are not running yet.
+
+| Platform | 2 workers: runs passed | 2 workers (s) | serial (s) | speed-up |
+|---|---|---|---|---|
+| iOS | **20 / 20** | median 130.0 (min 128.9, max 132.8) | 271.4 | 2.1 × |
+| Android | **5 / 5** | median 160.0 (min 159.3, max 161.9) | 305.4 | 1.9 × |
+| Web | **5 / 5** | median 46.5 (min 46.4, max 46.9) | 88.1 | 1.9 × |
+
+- Every run passed every scenario; no "isn't responding" dialog had to be answered. The host's 1-minute
+  load average during the Android runs: median 2.9, max 3.9.
+- **Keep the Mac awake.** A first attempt at the Android and web runs went on after the Mac had gone to
+  idle sleep at night (display off for 20 minutes): processes then run only in the short "dark wakes"
+  every ~47 s, and runs took 20 minutes with timeouts and covered elements. The runs right after waking up
+  were also about 35 % slower (217–241 s on Android). The numbers above were measured under
+  `caffeinate -dimsu`. `pmset -g log | grep -E "Entering Sleep|Wake"` shows whether a run was affected.
+
+What the runs found and fixed before they passed (all in this phase):
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Android: emulators at ~400 % CPU each, system server restarted by its watchdog | emulators booted without `-gpu` render on the CPU (`lavapipe`) on macOS | Quiesco boots them with `-gpu host` (`devices.android.gpu`) and warns about one already rendering on the CPU |
+| Before hook times out while the app is started again | cucumber's 60 s default is less than reconnect + relaunch | `registerQuiesco({ resetTimeoutMs })`, default 180 s |
+| Android: "no match, then the matching finger" waits forever now and then | under load the matching touch fell into the sensor's lockout after the failed one and was dropped | after the matching touch Quiesco checks that no authentication is still waiting (`dumpsys fingerprint`) and touches again (up to 3 times, with a warning) |
+| iOS: opening a notification leaves the app suspended | the tap most likely missed a banner still sliding in | tap once two reads give the same position; tap again (up to 3 times) while the notification is still shown |
+| iOS taps fail with `(the touch would reach UIView)` in 17 of 20 runs | Metro watched `artifacts/` and `.expo/devices.json`; every screenshot (and every app launch) made the dev client of the other worker show "Refreshing..." over the app | `withQuiesco()` adds the artifacts directory (`artifactsDir`) and `.expo/devices.json` to `resolver.blockList` |
+| iOS: a page pushed right after a scenario that rotated the device was lost | the rotation back was still animating when the next scenario navigated | the next scenario waits until the window has its former shape |
+| iOS: a scenario fails because the previous one left the app suspended | the reset got no answer (`AGENT_TIMEOUT`), and only lost connections restarted the app | `AGENT_TIMEOUT` before a scenario restarts the app too |

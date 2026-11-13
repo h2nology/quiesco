@@ -1,6 +1,10 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
-import { AndroidProvider, devClientLaunchUrl, parseUiNodes, primaryButton } from '../src/devices/android';
+import { AndroidProvider, devClientLaunchUrl, emulatorGpu, parseUiNodes, primaryButton } from '../src/devices/android';
 import type { AndroidProviderOptions } from '../src/devices/android';
 import type { Exec } from '../src/devices/exec';
 import { fakeSpawner } from './helpers/fake-child';
@@ -18,6 +22,8 @@ function fakeAdb(answers: [RegExp, string | Error][] = []) {
         return { stdout: Buffer.from(out), stderr: '' };
       }
     }
+    // The package manager is up (boot waits for it, Phase 6.12).
+    if (line.endsWith('shell pm path android')) return { stdout: Buffer.from('package:/system/framework/framework-res.apk\n'), stderr: '' };
     return { stdout: Buffer.from(''), stderr: '' };
   };
   return { exec, calls };
@@ -28,6 +34,7 @@ const BOOTED: [RegExp, string][] = [
   [/getprop ro.boot.qemu.avd_name/, 'Pixel_API_37\n'],
   [/getprop sys.boot_completed/, '1\n'],
   [/dumpsys user/, 'Users:\n  UserInfo{0:Owner:c13} running\n    State: RUNNING_UNLOCKED\n'],
+  [/shell pm path android$/, 'package:/system/framework/framework-res.apk\n'],
 ];
 
 function provider(answers: [RegExp, string | Error][], opts: Partial<AndroidProviderOptions> = {}) {
@@ -51,6 +58,7 @@ describe('AndroidProvider', () => {
       'adb -s emulator-5554 shell getprop ro.boot.qemu.avd_name',
       'adb -s emulator-5554 shell getprop sys.boot_completed',
       'adb -s emulator-5554 shell dumpsys user',
+      'adb -s emulator-5554 shell pm path android', // the package manager is up (Phase 6.12)
       'adb -s emulator-5554 shell input keyevent KEYCODE_WAKEUP',
       'adb -s emulator-5554 shell svc power stayon true',
       'adb -s emulator-5554 shell wm dismiss-keyguard',
@@ -67,7 +75,7 @@ describe('AndroidProvider', () => {
   it('boots the AVD when it is not running and waits for it', async () => {
     let n = 0;
     const spawned: string[] = [];
-    const adb = fakeAdb([[/getprop sys.boot_completed/, '1']]);
+    const adb = fakeAdb([[/getprop sys.boot_completed/, '1'], [/emulator-5560 shell getprop ro.boot.qemu.avd_name/, 'New_AVD\n']]);
     const exec: Exec = async (file, args, o) => {
       if (args.join(' ') === 'devices') {
         n++;
@@ -75,11 +83,34 @@ describe('AndroidProvider', () => {
       }
       return adb.exec(file, args, o);
     };
-    const p = new AndroidProvider({ app: { package: 'x' }, device: { avd: 'New_AVD' }, adbPath: 'adb', emulatorPath: 'emulator', exec, spawn: (f, a) => spawned.push(`${f} ${a.join(' ')}`), pollMs: 1 });
+    const p = new AndroidProvider({ app: { package: 'x' }, device: { avd: 'New_AVD' }, adbPath: 'adb', emulatorPath: 'emulator', exec, spawn: (f, a) => spawned.push(`${f} ${a.join(' ')}`), pollMs: 1, hostPlatform: 'linux' });
     await p.boot();
     expect(spawned).toEqual(['emulator -avd New_AVD -no-boot-anim -no-snapshot-load -no-snapshot-save']);
     expect(adb.calls[0]).toBe('ps -ax -o command'); // checked that the AVD is not already running
-    expect(adb.calls[1]).toBe('adb -s emulator-5560 shell getprop sys.boot_completed');
+    expect(adb.calls[1]).toBe('adb -s emulator-5560 shell getprop ro.boot.qemu.avd_name'); // the new device is ours
+    expect(adb.calls[2]).toBe('adb -s emulator-5560 shell getprop sys.boot_completed');
+  });
+
+  it('takes the new emulator that reports its AVD, not another worker\'s booting at the same time (Phase 6.12)', async () => {
+    let n = 0;
+    const adb = fakeAdb([
+      [/getprop sys.boot_completed/, '1'],
+      [/emulator-5554 shell getprop ro.boot.qemu.avd_name/, 'Base_AVD\n'],
+      [/emulator-5556 shell getprop ro.boot.qemu.avd_name/, 'Base_AVD_quiesco_1\n'],
+    ]);
+    const exec: Exec = async (file, args, o) => {
+      if (args.join(' ') === 'devices') {
+        n++;
+        // The other worker's emulator appears first.
+        const list = n >= 4 ? 'emulator-5554\tdevice\nemulator-5556\tdevice\n' : n >= 2 ? 'emulator-5554\tdevice\n' : '';
+        return { stdout: Buffer.from(`List of devices attached\n${list}`), stderr: '' };
+      }
+      return adb.exec(file, args, o);
+    };
+    const p = new AndroidProvider({ app: { package: 'x' }, device: { avd: 'Base_AVD_quiesco_1' }, adbPath: 'adb', emulatorPath: 'emulator', exec, spawn: () => undefined, pollMs: 1 });
+    await p.boot();
+    expect(adb.calls).toContain('adb -s emulator-5556 shell getprop sys.boot_completed');
+    expect(adb.calls.some((c) => c.startsWith('adb -s emulator-5554 shell getprop sys.boot_completed'))).toBe(false);
   });
 
   it('waits for the user to be unlocked and explains a user stuck in BOOTING', async () => {
@@ -468,22 +499,24 @@ describe('AndroidProvider system integration (Phase 6.7)', () => {
 
   it('waits for the authentication to start before touching the sensor; says so when none is waiting', async () => {
     let polls = 0;
+    let done = false;
     const calls: string[] = [];
     const exec: Exec = async (file, args) => {
       const line = `${file} ${args.join(' ')}`;
       calls.push(line);
       let out = '';
       for (const [re, answer] of BOOTED) if (re.test(line)) out = answer;
-      // Queued (state 4) for two polls, then started (state 2).
-      if (/dumpsys fingerprint/.test(line)) out = `Current operation: {FingerprintAuthenticationClient}, State: ${++polls > 2 ? 2 : 4}`;
+      if (/emu finger touch 1/.test(line)) done = true;
+      // Queued (state 4) for two polls, then started (state 2); a matching touch ends it.
+      if (/dumpsys fingerprint/.test(line)) out = done ? 'Current operation: null' : `Current operation: {FingerprintAuthenticationClient}, State: ${++polls > 2 ? 2 : 4}`;
       return { stdout: Buffer.from(out), stderr: '' };
     };
     const p = new AndroidProvider({ app: { package: 'com.example.todo' }, adbPath: 'adb', emulatorPath: 'emulator', exec, pollMs: 1 });
     await p.boot();
     calls.length = 0;
     await p.presentBiometric(true);
-    expect(calls.filter((c) => /dumpsys fingerprint/.test(c))).toHaveLength(3);
-    expect(calls.at(-1)).toBe('adb -s emulator-5554 emu finger touch 1');
+    expect(calls.filter((c) => /dumpsys fingerprint/.test(c))).toHaveLength(4); // 3 until started, 1 confirming the end
+    expect(calls.filter((c) => /emu finger/.test(c))).toEqual(['adb -s emulator-5554 emu finger touch 1']);
     const idle = provider([...BOOTED, [/dumpsys fingerprint/, 'Current operation: null']]);
     await idle.p.boot();
     await expect(idle.p.presentBiometric(false)).rejects.toThrow(/no fingerprint authentication is waiting/);
@@ -494,12 +527,11 @@ describe('AndroidProvider system integration (Phase 6.7)', () => {
     const { p, calls } = provider([...BOOTED, [/dumpsys fingerprint/, started]]);
     await p.boot();
     calls.length = 0;
-    await p.presentBiometric(true);
-    await p.presentBiometric(false);
+    await p.presentBiometric(false); // the authentication keeps waiting after an unknown finger
     await p.shake();
     const touches = calls.filter((c) => !/dumpsys fingerprint/.test(c));
-    expect(touches.slice(0, 2)).toEqual(['adb -s emulator-5554 emu finger touch 1', 'adb -s emulator-5554 emu finger touch 2']);
-    const pushes = touches.slice(2);
+    expect(touches[0]).toBe('adb -s emulator-5554 emu finger touch 2');
+    const pushes = touches.slice(1);
     expect(pushes).toHaveLength(13);
     expect(pushes[0]).toBe('adb -s emulator-5554 emu sensor set acceleration 20:9.8:0');
     expect(pushes[1]).toBe('adb -s emulator-5554 emu sensor set acceleration -20:9.8:0');
@@ -509,6 +541,28 @@ describe('AndroidProvider system integration (Phase 6.7)', () => {
     await expect(device.p.shake()).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { action: 'shake' } });
     await expect(device.p.presentBiometric(true)).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED' });
   });
+
+  it('touches the enrolled finger again when the authentication is still waiting (touch dropped during the lockout)', async () => {
+    let touches = 0;
+    const calls: string[] = [];
+    const warnings: string[] = [];
+    const exec: Exec = async (file, args) => {
+      const line = `${file} ${args.join(' ')}`;
+      calls.push(line);
+      let out = '';
+      for (const [re, answer] of BOOTED) if (re.test(line)) out = answer;
+      if (/emu finger touch 1/.test(line)) touches++;
+      // The first matching touch is dropped; the second ends the authentication.
+      if (/dumpsys fingerprint/.test(line)) out = touches >= 2 ? 'Current operation: null' : 'Current operation: {FingerprintAuthenticationClient}, State: 2';
+      return { stdout: Buffer.from(out), stderr: '' };
+    };
+    const logger = { debug: () => undefined, info: () => undefined, warn: (m: string) => void warnings.push(m), error: () => undefined };
+    const p = new AndroidProvider({ app: { package: 'com.example.todo' }, adbPath: 'adb', emulatorPath: 'emulator', exec, pollMs: 1, logger });
+    await p.boot();
+    await p.presentBiometric(true);
+    expect(touches).toBe(2);
+    expect(warnings).toEqual([expect.stringMatching(/still waiting 2000ms after the touch.*touching again/)]);
+  }, 10_000);
 
   it('sends notifications through the app; says what is missing when it cannot', async () => {
     const { p, calls } = provider(BOOTED);
@@ -624,5 +678,109 @@ describe('AndroidProvider artifacts (Phase 6.9)', () => {
     expect(s.children[0]?.args).toEqual(['-s', 'emulator-5554', 'logcat', '-v', 'threadtime', '-T', '1', '--uid=10232']);
     s.children[0]?.stdout.emit('data', '--------- beginning of main\n11-10 W ReactNativeJS: hi\n');
     expect(p.deviceLogs(since)).toEqual(['11-10 W ReactNativeJS: hi']);
+  });
+});
+
+describe('AndroidProvider boot under load (Phase 6.12)', () => {
+  it('waits for the package manager after the user is unlocked', async () => {
+    let pmChecks = 0;
+    const adb = fakeAdb([
+      [/adb devices$/, 'List of devices attached\nemulator-5554\tdevice\n'],
+      [/getprop sys.boot_completed/, '1\n'],
+      [/dumpsys user/, '    State: RUNNING_UNLOCKED\n'],
+    ]);
+    const exec: Exec = async (file, args, o) => {
+      if (args.join(' ').endsWith('shell pm path android')) {
+        pmChecks++;
+        return { stdout: Buffer.from(pmChecks < 3 ? '' : 'package:/system/framework/framework-res.apk\n'), stderr: '' };
+      }
+      return adb.exec(file, args, o);
+    };
+    const p = new AndroidProvider({ app: { package: 'x' }, adbPath: 'adb', exec, pollMs: 1 });
+    await p.boot();
+    expect(pmChecks).toBe(3);
+  });
+});
+
+describe('AndroidProvider install under load (Phase 6.12)', () => {
+  function installing(failures: (string | null)[]) {
+    let n = 0;
+    const adb = fakeAdb(BOOTED);
+    const exec: Exec = async (file, args, o) => {
+      if (args.includes('install')) {
+        const f = failures[n++];
+        if (f !== null && f !== undefined) throw new Error(`adb install failed: adb: failed to install x.apk: ${f}`);
+      }
+      return adb.exec(file, args, o);
+    };
+    const p = new AndroidProvider({ app: { package: 'x', binaryPath: '/abs/x.apk' }, device: { avd: 'Pixel_API_37' }, adbPath: 'adb', exec, pollMs: 1, logger: { debug() {}, info() {}, warn() {}, error() {} } });
+    return { p, calls: adb.calls };
+  }
+
+  it('tries again without streaming after a broken pipe or a busy package service', async () => {
+    const { p, calls } = installing(['cmd: Failure calling service package: Broken pipe (32)', null]);
+    await p.boot();
+    await p.install();
+    const installs = calls.filter((c) => c.includes(' install '));
+    expect(installs).toEqual(['adb -s emulator-5554 install -r -g --no-streaming /abs/x.apk']);
+  });
+
+  it('does not retry other failures', async () => {
+    const { p } = installing(['INSTALL_FAILED_INSUFFICIENT_STORAGE']);
+    await p.boot();
+    await expect(p.install()).rejects.toThrow(/INSUFFICIENT_STORAGE/);
+  });
+});
+
+describe('emulator GPU (2026-11-13: auto is a CPU renderer on macOS)', () => {
+  it('emulatorGpu: the configured mode, else host for auto / none on macOS, else the AVD decides', () => {
+    expect(emulatorGpu('swiftshader_indirect', 'auto', 'darwin')).toBe('swiftshader_indirect');
+    expect(emulatorGpu(undefined, 'auto', 'darwin')).toBe('host');
+    expect(emulatorGpu(undefined, undefined, 'darwin')).toBe('host');
+    expect(emulatorGpu(undefined, 'lavapipe', 'darwin')).toBeUndefined(); // set on purpose in the AVD
+    expect(emulatorGpu(undefined, 'host', 'darwin')).toBeUndefined();
+    expect(emulatorGpu(undefined, 'auto', 'linux')).toBeUndefined(); // CI without a GPU
+    expect(emulatorGpu('host', undefined, 'linux')).toBe('host');
+  });
+
+  function avdHome(gpuMode: string | null, running?: string): string {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'quiesco-avd-'));
+    const dir = path.join(home, 'Pixel.avd');
+    fs.mkdirSync(dir);
+    fs.writeFileSync(path.join(home, 'Pixel.ini'), `avd.ini.encoding=UTF-8\npath=${dir}\n`);
+    fs.writeFileSync(path.join(dir, 'config.ini'), `hw.cpu.ncore=1\n${gpuMode === null ? '' : `hw.gpu.mode=${gpuMode}\n`}`);
+    if (running !== undefined) fs.writeFileSync(path.join(dir, 'hardware-qemu.ini'), `hw.gpu.enabled = true\nhw.gpu.mode = ${running}\n`);
+    return home;
+  }
+
+  async function bootFresh(home: string, device: AndroidProviderOptions['device'] = {}) {
+    let n = 0;
+    const spawned: string[] = [];
+    const adb = fakeAdb([[/getprop sys.boot_completed/, '1'], [/emulator-5560 shell getprop ro.boot.qemu.avd_name/, 'Pixel\n']]);
+    const exec: Exec = async (file, args, o) => {
+      if (args.join(' ') === 'devices') return { stdout: Buffer.from(`List of devices attached\n${++n >= 2 ? 'emulator-5560\tdevice\n' : ''}`), stderr: '' };
+      return adb.exec(file, args, o);
+    };
+    const p = new AndroidProvider({ app: { package: 'x' }, device: { avd: 'Pixel', ...device }, adbPath: 'adb', emulatorPath: 'emulator', exec, spawn: (f, a) => spawned.push(`${f} ${a.join(' ')}`), pollMs: 1, avdHome: home, hostPlatform: 'darwin' });
+    await p.boot();
+    return spawned;
+  }
+
+  it('boots an AVD set to auto with -gpu host on macOS, and keeps a mode set on purpose', async () => {
+    expect(await bootFresh(avdHome('auto'))).toEqual(['emulator -avd Pixel -no-boot-anim -no-snapshot-load -no-snapshot-save -gpu host']);
+    expect(await bootFresh(avdHome('swiftshader_indirect'))).toEqual(['emulator -avd Pixel -no-boot-anim -no-snapshot-load -no-snapshot-save']);
+    expect(await bootFresh(avdHome('auto'), { gpu: 'lavapipe' })).toEqual(['emulator -avd Pixel -no-boot-anim -no-snapshot-load -no-snapshot-save -gpu lavapipe']);
+  });
+
+  it('warns when a running emulator it reuses renders on the CPU', async () => {
+    const warnings: string[] = [];
+    const logger = { debug: () => undefined, info: () => undefined, warn: (m: string) => void warnings.push(m), error: () => undefined };
+    for (const [mode, warns] of [['lavapipe', true], ['host', false]] as const) {
+      warnings.length = 0;
+      const adb = fakeAdb([...BOOTED.map(([re, out]) => [re, out.replace('Pixel_API_37', 'Pixel')] as [RegExp, string]), [/getprop sys.boot_completed/, '1']]);
+      const p = new AndroidProvider({ app: { package: 'x' }, device: { avd: 'Pixel' }, adbPath: 'adb', emulatorPath: 'emulator', exec: adb.exec, spawn: () => undefined, pollMs: 1, avdHome: avdHome('auto', mode), logger });
+      await p.boot();
+      expect(warnings.some((w) => /renders with lavapipe, on the CPU.*-gpu host/.test(w))).toBe(warns);
+    }
   });
 });

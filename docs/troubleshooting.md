@@ -46,6 +46,12 @@ Typical causes: a dialog or sheet still open, a toast, content under a transluce
 (iOS 26+), an element still animating into place. A software keyboard over the target is dismissed
 automatically.
 
+On iOS, `(the touch would reach UIView)` with a **"Refreshing..."** bar at the top of `failure.png` is the
+dev client reloading after a file Metro watches changed. Something writes into the project while the tests
+run: usually artifacts in a directory other than `artifacts/` (pass the same path to
+`withQuiesco(config, { artifactsDir })` and restart Metro), or generated files of your own (add them to
+`resolver.blockList`). In parallel runs one worker's screenshots then break another worker's taps.
+
 ## "… isn't responding" on Android (parallel runs)
 
 Quiesco warns `Android showed "com.android.systemui isn't responding" over the app; Quiesco chose Wait`:
@@ -81,6 +87,11 @@ reports can be ignored with `appErrors.ignore` (see [known issues](known-issues.
 
 ## Android
 
+- **Everything is slow, the Mac's fans spin, `qemu-system` uses 400 % CPU:** the emulator renders on the CPU
+  (`lavapipe` / `swiftshader`; see `hw.gpu.mode` in the AVD's `hardware-qemu.ini`). On macOS the emulator
+  picks `lavapipe` for an AVD set to `auto`. Quiesco boots emulators with `-gpu host` there and warns when
+  it reuses one that renders on the CPU: restart that emulator with `-gpu host` (or let Quiesco boot it).
+  With two such emulators, Android's system server can hang for a minute and be restarted by its watchdog.
 - **The emulator restarts about 30 s after booting:** a stale quick-boot snapshot. Quiesco cold-boots the
   emulators it starts; an emulator you started from Android Studio may still load a snapshot — use
   "Cold Boot Now" once.

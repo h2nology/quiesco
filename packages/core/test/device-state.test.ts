@@ -26,6 +26,7 @@ class StateProvider extends FakeProvider {
   honors = true;
   revokeKills = false;
   locale: string | null = null;
+  lagLeft = 0;
   constructor(onLaunch: (p: LaunchParams) => void) {
     super(onLaunch);
   }
@@ -115,11 +116,18 @@ class StateProvider extends FakeProvider {
     this.calls.push(`systemTap:${n.id || n.text}`);
   }
   readonly permissionDialog = { allow: ['p:id/allow', 'p:id/allow_foreground'], deny: ['p:id/deny', 'p:id/deny_dont_ask'] };
+  /** deviceInfo answers before the window takes its reset shape (a rotation still running). */
+  resetLag = 0;
   async resetDeviceState(): Promise<StateChange> {
     this.calls.push('reset');
     const relaunch = this.locale !== null;
     this.locale = null;
+    const shape = this.app.width > this.app.height ? { width: 800, height: 400 } : { width: 400, height: 800 };
     this.app = { width: 400, height: 800, colorScheme: 'light', fontScale: 1, locale: 'en-US' };
+    if (this.resetLag > 0) {
+      this.lagLeft = this.resetLag;
+      this.app = { ...this.app, ...shape };
+    }
     return { relaunch };
   }
 }
@@ -139,6 +147,7 @@ async function start(extra: Partial<QuiescoConfig> = {}) {
         sessionId: p.sessionId,
         nativeModule: true,
         handler: (m, p) => {
+          if (m === 'deviceInfo' && provider.lagLeft > 0 && --provider.lagLeft === 0) Object.assign(provider.app, { width: 400, height: 800 });
           const a = provider.app;
           if (m === 'deviceInfo') return { window: { width: a.width, height: a.height }, pixelRatio: 2, appState: 'active', colorScheme: a.colorScheme, fontScale: a.fontScale, locale: a.locale };
           if (m === 'setOrientation') return { supported: true };
@@ -171,7 +180,8 @@ describe('app.device state (Phase 6.6)', () => {
     const { provider, agents, device } = await start();
     await device.setOrientation('landscape');
     expect(provider.calls).toEqual(['orientation:landscape:true']);
-    expect(methods(agents[0])).toEqual(['setOrientation', 'deviceInfo', 'waitForIdle']);
+    // The shape before the first rotation is noted (the next scenario's reset waits for it).
+    expect(methods(agents[0])).toEqual(['deviceInfo', 'setOrientation', 'deviceInfo', 'waitForIdle']);
     await expect(device.setOrientation('upside-down' as never)).rejects.toThrow(RangeError);
   });
 
@@ -227,6 +237,22 @@ describe('app.device state (Phase 6.6)', () => {
     expect(provider.calls).toContain('launch');
     expect(agents).toHaveLength(2);
     await expect(device.setPermission('location', 'ask' as never)).rejects.toThrow(RangeError);
+  });
+
+  it('before the next scenario: waits until the rotation back has finished and the app is idle (Phase 6.12)', async () => {
+    const { provider, agents } = await start();
+    const device = session!.driver.device;
+    await device.setOrientation('landscape');
+    provider.resetLag = 3;
+    const agent = agents.at(-1)!;
+    agent.requests.length = 0;
+    await session!.beforeScenario({});
+    expect(provider.app).toMatchObject({ width: 400, height: 800 });
+    expect(methods(agent)).toEqual(['deviceInfo', 'deviceInfo', 'deviceInfo', 'waitForIdle', 'reset']);
+    // Nothing rotated in this scenario: nothing to wait for.
+    agent.requests.length = 0;
+    await session!.beforeScenario({});
+    expect(methods(agent)).toEqual(['reset']);
   });
 
   it('before the next scenario: permissions back to the configured ones, the rest reset by the provider (relaunch for a locale)', async () => {
