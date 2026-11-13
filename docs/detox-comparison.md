@@ -96,7 +96,7 @@ supports it on that platform only.
 |---|---|---|---|---|---|---|
 | `system.element(by.system.label)` (experimental) | **iOS** | `device.system.tap` / `expectVisible` / `allowPermission` / `denyPermission` | ✓ (XCUITest runner) | ✓ (uiautomator) | ✓ (JS dialogs) | system: 拒绝通知权限; 取消网页的确认对话框 |
 | `web.element(by.web.*)`: tap / typeText / replaceText / runScript / getText | both (several Android issues) | `webview(m).element({ css \| xpath \| id \| text })`: tap / type / replaceText / scrollIntoView / expect* / runScript / url / title | ✓ | ✓ | ✓ (iframe) | webview (6 scenarios) |
-| Pilot (LLM-driven steps) | — | planned (Phase 6.14) | — | — | — | — |
+| Pilot (LLM-driven steps) | — | **Deferred** (Phase 6.14, see Gaps) | — | — | — | — |
 
 ## Running tests
 
@@ -106,7 +106,7 @@ supports it on that platform only.
 | parallel workers | cucumber-js `--parallel`, Jest `maxWorkers`, Vitest `quiesco({ workers })`; a device per worker, created and kept by Quiesco (iOS `simctl create`, Android an AVD copy per worker, so a writable emulator you have open is no obstacle); per-worker config function, ports, artifacts; [parallel.md](parallel.md) | unit tests + three platforms × three runners (Phase 6.12) |
 | `retries` | **Alternative**: the runner's own retry (`cucumber-js --retry`, Jest `jest.retryTimes`, Vitest `retry`) | — (runner features) |
 | artifacts: screenshots, video, logs, uiHierarchy, instruments | screenshot + element tree + logs on failure, per-scenario video (MP4 / WebM), device log, timeline (Chrome trace) | screenshots; unit tests (artifacts) |
-| iOS real devices: not supported (#95) | planned (Phase 6.13) | — |
+| real devices (Detox: Android only; iOS not supported, #95) | **Deferred** (Phase 6.13, see Gaps): simulators, emulators and Chromium only | — |
 | Web: no first-party support | Chromium (phone / tablet / desktop viewports) with the same features | every Web run |
 | Expo: "community supported" | Expo first: config plugin, dev client, Expo Router, `expo/fetch` | the example app (Expo SDK 58) |
 
@@ -164,17 +164,22 @@ Decided not to build (2026-11-11), with the alternative:
 - **`retries`:** the runner's own retry option.
 - **`by.traits`:** `{ role }` and the semantic `{ type }`.
 
-Still to come: real devices (6.13), LLM-driven steps (6.14).
+Deferred (2026-11-14), not built yet:
+
+- **Real devices (Phase 6.13):** Android devices over adb and iOS devices are not verified; run on
+  simulators, emulators and Chromium.
+- **LLM-driven steps (Phase 6.14, Detox Pilot):** not offered; write steps against the Driver API.
 
 ## Results
 
-Full example suite, 2026-11-11 (Phase 6.11), dev clients and a development bundle from Metro; iPhone 17
-simulator iOS 26.5, Android 17 emulator (API 37), Chromium:
+Full example suite, 2026-11-14 (Phase 6 acceptance), run one after another without workers; dev clients
+and a development bundle from Metro; iPhone 17 simulator iOS 27.0, Android 17 emulator (API 37,
+`-gpu host`), Chromium:
 
 | Platform | Scenarios | Passed | Skipped (tagged for other platforms / needs touch) | Time |
 |---|---|---|---|---|
-| iOS | 86 | 80 | 6 | 4 m 5 s |
-| Android | 86 | 81 | 5 | 6 m 12 s |
-| Web (phone viewport) | 86 | 73 | 13 | 1 m 38 s |
+| iOS | 86 | 80 | 6 | 4 m 26 s |
+| Android | 86 | 81 | 5 | 5 m 3 s |
+| Web (phone viewport) | 86 | 73 | 13 | 1 m 27 s |
 
 Timings against earlier phases: [benchmarks.md](benchmarks.md).

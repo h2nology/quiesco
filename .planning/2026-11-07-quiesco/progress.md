@@ -333,3 +333,10 @@
 - 收尾（Android ×5、Web ×5、三端串行，`bench-6.12d/final.sh`）第一次的结果作废：00:32 起 Mac 进入 Idle Sleep（只有 DarkWake 的 45 秒窗口能运行），Android 第 2、4 次各跑了约 20 分钟，出现超时和「被遮挡」，Web 串行跑了 17 分钟。日志移到 bench-6.12d/sleep/；用 `caffeinate -dimsu final.sh` 重跑（基准期间必须阻止睡眠，文档里注明）
 - 防睡眠重跑：Web ×5 5/5（46.5s），三端串行 Web 73/73（88.1s）、iOS 80/80（271.4s）、Android 81/81；Android ×5 5/5，但 217–241s（刚从睡眠唤醒）。用 JSON 报告对照实验（开 / 关 / 开：189 含冷启动 / 164 / 159s）排除方向等待的影响；之后重跑 Android ×5 5/5（159.3–161.9s，负载中位数 2.9），串行 305.4s。唤醒后的结果移到 bench-6.12d/after-wake/
 - docs/benchmarks.md「Phase 6.12: parallel runs」；pnpm check 通过（675）；提交批次 D ⇒ 6.12 完成
+
+## 2026-11-14 Phase 6 整体验收
+- HU：先跳过 6.13 做 6.14，随后决定 6.13 和 6.14 都暂缓（6.14 计划草案：独立 @quiesco/ai 包按需加载、默认关闭需 API key、缓存回放 + 生成代码，未实现）
+- 对照表核对：调研 B 的 Detox API 在 docs/detox-comparison.md 里都有对应行；表中引用的 51 个场景在 features 里都存在
+- 实跑（HEAD，caffeinate）：pnpm check 675 通过；串行全量 Web 73/73（87s）、iOS 80/80（266s）、Android 81/81（304s）
+- HU 决定：Phase 6 验收通过，6.13 / 6.14 移到后续；clearKeychain / reverseTcpPort / sendUserActivity 按「不适用」处理，不补
+- docs/detox-comparison.md：Pilot、真机改为 Deferred，Gaps 补充，Results 换成 2026-11-14 的数据 ⇒ Phase 6 完成
