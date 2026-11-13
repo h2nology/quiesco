@@ -1,0 +1,89 @@
+$ QUIESCO_PLATFORM=android cucumber-js --parallel 2
+..[quiesco] worker 1: Android emulator Medium_Phone_API_37.0_quiesco_1 (emulator-5554)
+[quiesco] agent connected: android, session 0c7a62ca-765e-4a6e-89cf-37f015c59ea6, agent 0.0.0, native module true
+.[quiesco] agent connected: android, session 0490ee56-b188-4a00-a3de-b0640a8a8008, agent 0.0.0, native module true
+...................................................................[quiesco] setFontScale: starting the app again
+[quiesco] [app] Looks like you have configured linking in multiple places. This is likely an error since deep links should only be handled in one place to avoid conflicts. Make sure that:
+- You don't have multiple NavigationContainers in the app
+- Only a single instance of the root component is rendered
+.....[quiesco] setLocale: starting the app again
+[quiesco] agent connected: android, session 0490ee56-b188-4a00-a3de-b0640a8a8008, agent 0.0.0, native module true
+...[quiesco] agent connected: android, session 0c7a62ca-765e-4a6e-89cf-37f015c59ea6, agent 0.0.0, native module true
+[quiesco] agent connected: android, session 0490ee56-b188-4a00-a3de-b0640a8a8008, agent 0.0.0, native module true
+..........................................[quiesco] agent connected: android, session 0c7a62ca-765e-4a6e-89cf-37f015c59ea6, agent 0.0.0, native module true
+...........[quiesco] setPermission(location, revoke): starting the app again
+......................................[quiesco] agent connected: android, session 0c7a62ca-765e-4a6e-89cf-37f015c59ea6, agent 0.0.0, native module true
+...............----........[quiesco] agent connected: android, session 0c7a62ca-765e-4a6e-89cf-37f015c59ea6, agent 0.0.0, native module true
+......[quiesco] agent connected: android, session 0490ee56-b188-4a00-a3de-b0640a8a8008, agent 0.0.0, native module true
+...........[quiesco] agent connected: android, session 0c7a62ca-765e-4a6e-89cf-37f015c59ea6, agent 0.0.0, native module true
+.....................[quiesco] agent connected: android, session 0490ee56-b188-4a00-a3de-b0640a8a8008, agent 0.0.0, native module true
+....................................................................................................................................................[quiesco] setPermission(notifications, reset): starting the app again
+.......[quiesco] agent connected: android, session 0c7a62ca-765e-4a6e-89cf-37f015c59ea6, agent 0.0.0, native module true
+.[quiesco] setPermission(notifications, reset): starting the app again
+..[quiesco] agent connected: android, session 0490ee56-b188-4a00-a3de-b0640a8a8008, agent 0.0.0, native module true
+.....[quiesco] agent connected: android, session 0c7a62ca-765e-4a6e-89cf-37f015c59ea6, agent 0.0.0, native module true
+...-----......-------.-----.------..[quiesco] agent connected: android, session 0490ee56-b188-4a00-a3de-b0640a8a8008, agent 0.0.0, native module true
+.....[quiesco] setPermission(notifications, reset): starting the app again
+....F-...F----..[quiesco] agent connected: android, session 0490ee56-b188-4a00-a3de-b0640a8a8008, agent 0.0.0, native module true
+............F-......F-...............[quiesco] agent connected: android, session 0490ee56-b188-4a00-a3de-b0640a8a8008, agent 0.0.0, native module true
+........................................
+
+Failed scenarios:
+  1) 拖动滑块到指定位置 # features/values.feature:16
+       When 把音量滑块拖到 75% 的位置 # features/step_definitions/todo.steps.ts:204
+           QuiescoError: <RNCSlider testID="volume"> is covered by another window or native view, e.g. a Modal, dialog or navigation bar; a real touch would not reach it
+               at QuiescoError.fromRpc (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/errors.js:20:16)
+               at AgentConnection.onMessage (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:62:39)
+               at WebSocket.<anonymous> (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:174:28)
+               at WebSocket.emit (node:events:514:28)
+               at Receiver.receiverOnMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/websocket.js:1258:20)
+               at Receiver.emit (node:events:514:28)
+               at Receiver.dataMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:633:14)
+               at Receiver.getData (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:532:10)
+               at Receiver.startLoop (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:190:16)
+               at Receiver._write (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:117:10)
+  2) 开关 # features/values.feature:20
+       When 打开通知开关 # features/step_definitions/todo.steps.ts:223
+           QuiescoError: <AndroidSwitch testID="notify"> is covered by another window or native view, e.g. a Modal, dialog or navigation bar; a real touch would not reach it
+               at QuiescoError.fromRpc (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/errors.js:20:16)
+               at AgentConnection.onMessage (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:62:39)
+               at WebSocket.<anonymous> (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:174:28)
+               at WebSocket.emit (node:events:514:28)
+               at Receiver.receiverOnMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/websocket.js:1258:20)
+               at Receiver.emit (node:events:514:28)
+               at Receiver.dataMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:633:14)
+               at Receiver.getData (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:532:10)
+               at Receiver.startLoop (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:190:16)
+               at Receiver._write (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:117:10)
+  3) 分段控件 # features/values.feature:36
+       When 把尺寸设为 "L" # features/step_definitions/todo.steps.ts:255
+           QuiescoError: <RCTView text="SML"> is covered by another window or native view, e.g. a Modal, dialog or navigation bar; a real touch would not reach it
+               at QuiescoError.fromRpc (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/errors.js:20:16)
+               at AgentConnection.onMessage (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:62:39)
+               at WebSocket.<anonymous> (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:174:28)
+               at WebSocket.emit (node:events:514:28)
+               at Receiver.receiverOnMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/websocket.js:1258:20)
+               at Receiver.emit (node:events:514:28)
+               at Receiver.dataMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:633:14)
+               at Receiver.getData (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:532:10)
+               at Receiver.startLoop (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:190:16)
+               at Receiver._write (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:117:10)
+  4) 日期 # features/values.feature:40
+       When 把生日设为 "2027-03-08" # features/step_definitions/todo.steps.ts:263
+           QuiescoError: <RCTView testID="birthday-open" text="选择日期"> is covered by another window or native view, e.g. a Modal, dialog or navigation bar; a real touch would not reach it
+               at QuiescoError.fromRpc (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/errors.js:20:16)
+               at AgentConnection.onMessage (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:62:39)
+               at WebSocket.<anonymous> (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:174:28)
+               at WebSocket.emit (node:events:514:28)
+               at Receiver.receiverOnMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/websocket.js:1258:20)
+               at Receiver.emit (node:events:514:28)
+               at Receiver.dataMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:633:14)
+               at Receiver.getData (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:532:10)
+               at Receiver.startLoop (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:190:16)
+               at Receiver._write (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:117:10)
+
+8 hooks (8 passed)
+86 scenarios (77 passed, 5 skipped, 4 failed)
+523 steps (485 passed, 34 skipped, 4 failed)
+3m 38.376s (7m 15.125s executing your code)
+[ELIFECYCLE] Command failed with exit code 1.

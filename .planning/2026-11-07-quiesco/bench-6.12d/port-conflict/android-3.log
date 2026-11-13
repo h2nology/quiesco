@@ -1,0 +1,3 @@
+$ QUIESCO_PLATFORM=android cucumber-js --parallel 2
+.F[quiesco] Android emulator Medium_Phone_API_37.0 (emulator-5554) renders with lavapipe, on the CPU (several cores per emulator): tests run slowly and the system may stop responding. Restart it with -gpu host (or let Quiesco boot it: it uses host on macOS).
+[quiesco] worker 1: Android emulator Medium_Phone_API_37.0_quiesco_1 (emulator-5556)

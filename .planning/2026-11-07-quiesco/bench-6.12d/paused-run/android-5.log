@@ -1,0 +1,48 @@
+$ QUIESCO_PLATFORM=android cucumber-js --parallel 2
+..[quiesco] worker 1: Android emulator Medium_Phone_API_37.0_quiesco_1 (emulator-5554)
+[quiesco] agent connected: android, session c62965af-e498-4278-9d81-339cabae05f1, agent 0.0.0, native module true
+.[quiesco] agent connected: android, session 049015e7-0e0a-42b8-be81-cdf91e4a3455, agent 0.0.0, native module true
+...................................................................[quiesco] setFontScale: starting the app again
+[quiesco] agent connected: android, session 049015e7-0e0a-42b8-be81-cdf91e4a3455, agent 0.0.0, native module true
+..........[quiesco] agent connected: android, session 049015e7-0e0a-42b8-be81-cdf91e4a3455, agent 0.0.0, native module true
+..[quiesco] setLocale: starting the app again
+[quiesco] agent connected: android, session 049015e7-0e0a-42b8-be81-cdf91e4a3455, agent 0.0.0, native module true
+.....[quiesco] setPermission(location, revoke): starting the app again
+..[quiesco] agent connected: android, session c62965af-e498-4278-9d81-339cabae05f1, agent 0.0.0, native module true
+[quiesco] agent connected: android, session 049015e7-0e0a-42b8-be81-cdf91e4a3455, agent 0.0.0, native module true
+...............................................................................................----........[quiesco] agent connected: android, session 049015e7-0e0a-42b8-be81-cdf91e4a3455, agent 0.0.0, native module true
+.....[quiesco] agent connected: android, session c62965af-e498-4278-9d81-339cabae05f1, agent 0.0.0, native module true
+...................[quiesco] agent connected: android, session 049015e7-0e0a-42b8-be81-cdf91e4a3455, agent 0.0.0, native module true
+..........[quiesco] agent connected: android, session c62965af-e498-4278-9d81-339cabae05f1, agent 0.0.0, native module true
+............................................................................................................................................................[quiesco] setPermission(notifications, reset): starting the app again
+F.[quiesco] agent connected: android, session 049015e7-0e0a-42b8-be81-cdf91e4a3455, agent 0.0.0, native module true
+....[quiesco] setPermission(notifications, reset): starting the app again
+...[quiesco] agent connected: android, session 049015e7-0e0a-42b8-be81-cdf91e4a3455, agent 0.0.0, native module true
+.....-----...[quiesco] setPermission(notifications, reset): starting the app again
+[quiesco] agent connected: android, session c62965af-e498-4278-9d81-339cabae05f1, agent 0.0.0, native module true
+.....-------.-----.------.[quiesco] agent connected: android, session c62965af-e498-4278-9d81-339cabae05f1, agent 0.0.0, native module true
+[quiesco] agent connected: android, session 049015e7-0e0a-42b8-be81-cdf91e4a3455, agent 0.0.0, native module true
+.......................................[quiesco] [app] DateTimePicker: `onChange` is deprecated. Use `onValueChange`, `onDismiss`, and `onNeutralButtonPress` instead.
+[quiesco] agent connected: android, session 049015e7-0e0a-42b8-be81-cdf91e4a3455, agent 0.0.0, native module true
+..........................................................
+
+Failed scenarios:
+  1) 不匹配后再出示匹配的指纹 # features/system.feature:29
+       Then 系统集成页显示认证结果 "成功" # features/step_definitions/system.steps.ts:38
+           QuiescoError: expect text failed after 10000ms for { id: "auth-result" }: expected "成功", actual "…"
+               at QuiescoError.fromRpc (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/errors.js:20:16)
+               at AgentConnection.onMessage (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:62:39)
+               at WebSocket.<anonymous> (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:174:28)
+               at WebSocket.emit (node:events:514:28)
+               at Receiver.receiverOnMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/websocket.js:1258:20)
+               at Receiver.emit (node:events:514:28)
+               at Receiver.dataMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:633:14)
+               at Receiver.getData (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:532:10)
+               at Receiver.startLoop (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:190:16)
+               at Receiver._write (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:117:10)
+
+8 hooks (8 passed)
+86 scenarios (80 passed, 5 skipped, 1 failed)
+523 steps (495 passed, 27 skipped, 1 failed)
+2m 57.303s (5m 53.822s executing your code)
+[ELIFECYCLE] Command failed with exit code 1.

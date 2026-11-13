@@ -1,0 +1,35 @@
+$ QUIESCO_PLATFORM=ios cucumber-js --parallel 2
+..[quiesco] Unknown session "b8f255d4-2e4c-464b-b243-6813d91205d7" (expected 5785d55b-20a4-461a-8465-b56395d24d90). Is another test run using this port?
+[quiesco] Unknown session "f72ba6e6-0199-4774-abb4-fd117f308bdb" (expected f752b6b5-9dbe-406b-b447-0b291f1c3376). Is another test run using this port?
+[quiesco] worker 0: iOS simulator iPhone 17 (5FB8DD3C-E255-4A62-A656-9DD598CF9431)
+[quiesco] worker 1: iOS simulator iPhone 17 (Quiesco 1) (3C16E636-C888-4F75-A1DD-510D8DE75C61)
+[quiesco] agent connected: ios, session 5785d55b-20a4-461a-8465-b56395d24d90, agent 0.0.0, native module true
+.[quiesco] agent connected: ios, session f752b6b5-9dbe-406b-b447-0b291f1c3376, agent 0.0.0, native module true
+........................................................................[quiesco] setLocale: starting the app again
+[quiesco] agent connected: ios, session 5785d55b-20a4-461a-8465-b56395d24d90, agent 0.0.0, native module true
+...[quiesco] agent connected: ios, session 5785d55b-20a4-461a-8465-b56395d24d90, agent 0.0.0, native module true
+.......................--------......................................................................................[quiesco] agent connected: ios, session f752b6b5-9dbe-406b-b447-0b291f1c3376, agent 0.0.0, native module true
+.......[quiesco] agent connected: ios, session 5785d55b-20a4-461a-8465-b56395d24d90, agent 0.0.0, native module true
+.............[quiesco] agent connected: ios, session f752b6b5-9dbe-406b-b447-0b291f1c3376, agent 0.0.0, native module true
+...................[quiesco] agent connected: ios, session 5785d55b-20a4-461a-8465-b56395d24d90, agent 0.0.0, native module true
+............................--................................................[quiesco] [app] DateTimePicker: `onChange` is deprecated. Use `onValueChange`, `onDismiss`, and `onNeutralButtonPress` instead.
+..................................................--------..............[quiesco] starting the iOS system UI runner (XCUITest)
+.[quiesco] setPermission(notifications, reset): only reinstalling the app resets it here; reinstalling (the app's data is deleted)
+[quiesco] agent connected: ios, session f752b6b5-9dbe-406b-b447-0b291f1c3376, agent 0.0.0, native module true
+.[quiesco] iOS system UI runner ready in 6094 ms
+.[quiesco] starting the iOS system UI runner (XCUITest)
+.....[quiesco] setPermission(notifications, reset): only reinstalling the app resets it here; reinstalling (the app's data is deleted)
+[quiesco] iOS system UI runner ready in 5602 ms
+.....[quiesco] agent connected: ios, session 5785d55b-20a4-461a-8465-b56395d24d90, agent 0.0.0, native module true
+.......[quiesco] setPermission(notifications, reset): only reinstalling the app resets it here; reinstalling (the app's data is deleted)
+.....[quiesco] setPermission(notifications, reset): only reinstalling the app resets it here; reinstalling (the app's data is deleted)
+[quiesco] agent connected: ios, session f752b6b5-9dbe-406b-b447-0b291f1c3376, agent 0.0.0, native module true
+[quiesco] agent connected: ios, session 5785d55b-20a4-461a-8465-b56395d24d90, agent 0.0.0, native module true
+....-------.-----.------..[quiesco] [app] DateTimePicker: `onChange` is deprecated. Use `onValueChange`, `onDismiss`, and `onNeutralButtonPress` instead.
+...........................[quiesco] [app] DateTimePicker: `onChange` is deprecated. Use `onValueChange`, `onDismiss`, and `onNeutralButtonPress` instead.
+.....................................................................
+
+8 hooks (8 passed)
+86 scenarios (80 passed, 6 skipped)
+523 steps (487 passed, 36 skipped)
+2m 10.070s (4m 19.281s executing your code)

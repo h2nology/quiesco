@@ -1,0 +1,5 @@
+android	1	191.1	86 scenarios (81 passed, 5 skipped)		notes=0
+android	2	153.7	86 scenarios (81 passed, 5 skipped)		notes=0
+android	3	154.2	86 scenarios (81 passed, 5 skipped)		notes=0
+android	4	153.1	86 scenarios (81 passed, 5 skipped)		notes=0
+android	5	177.6	86 scenarios (80 passed, 5 skipped, 1 failed)	1) 不匹配后再出示匹配的指纹;	notes=0

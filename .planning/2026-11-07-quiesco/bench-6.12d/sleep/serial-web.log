@@ -1,0 +1,48 @@
+$ QUIESCO_PLATFORM=web cucumber-js
+.[quiesco] agent connected: web, session bc65bbbf-c926-4676-880e-c60187e70469, agent 0.0.0, native module false
+..[quiesco] ignored app error (redbox): Requiring unknown module "831".
+..................................................................----...[quiesco] setLocale: starting the app again
+[quiesco] agent connected: web, session bc65bbbf-c926-4676-880e-c60187e70469, agent 0.0.0, native module false
+[quiesco] ignored app error (redbox): Requiring unknown module "826".
+...[quiesco] agent connected: web, session bc65bbbf-c926-4676-880e-c60187e70469, agent 0.0.0, native module false
+.[quiesco] ignored app error (redbox): Requiring unknown module "826".
+.........................................................................................................----..[quiesco] agent connected: web, session bc65bbbf-c926-4676-880e-c60187e70469, agent 0.0.0, native module false
+...[quiesco] ignored app error (redbox): Requiring unknown module "828".
+...[quiesco] agent connected: web, session bc65bbbf-c926-4676-880e-c60187e70469, agent 0.0.0, native module false
+....[quiesco] ignored app error (redbox): Requiring unknown module "828".
+...[quiesco] agent connected: web, session bc65bbbf-c926-4676-880e-c60187e70469, agent 0.0.0, native module false
+...--------.[quiesco] ignored app error (redbox): Requiring unknown module "828".
+.....[quiesco] agent connected: web, session bc65bbbf-c926-4676-880e-c60187e70469, agent 0.0.0, native module false
+.[quiesco] ignored app error (redbox): Requiring unknown module "829".
+.......................................................................................[quiesco] [app] Animated: `useNativeDriver` is not supported because the native animated module is missing. Falling back to JS-based animation. To resolve this, add `RCTAnimation` module to this app, or remove `useNativeDriver`. Make sure to run `bundle exec pod install` first. Read more about autolinking: https://github.com/react-native-community/cli/blob/master/docs/autolinking.md
+....................[quiesco] [app] [expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.
+[quiesco] [app] [expo-notifications] Notifications handling is not yet fully supported on web. Handling notifications will have no effect.
+[quiesco] [app] [expo-notifications] Emitting notifications is not yet fully supported on web. Adding a listener will have no effect.
+....................-----.----.------.--------.-------.------.------.----.-----.-------...[quiesco] page opened a dialog (confirm): "清零摇动次数?"
+........[quiesco] page opened a dialog (confirm): "清零摇动次数?"
+......[quiesco] page opened a dialog (alert): "已保存"
+....................[quiesco] agent connected: web, session bc65bbbf-c926-4676-880e-c60187e70469, agent 0.0.0, native module false
+.....................F--..................................................
+
+Failed scenarios:
+  1) 日期 # features/values.feature:40
+       Given 打开值控件页 # features/step_definitions/todo.steps.ts:195
+           QuiescoError: App did not become idle within the 10000ms timeout. Busy:
+             - idle-callback: InteractionManager: 2 open interaction handle(s)
+             - frame-stable: element tree changing: stable for 1/2 frames (8 frames sampled in 963227ms); last change: first difference at node 42: div @297,0 390x844 children=1 → div @268,0 390x844 children=1
+               at QuiescoError.fromRpc (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/errors.js:20:16)
+               at AgentConnection.onMessage (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:62:39)
+               at WebSocket.<anonymous> (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:174:28)
+               at WebSocket.emit (node:events:514:28)
+               at Receiver.receiverOnMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/websocket.js:1258:20)
+               at Receiver.emit (node:events:514:28)
+               at Receiver.dataMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:633:14)
+               at Receiver.getData (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:532:10)
+               at Receiver.startLoop (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:190:16)
+               at Receiver._write (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:117:10)
+
+4 hooks (4 passed)
+86 scenarios (72 passed, 13 skipped, 1 failed)
+523 steps (446 passed, 76 skipped, 1 failed)
+17m 32.144s (17m 31.959s executing your code)
+[ELIFECYCLE] Command failed with exit code 1.

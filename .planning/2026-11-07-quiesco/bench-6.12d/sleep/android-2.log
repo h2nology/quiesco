@@ -1,0 +1,46 @@
+$ QUIESCO_PLATFORM=android cucumber-js --parallel 2
+..[quiesco] worker 1: Android emulator Medium_Phone_API_37.0_quiesco_1 (emulator-5554)
+[quiesco] agent connected: android, session 9a19c7d0-d198-4b7a-adaf-3aa3af48691f, agent 0.0.0, native module true
+.[quiesco] agent connected: android, session 0f7a9188-420a-42ee-8126-75c09a48867c, agent 0.0.0, native module true
+...................................................................[quiesco] setFontScale: starting the app again
+.....[quiesco] setLocale: starting the app again
+[quiesco] agent connected: android, session 0f7a9188-420a-42ee-8126-75c09a48867c, agent 0.0.0, native module true
+...F----F-..[quiesco] agent connected: android, session 0f7a9188-420a-42ee-8126-75c09a48867c, agent 0.0.0, native module true
+........[quiesco] agent connected: android, session 9a19c7d0-d198-4b7a-adaf-3aa3af48691f, agent 0.0.0, native module true
+........[quiesco] setPermission(location, revoke): starting the app again
+............................................[quiesco] agent connected: android, session 9a19c7d0-d198-4b7a-adaf-3aa3af48691f, agent 0.0.0, native module true
+.....................................----........[quiesco] agent connected: android, session 0f7a9188-420a-42ee-8126-75c09a48867c, agent 0.0.0, native module true
+.......[quiesco] agent connected: android, session 0f7a9188-420a-42ee-8126-75c09a48867c, agent 0.0.0, native module true
+.....[quiesco] agent connected: android, session 9a19c7d0-d198-4b7a-adaf-3aa3af48691f, agent 0.0.0, native module true
+...................................................[quiesco] agent connected: android, session 9a19c7d0-d198-4b7a-adaf-3aa3af48691f, agent 0.0.0, native module true
+...........................................................................................................................[quiesco] setPermission(notifications, reset): starting the app again
+..[quiesco] agent connected: android, session 0f7a9188-420a-42ee-8126-75c09a48867c, agent 0.0.0, native module true
+........[quiesco] setPermission(notifications, reset): starting the app again
+...[quiesco] agent connected: android, session 9a19c7d0-d198-4b7a-adaf-3aa3af48691f, agent 0.0.0, native module true
+.[quiesco] agent connected: android, session 0f7a9188-420a-42ee-8126-75c09a48867c, agent 0.0.0, native module true
+......-----.....-------.-----.------..[quiesco] setPermission(notifications, reset): starting the app again
+[quiesco] agent connected: android, session 9a19c7d0-d198-4b7a-adaf-3aa3af48691f, agent 0.0.0, native module true
+.....................................[quiesco] [app] DateTimePicker: `onChange` is deprecated. Use `onValueChange`, `onDismiss`, and `onNeutralButtonPress` instead.
+....[quiesco] agent connected: android, session 0f7a9188-420a-42ee-8126-75c09a48867c, agent 0.0.0, native module true
+...........................[quiesco] agent connected: android, session 0f7a9188-420a-42ee-8126-75c09a48867c, agent 0.0.0, native module true
+.............................
+
+Failed scenarios:
+  1) 切换语言 # features/device.feature:27
+       When 把 App 的语言设为 "ja-JP" # features/step_definitions/device.steps.ts:37
+           Error: function timed out, ensure the promise resolves within 60000 milliseconds
+               at Timeout.<anonymous> (/Users/hu.shukang.19/workspaces/private/quiesco/node_modules/@cucumber/cucumber/lib/time.js:31:20)
+               at listOnTimeout (node:internal/timers:685:17)
+               at process.processTimers (node:internal/timers:618:7)
+  2) 模拟定位 # features/device.feature:31
+       Before (quiesco: reset app) # ../../packages/cucumber/dist/register-hooks.js:11
+           Error: function timed out, ensure the promise resolves within 180000 milliseconds
+               at Timeout.<anonymous> (/Users/hu.shukang.19/workspaces/private/quiesco/node_modules/@cucumber/cucumber/lib/time.js:31:20)
+               at listOnTimeout (node:internal/timers:685:17)
+               at process.processTimers (node:internal/timers:618:7)
+
+8 hooks (8 passed)
+86 scenarios (79 passed, 5 skipped, 2 failed)
+523 steps (489 passed, 32 skipped, 2 failed)
+19m 15.325s (38m 26.521s executing your code)
+[ELIFECYCLE] Command failed with exit code 1.

@@ -1,0 +1,34 @@
+$ QUIESCO_PLATFORM=android cucumber-js --parallel 2
+..[quiesco] booting Android emulator Medium_Phone_API_37.0 (-gpu host)
+[quiesco] booting Android emulator Medium_Phone_API_37.0_quiesco_1 (-gpu host)
+[quiesco] worker 1: Android emulator Medium_Phone_API_37.0_quiesco_1 (emulator-5554)
+[quiesco] agent connected: android, session 0090a71b-3911-4cbb-a3f0-d8f55d0afca5, agent 0.0.0, native module true
+.[quiesco] agent connected: android, session 3ce6bfb4-c4e0-4ef5-8ed2-7d75246b1fd3, agent 0.0.0, native module true
+...................................................................[quiesco] setFontScale: starting the app again
+.....[quiesco] setLocale: starting the app again
+[quiesco] agent connected: android, session 3ce6bfb4-c4e0-4ef5-8ed2-7d75246b1fd3, agent 0.0.0, native module true
+...[quiesco] agent connected: android, session 3ce6bfb4-c4e0-4ef5-8ed2-7d75246b1fd3, agent 0.0.0, native module true
+........[quiesco] setPermission(location, revoke): starting the app again
+[quiesco] agent connected: android, session 0090a71b-3911-4cbb-a3f0-d8f55d0afca5, agent 0.0.0, native module true
+...[quiesco] agent connected: android, session 3ce6bfb4-c4e0-4ef5-8ed2-7d75246b1fd3, agent 0.0.0, native module true
+.........................[quiesco] agent connected: android, session 0090a71b-3911-4cbb-a3f0-d8f55d0afca5, agent 0.0.0, native module true
+......................................................................----........[quiesco] agent connected: android, session 0090a71b-3911-4cbb-a3f0-d8f55d0afca5, agent 0.0.0, native module true
+.......[quiesco] agent connected: android, session 0090a71b-3911-4cbb-a3f0-d8f55d0afca5, agent 0.0.0, native module true
+....[quiesco] agent connected: android, session 3ce6bfb4-c4e0-4ef5-8ed2-7d75246b1fd3, agent 0.0.0, native module true
+..................................................[quiesco] agent connected: android, session 3ce6bfb4-c4e0-4ef5-8ed2-7d75246b1fd3, agent 0.0.0, native module true
+.............................................................................................................................[quiesco] setPermission(notifications, reset): starting the app again
+....[quiesco] agent connected: android, session 0090a71b-3911-4cbb-a3f0-d8f55d0afca5, agent 0.0.0, native module true
+....[quiesco] setPermission(notifications, reset): starting the app again
+..[quiesco] agent connected: android, session 3ce6bfb4-c4e0-4ef5-8ed2-7d75246b1fd3, agent 0.0.0, native module true
+.....[quiesco] agent connected: android, session 0090a71b-3911-4cbb-a3f0-d8f55d0afca5, agent 0.0.0, native module true
+....-----.....-------.-----.------..[quiesco] agent connected: android, session 3ce6bfb4-c4e0-4ef5-8ed2-7d75246b1fd3, agent 0.0.0, native module true
+.......[quiesco] setPermission(notifications, reset): starting the app again
+.................[quiesco] agent connected: android, session 3ce6bfb4-c4e0-4ef5-8ed2-7d75246b1fd3, agent 0.0.0, native module true
+..............[quiesco] [app] DateTimePicker: `onChange` is deprecated. Use `onValueChange`, `onDismiss`, and `onNeutralButtonPress` instead.
+.........................[quiesco] agent connected: android, session 3ce6bfb4-c4e0-4ef5-8ed2-7d75246b1fd3, agent 0.0.0, native module true
+...................................
+
+8 hooks (8 passed)
+86 scenarios (81 passed, 5 skipped)
+523 steps (496 passed, 27 skipped)
+3m 52.810s (7m 43.086s executing your code)

@@ -1,0 +1,44 @@
+$ QUIESCO_PLATFORM=android cucumber-js --parallel 2
+.F[quiesco] worker 1: Android emulator Medium_Phone_API_37.0_quiesco_1 (emulator-5556)
+[quiesco] Android emulator Medium_Phone_API_37.0 (emulator-5554) renders with lavapipe, on the CPU (several cores per emulator): tests run slowly and the system may stop responding. Restart it with -gpu host (or let Quiesco boot it: it uses host on macOS).
+FF....
+
+Failed hooks:
+  1) BeforeAll # features/support/mock-server.ts:10
+       Error: listen EADDRINUSE: address already in use :::3001
+           at Server.setupListenHandle [as _listen2] (node:net:2390:16)
+           at listenInCluster (node:net:2499:12)
+           at Server.listen (node:net:2624:7)
+           at file:///Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/mock-server/server.mjs:85:12
+           at startMockServer (file:///Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/mock-server/server.mjs:83:10)
+           at Object.<anonymous> (file:///Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/features/support/mock-server.ts:12:18)
+  2) BeforeAll (quiesco: start session) # ../../packages/cucumber/dist/register-hooks.js:10
+       QuiescoError: The app did not connect to ws://localhost:7358 within 90000ms (session f8ab70e5-d4d7-4786-a77d-1353490c269a).
+       Check:
+         - The JS bundle is an e2e build: EXPO_PUBLIC_QUIESCO=1 and metro.config.js wraps the config with withQuiesco().
+         - The app entry imports '@quiesco/agent' on its first line and renders <QuiescoRoot>.
+         - Without @quiesco/native the app connects to the build-time port (EXPO_PUBLIC_QUIESCO_PORT, default 7357); the host listens on 7358.
+         - adb reverse for tcp:7358 is set.
+         - dev.quiesco.todo is running (pid 3725).
+           at Session.launch (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/session.js:349:19)
+           at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+           at async Session.create (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/session.js:140:13)
+           at async Lifecycle.beforeAll (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/lifecycle.js:35:24)
+  3) BeforeAll (quiesco: start session) # ../../packages/cucumber/dist/register-hooks.js:10
+       QuiescoError: The app did not connect to ws://localhost:7357 within 90000ms (session 62d9d061-577c-47ff-975d-5e199ff024c7).
+       Check:
+         - The JS bundle is an e2e build: EXPO_PUBLIC_QUIESCO=1 and metro.config.js wraps the config with withQuiesco().
+         - The app entry imports '@quiesco/agent' on its first line and renders <QuiescoRoot>.
+         - Without @quiesco/native the app connects to the build-time port (EXPO_PUBLIC_QUIESCO_PORT, default 7357); the host listens on 7357.
+         - adb reverse for tcp:7357 is set.
+         - dev.quiesco.todo is running (pid 5561).
+           at Session.launch (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/session.js:349:19)
+           at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+           at async Session.create (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/session.js:140:13)
+           at async Lifecycle.beforeAll (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/lifecycle.js:35:24)
+
+8 hooks (5 passed, 3 failed)
+0 scenarios
+0 steps
+1m 36.785s (3m 10.971s executing your code)
+[ELIFECYCLE] Command failed with exit code 1.

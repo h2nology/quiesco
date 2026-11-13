@@ -1,0 +1,47 @@
+$ QUIESCO_PLATFORM=android cucumber-js --parallel 2
+..[quiesco] worker 1: Android emulator Medium_Phone_API_37.0_quiesco_1 (emulator-5554)
+[quiesco] agent connected: android, session 37c4258d-ddc5-4b61-94dd-efb25881abb3, agent 0.0.0, native module true
+.[quiesco] agent connected: android, session aaa0033a-5108-4df0-b6b6-2d50f773b2a2, agent 0.0.0, native module true
+...................................................................[quiesco] setFontScale: starting the app again
+.....[quiesco] setLocale: starting the app again
+[quiesco] agent connected: android, session aaa0033a-5108-4df0-b6b6-2d50f773b2a2, agent 0.0.0, native module true
+...[quiesco] agent connected: android, session 37c4258d-ddc5-4b61-94dd-efb25881abb3, agent 0.0.0, native module true
+...[quiesco] agent connected: android, session aaa0033a-5108-4df0-b6b6-2d50f773b2a2, agent 0.0.0, native module true
+..................[quiesco] agent connected: android, session 37c4258d-ddc5-4b61-94dd-efb25881abb3, agent 0.0.0, native module true
+...........[quiesco] setPermission(location, revoke): starting the app again
+........................................[quiesco] agent connected: android, session 37c4258d-ddc5-4b61-94dd-efb25881abb3, agent 0.0.0, native module true
+................................----..........[quiesco] agent connected: android, session 37c4258d-ddc5-4b61-94dd-efb25881abb3, agent 0.0.0, native module true
+.......[quiesco] agent connected: android, session 37c4258d-ddc5-4b61-94dd-efb25881abb3, agent 0.0.0, native module true
+....[quiesco] agent connected: android, session aaa0033a-5108-4df0-b6b6-2d50f773b2a2, agent 0.0.0, native module true
+...................................................[quiesco] agent connected: android, session aaa0033a-5108-4df0-b6b6-2d50f773b2a2, agent 0.0.0, native module true
+............................................................................................................................[quiesco] setPermission(notifications, reset): starting the app again
+........[quiesco] setPermission(notifications, reset): starting the app again
+[quiesco] agent connected: android, session aaa0033a-5108-4df0-b6b6-2d50f773b2a2, agent 0.0.0, native module true
+..[quiesco] agent connected: android, session 37c4258d-ddc5-4b61-94dd-efb25881abb3, agent 0.0.0, native module true
+........-----.[quiesco] agent connected: android, session aaa0033a-5108-4df0-b6b6-2d50f773b2a2, agent 0.0.0, native module true
+...[quiesco] agent connected: android, session 37c4258d-ddc5-4b61-94dd-efb25881abb3, agent 0.0.0, native module true
+..-------.-----.------....[quiesco] setPermission(notifications, reset): starting the app again
+........[quiesco] agent connected: android, session 37c4258d-ddc5-4b61-94dd-efb25881abb3, agent 0.0.0, native module true
+....F----F----..............[quiesco] agent connected: android, session 37c4258d-ddc5-4b61-94dd-efb25881abb3, agent 0.0.0, native module true
+......[quiesco] [app] DateTimePicker: `onChange` is deprecated. Use `onValueChange`, `onDismiss`, and `onNeutralButtonPress` instead.
+......................................................
+
+Failed scenarios:
+  1) 开关 # features/values.feature:20
+       When 打开通知开关 # features/step_definitions/todo.steps.ts:223
+           QuiescoError: The app did not answer action within 15000ms. Its JS thread may be blocked by a long task, or the app crashed.
+               at Timeout._onTimeout (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:43:24)
+               at listOnTimeout (node:internal/timers:685:17)
+               at process.processTimers (node:internal/timers:618:7)
+  2) 从通知打开 App # features/system.feature:74
+       Given App 可以显示通知 # features/step_definitions/system.steps.ts:51
+           QuiescoError: The app did not answer action within 15000ms. Its JS thread may be blocked by a long task, or the app crashed.
+               at Timeout._onTimeout (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:43:24)
+               at listOnTimeout (node:internal/timers:685:17)
+               at process.processTimers (node:internal/timers:618:7)
+
+8 hooks (8 passed)
+86 scenarios (79 passed, 5 skipped, 2 failed)
+523 steps (486 passed, 35 skipped, 2 failed)
+21m 17.232s (42m 30.807s executing your code)
+[ELIFECYCLE] Command failed with exit code 1.

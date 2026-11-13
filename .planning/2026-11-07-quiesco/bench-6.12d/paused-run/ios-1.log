@@ -1,0 +1,74 @@
+$ QUIESCO_PLATFORM=ios cucumber-js --parallel 2
+..[quiesco] worker 0: iOS simulator iPhone 17 (5FB8DD3C-E255-4A62-A656-9DD598CF9431)
+[quiesco] worker 1: iOS simulator iPhone 17 (Quiesco 1) (3C16E636-C888-4F75-A1DD-510D8DE75C61)
+[quiesco] booting iOS simulator iPhone 17 (5FB8DD3C-E255-4A62-A656-9DD598CF9431)
+[quiesco] booting iOS simulator iPhone 17 (Quiesco 1) (3C16E636-C888-4F75-A1DD-510D8DE75C61)
+[quiesco] agent connected: ios, session a5d25305-704d-4d8f-ad5d-1c45e9dd6eaa, agent 0.0.0, native module true
+.[quiesco] agent connected: ios, session dff050e5-56d3-4014-809f-cc40b2810c8e, agent 0.0.0, native module true
+........................................................................[quiesco] setLocale: starting the app again
+[quiesco] agent connected: ios, session a5d25305-704d-4d8f-ad5d-1c45e9dd6eaa, agent 0.0.0, native module true
+...[quiesco] agent connected: ios, session a5d25305-704d-4d8f-ad5d-1c45e9dd6eaa, agent 0.0.0, native module true
+.......................--------......................................................................................[quiesco] agent connected: ios, session dff050e5-56d3-4014-809f-cc40b2810c8e, agent 0.0.0, native module true
+.......[quiesco] agent connected: ios, session a5d25305-704d-4d8f-ad5d-1c45e9dd6eaa, agent 0.0.0, native module true
+..........[quiesco] agent connected: ios, session dff050e5-56d3-4014-809f-cc40b2810c8e, agent 0.0.0, native module true
+......................[quiesco] agent connected: ios, session a5d25305-704d-4d8f-ad5d-1c45e9dd6eaa, agent 0.0.0, native module true
+..........................--..............................................[quiesco] [app] DateTimePicker: `onChange` is deprecated. Use `onValueChange`, `onDismiss`, and `onNeutralButtonPress` instead.
+.......................................................--------............[quiesco] starting the iOS system UI runner (XCUITest)
+..[quiesco] setPermission(notifications, reset): only reinstalling the app resets it here; reinstalling (the app's data is deleted)
+[quiesco] agent connected: ios, session dff050e5-56d3-4014-809f-cc40b2810c8e, agent 0.0.0, native module true
+..[quiesco] starting the iOS system UI runner (XCUITest)
+[quiesco] iOS system UI runner ready in 11736 ms
+[quiesco] iOS system UI runner ready in 20386 ms
+.....[quiesco] setPermission(notifications, reset): only reinstalling the app resets it here; reinstalling (the app's data is deleted)
+........[quiesco] the iOS system UI runner stopped answering; restarting it. Its last output:
+}
+    t =     9.69s Find the Alert (Element at index 0)
+    t =    10.72s     Find the Alert (Element at index 0) (retry 1)
+    t =    11.74s     Find the Alert (Element at index 0) (retry 2)
+    t =    11.76s     Collecting debug information to assist test failure triage
+    t =    11.76s         Requesting snapshot of accessibility hierarchy for app with pid 38788
+    t =    11.79s     Requesting snapshot of accessibility hierarchy for app with pid 38788
+    t =    11.82s     Find: Descendants matching type Alert
+    t =    11.82s     Requesting snapshot of accessibility hierarchy for app with pid 38788
+/Users/hu.shukang.19/workspaces/private/quiesco/packages/core/ios-runner/Runner/SystemUIServer.swift:70: error: -[Runner.SystemUIServer testServe] : Failed to get matching snapshot: No matches found for Descendants matching type Alert from input {(
+    Application, pid: 38788
+)}
+    t =    11.86s Get all elements bound by index for: Descendants matching type Button
+    t =    11.88s Tear Down
+Test Case '-[Runner.SystemUIServer testServe]' failed (11.928 seconds).
+Test Suite 'SystemUIServer' failed at 2026-11-13 07:30:17.224.
+	 Executed 1 test, with 3 failures (0 unexpected) in 11.928 (11.939) seconds
+Test Suite 'Runner.xctest' failed at 2026-11-13 07:30:17.224.
+	 Executed 1 test, with 3 failures (0 unexpected) in 11.928 (11.939) seconds
+Test Suite 'Selected tests' failed at 2026-11-13 07:30:17.224.
+	 Executed 1 test, with 3 failures (0 unexpected) in 11.928 (11.941) seconds
+
+[quiesco] agent connected: ios, session dff050e5-56d3-4014-809f-cc40b2810c8e, agent 0.0.0, native module true
+[quiesco] starting the iOS system UI runner (XCUITest)
+.......[quiesco] setPermission(notifications, reset): only reinstalling the app resets it here; reinstalling (the app's data is deleted)
+[quiesco] iOS system UI runner ready in 7246 ms
+..[quiesco] setPermission(notifications, reset): only reinstalling the app resets it here; reinstalling (the app's data is deleted)
+[quiesco] agent connected: ios, session dff050e5-56d3-4014-809f-cc40b2810c8e, agent 0.0.0, native module true
+...[quiesco] agent connected: ios, session a5d25305-704d-4d8f-ad5d-1c45e9dd6eaa, agent 0.0.0, native module true
+....-------.-----.------..[quiesco] [app] DateTimePicker: `onChange` is deprecated. Use `onValueChange`, `onDismiss`, and `onNeutralButtonPress` instead.
+....................................F-..............................................F---.....
+
+Failed scenarios:
+  1) 从通知打开 App # features/system.feature:74
+       And 从通知栏打开通知 "提醒" # features/step_definitions/system.steps.ts:61
+           QuiescoError: the app did not become active within 5000ms (AppState: The app did not answer deviceInfo within 10000ms. Its JS thread may be blocked by a long task, or the app crashed.)
+               at DeviceApi.waitForAppState (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/device.js:549:19)
+               at async DeviceApi.openNotification (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/device.js:365:9)
+               at async QuiescoWorld.<anonymous> (file:///Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/features/step_definitions/system.steps.ts:62:3)
+  2) 等待网页里稍后出现的结果 # features/webview.feature:22
+       Before (quiesco: reset app) # ../../packages/cucumber/dist/register-hooks.js:11
+           QuiescoError: The app did not answer reset within 15000ms. Its JS thread may be blocked by a long task, or the app crashed.
+               at Timeout._onTimeout (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:43:24)
+               at listOnTimeout (node:internal/timers:685:17)
+               at process.processTimers (node:internal/timers:618:7)
+
+8 hooks (8 passed)
+86 scenarios (78 passed, 6 skipped, 2 failed)
+523 steps (481 passed, 40 skipped, 2 failed)
+4m 30.773s (8m 38.222s executing your code)
+[ELIFECYCLE] Command failed with exit code 1.

@@ -1,0 +1,3 @@
+android	serial	430.2	86 scenarios (81 passed, 5 skipped)	
+web	serial	1052.5	86 scenarios (72 passed, 13 skipped, 1 failed)	1) 日期;
+ios	serial	301.7	86 scenarios (80 passed, 6 skipped)	

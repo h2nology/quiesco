@@ -1,0 +1,35 @@
+$ QUIESCO_PLATFORM=web cucumber-js --parallel 2
+..[quiesco] agent connected: web, session f26a04aa-cab2-4bd3-ac48-aba7966f13aa, agent 0.0.0, native module false
+.[quiesco] agent connected: web, session 6f729363-9353-41a0-b04a-6b714218bb25, agent 0.0.0, native module false
+...[quiesco] ignored app error (redbox): Requiring unknown module "831".
+[quiesco] ignored app error (redbox): Requiring unknown module "831".
+............................................................----....[quiesco] setLocale: starting the app again
+.....[quiesco] agent connected: web, session 6f729363-9353-41a0-b04a-6b714218bb25, agent 0.0.0, native module false
+[quiesco] ignored app error (redbox): Requiring unknown module "826".
+.........[quiesco] agent connected: web, session 6f729363-9353-41a0-b04a-6b714218bb25, agent 0.0.0, native module false
+..[quiesco] ignored app error (redbox): Requiring unknown module "826".
+.............................................................................................----..[quiesco] agent connected: web, session 6f729363-9353-41a0-b04a-6b714218bb25, agent 0.0.0, native module false
+....[quiesco] ignored app error (redbox): Requiring unknown module "828".
+........[quiesco] agent connected: web, session 6f729363-9353-41a0-b04a-6b714218bb25, agent 0.0.0, native module false
+...[quiesco] agent connected: web, session f26a04aa-cab2-4bd3-ac48-aba7966f13aa, agent 0.0.0, native module false
+..--------.[quiesco] ignored app error (redbox): Requiring unknown module "828".
+....[quiesco] ignored app error (redbox): Requiring unknown module "828".
+.....[quiesco] agent connected: web, session 6f729363-9353-41a0-b04a-6b714218bb25, agent 0.0.0, native module false
+.[quiesco] ignored app error (redbox): Requiring unknown module "829".
+........................................................................................[quiesco] [app] Animated: `useNativeDriver` is not supported because the native animated module is missing. Falling back to JS-based animation. To resolve this, add `RCTAnimation` module to this app, or remove `useNativeDriver`. Make sure to run `bundle exec pod install` first. Read more about autolinking: https://github.com/react-native-community/cli/blob/master/docs/autolinking.md
+...............[quiesco] [app] [expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.
+[quiesco] [app] [expo-notifications] Notifications handling is not yet fully supported on web. Handling notifications will have no effect.
+....[quiesco] [app] [expo-notifications] Emitting notifications is not yet fully supported on web. Adding a listener will have no effect.
+..............-----.----.------.--------.-------.------.------.----.-----.-------..[quiesco] [app] [expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.
+[quiesco] [app] [expo-notifications] Notifications handling is not yet fully supported on web. Handling notifications will have no effect.
+[quiesco] [app] [expo-notifications] Emitting notifications is not yet fully supported on web. Adding a listener will have no effect.
+.[quiesco] page opened a dialog (confirm): "清零摇动次数?"
+........[quiesco] page opened a dialog (confirm): "清零摇动次数?"
+........[quiesco] page opened a dialog (alert): "已保存"
+......[quiesco] [app] Animated: `useNativeDriver` is not supported because the native animated module is missing. Falling back to JS-based animation. To resolve this, add `RCTAnimation` module to this app, or remove `useNativeDriver`. Make sure to run `bundle exec pod install` first. Read more about autolinking: https://github.com/react-native-community/cli/blob/master/docs/autolinking.md
+.............................................................................................
+
+8 hooks (8 passed)
+86 scenarios (73 passed, 13 skipped)
+523 steps (449 passed, 74 skipped)
+0m 46.345s (1m 32.024s executing your code)

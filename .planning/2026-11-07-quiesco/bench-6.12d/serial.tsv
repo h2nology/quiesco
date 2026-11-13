@@ -1,0 +1,3 @@
+web	serial	88.1	86 scenarios (73 passed, 13 skipped)	
+ios	serial	271.4	86 scenarios (80 passed, 6 skipped)	
+android	serial	305.4	86 scenarios (81 passed, 5 skipped)	

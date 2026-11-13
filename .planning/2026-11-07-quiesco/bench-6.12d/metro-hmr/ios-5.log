@@ -1,0 +1,116 @@
+$ QUIESCO_PLATFORM=ios cucumber-js --parallel 2
+..[quiesco] Unknown session "b7e51d57-0d37-4127-bd55-0304aeb942d0" (expected d80acfac-6229-4a90-9904-0085d4545d01). Is another test run using this port?
+[quiesco] Unknown session "665b6b81-4333-4e52-b506-b9b0052489e7" (expected 9e564d6b-4d4f-4d80-aebb-e9aad2fa2c3b). Is another test run using this port?
+[quiesco] worker 1: iOS simulator iPhone 17 (Quiesco 1) (3C16E636-C888-4F75-A1DD-510D8DE75C61)
+[quiesco] worker 0: iOS simulator iPhone 17 (5FB8DD3C-E255-4A62-A656-9DD598CF9431)
+[quiesco] agent connected: ios, session d80acfac-6229-4a90-9904-0085d4545d01, agent 0.0.0, native module true
+.[quiesco] agent connected: ios, session 9e564d6b-4d4f-4d80-aebb-e9aad2fa2c3b, agent 0.0.0, native module true
+........................................................................[quiesco] setLocale: starting the app again
+[quiesco] agent connected: ios, session d80acfac-6229-4a90-9904-0085d4545d01, agent 0.0.0, native module true
+...[quiesco] agent connected: ios, session d80acfac-6229-4a90-9904-0085d4545d01, agent 0.0.0, native module true
+.......................--------.....................................................................................[quiesco] agent connected: ios, session d80acfac-6229-4a90-9904-0085d4545d01, agent 0.0.0, native module true
+........[quiesco] agent connected: ios, session 9e564d6b-4d4f-4d80-aebb-e9aad2fa2c3b, agent 0.0.0, native module true
+........[quiesco] agent connected: ios, session d80acfac-6229-4a90-9904-0085d4545d01, agent 0.0.0, native module true
+........................[quiesco] agent connected: ios, session d80acfac-6229-4a90-9904-0085d4545d01, agent 0.0.0, native module true
+............................--..................................[quiesco] starting the iOS system UI runner (XCUITest)
+..........[quiesco] [app] DateTimePicker: `onChange` is deprecated. Use `onValueChange`, `onDismiss`, and `onNeutralButtonPress` instead.
+.....[quiesco] iOS system UI runner ready in 4948 ms
+F-........F-[quiesco] starting the iOS system UI runner (XCUITest)
+.............[quiesco] iOS system UI runner ready in 4936 ms
+F-..F--..................--------.................[quiesco] setPermission(notifications, reset): only reinstalling the app resets it here; reinstalling (the app's data is deleted)
+..[quiesco] setPermission(notifications, reset): only reinstalling the app resets it here; reinstalling (the app's data is deleted)
+[quiesco] agent connected: ios, session 9e564d6b-4d4f-4d80-aebb-e9aad2fa2c3b, agent 0.0.0, native module true
+.F--[quiesco] agent connected: ios, session d80acfac-6229-4a90-9904-0085d4545d01, agent 0.0.0, native module true
+...F--........[quiesco] setPermission(notifications, reset): only reinstalling the app resets it here; reinstalling (the app's data is deleted)
+.[quiesco] setPermission(notifications, reset): only reinstalling the app resets it here; reinstalling (the app's data is deleted)
+[quiesco] agent connected: ios, session d80acfac-6229-4a90-9904-0085d4545d01, agent 0.0.0, native module true
+[quiesco] agent connected: ios, session 9e564d6b-4d4f-4d80-aebb-e9aad2fa2c3b, agent 0.0.0, native module true
+....-------.-----.------...[quiesco] [app] DateTimePicker: `onChange` is deprecated. Use `onValueChange`, `onDismiss`, and `onNeutralButtonPress` instead.
+..................[quiesco] [app] DateTimePicker: `onChange` is deprecated. Use `onValueChange`, `onDismiss`, and `onNeutralButtonPress` instead.
+.............................................................................
+
+Failed scenarios:
+  1) 从能力一览进入「动作」 # features/showcase.feature:13
+       When 在能力一览点 "playground" # features/step_definitions/showcase.steps.ts:10
+           QuiescoError: <RCTView testID="showcase-playground" text="动作点击位置、连击、按键、拖拽、长列表"> is covered by another window or native view, e.g. a Modal, dialog or navigation bar (the touch would reach UIView); a real touch would not reach it
+               at QuiescoError.fromRpc (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/errors.js:20:16)
+               at AgentConnection.onMessage (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:62:39)
+               at WebSocket.<anonymous> (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:174:28)
+               at WebSocket.emit (node:events:514:28)
+               at Receiver.receiverOnMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/websocket.js:1258:20)
+               at Receiver.emit (node:events:514:28)
+               at Receiver.dataMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:633:14)
+               at Receiver.getData (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:532:10)
+               at Receiver.startLoop (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:190:16)
+               at Receiver._write (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:117:10)
+  2) 从能力一览进入「设备状态」 # features/showcase.feature:18
+       When 在能力一览点 "device" # features/step_definitions/showcase.steps.ts:10
+           QuiescoError: <RCTView testID="showcase-device" text="设备状态横屏布局、深色、字号、语言、定位、离线、剪贴板"> is covered by another window or native view, e.g. a Modal, dialog or navigation bar (the touch would reach UIView); a real touch would not reach it
+               at QuiescoError.fromRpc (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/errors.js:20:16)
+               at AgentConnection.onMessage (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:62:39)
+               at WebSocket.<anonymous> (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:174:28)
+               at WebSocket.emit (node:events:514:28)
+               at Receiver.receiverOnMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/websocket.js:1258:20)
+               at Receiver.emit (node:events:514:28)
+               at Receiver.dataMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:633:14)
+               at Receiver.getData (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:532:10)
+               at Receiver.startLoop (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:190:16)
+               at Receiver._write (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:117:10)
+  3) 从能力一览进入「生命周期」 # features/showcase.feature:17
+       When 在能力一览点 "lifecycle" # features/step_definitions/showcase.steps.ts:10
+           QuiescoError: <RCTView testID="showcase-lifecycle" text="生命周期启动参数、深链接、前后台、运行时同步开关"> is covered by another window or native view, e.g. a Modal, dialog or navigation bar (the touch would reach UIView); a real touch would not reach it
+               at QuiescoError.fromRpc (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/errors.js:20:16)
+               at AgentConnection.onMessage (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:62:39)
+               at WebSocket.<anonymous> (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:174:28)
+               at WebSocket.emit (node:events:514:28)
+               at Receiver.receiverOnMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/websocket.js:1258:20)
+               at Receiver.emit (node:events:514:28)
+               at Receiver.dataMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:633:14)
+               at Receiver.getData (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:532:10)
+               at Receiver.startLoop (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:190:16)
+               at Receiver._write (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:117:10)
+  4) 没有长按就滑动不会拿起列表行 # features/showcase.feature:31
+       Given 打开拖拽排序页 # features/step_definitions/showcase.steps.ts:18
+           QuiescoError: <RCTView testID="showcase-reorder" text="拖拽排序长按后拖动列表行"> is covered by another window or native view, e.g. a Modal, dialog or navigation bar (the touch would reach UIView); a real touch would not reach it
+               at QuiescoError.fromRpc (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/errors.js:20:16)
+               at AgentConnection.onMessage (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:62:39)
+               at WebSocket.<anonymous> (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:174:28)
+               at WebSocket.emit (node:events:514:28)
+               at Receiver.receiverOnMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/websocket.js:1258:20)
+               at Receiver.emit (node:events:514:28)
+               at Receiver.dataMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:633:14)
+               at Receiver.getData (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:532:10)
+               at Receiver.startLoop (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:190:16)
+               at Receiver._write (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:117:10)
+  5) 拒绝通知权限 # features/system.feature:48
+       When 请求通知权限 # features/step_definitions/system.steps.ts:111
+           QuiescoError: <RCTView testID="request-notification-permission" text="请求通知权限"> is covered by another window or native view, e.g. a Modal, dialog or navigation bar (the touch would reach UIView); a real touch would not reach it
+               at QuiescoError.fromRpc (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/errors.js:20:16)
+               at AgentConnection.onMessage (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:62:39)
+               at WebSocket.<anonymous> (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:174:28)
+               at WebSocket.emit (node:events:514:28)
+               at Receiver.receiverOnMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/websocket.js:1258:20)
+               at Receiver.emit (node:events:514:28)
+               at Receiver.dataMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:633:14)
+               at Receiver.getData (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:532:10)
+               at Receiver.startLoop (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:190:16)
+               at Receiver._write (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:117:10)
+  6) 允许通知权限 # features/system.feature:54
+       When 请求通知权限 # features/step_definitions/system.steps.ts:111
+           QuiescoError: <RCTView testID="request-notification-permission" text="请求通知权限"> is covered by another window or native view, e.g. a Modal, dialog or navigation bar (the touch would reach UIView); a real touch would not reach it
+               at QuiescoError.fromRpc (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/errors.js:20:16)
+               at AgentConnection.onMessage (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:62:39)
+               at WebSocket.<anonymous> (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:174:28)
+               at WebSocket.emit (node:events:514:28)
+               at Receiver.receiverOnMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/websocket.js:1258:20)
+               at Receiver.emit (node:events:514:28)
+               at Receiver.dataMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:633:14)
+               at Receiver.getData (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:532:10)
+               at Receiver.startLoop (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:190:16)
+               at Receiver._write (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:117:10)
+
+8 hooks (8 passed)
+86 scenarios (74 passed, 6 skipped, 6 failed)
+523 steps (472 passed, 45 skipped, 6 failed)
+2m 7.857s (4m 13.898s executing your code)
+[ELIFECYCLE] Command failed with exit code 1.

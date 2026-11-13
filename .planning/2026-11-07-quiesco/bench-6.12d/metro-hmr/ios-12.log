@@ -1,0 +1,51 @@
+$ QUIESCO_PLATFORM=ios cucumber-js --parallel 2
+..[quiesco] Unknown session "bd4f9350-a61f-4cf5-9cad-99dbd2cbac48" (expected 9e8c9cf0-8cb4-4828-89b6-d2ce9b77efe8). Is another test run using this port?
+[quiesco] Unknown session "634bdcb0-52cf-436b-97db-f827eece764e" (expected 8e2cda62-4efb-4aad-9c9f-fcca2898ecb2). Is another test run using this port?
+[quiesco] worker 1: iOS simulator iPhone 17 (Quiesco 1) (3C16E636-C888-4F75-A1DD-510D8DE75C61)
+[quiesco] worker 0: iOS simulator iPhone 17 (5FB8DD3C-E255-4A62-A656-9DD598CF9431)
+[quiesco] agent connected: ios, session 9e8c9cf0-8cb4-4828-89b6-d2ce9b77efe8, agent 0.0.0, native module true
+.[quiesco] agent connected: ios, session 8e2cda62-4efb-4aad-9c9f-fcca2898ecb2, agent 0.0.0, native module true
+........................................................................[quiesco] setLocale: starting the app again
+[quiesco] agent connected: ios, session 9e8c9cf0-8cb4-4828-89b6-d2ce9b77efe8, agent 0.0.0, native module true
+...[quiesco] agent connected: ios, session 9e8c9cf0-8cb4-4828-89b6-d2ce9b77efe8, agent 0.0.0, native module true
+.......................--------.....................................................................................[quiesco] agent connected: ios, session 9e8c9cf0-8cb4-4828-89b6-d2ce9b77efe8, agent 0.0.0, native module true
+........[quiesco] agent connected: ios, session 8e2cda62-4efb-4aad-9c9f-fcca2898ecb2, agent 0.0.0, native module true
+........[quiesco] agent connected: ios, session 9e8c9cf0-8cb4-4828-89b6-d2ce9b77efe8, agent 0.0.0, native module true
+........................[quiesco] agent connected: ios, session 9e8c9cf0-8cb4-4828-89b6-d2ce9b77efe8, agent 0.0.0, native module true
+............................--..................................[quiesco] starting the iOS system UI runner (XCUITest)
+..........[quiesco] [app] DateTimePicker: `onChange` is deprecated. Use `onValueChange`, `onDismiss`, and `onNeutralButtonPress` instead.
+.....[quiesco] iOS system UI runner ready in 4714 ms
+F-................................................--------.............[quiesco] setPermission(notifications, reset): only reinstalling the app resets it here; reinstalling (the app's data is deleted)
+......[quiesco] setPermission(notifications, reset): only reinstalling the app resets it here; reinstalling (the app's data is deleted)
+[quiesco] agent connected: ios, session 8e2cda62-4efb-4aad-9c9f-fcca2898ecb2, agent 0.0.0, native module true
+..[quiesco] starting the iOS system UI runner (XCUITest)
+[quiesco] agent connected: ios, session 9e8c9cf0-8cb4-4828-89b6-d2ce9b77efe8, agent 0.0.0, native module true
+.......[quiesco] iOS system UI runner ready in 5389 ms
+.....[quiesco] setPermission(notifications, reset): only reinstalling the app resets it here; reinstalling (the app's data is deleted)
+.....[quiesco] setPermission(notifications, reset): only reinstalling the app resets it here; reinstalling (the app's data is deleted)
+[quiesco] agent connected: ios, session 9e8c9cf0-8cb4-4828-89b6-d2ce9b77efe8, agent 0.0.0, native module true
+[quiesco] agent connected: ios, session 8e2cda62-4efb-4aad-9c9f-fcca2898ecb2, agent 0.0.0, native module true
+....-------.-----.------..[quiesco] [app] DateTimePicker: `onChange` is deprecated. Use `onValueChange`, `onDismiss`, and `onNeutralButtonPress` instead.
+.........................[quiesco] [app] DateTimePicker: `onChange` is deprecated. Use `onValueChange`, `onDismiss`, and `onNeutralButtonPress` instead.
+.......................................................................
+
+Failed scenarios:
+  1) 从能力一览进入「动作」 # features/showcase.feature:13
+       When 在能力一览点 "playground" # features/step_definitions/showcase.steps.ts:10
+           QuiescoError: <RCTView testID="showcase-playground" text="动作点击位置、连击、按键、拖拽、长列表"> is covered by another window or native view, e.g. a Modal, dialog or navigation bar (the touch would reach UIView); a real touch would not reach it
+               at QuiescoError.fromRpc (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/errors.js:20:16)
+               at AgentConnection.onMessage (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:62:39)
+               at WebSocket.<anonymous> (file:///Users/hu.shukang.19/workspaces/private/quiesco/packages/core/dist/server/ws-server.js:174:28)
+               at WebSocket.emit (node:events:514:28)
+               at Receiver.receiverOnMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/websocket.js:1258:20)
+               at Receiver.emit (node:events:514:28)
+               at Receiver.dataMessage (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:633:14)
+               at Receiver.getData (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:532:10)
+               at Receiver.startLoop (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:190:16)
+               at Receiver._write (/Users/hu.shukang.19/workspaces/private/quiesco/examples/todo-app/node_modules/ws/lib/receiver.js:117:10)
+
+8 hooks (8 passed)
+86 scenarios (79 passed, 6 skipped, 1 failed)
+523 steps (485 passed, 37 skipped, 1 failed)
+2m 8.493s (4m 14.678s executing your code)
+[ELIFECYCLE] Command failed with exit code 1.
