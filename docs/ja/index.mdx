@@ -1,0 +1,64 @@
+---
+title: "Quiesco"
+description: "Cucumber、Jest、Vitest、その他任意のNode.jsテストランナーから動かす、iOS・Android・Web向けExpoアプリのグレーボックスe2eテスト。"
+---
+
+アプリのe2eビルドに組み込んだ小さなエージェントが、アプリがアイドルになったこと（処理中のネットワークリクエスト、タイマー、Reactのレンダリング、アニメーションがない状態）をテストランナーに伝えます。そのため、テストでスリープやポーリングをする必要がありません。同じテストを、iOSシミュレーター、Androidエミュレーター、Chromiumでそのまま実行できます。Cucumberには専用のアダプター（`@quiesco/cucumber`）があり、JestとVitestにも同様のアダプター（`@quiesco/jest`、`@quiesco/vitest`、[その他のテストランナー](./runners)）があります。
+
+```gherkin
+Scenario: A new todo appears at the top of the list
+  Given the user "a@example.com" is logged in
+  When they add a todo "Buy milk"
+  Then the first todo is "Buy milk"
+```
+
+```ts
+When('they add a todo {string}', async function (this: QuiescoWorld, title: string) {
+  await this.app.tap('add-todo');                 // アプリがアイドルになるのを待ってからタップする
+  await this.app.type('todo-title', title);
+  await this.app.tap({ role: 'button', text: 'Save' });
+});
+```
+
+## 特長 {#features}
+
+- **自動同期**：ネットワーク、タイマー、Reactスケジューラー、アイドルコールバック、ネイティブの画面遷移、そしてフレーム安定性によるフォールバック（[仕組み](./sync)）。同期がタイムアウトしたときは、まだビジーだったものを名前で示します。
+- **実際の入力**：タッチとテキストを`@quiesco/native`（iOS / Android）またはPlaywright（Web）で入力します。コールバックモード（`js`）ならネイティブコードなしでも動作します。
+- **高速なリセット**：各シナリオの前にソフトリセット（ストレージ、独自のリセットフック、再マウント）を行い、通常は約200msで終わります。`@hard-reset`を付けるとアプリを再起動します。
+- **バックドア**：UIを操作せずに、ステップから状態を準備できます（`this.app.backdoor('loginAs', …)`）。
+- **本番には何も残らない**：`EXPO_PUBLIC_QUIESCO=1`がなければ、エージェントは何もしないスタブに置き換えられ、ネイティブモジュールもビルドから除外されます（CIで検証しています。[ベンチマーク](./benchmarks)を参照）。
+
+## はじめに {#get-started}
+
+<CardGroup cols={2}>
+  <Card title="クイックスタート（Web）" icon="rocket" href="./quickstart">
+    新しいExpoアプリから、Chromiumでfeatureが通るまでを約10分で進めます。
+  </Card>
+  <Card title="iOSとAndroid" icon="mobile" href="./native">
+    e2eアプリをビルドし、同じfeatureをシミュレーターとエミュレーターで実行します。
+  </Card>
+  <Card title="JestとVitest" icon="flask" href="./runners">
+    Cucumberを使わずにQuiescoを利用します。
+  </Card>
+  <Card title="APIリファレンス" icon="book" href="./api">
+    `this.app`、マッチャー、アプリ内API、設定、エラー。
+  </Card>
+</CardGroup>
+
+## パッケージ {#packages}
+
+| パッケージ | 内容 |
+|---|---|
+| `quiesco` | CLI：`init`、`test`、`doctor`、`tree`、`devices`（[CLI](./cli)） |
+| `@quiesco/agent` | アプリ内エージェント：要素の検索、同期トラッカー、アクション、リセット、バックドア。Metro用の`withQuiesco()` |
+| `@quiesco/native` | iOS / Androidで実際のタッチとテキスト入力を行うExpoモジュール（e2eビルドのみ） |
+| `@quiesco/expo-plugin` | Config plugin：本番ビルドからネイティブモジュールを除外し、e2eビルドではローカル接続を許可する |
+| `@quiesco/core` | ホスト側：WebSocketサーバー、`Driver`（`this.app`）、セッション、iOS / Androidのデバイスプロバイダー。ランナーに依存しない |
+| `@quiesco/cucumber` | cucumber-jsのWorld（`this.app`）とライフサイクルフック |
+| `@quiesco/vitest` | Vitest：`app`フィクスチャー付きの`test`、`quiesco()`設定 |
+| `@quiesco/jest` | Jest：Quiescoのテスト環境を含むプリセット、グローバルの`quiesco` |
+| `@quiesco/web` | Webのデバイスプロバイダー（Playwrightライブラリ） |
+| `@quiesco/steps` | 中国語・日本語・英語の汎用ステップ（任意）。プロトタイピング専用（[ステップ](./steps)） |
+| `@quiesco/protocol` | エージェントとホストで共有する型と定数 |
+
+ソースコードはMITライセンスで[GitHub](https://github.com/h2nology/quiesco)に公開しています。

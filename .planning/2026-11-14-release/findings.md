@@ -80,3 +80,43 @@
 - 多语言：`navigation.languages[]`，每项 `language` + 完整导航（标签要翻译）；第一项默认；同一路径不能出现在两种语言里；可按语言覆盖 navbar / footer / banner；`navigation.global` 放所有语言共用的链接。缺翻译的页面直接 404（不回退到英文）⇒ 三种语言页面要一一对应。hreflang 自动加。按浏览器语言自动跳转在后台「Language routing」设置（Off / Homepage only / Pages without a language）。
 - 提示框：`<Note>` `<Warning>` `<Info>` `<Tip>` `<Check>` `<Danger>`；还有 Steps、Tabs、CodeGroup、Cards（MDX 组件）。
 - 速度：样本 `mint validate` 1.3 秒（构建 + 规则）。
+
+## R.D.3 翻译规则与术语表（2026-11-14）
+**规则**
+- 不翻：代码块里的代码、行内代码、API 名、配置键、错误码、命令、命令输出、文件路径、包名、标题后的 `{#id}`、链接地址、数字和日期、产品名（Expo、React Native、Playwright、Cucumber、Jest、Vitest、Detox、Metro、EAS、Xcode、Android Studio 等）。
+- 翻：正文、标题文字、表格里的说明文字、frontmatter 的 `title` / `description`、组件里的文字和 `title` 属性、代码块里的注释。
+- Gherkin 示例不翻：它们和旁边的 step 定义（`When('they add a todo {string}', …)`）是成对的代码，翻了就对不上（原计划「用 `# language:`」作废）。
+- 内容不增不删，段落、列表、表格的结构与英文一致；`&lt;` 保留。
+- 中文：简体，中文与英文 / 数字之间加半角空格，标点用全角。日文：です・ます調，英数字前后不加空格。
+
+**术语表**（英 → 中 / 日）
+| English | 中文 | 日本語 |
+|---|---|---|
+| idle / busy | 空闲 / 忙碌 | アイドル / ビジー |
+| synchronization, sync | 同步 | 同期 |
+| tracker | 跟踪器 | トラッカー |
+| agent (in-app) | agent（App 内的 agent） | エージェント |
+| host | host 端 | ホスト側 |
+| backdoor | 后门 | バックドア |
+| soft reset / hard reset | 软重置 / 硬重置 | ソフトリセット / ハードリセット |
+| feature (file) / scenario / step / step definition | feature 文件 / 场景 / 步骤 / 步骤定义 | feature ファイル / シナリオ / ステップ / ステップ定義 |
+| test id | test id | テスト ID |
+| element / element tree | 元素 / 元素树 | 要素 / 要素ツリー |
+| matcher | 匹配器 | マッチャー |
+| driver (pattern) | Driver（模式） | Driver（パターン） |
+| test runner / runner | 测试运行器 / 运行器 | テストランナー / ランナー |
+| worker | worker | ワーカー |
+| device / simulator (iOS) / emulator (Android) | 设备 / 模拟器（iOS Simulator）/ 模拟器（Android Emulator），需要区分时写原名 | デバイス / シミュレーター / エミュレーター |
+| e2e build / production build | e2e 构建 / 生产构建 | e2e ビルド / 本番ビルド |
+| dev client | dev client | dev client |
+| artifacts / evidence | 产物 / 证据 | 成果物 / 証跡 |
+| obscured | 被遮挡 | 遮られている |
+| permission / system dialog | 权限 / 系统弹窗 | 権限 / システムダイアログ |
+| value controls / multi-finger gestures | 值控件 / 多指手势 | 値コントロール / マルチタッチジェスチャー |
+| timeout | 超时 | タイムアウト |
+| backdoor | 后门 | バックドア |
+| benchmarks / known issues / troubleshooting | 基准测试 / 已知问题 / 故障排查 | ベンチマーク / 既知の問題 / トラブルシューティング |
+| Get started / Guides / Reference / More | 入门 / 指南 / 参考 / 其他 | はじめに / ガイド / リファレンス / その他 |
+- 翻译时补充的术语（4 个子代理各自定的，已统一）：中文 app → App（不用「应用」），deep link → 深层链接，no-op stub → 空实现的桩，session → 会话，assertion / query → 断言 / 查询，production-strip check → 生产剥离检查；日文 session → セッション，settle → 落ち着く，no-op stub → 何もしないスタブ，production-strip check → 本番ビルドからの除去チェック，Gaps → 未対応の項目。iOS 的「Save Password?」：中文用系统中文界面的“存储密码？”，日文保留英文。
+- 中日文段落不要在句中换行：Markdown 的软换行在中日文之间会显示成多余的空格。翻译后用脚本把软换行接上（298 处）。
+- benchmarks 里两个 `###` 标题没有 `{#id}`，中日文锚点和英文不同；没有链接指向它们。

@@ -1,0 +1,27 @@
+---
+title: "已知问题"
+description: "Expo、React Native 或各平台中，Quiesco 绕过或无法修复的问题。"
+---
+
+## Web：首次导航到懒加载路由时，“Requiring unknown module” 被报告为致命错误 {#web-requiring-unknown-module-reported-as-fatal-on-the-first-navigation-to-a-lazy-route}
+
+- 出现环境：Expo SDK 58，Expo Router 静态输出（`web.output: "static"`），生产环境的 web 导出。
+- 现象：首次导航到 chunk 尚未加载的路由时，Expo Router 的异步 require 会先尝试同步 `require`该路由模块。Metro 的受保护模块加载器不会因模块缺失而抛出异常，而是调用`ErrorUtils.reportFatalError(...)`。随后 Expo 加载该 chunk，导航正常完成。
+- 真实用户同样会遇到：它在生产环境中被静默报告（已验证：不使用 Quiesco、直接用 Playwright 通过 UI登录能到达 `/todos`，而包装后的 `ErrorUtils` 全局处理器记录到`FATAL: Requiring unknown module "818".`）。
+- Quiesco：App 错误会使当前步骤失败（requirements.md §7），因此这个报告会让第一个发生导航的场景失败。`@quiesco/core` 中的 `DEFAULT_IGNORED_APP_ERRORS` 会忽略它（改为记录一条警告）。用`appErrors: { ignoreDefaults: false }` 关闭默认忽略项；用 `appErrors: { ignore: [...] }` 添加自己的模式。真正缺失的模块仍会因后续断言而使场景失败。
+
+## iOS：登录表单之后，“存储密码？”面板遮住 App {#ios-save-password-sheet-covers-the-app-after-a-login-form}
+
+- 出现环境：iOS 26.5 / 27.0 模拟器，任何包含 `secureTextEntry` 字段且提交后该字段消失的表单（例如登录后跳转页面）。
+- 现象：iOS 会在 App 上方的系统窗口中显示“密码” App 的“存储密码？”面板。所有触摸都被遮挡（Quiesco报告 `ELEMENT_OBSCURED`，触摸会落到 `UITextEffectsWindow` 中的一个 `UIView` 上），且任何 App 重置都无法关闭它，于是后续场景也会失败。在字段上设置 `textContentType="none"` / `autoComplete="off"` 也无法阻止。
+- Quiesco：iOS provider 会在模拟器启动时关闭密码自动填充（与 MDM 的做法相同，使用配置描述文件限制`allowPasswordAutoFill`；无需重启即可生效）。可通过 `devices.ios.disablePasswordAutoFill: false` 关闭此行为。
+
+## iOS 26+：页面内容布局在导航栏下方 {#ios-26-screen-content-laid-out-under-the-navigation-bar}
+
+- 出现环境：iOS 26+ 上的 react-native-screens 4.30（Expo SDK 58）：页面总是延伸到导航栏下方（`edgesForExtendedLayout = UIRectEdgeAll`）。在这种配置下，页面自身的顶部内边距只覆盖了状态栏，因此内容顶部位于导航栏之下——真实用户也点不到，Quiesco 会报告 `ELEMENT_OBSCURED`（`the touch would reach NavigationBarContentView`）。
+- 示例 App 在所有平台上都使用透明的 header，并通过 `useHeaderHeight()`（`expo-router/react-navigation`）为每个页面添加内边距，因此 iOS、Android 和 web 上的布局一致。
+
+## iOS：紧接在键盘活动之后的触摸会丢失 {#ios-touches-right-after-keyboard-activity-are-dropped}
+
+- 出现环境：iOS 27 模拟器。输入后 0 ms（或键盘正在出现 / 改变高度时）在键盘外的触摸不会到达 App；300 ms 后则可以。
+- Quiesco：`@quiesco/native` 会跟踪键盘通知和输入；触摸会等到键盘安静 400 ms（`settling`）之后才发出，且 `native` 空闲跟踪器会让每次同步都等待它。只有紧接在输入之后的步骤才需要付出这段等待。

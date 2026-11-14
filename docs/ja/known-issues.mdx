@@ -1,0 +1,27 @@
+---
+title: "既知の問題"
+description: "Expo、React Native、各プラットフォームの問題のうち、Quiescoが回避しているもの、または修正できないもの。"
+---
+
+## Web：遅延読み込みルートへの最初の遷移で「Requiring unknown module」が致命的エラーとして報告される {#web-requiring-unknown-module-reported-as-fatal-on-the-first-navigation-to-a-lazy-route}
+
+- 発生環境：Expo SDK 58、Expo Routerの静的出力（`web.output: "static"`）、本番用のWebエクスポート。
+- 何が起きるか：チャンクがまだ読み込まれていないルートへ最初に遷移すると、Expo Routerの非同期requireはまずルートモジュールを同期的に`require`しようとします。Metroのガード付きモジュールローダーは、モジュールが見つからなくても例外を投げず、`ErrorUtils.reportFatalError(...)`を呼び出します。その後Expoがチャンクを読み込み、遷移は通常どおり完了します。
+- 実際のユーザーにも起きています。本番では表に出ないまま報告されています（確認済み：Quiescoを使わない素のPlaywrightによるUIログインで`/todos`に到達し、ラップした`ErrorUtils`のグローバルハンドラーが`FATAL: Requiring unknown module "818".`を記録しました）。
+- Quiescoでの扱い：アプリのエラーは現在のステップを失敗させるため（requirements.md §7）、この報告があると遷移を伴う最初のシナリオが失敗してしまいます。`@quiesco/core`の`DEFAULT_IGNORED_APP_ERRORS`がこれを無視します（代わりに警告としてログに出します）。デフォルトを無効にするには`appErrors: { ignoreDefaults: false }`を、独自のパターンを追加するには`appErrors: { ignore: [...] }`を使います。本当にモジュールが欠けている場合は、後続のアサーションによってシナリオが失敗します。
+
+## iOS：ログインフォームの後に「Save Password?」シートがアプリを覆う {#ios-save-password-sheet-covers-the-app-after-a-login-form}
+
+- 発生環境：iOS 26.5 / 27.0のシミュレーター。送信後に消える`secureTextEntry`フィールドを持つフォームすべて（例：ログインしてから画面遷移）。
+- 何が起きるか：iOSが、パスワードの「Save Password?」シートをアプリより上のシステムウィンドウに表示します。すべてのタッチが遮られ（Quiescoは`ELEMENT_OBSCURED`を報告し、タッチは`UITextEffectsWindow`内の`UIView`に届く状態です）、アプリをリセットしても閉じないため、後続のシナリオも失敗します。フィールドに`textContentType="none"` / `autoComplete="off"`を指定しても防げません。
+- Quiescoでの扱い：iOSプロバイダーは起動時にシミュレーターのパスワード自動入力をオフにします（MDMと同じく、構成プロファイルの制限`allowPasswordAutoFill`を使います。再起動なしで反映されます）。無効にするには`devices.ios.disablePasswordAutoFill: false`を指定します。
+
+## iOS 26+：画面のコンテンツがナビゲーションバーの下にレイアウトされる {#ios-26-screen-content-laid-out-under-the-navigation-bar}
+
+- 発生環境：iOS 26+上のreact-native-screens 4.30（Expo SDK 58）。画面は常にナビゲーションバーの下まで広がります（`edgesForExtendedLayout = UIRectEdgeAll`）。この構成では画面自身の上部インセットがステータスバーの分しかなかったため、コンテンツの上端がバーの下に入り込んでいました。実際のユーザーもそこをタップできず、Quiescoは`ELEMENT_OBSCURED`（`the touch would reach NavigationBarContentView`）を報告します。
+- サンプルアプリはすべてのプラットフォームで透明なヘッダーを使い、各画面に`useHeaderHeight()`（`expo-router/react-navigation`）の分のパディングを入れているため、iOS、Android、Webでレイアウトが同じになります。
+
+## iOS：キーボード操作の直後のタッチが失われる {#ios-touches-right-after-keyboard-activity-are-dropped}
+
+- 発生環境：iOS 27シミュレーター。入力の0 ms後（またはキーボードの表示中 / 高さの変化中）にキーボード外をタッチすると、アプリに届きません。300 ms後なら届きます。
+- Quiescoでの扱い：`@quiesco/native`がキーボードの通知と入力を追跡します。タッチはキーボードが400 ms静止するまで待ち（`settling`）、`native`アイドルトラッカーによって、すべての同期がこれを待ちます。待ち時間がかかるのは入力直後のステップだけです。

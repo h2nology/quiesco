@@ -1,0 +1,177 @@
+---
+title: "Quiesco 与 Detox"
+description: "与 Detox 20.51.4 的逐项对比。"
+---
+
+与 **Detox 20.51.4** 的逐项对比（依据其文档和 667efcb 版本的源码，阅读于 2026-11-08）。Detox 一列取自其文档、源码和 issue tracker，并非实测。Quiesco 各列为实测结果：每一项都注明了用来检查它的示例 App feature（`examples/todo-app/features/`）或单元测试，完整的示例测试套件在三个平台上全部通过（结果见文末）。
+
+图例：✓ 支持 · ✗ 不可用 · — 不适用于该平台 · (iOS) / (Android) Detox 仅在该平台上支持。
+
+## 元素操作 {#element-actions}
+
+| Detox | Detox 平台 | Quiesco | iOS | Android | Web | 验证方式 |
+|---|---|---|---|---|---|---|
+| `tap(point?)` | 两者 | `tap(target, { point })` | ✓ | ✓ | ✓ | actions: 点击区域内的指定位置 |
+| `multiTap(n)` | 两者 | `multiTap(target, n)`、`doubleTap(target)` | ✓ | ✓ | ✓ | actions: 连续点击… |
+| `longPress(point?, duration?)` | 两者 | `longPress(target, { durationMs, point })` | ✓ | ✓ | ✓ | 单元测试（agent actions、driver） |
+| `longPressAndDrag(…)` | 两者 | `drag(target, to, { holdMs, speed })`——拖到某个元素或某个坐标 | ✓ | ✓ | ✓ | actions: 拖拽方块放进区域; showcase: 长按后拖动列表行排序 |
+| `swipe(dir, speed?, offset?, x?, y?)` | 两者 | `swipe(target, dir, { speed, distance, from })` | ✓ | ✓ | ✓ | showcase: 没有长按就滑动不会拿起列表行 |
+| `scroll(offset, dir, x?, y?)` | 两者 | `scroll(target, dir, { distance, from })` | ✓ | ✓ | ✓ | 单元测试（agent actions、driver） |
+| `scrollTo(edge)` | 两者 | `scrollToEdge(target, edge)`（会跟随不断增长的虚拟列表） | ✓ | ✓ | ✓ | actions: 长列表滚动到指定行和两端 |
+| `scrollToIndex(i)` | **Android** | `scrollToIndex(list, i, { viewPosition })`，没有 `getItemLayout` 也可以 | ✓ | ✓ | ✓ | actions: 长列表滚动到指定行和两端 |
+| `whileElement(…).scroll(…)` | 两者 | `scrollTo(container, target)` | ✓ | ✓ | ✓ | 单元测试（driver） |
+| `typeText` / `replaceText` / `clearText` | 两者 | `type`（通过 IME：任何语言）/ `replaceText` / `clear` | ✓ | ✓ | ✓ | login、new-todo；actions: 键盘按键与替换文本 |
+| `tapReturnKey` / `tapBackspaceKey` | 两者 | `pressKey(target, 'enter' \| 'backspace')`——即使键盘按键够不着也能作用到输入框 | ✓ | ✓ | ✓ | actions: 键盘按键与替换文本; new-todo: 在标题框按回车也能保存 |
+| `setColumnToValue` | **iOS** | `setValue(picker, value)`——在 iOS 上用手指转动滚轮 | ✓ | ✓（回调：下拉框是另一个窗口） | ✓（`<select>`） | values: 选择器按名称或值选择 |
+| `setDatePickerDate` | 两者 | `setValue(datePicker, Date)`——在 iOS 上转动每一列滚轮 | ✓ | ✓（回调：系统对话框） | ✓（日期输入框） | values: 日期 |
+| `adjustSliderToPosition` | 两者 | `adjustSlider(target, position)`（真实拖动，读回数值并修正）；`setValue(slider, n)`（精确） | ✓ | ✓ | ✓ | values: 把滑块设为指定值, 拖动滑块到指定位置 |
+| `pinch(scale, speed, angle)` | **iOS** | `pinch(target, scale, { angle, speed })`，补偿识别器激活阈值 | ✓ | ✓ | ✓（触摸视口） | gestures: 双指放大 / 缩小 / 沿斜线方向捏合 |
+| — | — | `rotate(target, radians)`、`multiTouch(fingers)` | ✓ | ✓ | ✓（触摸视口） | gestures: 双指旋转, 双指滑动 |
+| `performAccessibilityAction` | 两者 | `accessibilityAction(target, name)`（VoiceOver / TalkBack 路径） | ✓ | ✓ | ✓ | values: 无障碍动作 |
+| —（开关：点击） | 两者 | `setValue(switch, boolean)`；分段控件 | ✓ | ✓ | ✓ | values: 开关, 分段控件 |
+| `getAttributes` | 两者 | `attributes(target)`、`query(target)` | ✓ | ✓ | ✓ | device: 横屏（两列的矩形区域） |
+| `takeScreenshot(name)`（元素） | 两者 | `device.screenshot(target, { full, name })`——也可以拼接出整个元素 / 整页 | ✓ | ✓ | ✓ | screenshots（4 个场景） |
+
+## 匹配器 {#matchers}
+
+| Detox | Detox 平台 | Quiesco | iOS | Android | Web | 验证方式 |
+|---|---|---|---|---|---|---|
+| `by.id` / `by.text` / `by.label`（RegExp） | 两者 | `'id'`、`{ id }`、`{ text }`、`{ label }`（字符串或 RegExp） | ✓ | ✓ | ✓ | 所有 feature |
+| `by.type`（类名） | 两者 | `{ type }`：语义类型（各平台一致）、host 组件类型或组件名 | ✓ | ✓ | ✓ | 单元测试（agent query） |
+| `by.traits` | **iOS** | **替代方案**：`{ role }`（无障碍角色）和语义 `{ type }`（`button`、`header`、`link`、`image` …） | ✓ | ✓ | ✓ | 单元测试（agent query） |
+| `withAncestor` / `withDescendant` / `and` | 两者 | `within`、`has`、组合条件、`not` | ✓ | ✓ | ✓ | 单元测试（agent query） |
+| `atIndex(i)`（iOS 与 Android 上的顺序不同） | 两者 | `index`——在所有平台上都是渲染顺序 | ✓ | ✓ | ✓ | 单元测试（agent query） |
+
+## 断言 {#assertions}
+
+| Detox | Detox 平台 | Quiesco | iOS | Android | Web | 验证方式 |
+|---|---|---|---|---|---|---|
+| `toBeVisible(pct = 75)` | 两者 | `expectVisible(target, { ratio })`——默认只要有任一像素可见即可；会计入滚动视图的裁剪 | ✓ | ✓ | ✓ | 所有 feature；actions: 长列表滚动… |
+| `toExist` | 两者 | `expectExists` / `expectNotExists` | ✓ | ✓ | ✓ | 单元测试（driver） |
+| `toBeFocused` | 两者 | `expectFocused` / `expectNotFocused` | ✓ | ✓ | ✓ | form-state |
+| `toHaveText` / `toHaveLabel` / `toHaveId` / `toHaveValue` | 两者 | `expectText` / `expectLabel` / `toHaveId` / `expectValue` | ✓ | ✓ | ✓ | 所有 feature |
+| `toHaveSliderPosition` / `toHaveToggleValue` | 两者 | `expectValue`（slider / switch / picker）/ `expectChecked` | ✓ | ✓ | ✓ | values |
+| — | — | `expectEnabled` / `expectDisabled`、`expectProp`、`expectCount` | ✓ | ✓ | ✓ | form-state；单元测试 |
+| `.not` | 两者 | `.not`（链式写法）和 `expectNot…` | ✓ | ✓ | ✓ | 单元测试（driver） |
+| `waitFor(…).withTimeout()`（expect 不会等待） | 两者 | 每个断言都会重试，直到成立或超时（`sync.timeoutMs`，可配置） | ✓ | ✓ | ✓ | webview: 等待网页里稍后出现的结果 |
+
+## 设备与 App {#device-and-app}
+
+| Detox | Detox 平台 | Quiesco | iOS | Android | Web | 验证方式 |
+|---|---|---|---|---|---|---|
+| `launchApp({ newInstance })` / `terminateApp` | 两者 | `device.relaunch()` / `terminate()` | ✓ | ✓ | ✓ | lifecycle: 重新启动后数据还在; 结束 App 之后的操作… |
+| `launchApp({ launchArgs })`、`appLaunchArgs` | 两者 | `relaunch({ args })`（带类型的 JSON）、配置项 `launchArgs`、App 内的 `quiesco.launchArgs()` | ✓ | ✓ | ✓ | lifecycle: 以启动参数和深层链接重新启动 |
+| `launchApp({ url })` / `openURL` | 两者 | `relaunch({ url })`（冷启动）/ `openUrl(url)` | ✓ | ✓ | ✓ | lifecycle: 以启动参数和深层链接重新启动 |
+| `launchApp({ permissions })` | **iOS** | 配置项 `permissions`、`relaunch({ permissions })`，运行时用 `setPermission(name, 'grant' \| 'revoke' \| 'reset')` | ✓ | ✓ | ✓ | permissions（Android / Web）；device: 运行时撤销定位权限; system: 拒绝 / 允许通知权限 |
+| `launchApp({ delete })`、`install` / `uninstall` | 两者 | `relaunch({ reinstall })`、`install()` / `uninstall()` | ✓ | ✓ | —（无需安装；`reinstall` = 清除数据） | 单元测试（providers） |
+| `resetAppState` / `launchApp({ resetAppState })` | 两者 | 每个场景前的软重置（存储 + `onReset`，&lt; 500 ms）、`@hard-reset`、`relaunch({ clearData })` | ✓ | ✓ | ✓ | 每个场景；lifecycle: 清除数据后重新启动 |
+| `resetContentAndSettings` | **iOS** | **替代方案**：`relaunch({ reinstall: true })` + `setPermission(p, 'reset')` + `clearKeychain()`；场景改动过的设备状态会被自动还原 | ✓ | ✓（没有 keychain） | ✓ | —（有文档说明，见「缺口」） |
+| `reloadReactNative`（文档标注为不稳定） | 两者 | 不提供：用 `relaunch()`（新进程）或软重置 | ✓ | ✓ | ✓ | — |
+| `sendToHome` | 两者 | `sendToBackground()` / `bringToForeground()`（同一进程） | ✓ | ✓ | ✗（页面无法切到后台） | lifecycle: 切到后台再回到前台 |
+| `setOrientation` | 两者 | `setOrientation`（等到窗口完成旋转） | ✓ | ✓ | ✓ | device: 横屏（+ 双列布局） |
+| `setLocation` | 两者 | `setLocation(lat, lon)` | ✓ | ✓（模拟器） | ✓ | device: 模拟定位 |
+| `languageAndLocale` | **iOS** | `setLocale(tag)` | ✓ | ✓ | ✓ | device: 切换语言 |
+| — | — | `setAppearance`、`setFontScale`、`setNetwork`、`clipboard` | ✓ | ✓ | ✓（不支持字体缩放） | device（深色模式、字体缩放、离线、剪贴板） |
+| `setURLBlacklist` | 两者 | `sync.ignoreUrls.add()` / 配置项 `sync.ignoreUrls` | ✓ | ✓ | ✓ | 单元测试（network tracker） |
+| `enable/disableSynchronization`（全局） | 两者 | `sync.disable()` / `enable()`，按跟踪器 `disableTracker(name)`、`ignoreElements`，按调用 `{ sync: false }` | ✓ | ✓ | ✓ | lifecycle: 运行时只关闭定时器同步… |
+| `sendUserNotification` / `launchApp({ userNotification })` | 两者 | `sendNotification({ title, body, data })`、`openNotification(title)` | ✓ | ✓ | ✗ | system: App 在前台时收到推送, 从通知打开 App |
+| `sendUserActivity` / `launchApp({ userActivity })` | **iOS** | **不提供**（Handoff / Spotlight activity）。链接（包括 universal link）：`openUrl` / `relaunch({ url })` | — | — | — | —（见「缺口」） |
+| `tap` / `longPress`（屏幕坐标） | 两者 | `tapAt({ x, y })` / `longPressAt` | ✓ | ✓ | ✓ | actions: 连续点击与按屏幕坐标点击 |
+| `takeScreenshot` | 两者 | `device.screenshot()`，可拼接整页 | ✓ | ✓ | ✓ | screenshots |
+| `captureViewHierarchy` | **iOS** | `getTree()`（JSON，语义类型），附加到每个失败的场景 | ✓ | ✓ | ✓ | 单元测试（artifacts） |
+| `generateViewHierarchyXml` | 两者 | `getTree()` | ✓ | ✓ | ✓ | 单元测试 |
+| `shake` | **iOS** | `shake()` | ✓ | ✓ | ✗ | system: 摇动设备 |
+| 生物识别（录入、匹配 / 不匹配的面容或指纹） | **iOS** | `biometrics.enroll()` / `match()` / `fail()` | ✓ | ✓ | ✗ | system: 录入生物识别, 生物识别认证成功, 不匹配后… |
+| `clearKeychain` | **iOS** | `clearKeychain()` | ✓ | —（没有 keychain：用 `relaunch({ clearData })`） | — | 单元测试（iOS provider） |
+| `setStatusBar` | **iOS** | `setStatusBar({ … })` / `resetStatusBar()` | ✓ | ✓ | —（没有状态栏） | device: 截图用的状态栏 |
+| `reverseTcpPort` | **Android** | `reversePort(port)`（设备与 host 共用网络时为空操作） | — | ✓ | — | 示例配置 `reversePorts`（每次 Android 运行） |
+| `pressBack` | **Android** | `pressBack()` | ✗（没有返回键） | ✓ | ✓（浏览器后退） | 单元测试（providers） |
+| `getUiDevice`（UiAutomator） | **Android** | `device.system.*`（App 之外的系统 UI） | ✓ | ✓ | ✓（JS 对话框） | system: 拒绝 / 允许通知权限; 取消 / 确定网页的确认对话框 |
+| `selectApp`（多个 App） | 两者 | **不提供**：每个会话一个 App | — | — | — | —（见「缺口」） |
+
+## 系统 UI、WebView、LLM {#system-ui-webview-llm}
+
+| Detox | Detox 平台 | Quiesco | iOS | Android | Web | 验证方式 |
+|---|---|---|---|---|---|---|
+| `system.element(by.system.label)`（实验性） | **iOS** | `device.system.tap` / `expectVisible` / `allowPermission` / `denyPermission` | ✓（XCUITest runner） | ✓（uiautomator） | ✓（JS 对话框） | system: 拒绝通知权限; 取消网页的确认对话框 |
+| `web.element(by.web.*)`：tap / typeText / replaceText / runScript / getText | 两者（Android 上有若干 issue） | `webview(m).element({ css \| xpath \| id \| text })`：tap / type / replaceText / scrollIntoView / expect* / runScript / url / title | ✓ | ✓ | ✓（iframe） | webview（6 个场景） |
+| Pilot（LLM 驱动的步骤） | — | **推迟**（Phase 6.14，见「缺口」） | — | — | — | — |
+
+## 运行测试 {#running-tests}
+
+| Detox | Quiesco | 验证方式 |
+|---|---|---|
+| 仅 Jest | Cucumber（中 / 日 / 英步骤库）、Jest、Vitest | 完整示例测试套件；`e2e/jest`、`e2e/vitest`；`features-generic` |
+| 并行 worker | cucumber-js `--parallel`、Jest `maxWorkers`、Vitest `quiesco({ workers })`；每个 worker 一台设备，由 Quiesco 创建并保留（iOS 用 `simctl create`，Android 为每个 worker 复制一份 AVD，所以你已打开的可写模拟器不构成障碍）；按 worker 的配置函数、端口、产物；[parallel.md](./parallel) | 单元测试 + 三个平台 × 三个运行器（Phase 6.12） |
+| `retries` | **替代方案**：运行器自身的重试（`cucumber-js --retry`、Jest `jest.retryTimes`、Vitest `retry`） | —（运行器功能） |
+| 产物：截图、视频、日志、uiHierarchy、instruments | 失败时的截图 + 元素树 + 日志、每个场景的视频（MP4 / WebM）、设备日志、时间线（Chrome trace） | screenshots；单元测试（artifacts） |
+| 真机（Detox：仅 Android；不支持 iOS，#95） | **推迟**（Phase 6.13，见「缺口」）：仅支持模拟器和 Chromium | — |
+| Web：无官方支持 | Chromium（手机 / 平板 / 桌面视口），使用同样的 feature | 每次 Web 运行 |
+| Expo："community supported" | Expo 优先：config plugin、dev client、Expo Router、`expo/fetch` | 示例 App（Expo SDK 58） |
+
+## Detox 的痛点与 Quiesco 的做法 {#detox-pain-points-and-what-quiesco-does-instead}
+
+| 痛点（Detox） | Quiesco | 验证（2026-11-11） |
+|---|---|---|
+| 在 Expo SDK 56+ 的 Android 上网络同步失灵：只监听 OkHttp，而全局 `fetch` 是 `expo/fetch`（#4973） | agent 在 JS 中跟踪请求——全局 `fetch`、直接导入的 `expo/fetch`（Metro resolver）、`XMLHttpRequest`、WebSocket / EventSource 握手——直到响应体被读取完毕 | device: 等待 expo/fetch 的慢响应体, 离线时 expo/fetch 也失败, 等待 WebSocket 握手——iOS / Android / Web，只读取一次结果，不重试 |
+| 随 React Native 版本更新而失效（RN 0.85.3 上 bridgeless 崩溃，#4963：反射访问私有字段） | 通过 DevTools 钩子从 React 自己的树中查找元素（一个文件，`fiber-adapter`），而不是从原生私有字段；原生模块只负责注入输入 | 整套测试运行于 React Native 0.88 / Expo SDK 58、bridgeless、三个平台 |
+| 同步要么全开要么全关：无限动画、轮询或 socket 会让测试挂起；唯一的出路是全局关闭（#1513） | 运行时可按跟踪器、按元素控制（`sync.disableTracker`、`ignoreElements`、`ignoreUrls`），按调用传 `{ sync: false }`；打开的 WebSocket 从不计入，只计入其握手 | lifecycle: 运行时只关闭定时器同步，并忽略轮询计数; device: 等待 WebSocket 握手 |
+| `expect` 不会等待；没有全局超时（#4885） | 断言会重试直到成立，默认 `sync.timeoutMs`，可按调用设置 `timeoutMs` | webview: 等待网页里稍后出现的结果（以及所有断言） |
+| iOS 键盘吞掉第一次点击（#3399）；因为可见性检查，无法点击回车键（#4546） | 先收起遮住目标的键盘，`native` 跟踪器会等过 iOS 在键盘活动后的触摸屏蔽期；`pressKey('enter')` 无需键盘即可作用到输入框 | login / new-todo（在 iOS 上先输入再点击）；new-todo: 在标题框按回车也能保存; actions: 键盘按键与替换文本 |
+| WebView 输入不可靠，Android 上有若干问题（#4886） | 在真实点击之后通过 `execCommand('insertText')` 输入；三个平台 API 相同 | webview: 在网页里输入名字后打招呼, 替换输入框里的文字——iOS / Android / Web |
+| 许多能力仅限 iOS（pinch、启动时授予权限、生物识别、摇一摇、状态栏、语言区域、系统 UI、picker 列） | 每一项在 iOS 和 Android 上都可用，大多数在 Web 上也可用（见上表） | gestures、values、device、system |
+| `atIndex` 的顺序在 iOS 与 Android 上不同；`toBeVisible` 固定为 75 % | `index` 在所有平台上都是渲染顺序；可见性 = 任一像素可见，`ratio` 可选 | 单元测试（agent query、visibility） |
+| `setTimeout` 只等待最多 1.5 s，忽略 `setInterval`，且不可配置 | `sync.timerThresholdMs`（默认 1500）可配置；超时错误中会指出忙碌的定时器 | 单元测试（timer tracker） |
+| 单独的测试 APK、ProGuard 规则、框架缓存 | 通过 config plugin 生成一个 e2e 构建（`EXPO_PUBLIC_QUIESCO=1`）；经验证生产构建中不含任何相关内容 | `scripts/check-prod-strip.mjs`（benchmarks.md） |
+| 仅支持 Jest；产物文档「待完成」 | Cucumber / Jest / Vitest；产物有文档（api.md，Artifacts） | e2e/jest、e2e/vitest、features |
+
+## Detox 仅限单一平台的功能在 Quiesco 中的可用性 {#detox-platform-only-items-availability-in-quiesco}
+
+Detox 中只在一个平台上可用的功能，以及 Quiesco 在多少个平台上提供它们：
+
+| 功能 | Detox | Quiesco |
+|---|---|---|
+| `scrollToIndex` | Android | iOS、Android、Web |
+| `setColumnToValue`（picker） | iOS | iOS、Android、Web |
+| `pinch` | iOS | iOS、Android、Web（触摸） |
+| `by.traits` | iOS | `role` / 语义 `type`：iOS、Android、Web |
+| `launchApp({ permissions })` | iOS | iOS、Android、Web |
+| `languageAndLocale` | iOS | iOS、Android、Web |
+| `resetContentAndSettings` | iOS | 在 iOS、Android、Web 上组合多个调用 |
+| `captureViewHierarchy` | iOS | iOS、Android、Web |
+| `shake` | iOS | iOS、Android |
+| 生物识别 | iOS | iOS、Android |
+| `setStatusBar` | iOS | iOS、Android（Web 没有状态栏） |
+| `system.element` | iOS | iOS、Android、Web（JS 对话框） |
+| `pressBack` | Android | Android、Web（iOS 没有返回键） |
+| `getUiDevice` | Android | `device.system`：iOS、Android、Web |
+| `clearKeychain` | iOS | **仅 iOS**——Android 和 Web 没有 keychain；在那里等价的做法是 `relaunch({ clearData: true })` |
+| `reverseTcpPort` | Android | 仅 Android——iOS 模拟器和浏览器与 host 共用网络，无需反向转发 |
+| `sendUserActivity` / `userActivity` | iOS | 不提供（见「缺口」） |
+
+## 缺口 {#gaps}
+
+决定不实现（2026-11-11），以及替代方案：
+
+- **`selectApp`（一个测试中使用多个 App）：** 每个会话一个 App。请在各自的运行中分别测试每个 App。
+- **`sendUserActivity` / `launchApp({ userActivity })`：** 不模拟 Handoff / Spotlight / Siri activity。链接（包括 universal link）通过 `openUrl` 或 `relaunch({ url })` 打开。
+- **`resetContentAndSettings`：** 不提供抹掉整个模拟器的功能。`relaunch({ reinstall: true })` 移除 App 及其数据，`setPermission(p, 'reset')` 把权限恢复为 "not determined"，`clearKeychain()` 清空 keychain；场景改动过的设备状态（方向、外观、语言区域、位置、网络、状态栏、生物识别）会在下一个场景开始前自动还原。
+- **`retries`：** 使用运行器自身的重试选项。
+- **`by.traits`：** 使用 `{ role }` 和语义 `{ type }`。
+
+推迟（2026-11-14），尚未实现：
+
+- **真机（Phase 6.13）：** 通过 adb 连接的 Android 设备和 iOS 设备尚未验证；请在模拟器和 Chromium 上运行。
+- **LLM 驱动的步骤（Phase 6.14，Detox Pilot）：** 不提供；请基于 Driver API 编写步骤。
+
+## 结果 {#results}
+
+完整示例测试套件，2026-11-14（Phase 6 验收），不使用 worker，依次运行；使用 dev client 和 Metro 提供的开发 bundle；iPhone 17 模拟器 iOS 27.0、Android 17 模拟器（API 37，`-gpu host`）、Chromium：
+
+| 平台 | 场景数 | 通过 | 跳过（标记为其他平台 / 需要触摸） | 耗时 |
+|---|---|---|---|---|
+| iOS | 86 | 80 | 6 | 4 m 26 s |
+| Android | 86 | 81 | 5 | 5 m 3 s |
+| Web（手机视口） | 86 | 73 | 13 | 1 m 27 s |
+
+与之前各阶段的耗时对比：[benchmarks.md](./benchmarks)。

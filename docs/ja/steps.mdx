@@ -1,0 +1,90 @@
+---
+title: "汎用ステップ"
+description: "@quiesco/steps：プロトタイピング向けの、中国語・日本語・英語による汎用cucumberステップ（任意）。"
+---
+
+Quiesco用の汎用cucumberステップです（任意）。中国語、日本語、英語で書けます。
+
+<Warning>
+**要件ではなく操作手順です。** これらのステップが表すのはタップや文字（「`login-button`をタップする」）であり、ユーザーが達成したいことではありません。プロトタイピングやアプリの調査で使ってください。実際のプロジェクトでは、`this.app`（または独自のdriver。[Driverパターン](./driver-pattern)を参照）の上にビジネスの言葉で独自のステップ（「When the user logs in as …」）を書きます。そうすれば、UIが変わってもfeatureは要件を表し続けます。
+</Warning>
+
+## 使い方 {#use}
+
+```ts
+// features/support/steps.ts
+import { registerQuiescoSteps } from '@quiesco/steps';
+
+registerQuiescoSteps(); // すべての言語。または { languages: ['ja'] }、{ only: ['tap', 'seeText'] }
+```
+
+`@quiesco/cucumber/register`もimportする必要があります（`this.app`を提供します）。ステップはcucumberのキーワードに依存しない`defineStep`で登録されるため、どのキーワード（`当` / `もし` / `When` …）の後でも、どの`# language:`のfeatureファイルでも動作します。
+
+引用符で囲んだ対象は**testID**です。「テキスト」系のステップは、代わりに表示されているテキストにマッチします。どのステップも、他のQuiescoの呼び出しと同じくアプリがアイドルになるのを待ちます。スリープは不要です。
+
+## ステップ {#steps}
+
+| ステップ | 中国語 | 日本語 | 英語 |
+|---|---|---|---|
+| `tap` | `点击 "add-todo"` | `"add-todo" をタップする` | `I tap "add-todo"` |
+| `tapText` | `点击文本 "保存"` | `テキスト "保存" をタップする` | `I tap the text "Save"` |
+| `longPress` | `长按 "todo-item"` | `"todo-item" を長押しする` | `I long press "todo-item"` |
+| `type` | `在 "todo-title" 中输入 "买牛奶"` | `"todo-title" に "牛乳を買う" と入力する` | `I type "Buy milk" into "todo-title"` |
+| `clear` | `清空 "todo-title" 的内容` | `"todo-title" の入力をクリアする` | `I clear "todo-title"` |
+| `scrollTo` | `在 "todo-list" 中滚动到 "todo-item-30"` | `"todo-list" を "todo-item-30" までスクロールする` | `I scroll "todo-list" to "todo-item-30"` |
+| `dismissKeyboard` | `收起键盘` | `キーボードを閉じる` | `I dismiss the keyboard` |
+| `pressBack` | `按返回键` | `戻るボタンを押す` | `I press back` |
+| `openUrl` | `打开链接 "myapp://todos"` | `リンク "myapp://todos" を開く` | `I open the link "myapp://todos"` |
+| `seeText` | `看到文本 "买牛奶"` | `テキスト "牛乳を買う" が表示されている` | `I see the text "Buy milk"` |
+| `notSeeText` | `看不到文本 "买牛奶"` | `テキスト "牛乳を買う" が表示されていない` | `I do not see the text "Buy milk"` |
+| `visible` | `元素 "todo-list" 可见` | `要素 "todo-list" が表示されている` | `the element "todo-list" is visible` |
+| `notVisible` | `元素 "todo-title-error" 不可见` | `要素 "todo-title-error" が表示されていない` | `the element "todo-title-error" is not visible` |
+| `hasText` | `元素 "greeting" 的文本是 "a@example.com"` | `要素 "greeting" のテキストが "a@example.com" である` | `the element "greeting" has the text "a@example.com"` |
+| `count` | `元素 "todo-item" 共有 2 个` | `要素 "todo-item" が 2 個ある` | `there are 2 elements "todo-item"` |
+| `doubleTap` | `双击 "photo"` | `"photo" をダブルタップする` | `I double tap "photo"` |
+| `replaceText` | `把 "todo-title" 的内容替换为 "买面包"` | `"todo-title" の入力を "パンを買う" に置き換える` | `I replace the text of "todo-title" with "Buy bread"` |
+| `pressEnter` | `在 "todo-title" 中按回车` | `"todo-title" でエンターキーを押す` | `I press enter in "todo-title"` |
+| `scroll` | `在 "todo-list" 中向下滚动` | `"todo-list" を下にスクロールする` | `I scroll "todo-list" down` |
+| `scrollToEdge` | `把 "todo-list" 滚动到底部` | `"todo-list" を一番下までスクロールする` | `I scroll "todo-list" to the bottom` |
+| `swipe` | `在 "todo-item" 上向左滑动` | `"todo-item" を左にスワイプする` | `I swipe left on "todo-item"` |
+| `drag` | `把 "item-1" 拖到 "item-3"` | `"item-1" を "item-3" までドラッグする` | `I drag "item-1" to "item-3"` |
+| `pinch` | `在 "photo" 上双指缩放到 2 倍` | `"photo" を 2 倍にピンチする` | `I pinch "photo" to 2 times` |
+| `setSlider` | `把滑块 "volume" 设为 30` | `スライダー "volume" を 30 にする` | `I set the slider "volume" to 30` |
+| `switchOn` | `打开开关 "notify"` | `スイッチ "notify" をオンにする` | `I turn on the switch "notify"` |
+| `switchOff` | `关闭开关 "notify"` | `スイッチ "notify" をオフにする` | `I turn off the switch "notify"` |
+| `select` | `在 "priority" 中选择 "高"` | `"priority" で "高" を選ぶ` | `I select "High" in "priority"` |
+| `enabled` | `元素 "save" 可用` | `要素 "save" が有効である` | `the element "save" is enabled` |
+| `disabled` | `元素 "save" 不可用` | `要素 "save" が無効である` | `the element "save" is disabled` |
+| `checked` | `元素 "notify" 已选中` | `要素 "notify" がオンである` | `the element "notify" is checked` |
+| `notChecked` | `元素 "notify" 未选中` | `要素 "notify" がオフである` | `the element "notify" is not checked` |
+| `focused` | `元素 "todo-title" 获得焦点` | `要素 "todo-title" にフォーカスがある` | `the element "todo-title" has the focus` |
+| `hasValue` | `元素 "priority" 的值是 "high"` | `要素 "priority" の値が "high" である` | `the element "priority" has the value "high"` |
+| `sliderValue` | `滑块 "volume" 的值是 30` | `スライダー "volume" の値が 30 である` | `the slider "volume" has the value 30` |
+| `background` | `把 App 切到后台` | `アプリをバックグラウンドにする` | `I send the app to the background` |
+| `foreground` | `把 App 切回前台` | `アプリをフォアグラウンドに戻す` | `I bring the app to the foreground` |
+| `relaunch` | `重新启动 App` | `アプリを再起動する` | `I relaunch the app` |
+| `orientation` | `把设备转到横屏` | `画面を横向きにする` | `I rotate the device to landscape` |
+| `appearance` | `把外观设为深色模式` | `外観をダークモードにする` | `I switch to dark mode` |
+| `location` | `把设备位置设为 35.68, 139.76` | `端末の位置を 35.68, 139.76 にする` | `I set the device location to 35.68, 139.76` |
+| `offline` | `把设备切换到离线` | `端末をオフラインにする` | `I go offline` |
+| `online` | `把设备切换到在线` | `端末をオンラインにする` | `I go online` |
+| `grantPermission` | `授予 App 定位权限` | `アプリに位置情報の権限を与える` | `I grant the location permission` |
+| `revokePermission` | `撤销 App 的定位权限` | `アプリの位置情報の権限を取り消す` | `I revoke the location permission` |
+| `allowDialog` | `在系统弹窗中允许` | `システムダイアログで許可する` | `I allow in the system dialog` |
+| `denyDialog` | `在系统弹窗中拒绝` | `システムダイアログで拒否する` | `I deny in the system dialog` |
+| `shake` | `摇动设备` | `端末を振る` | `I shake the device` |
+| `screenshot` | `截图并保存为 "列表"` | `スクリーンショットを "一覧" として保存する` | `I take a screenshot named "list"` |
+
+`pressBack`はiOSでは使えません（戻るボタンがないため）。iOSではQuiescoが`ACTION_NOT_SUPPORTED`を報告します。
+
+一部のステップは、引用符付きの値の代わりに単語を取ります（どの言語の単語も、すべての言語で使えます）。
+
+| 単語 | 値 |
+|---|---|
+| 方向（`scroll`、`swipe`：スワイプでは指を動かす方向） | 上 下 左 右 / up down left right |
+| 端（`scrollToEdge`） | 顶部 底部 最左边 最右边 / 一番上 一番下 左端 右端 / top bottom left right |
+| 画面の向き | 竖屏 横屏 / 縦向き 横向き / portrait landscape |
+| 外観 | 浅色 深色 / ライト ダーク / light dark |
+| 権限 | 相机 麦克风 定位 通知 通讯录 照片 日历 / カメラ マイク 位置情報 通知 連絡先 写真 カレンダー / camera microphone location notifications contacts photos calendar |
+
+未知の単語を使うと、受け付ける単語の一覧を添えてステップが失敗します。デバイスとシステムのステップ（`background`、`orientation`、`offline`、`grantPermission`、`allowDialog`、`shake`、…）は`this.app.device`を呼び出します。プラットフォームが対応していない操作については、Quiescoが理由を添えて`ACTION_NOT_SUPPORTED`を報告します（[プラットフォームの違い](./platforms)）。

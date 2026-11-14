@@ -1,0 +1,49 @@
+---
+title: "クイックスタート（Web）"
+description: "新しいExpoアプリから、Chromiumでfeatureが通るまでを約10分で。"
+---
+
+必要なもの：Node.js 24+、SDK 58のExpoアプリ（`npx create-expo-app@latest`）。
+
+<Steps>
+  <Step title="プロジェクトをセットアップする">
+    ```sh
+    cd my-app
+    npx quiesco init          # 依存パッケージ、config plugin、Metro、エントリーファイル、quiesco.config.mts、最初のfeature
+    ```
+  </Step>
+  <Step title="ルートレイアウトをラップする">
+    ルートレイアウトを`<QuiescoRoot>`でラップします（デフォルトテンプレートでは`src/app/_layout.tsx`）。
+
+    ```tsx
+    import { QuiescoRoot } from '@quiesco/agent';
+
+    export default function TabLayout() {
+      // …
+      return (
+        <QuiescoRoot>
+          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>…</ThemeProvider>
+        </QuiescoRoot>
+      );
+    }
+    ```
+  </Step>
+  <Step title="ホーム画面にテストIDを付ける">
+    `src/app/index.tsx`で`<ThemedView style={styles.container} testID="home">`とします。生成された`features/app.feature`は、これが表示されていることを確認します。
+  </Step>
+  <Step title="ホーム画面を落ち着かせる">
+    デフォルトテンプレートはホーム画面で装飾用の光（glow）を4分間回し続けるため、画面がいつまでも落ち着きません。これにテストIDを付け（`src/components/animated-icon.web.tsx`の`<Animated.View … style={styles.glow} testID="logo-glow">`、iOS / Android向けには`animated-icon.tsx`も）、`quiesco.config.mts`の`sync: { ignoreElements: ['logo-glow'] }`のコメントを外します。
+  </Step>
+  <Step title="実行する">
+    ```sh
+    npx playwright install chromium
+    npm run e2e:web           # EXPO_PUBLIC_QUIESCO=1でWebビルドをエクスポートしてから quiesco test --platform web
+    ```
+
+    テンプレートはサーバー側でレンダリングします（`web.output: "server"`）。このエクスポートに対しては、Quiescoが`npx expo serve`を自動で実行します。静的エクスポートはそのまま配信されます。
+  </Step>
+</Steps>
+
+`npx quiesco doctor`はセットアップを確認し、足りないものの直し方を示します。`npx quiesco tree`は実行中のアプリの要素ツリーを出力するので、テストIDを探すのに使えます。
+
+次は：[iOSとAndroid](./native)、ビジネスの言葉でステップを書くための[Driverパターン](./driver-pattern)、そして[APIリファレンス](./api)。

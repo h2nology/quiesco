@@ -1,0 +1,50 @@
+---
+title: "Jest 和 Vitest"
+description: "在 Jest 或 Vitest 中使用 Quiesco，替代 Cucumber。"
+---
+
+`@quiesco/vitest` 和 `@quiesco/jest` 为 Vitest 和 Jest 提供的功能，与 `@quiesco/cucumber` 为Cucumber 提供的相同：整个运行共用一个会话（设备和 App），每个测试前执行重置，跳过标记为其他平台的测试（`@ios`、`@android`、`@web`、`@native`；最内层的标记生效），失败消息会列出证据文件（截图、元素树、空闲状态、日志）。
+
+## Vitest {#vitest}
+
+`app` 是一个测试 fixture：
+
+```ts
+// vitest.config.ts
+import { quiesco } from '@quiesco/vitest/config';
+import { defineConfig } from 'vitest/config';
+export default defineConfig({ test: { ...quiesco(), include: ['e2e/**/*.test.ts'] } });
+
+// e2e/todo.test.ts
+import { test } from '@quiesco/vitest';
+
+test('a new todo appears at the top', async ({ app }) => {
+  await app.tap('add-todo');                      // 等待 App 空闲，然后点击
+  await app.type('todo-title', 'Buy milk');
+  await app.tap({ role: 'button', text: 'Save' });
+  await app.expectText({ id: 'todo-item', index: 0 }, 'Buy milk');
+});
+test('Android only', { tags: ['@android'] }, async ({ app }) => { /* … */ });
+```
+
+`quiesco()` 让 App 在多个文件之间保持运行（`isolate: false`），逐个运行文件（或通过`quiesco({ workers: N })` 在 N 台设备上运行），并声明平台标签。
+
+## Jest {#jest}
+
+一个 preset；测试通过全局变量 `quiesco` 访问 App：
+
+```js
+// jest.config.js
+module.exports = { preset: '@quiesco/jest', maxWorkers: 1, testTimeout: 120_000 }; // maxWorkers: N = N 台设备
+
+// e2e/todo.test.js
+test('a new todo appears at the top @ios', async () => {
+  await quiesco.app.tap('add-todo');
+});
+```
+
+平台标签写在测试或 `describe` 的标题中（Jest 没有测试选项）。
+
+## 运行 {#running}
+
+两者都用 `npx quiesco test --platform ios --runner vitest|jest` 运行。示例都在[examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e) 中；详情见[不使用 Cucumber 时如何使用 Quiesco](./api#using-quiesco-without-cucumber)，多台设备同时运行见[并行运行](./parallel)。

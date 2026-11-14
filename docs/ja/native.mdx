@@ -1,0 +1,23 @@
+---
+title: "iOSとAndroid"
+description: "e2eアプリをビルドし、同じfeatureをiOSシミュレーターとAndroidエミュレーターで実行します。"
+---
+
+ネイティブでの実行には、アプリのe2eビルドが必要です（`EXPO_PUBLIC_QUIESCO=1`付きでビルドしたもので、エージェントと`@quiesco/native`を含みます）。
+
+```sh
+npx expo install expo-dev-client
+EXPO_PUBLIC_QUIESCO=1 npx expo prebuild --clean
+# Android：デバッグAPK（dev client）
+(cd android && ./gradlew assembleDebug)
+# iOS：シミュレーター向けビルド（dev client）
+xcodebuild -workspace ios/<App>.xcworkspace -scheme <App> -configuration Debug \
+  -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath ios/build build
+
+EXPO_PUBLIC_QUIESCO=1 npx expo start --dev-client   # Metro（別のターミナルで）
+npm run e2e:android       # または：npm run e2e:ios
+```
+
+`quiesco.config.mts`の`binaryPath`をビルド成果物に向け（生成された設定には一般的なパスが入っています）、`devices`でエミュレーター / シミュレーターを指定します（[設定](./api#configuration)を参照）。CIでは、`EXPO_PUBLIC_QUIESCO=1`を付けたEASビルドプロファイルで同じe2eビルドを作れます。3つのプラットフォームすべてで動作確認済みの完全なセットアップは[サンプルアプリ](./example-app)を参照してください。
+
+プラットフォーム間で異なる点（入力、権限、システムダイアログ）は[プラットフォームの違い](./platforms)にまとめています。

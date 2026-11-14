@@ -1,0 +1,76 @@
+---
+title: "CLI"
+description: "quiesco 命令：init、test、doctor、tree 和 devices，以及全部选项。"
+---
+
+```sh
+npx quiesco <command> [options]
+```
+
+## `quiesco init` {#quiesco-init}
+
+在 Expo 项目中配置 Quiesco。每一步都会报告做了什么；已有文件绝不会被覆盖——当某个文件需要 Quiesco 无法安全完成的修改时，它会打印出需要添加的内容。
+
+1. 用项目的包管理器（根据 lock 文件判断 npm、pnpm、yarn 或 bun）安装包：`@quiesco/agent`、`@quiesco/native` 作为 dependencies；`quiesco`、`@quiesco/core`、`@quiesco/cucumber`、`@quiesco/expo-plugin`、`@cucumber/cucumber`（Web 还有 `@quiesco/web`、`playwright`）作为 dev dependencies。
+2. 把 `@quiesco/expo-plugin` 加到 `app.json` 的 plugins 中。
+3. 创建带有 `withQuiesco()` 的 `metro.config.js`（或说明如何包装已有的配置）。
+4. 让 `@quiesco/agent` 成为入口文件的第一个 import。Expo Router App 会得到一个 `index.ts`（`import '@quiesco/agent'; import 'expo-router/entry';`）以及 `"main": "index.ts"`。
+5. 写入 `quiesco.config.mts`（bundle id、package 和 scheme 取自 `app.json`）、`cucumber.mjs`、`features/support/quiesco.ts`、第一个 feature 及其步骤，以及 `e2e:*` 脚本。
+
+| 选项 | |
+|---|---|
+| `--platforms ios,android,web` | 要配置的平台。默认：iOS 和 Android，安装了 `react-native-web` 时再加上 Web |
+| `--packages <dir>` | 从 `<dir>` 中的 `.tgz` 文件（`pnpm pack` 的输出）安装 Quiesco，并把它们之间的相互依赖固定到这些文件 |
+| `--skip-install` | 只打印安装命令 |
+
+`init` 留给你做的事：用 `<QuiescoRoot>` 包裹根组件、添加 test id，以及构建 iOS / Android 的 e2e App。
+
+## `quiesco test` {#quiesco-test}
+
+```sh
+npx quiesco test --platform web
+npx quiesco test --platform android --tags @smoke features/login.feature
+npx quiesco test --platform ios --runner vitest --config vitest.e2e.config.mts
+npx quiesco test --platform web --runner jest e2e/todo.test.js
+```
+
+设置 `QUIESCO_PLATFORM` 并运行项目的测试运行器——`cucumber-js`（默认）、`jest` 或 `vitest run`（`--runner`）；其余参数原样传给它。`--workers N` 运行 N 个 worker，每个使用自己的设备（[parallel.md](./parallel)）：对 cucumber-js 会变成 `--parallel N`，对 Jest 是 `--maxWorkers N`，对 Vitest 是 `--fileParallelism --maxWorkers N`（运行器自身的参数同样有效）。
+
+## `quiesco devices` {#quiesco-devices}
+
+```sh
+npx quiesco devices            # Quiesco 为并行 worker 创建的模拟器 / AVD
+npx quiesco devices --prune    # 关闭并删除它们
+```
+
+列出 `"<name> (Quiesco N)"` 模拟器和 `<avd>_quiesco_N` AVD（正在运行的会标注 `[running]`）；`--prune` 删除它们。下次并行运行时会重新创建；你自己的设备永远不会被动到。
+
+## `quiesco doctor` {#quiesco-doctor}
+
+```sh
+npx quiesco doctor                 # quiesco.config.mts 中配置的所有平台
+npx quiesco doctor --platform ios
+```
+
+检查 Node.js、项目配置（包、config plugin、Metro 中的 `withQuiesco()`、agent 是否为入口的第一个 import、`<QuiescoRoot>`、配置文件）、平台工具（模拟器、adb 和 AVD、Playwright 的 Chromium）、App 构建和端口。每个问题都附带修复方法。必需的检查失败时以 1 退出；警告不会导致失败。
+
+## `quiesco tree` {#quiesco-tree}
+
+```sh
+npx quiesco tree                   # 连接到正在运行的 App
+npx quiesco tree --launch --platform android
+npx quiesco tree --json > tree.json
+```
+
+打印 App 当前屏幕的元素树——每个元素的类型、`#testID`、文本和 `[role]`——帮助你为步骤找到匹配器：
+
+```
+RCTView #todos-screen
+  RCTText #greeting "a@example.com"
+  RCTScrollView #todo-list
+    RCTText #todo-empty "No todos yet"
+  RCTView #add-todo [button]
+    RCTText "New"
+```
+
+默认只启动 host 端服务器，等待已在运行的 App（手动启动的 e2e 构建，或测试运行后留下的 App，会在几秒内重新连接），因此你看到的就是你导航到的那个屏幕。`--launch` 会像测试运行一样先启动设备并启动 App。`--timeout <ms>` 设置等待 App 的时长。

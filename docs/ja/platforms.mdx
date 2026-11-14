@@ -1,0 +1,117 @@
+---
+title: "プラットフォームの違い"
+description: "iOS、Android、Webの比較：入力、権限、システムダイアログ、制限事項。"
+---
+
+同じfeature、ステップ、`this.app`の呼び出しが3つのプラットフォームすべてで動きます。違うのはその下の仕組みです。
+
+| | iOS | Android | Web |
+|---|---|---|---|
+| デバイス | シミュレーター（`xcrun simctl`）。必要なら起動する | エミュレーターまたは実機（`adb`）。必要ならAVDをコールドブートする | Playwrightライブラリ経由のChromium（起動ごとに新しいブラウザコンテキスト） |
+| アプリのビルド | `EXPO_PUBLIC_QUIESCO=1`付きで作ったシミュレーター用の`.app` | `EXPO_PUBLIC_QUIESCO=1`付きで作ったAPK | `EXPO_PUBLIC_QUIESCO=1`付きの`npx expo export --platform web`（static出力はQuiescoが配信し、server出力は`npx expo serve`でホストする）、または開発サーバー |
+| アプリがホストを見つける方法 | 起動引数 | intentのextra | ページ内のinitスクリプト |
+| 実際の入力（`native`モード） | 合成した`UITouch`イベント（`@quiesco/native`、プライベートAPI、e2eビルドのみ） | Activityにディスパッチする`MotionEvent`（`@quiesco/native`） | Playwrightのタッチスクリーン（タッチ対応のビューポート）またはマウス。テキストはキーボードで入力 |
+| テキスト入力 | `insertText` | `InputConnection.commitText`（どの言語でも、一度に書き込む） | Playwrightのキーボード |
+| `@quiesco/native`なしの場合 | `js`モードのみ（その場合のデフォルト）。`openUrl`は使えない | `js`モードのみ（その場合のデフォルト） | 常に実際の入力 |
+| `pressBack()` | 使えない（`ACTION_NOT_SUPPORTED`） | 戻るキー | ブラウザの戻る |
+| 座標指定の`tap`、`drag`、`pressKey`（nativeモード） | `@quiesco/native` ≥ Phase 6.2でビルドしたアプリが必要（`gesture`、`pressKey`）。それより古いビルドでは、再ビルドを促すメッセージ付きで`ACTION_NOT_SUPPORTED` | 同じ | Playwrightによる実際の入力 |
+| `drag` | 実際のタッチ。iOS 26では、コンテンツ内で右方向にスワイプすると画面も戻ってしまう（コンテンツを右にドラッグする画面では、戻るジェスチャーをオフにする） | 実際のタッチ | マウスでのドラッグ。ポインター下のテキストは選択できないようにしておく必要がある（選択が起きるとWebのresponderジェスチャーが終わる） |
+| `openUrl()` | アプリ内で開く（システムの確認なし） | `am start` | ページ遷移 |
+| ソフトリセットで消去するもの | AsyncStorage + 登録したアダプター | AsyncStorage + 登録したアダプター | `localStorage`、`sessionStorage`、IndexedDB + 登録したアダプター |
+| `@hard-reset` | 終了して再起動 | force-stopして再起動 | 新しいブラウザコンテキスト（データは破棄）、リロード |
+| スクリーンショット | `simctl io screenshot` | `adb exec-out screencap` | `page.screenshot` |
+| 同期トラッカー | すべて、加えて`native`（UIKitの画面遷移、キーボード） | `native`以外すべて | `native`以外すべて |
+| 対象を覆うソフトウェアキーボード | タッチの前に閉じる | タッチの前に閉じる | — |
+| ピッカー / 日付ピッカーへの`setValue` | 指でホイールを回す（日付は`display="spinner"`。compact / inlineはコールバック） | コールバック（ドロップダウンと日付ダイアログは別ウィンドウ） | `<select>` / 日付入力はPlaywrightで入力。それ以外のコンポーネントはコールバック |
+| `adjustSlider` | 実際にドラッグし、値を読み戻して補正する | 実際にドラッグし、値を読み戻して補正する | マウスでのドラッグ（読み戻しなし） |
+| `accessibilityAction` | VoiceOverの経路（increment / decrement、カスタムアクション） | `performAccessibilityAction` | `onAccessibilityAction` |
+| `pinch`、`rotate`、`multiTouch` | 1つのイベントに複数の`UITouch`（`@quiesco/native` ≥ Phase 6.4が必要：`multiGesture`） | マルチポインターの`MotionEvent`（同じ） | タッチ対応ビューポートではCDPのタッチイベント。デスクトップのビューポートでは`ACTION_NOT_SUPPORTED` |
+| 補正するジェスチャー認識の開始量（`actions.gestureSlop`） | 9pt、7° | 26dp、9° | 46px、0° |
+| `relaunch({ args })` → `quiesco.launchArgs()` | `-quiescoArgs`起動引数（`@quiesco/native` ≥ Phase 6.5が必要） | `--es quiescoArgs` extra（同じ） | initスクリプト |
+| `relaunch({ url })` | `-quiescoUrl`。JSが動く前に`@quiesco/native`がexpo-linkingに渡す（≥ Phase 6.5。ない場合は起動後に開く） | intentのdata（dev clientでは`__expo_url`付きのリンク） | URLのパスを開く（`myapp://todos/1` → `/todos/1`） |
+| `relaunch({ clearData })` | データコンテナを空にし、UserDefaultsを削除する。キーチェーンは残す | `pm clear`（権限も取り消される。設定にある権限は再付与する） | 新しいブラウザコンテキスト |
+| `relaunch()`でデータを保持するか | する | する | Cookie、localStorage、IndexedDBを引き継ぐ（Playwrightのstorage state） |
+| `sendToBackground()` | `-[UIApplication suspend]`でホーム画面へ（`@quiesco/native` ≥ Phase 6.5）。それ以外では設定アプリを開く | HOMEキー | `ACTION_NOT_SUPPORTED` |
+| `bringToForeground()` | `simctl launch`（同じプロセス） | ランチャーのintent（同じタスク） | — |
+| `install()` / `uninstall()` | `simctl install` / `uninstall` | `adb install -r -g` / `uninstall` | インストールはない：`uninstall`は`ACTION_NOT_SUPPORTED`、`relaunch({ reinstall })`は`clearData`と同じ動作 |
+| `reversePort()` | 何もしない（Macのネットワークを共有） | `adb reverse` | 何もしない |
+| `setOrientation()` | `@quiesco/native` ≥ Phase 6.6がウィンドウシーンを回転させる（simctlでは回転できない） | 自動回転をオフにし、`user_rotation` | ビューポートの縦横を入れ替える |
+| `setAppearance()` | `simctl ui appearance` | `cmd uimode night` | `emulateMedia({ colorScheme })` |
+| `setFontScale()` | `simctl ui content_size`。最も近いDynamic Typeのサイズ（0.823 … 3.571）に、実行中のまま反映 | `settings put system font_scale`の後、アプリを再起動する（データは保持） | `ACTION_NOT_SUPPORTED` |
+| `setLocale()` | `-AppleLanguages` / `-AppleLocale`付きで再起動（`CFBundleLocalizations`が必要） | アプリ別の言語設定、`cmd locale set-app-locales`（Android 13以降）の後、アプリを再起動する | そのロケールで新しいブラウザコンテキスト（データは保持） |
+| `setLocation()` | `simctl location set`（リセット：`clear`） | `adb emu geo fix`（エミュレーターのみ） | `context.setGeolocation` |
+| `setPermission()` | `simctl privacy grant / revoke / reset`（カメラ / 通知は不可。これらの`'reset'`はアプリを再インストールする）。アプリは動いたまま | `pm grant / revoke`（+ `clear-permission-flags`）。revokeやresetでアプリが終了する → 再起動する | `grantPermissions` / `clearPermissions` |
+| `setNetwork('offline')` | エージェントがアプリの新しい接続を失敗させる。デバイスの切り替えはない（NetInfoはオンラインのまま） | エージェント、加えて`svc wifi / data disable`（NetInfoも検知する。`adb reverse`は動き続ける） | エージェント、加えてページのリクエストの中断とCDPの`Network.overrideNetworkState`（`navigator.onLine`、`offline` / `connection`の`change`イベント。Chromium） |
+| `clipboard.set()` / `get()` | アプリ内の`UIPasteboard`（`@quiesco/native` ≥ Phase 6.6）。ない場合の`get`は`simctl pbpaste` | アプリ内の`ClipboardManager`（同じ。ない場合は`ACTION_NOT_SUPPORTED`） | `navigator.clipboard`（ページにクリップボードの権限を付与） |
+| `setStatusBar()` | `simctl status_bar override`（リセット：`clear`） | SystemUIのデモモード（`sysui_demo_allowed`、通知アイコンは非表示。リセット：`exit`） | ステータスバーがないので何もしない |
+| `biometrics.enroll()` | シミュレーター内の`notifyutil`：`com.apple.BiometricKit.enrollmentChanged`（元の値に戻す） | 画面ロックのPIN（`locksettings set-pin`）、`uiautomator`で設定アプリの登録画面を操作（ボタンは位置で指定）し、`adb emu finger touch 1`。PINを外すと指紋も削除される | `ACTION_NOT_SUPPORTED` |
+| `biometrics.match()` / `fail()` | `notifyutil -p com.apple.BiometricKit_Sim.pearl.match` / `.nomatch`（Touch IDの機種では`fingerTouch.*`） | 認証が始まってから（`dumpsys fingerprint`）、`adb emu finger touch 1` / `2` | `ACTION_NOT_SUPPORTED` |
+| `shake()` | `notifyutil -p com.apple.UIKit.SimulatorShake`（*Device > Shake*が送るもの） | `adb emu sensor set acceleration`、交互に12回揺らす | `ACTION_NOT_SUPPORTED` |
+| `clearKeychain()` | `simctl keychain reset`（シミュレーター全体） | `ACTION_NOT_SUPPORTED` | `ACTION_NOT_SUPPORTED` |
+| `sendNotification()` | `simctl push`（シミュレートしたAPNsプッシュ） | `@quiesco/native` ≥ Phase 6.7がアプリとして投稿する（エミュレーターにはプッシュサービスがない） | `ACTION_NOT_SUPPORTED` |
+| `openNotification()` | バナー、なければ通知センター（下にスワイプ）を、XCUITestランナー経由でタップ | 通知シェード（`cmd statusbar expand-notifications`）を`uiautomator`でタップ | `ACTION_NOT_SUPPORTED` |
+| `system.*`（アプリ外のシステムUI） | QuiescoのXCUITestランナー（`@quiesco/core/ios-runner`、Xcodeのバージョンごとに一度ビルド）がSpringBoardを読み取ってタップする。権限のアラートはボタンの位置で（識別子がなく、ラベルはローカライズされているため）、Face IDの再試行アラートは識別子で操作する | `uiautomator dump`（他パッケージのノード。1回のdumpに約2秒）+ `input tap`。権限のボタンは`com.android.permissioncontroller`のIDで指定 | JavaScriptの`alert` / `confirm` / `prompt`（応答するまでPlaywrightの`dialog`イベントで保持：`OK` / `Cancel`）。`beforeunload`は常に承認。権限への応答は`ACTION_NOT_SUPPORTED`（`setPermission`） |
+| 成果物：動画（Phase 6.9） | シナリオごとに`simctl io recordVideo --codec=h264`（MP4。約0.2秒で開始） | デバイス上の`screenrecord`（MP4、3分ごとのセグメント、後で取り出す） | Playwrightの`page.screencast`（WebM）。再起動すると新しいセグメントが始まる |
+| 成果物：デバイスログ | アプリのプロセスの`simctl spawn log stream`（info以上） | アプリの`logcat --uid`（再起動をまたいで残る） | ページの`console`と`pageerror` |
+| ページ全体 / 要素全体のスクリーンショット | プログラムでスクロールしながら1画面ごとに`simctl io screenshot`を撮り、つなぎ合わせる。インジケーターは`@quiesco/native`（`setScrollIndicators`）で非表示にする | `screencap`で同様。スクロールバー（スクロールのたびにしばらく描画される）も同じ方法で非表示にする | Playwrightのスクリーンショットで同様。RN-webのScrollViewは`div`なので、ページの`fullPage`スクリーンショットではカバーできない |
+| `app.webview()`（Phase 6.8） | `@quiesco/native`が`WKWebView`内でスクリプトを評価し（`evaluateJavaScript`、約50ms）、ページのフックをドキュメント開始時の`WKUserScript`として追加する。タップは要素のウィンドウ上の位置へのタッチ | `android.webkit.WebView`で同様（`evaluateJavascript`、エミュレーターで120〜375ms）、androidx.webkitの`addDocumentStartJavaScript` | Playwrightのフレーム経由の`<iframe>`（クロスオリジンも可）を位置で選ぶ。タップ / 入力は他のプラットフォームと同じ |
+| 値コントロール、アクセシビリティアクション（nativeモード） | `@quiesco/native` ≥ Phase 6.3でビルドしたアプリが必要（`sliderInfo`、`wheelInfo`、`accessibilityAction`） | 同じ（`sliderInfo`、`accessibilityAction`） | — |
+
+## 権限 {#permissions}
+
+設定の`permissions`はアプリの起動前に付与されるので、シナリオの途中でシステムダイアログに割り込まれることはありません。プラットフォームが事前に付与できない権限は、警告を出してスキップします。
+
+| Quiesco | iOSシミュレーター（`simctl privacy`） | Android（`pm grant`） | Web（`grantPermissions`） |
+|---|---|---|---|
+| `camera` | —（simctlのサービスがない） | `CAMERA` | `camera` |
+| `microphone` | `microphone` | `RECORD_AUDIO` | `microphone` |
+| `location` | `location` | `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | `geolocation` |
+| `notifications` | —（simctlのサービスがない） | `POST_NOTIFICATIONS` | `notifications` |
+| `contacts` | `contacts` | `READ_CONTACTS` | — |
+| `photos` | `photos` | `READ_MEDIA_IMAGES` | — |
+| `calendar` | `calendar` | `READ_CALENDAR`, `WRITE_CALENDAR` | — |
+
+- Androidは、アプリがマニフェストで宣言した権限（`app.json`の`expo.android.permissions`）しか付与しません。それ以外は警告として報告されます。
+- iOSでは、アプリが権限を要求するためには、`Info.plist`（`expo.ios.infoPlist`）に使用目的の説明（`NSLocationWhenInUseUsageDescription`など）が必要です。
+
+## iOS {#ios}
+
+- Quiescoはシミュレーターのパスワード自動入力をオフにします（`devices.ios.disablePasswordAutoFill`）。そうしないと、ログインフォームの後にiOSが「Save Password?」でアプリを覆ってしまいます。
+- dev clientは、開発メニュー、そのオンボーディング、フローティングボタン、シェイクジェスチャーをオフにして起動します（そうしないと`shake()`でアプリの上に開発メニューが開きます。アプリ自身のシェイクハンドラーには引き続き届きます）。
+- iOS 26以降では、画面のコンテンツが半透明のナビゲーションバーの下にレイアウトされることがあります。そこにある要素は覆われていると報告されます（`ELEMENT_OBSCURED`）。ヘッダーの高さ（`useHeaderHeight()`）を使うか、不透明なヘッダーにしてください。
+- キーボード操作の後、iOSはしばらくタッチを無視します。`native`トラッカーがこれを待ちます。
+- ホイールピッカー：列のビューはUIKitのプライベートクラスで、3D変換でレイアウトされています。Quiescoは選択帯に沿ってヒットテストを行い、各列がタッチを受け付ける位置を見つけます。回転操作はホイールが止まるまで待つため（UIDatePickerはその時点で初めて日付を報告します）、日付の設定には数秒かかります。
+- iOS 26以降のスライダー：短いドラッグや折り返すドラッグでは、つまみが指より少ししか動きません。`adjustSlider`は助走をつけて一方向にドラッグし、読み戻した値から補正します。
+- `relaunch({ url })`：expo-routerは開始URLをexpo-linking（`getLinkingURL()`）から読み取り、`@quiesco/native`がそれを`-quiescoUrl`から設定します。React Native自身の`Linking.getInitialURL()`は起動オプションしか読まないため、この場合は`null`を返します。URLはネイティブモジュールが作成された直後にメインキューで設定されます。実際には最初のレンダリングより前です。
+- バックグラウンドでは、iOSが数秒後にアプリのJSを停止します。要素に対する呼び出しは、応答を待たずに`APP_IN_BACKGROUND`ですぐに失敗します。
+- クリップボード：別のプロセス（`simctl pbcopy`）が入れたテキストをアプリがペーストしようとすると、iOSはユーザーに確認を求め、誰かが応答するまでアプリの読み取りは止まったままになります。そのため`clipboard.set()`はアプリ内から書き込みます（`@quiesco/native` ≥ Phase 6.6）。アプリが自分で書き込んだものは、確認なしで読み取れます。
+- 生体認証：Face ID / Touch IDの試行が失敗すると、システムの再試行アラート（「Try Face ID again」/「Cancel」）がアプリの上に残ります。アプリの`authenticateAsync`はそれに応答して初めて解決し、その間は要素に対する呼び出しがアプリに届きません。`match()`ではこのアラートは閉じません。
+- `shake()`は、シミュレーターの*Device > Shake*が送るDarwin通知を使います。UIKitがそれを実際のシェイクのモーションイベントに変換します（iOS 26には、Detoxが使っていたプライベートな`-[UIApplication _sendMotionEnded:]`がもうありません）。
+- `setNetwork('offline')`：シミュレーターはMacのネットワークを共有しており、独自の切り替えがありません。アプリの接続を失敗させるのはエージェントだけです（接続先を`.invalid`ホストに向けるので、React Native自身の「Network request failed」で失敗します）。NetInfoはMacのネットワークの状態を報告し続けます。
+
+## Android {#android}
+
+- Quiescoが起動するエミュレーターはコールドブートします（`-no-snapshot-load`、約14秒）。アプリを再インストールする前に撮ったクイックブートのスナップショットがあると、起動の約30秒後にAndroidが再起動してしまうためです。
+- アプリは再インストールの前にforce-stopします（そうしないと、Android 17は接続パラメーターなしでアプリを再起動してしまいます）。
+- アプリがホストに接続できるよう、起動前に`ACCESS_LOCAL_NETWORK`（Android 17）を付与します。
+- アプリが`localhost`で呼び出すポート（モックバックエンド）には`apps.android.reversePorts`が必要です。
+- `DateTimePicker`と、ピッカーのダイアログ / ドロップダウンは別ウィンドウにあり、アプリ内からのタッチは届きません。`setValue`はコールバック経由で値を設定します（日付ピッカーはビューを描画しないので、testIDで指定します）。
+- アクセシビリティアクションは、TalkBackと同じようにノード情報を読み取ってから実行します。React Nativeのデリゲートは、そこに列挙したアクションしか処理しないためです。
+- フォントスケールや言語を変更するとActivityが再作成されます（React Nativeのデフォルトの`configChanges`には`fontScale` / `locale`が含まれていません）。するとReactのルートが同じJSコンテキスト内で再マウントされ、expo-router 58の命令的なルーターがアプリを再起動するまで動かなくなります（「unavailable before the first render has finished」）。そのため`setFontScale` / `setLocale`はアプリを再起動し（データは保持）、次のシナリオの前に元に戻すときも同様に再起動します。
+- バックグラウンドでは、AndroidがReact Nativeのタイマーを一時停止し、何も描画されません。アプリがアクティブでない間、エージェントはタイマー、フレーム、ネイティブの各トラッカーをアイドルとみなします。
+- エミュレーターには通常ハードウェアキーボードがあるため、入力中にソフトウェアキーボードは表示されません。キーボード関連の動作をテストするには：`adb shell settings put secure show_ime_with_hard_keyboard 1`。
+- `setNetwork('offline')`はエミュレーター全体のWi-Fiとモバイルデータをオフにします。`adb reverse`は動き続けるので、ホスト上のQuiesco、Metro、モックバックエンドには引き続き到達できます。アプリからそれらへのリクエストは、エージェントによって失敗させます。Wi-Fi / データの元の状態は、次のシナリオの前に復元します。
+- adbにはクリップボードのコマンドがありません。`clipboard.*`にはアプリに`@quiesco/native` ≥ Phase 6.6が必要です。
+- `biometrics.enroll()`には、独自の画面ロックを設定していないエミュレーターが必要です（QuiescoがPIN 7357を設定し、次のシナリオの前に指紋ごと削除します）。設定アプリが登録を行う間、アプリはバックグラウンドに回り、その後フォアグラウンドに戻されます。未登録の指を使うと、センサーは約0.5秒ロックされ、続けて失敗するとさらに長くロックされます（失敗回数は成功したときにだけリセットされます）。
+- `setPermission(p, 'revoke')`は、その権限のuser-set / user-fixedフラグも消去します。2回拒否するとAndroidはもう尋ねなくなりますが、取り消した権限は新規インストール時と同じように再び尋ねられます。
+
+## Web {#web}
+
+- サポート対象のブラウザはChromiumです。`firefox` / `webkit`も設定できますが、テストはしていません。
+- ビューポートは設定から取ります（スマートフォン、タブレット、デスクトップ…）。タッチ対応のビューポートではタッチで入力します。
+- ページ全体を読み込み直すとエージェントは再接続します。ホストはステップを失敗させずにそれを待ちます。
+- ネイティブのプラットフォームだけをテストする場合、Playwrightは不要です。Webのプロバイダーは必要になったときに読み込まれます。
+- `setNetwork('offline')`はPlaywrightの`context.setOffline()`を使いません。これを使うと、Quiesco自身のWebSocketも止まってしまう（ソケットは開いたままなのにメッセージが届かない）ためです。代わりに、ページのリクエストを中断し（ルートからはWebSocketが見えません）、CDPの`Network.overrideNetworkState`で`navigator.onLine`を設定して、実際の`offline` / `online`イベントを発生させます。スループットをゼロにすると`navigator.connection`の`change`も発生します。これはChromiumでNetInfoが監視しているイベントです。オフライン中に再起動すると、まずページを読み込んでからオフラインにします。
+- デバイスの状態を読み戻すとき、アプリ自身の`MediaQueryList`には一切触れません。react-native-webの`Appearance`が監視しているリストの`matches`を読むと、Chromiumが変更イベントを省略してしまい、`useColorScheme()`が更新されなくなるためです。
+- バックグラウンド状態はありません。Playwrightが操作するページは、何を試しても（別のタブを前面に出す、ウィンドウを最小化する、CDPのライフサイクル状態、Chromiumのバックグラウンド関連のスイッチの有無）`visible`のままです。バックグラウンドのシナリオには`@native`タグを付けてください。
+- `@react-native-community/datetimepicker`にはWebの実装がありません。Webでは`<input type="date">`を使ってください（`setValue`で入力できます）。`@react-native-segmented-control`のWeb / Androidの実装は`testID`を引き渡しません。testIDはラップする`View`に付けてください（`setValue`はその中にある1つのコントロールを使います）。

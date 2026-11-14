@@ -1,0 +1,74 @@
+---
+title: "トラブルシューティング"
+description: "症状別の失敗と、その直し方。"
+---
+
+まず`npx quiesco doctor`を実行してください。ツールとプロジェクトのセットアップをチェックし、問題ごとに直し方を示します。以下は、doctorでは検出できない失敗を症状別にまとめたものです。
+
+## アプリが接続しない（`CONNECT_TIMEOUT`） {#app-does-not-connect}
+
+メッセージに確認すべき点が列挙されます。よくある原因は次のとおりです。
+
+- **アプリがe2eビルドではない。** JSバンドルとネイティブアプリの両方を`EXPO_PUBLIC_QUIESCO=1`付きでビルドする必要があります（Metro：`EXPO_PUBLIC_QUIESCO=1 npx expo start`。ネイティブ：`expo prebuild`の時点でもこの変数を設定しておく必要があります）。これがないと、エージェントは何もしないスタブになります。
+- **`metro.config.js`で`withQuiesco()`を使っていない**、または追加する前にMetroを起動していた（Metroの設定は起動時に読み込まれるので、Metroを再起動してください）。
+- **Android：** ホストのポートは`adb reverse`で自動的にフォワードされます。実機の場合は、USBデバッグの許可も必要です。アプリが`localhost`で呼び出すポートには`apps.android.reversePorts`が必要です。
+- **dev clientがアプリではなくランチャーを表示している：** `devClient.metroUrl`でMetroが動いていません。
+
+## どのシナリオでも要素が見つからない {#no-element-is-found-in-every-scenario}
+
+アプリのログに`No React renderer registered with the Quiesco DevTools hook`と出ている場合、エージェントがReact Nativeのレンダラーより後にセットアップされています。`metro.config.js`の`withQuiesco()`は、React Nativeが起動する前にエージェントのフックを実行します。設定をラップしていること（リリースビルドやEASビルドでも）と、`@quiesco/agent`がエントリーファイルの最初のimportであることを確認してください。
+
+## アプリに古いコードが表示される {#the-app-shows-old-code}
+
+Watchmanのない環境では、Metroがファイルの変更（`git checkout`の後や、スクリプトが書き出したファイル）を見逃し、古いバンドルを配信し続けることがあります。`--clear`を付けてMetroを再起動するか、Watchmanをインストールしてください。Androidのリリースビルドでは、Gradleがワークスペースパッケージの変更に気づきません。ビルドの前に`android/app/build/generated/assets/react/release`を削除してください。
+
+## `SYNC_TIMEOUT` {#sync-timeout}
+
+アプリが一度もアイドルになりませんでした。エラーには、ビジーだったトラッカーがすべて列挙されます。ケースごと（終わらないリクエスト、タイマーのループ、アニメーション）の対処は[同期](./sync#when-the-app-never-becomes-idle)を参照してください。アニメーションが終わらない画面では、そのステップの呼び出しに`{ sync: false }`を渡します。
+
+frame-stableの行で、待機時間のわりにサンプリングされたフレームがごく少ないと出ている場合、アニメーションではなく、デバイスのリソースが足りていません（負荷の高いマシン上のエミュレーターなど）。他のシミュレーター / エミュレーターを閉じてください。
+
+## `ELEMENT_OBSCURED` {#element-obscured}
+
+実際にタッチすると、別のものに当たってしまう状態です。エラーには、その対象が示されます（`obscuredBy`。iOSではネイティブのヒットチェーン）。よくある原因：ダイアログやシートが開いたまま、トースト、半透明のナビゲーションバーの下にあるコンテンツ（iOS 26以降）、アニメーションでまだ定位置に移動中の要素。対象を覆うソフトウェアキーボードは自動的に閉じます。
+
+iOSで`(the touch would reach UIView)`と出て、`failure.png`の上部に**「Refreshing...」**バーが写っている場合、Metroが監視しているファイルが変わったためにdev clientがリロードしています。テストの実行中に何かがプロジェクト内に書き込んでいます。多くの場合、`artifacts/`以外のディレクトリに出力された成果物（同じパスを`withQuiesco(config, { artifactsDir })`に渡してMetroを再起動してください）か、独自に生成しているファイル（`resolver.blockList`に追加してください）です。並列実行では、あるワーカーのスクリーンショットが別のワーカーのタップを壊すことになります。
+
+## Androidで「… isn't responding」が出る（並列実行） {#android-not-responding}
+
+Quiescoが`Android showed "com.android.systemui isn't responding" over the app; Quiesco chose Wait`と警告する場合、マシンが支えきれない数のデバイスを動かしています（各ワーカーはエミュレーター1台をまるごと使います）。実行を続けられるようQuiescoがこれらのダイアログに応答しますが、ワーカー数を減らしてください（`--workers`、[parallel.md](./parallel)）。ダイアログが**テスト対象のアプリ**のもの（`<package> itself isn't responding`）であれば、Quiescoは手を出しません。アプリが固まっています。
+
+## 単独では通るシナリオが並列実行では失敗する {#a-scenario-passes-alone-but-fails-in-parallel-runs}
+
+各ワーカーは、自分の担当分のシナリオを独自の順序で、それぞれ新しいデバイス上で実行します。前のシナリオに依存していたシナリオ（付与済みの権限、残っていたデータなど）は、その状態を自分の`Given`ステップで準備する必要があります。iOSでは、そのシミュレーター上でアプリが一度も通知を許可されていない場合、`sendNotification`は「may not show notifications」と報告します。
+
+## `AGENT_TIMEOUT` {#agent-timeout}
+
+エージェントが応答しませんでした。アプリのJSスレッドが長い同期処理でブロックされているか、アプリがクラッシュしています。アプリのログ（`logLevel`に応じて転送されます）とデバイスのログを確認してください。
+
+## `APP_ERROR` {#app-error}
+
+アプリで捕捉されなかったエラーは、実行中のステップを失敗させます。たいていは本物のバグです。無害だとわかっているフレームワークの報告は、`appErrors.ignore`で無視できます（[既知の問題](./known-issues)を参照）。
+
+## iOS {#ios}
+
+- **ログインフォームの後に「Save Password?」がアプリを覆う：** `devices.ios.disablePasswordAutoFill`を有効のままにしてください（デフォルト）。
+- **`simctl`がシミュレーターを見つけられない：** `devices.ios.device`を設定する（そのデバイスに複数のランタイムがある場合は`os`も）か、シミュレーターを1台起動してください。
+- **カメラ / 通知の権限が付与されない：** シミュレーターではこれらを事前に付与できません（[権限](./platforms#permissions)を参照）。テストではシステムダイアログを避けるか、ステップで許可してください。
+
+## Android {#android}
+
+- **すべてが遅く、Macのファンが回り、`qemu-system`がCPUを400%使う：** エミュレーターがCPUでレンダリングしています（`lavapipe` / `swiftshader`。AVDの`hardware-qemu.ini`にある`hw.gpu.mode`を参照）。macOSでは、`auto`に設定されたAVDに対してエミュレーターが`lavapipe`を選びます。そのためQuiescoはmacOSでは`-gpu host`を付けてエミュレーターを起動し、CPUでレンダリングしているエミュレーターを再利用するときは警告を出します。そのエミュレーターを`-gpu host`付きで再起動してください（またはQuiescoに起動させてください）。このようなエミュレーターが2台あると、Androidのsystem serverが1分ほど固まり、watchdogによって再起動されることがあります。
+- **起動の約30秒後にエミュレーターが再起動する：** クイックブートのスナップショットが古くなっています。Quiescoは自分で起動するエミュレーターをコールドブートしますが、Android Studioから起動したエミュレーターはスナップショットを読み込むことがあります。一度「Cold Boot Now」を使ってください。
+- **起動直後に「Activity class does not exist」が出る：** ユーザーのロックがまだ解除されていません。Quiescoはこれを待ちますが、その状態から抜け出せないデバイスには`adb reboot`が必要です。
+- **権限が付与されない：** Androidはマニフェストで宣言された権限（`expo.android.permissions`）しか付与しません。
+- **ソフトウェアキーボードが表示されない：** エミュレーターには通常ハードウェアキーボードがあります。[プラットフォームの違い](./platforms#android)を参照してください。
+
+## Web {#web}
+
+- **`@quiesco/web` / Playwrightが見つからない：** `npm i -D @quiesco/web playwright`と`npx playwright install chromium`を実行してください。ネイティブのみのプロジェクトでは不要です。
+- **遅延ロードするルートへの最初の遷移が「Requiring unknown module」で失敗する：** Expo Routerの無害な報告で、Quiescoはデフォルトで無視します（[既知の問題](./known-issues)）。
+
+## それでも解決しない場合 {#still-stuck}
+
+`npx quiesco tree`はエージェントから見えているものを、`this.app.getIdleState()`はいまビジーなものを表示します。失敗したシナリオには、cucumberのレポートにスクリーンショット、要素ツリー、トラッカーの状態が添付されます。

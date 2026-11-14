@@ -38,3 +38,10 @@
 - 新页：index（CardGroup）、quickstart（Steps）、native、runners、steps（来自 steps README，Warning）、example-app（来自示例 README）
 - 仓库 20 个文件里的 docs/*.md 路径改 .mdx（代码注释、README、requirements.md）
 - mint validate、broken-links --check-anchors 通过；mint dev：16 页 200，releasing / spikes 404；Playwright 截图检查首页卡片、Steps、Warning、锚点 #driver-thisapp；pnpm check 676 通过
+
+## 2026-11-14 R.D.3 翻译
+- 提交 R.D.1 + R.D.2（c2f93ee）
+- 术语表和规则写进 findings；scratchpad 对照检查脚本（标题 id、链接、组件、行内代码、去注释后的代码与英文一致）
+- 4 个子代理并行：zh A / B、ja A / B，各自检查通过
+- 收尾：软换行接上 298 处；中文统一 App / 深层链接 / 空实现的桩；docs.json 加 zh / ja 导航（分组名翻译）
+- 对照检查 ok；mint validate、broken-links --check-anchors 通过；mint dev 48 页 200、无 `{#` / `&lt;` 漏出；zh / ja 锚点 #driver-thisapp、#configuration 可用；截图看过

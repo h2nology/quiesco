@@ -1,0 +1,94 @@
+---
+title: "示例 App"
+description: "仓库中的 todo App：三个平台上的 e2e 运行、并行运行、EAS 构建、生产剥离检查和基准测试。"
+---
+
+[`examples/todo-app`](https://github.com/h2nology/quiesco/tree/main/examples/todo-app) 是一个 Expo SDK 58 + Expo Router App，用于对 Quiesco 做验收（requirements.md §9）：登录、todo 列表、新建 todo 表单、带动画的屏幕转场，以及对本地 mock 后端的网络调用。
+
+## 在 Android 上运行 e2e 测试（dev client） {#run-the-e2e-tests-on-android-dev-client}
+
+```sh
+# 只需一次：构建并（重新）安装 dev client APK
+pnpm build:android
+
+# 终端 1：以 e2e 模式运行 Metro（EXPO_PUBLIC_QUIESCO=1 让 bundle 中保留真正的 agent）
+pnpm start:e2e
+
+# 终端 2：运行 feature（必须有一台模拟器在运行，或设置 QUIESCO_AVD 来启动一台）
+pnpm test:e2e:android
+```
+
+## 在 iOS 上运行 e2e 测试（模拟器，dev client） {#run-the-e2e-tests-on-ios-simulator-dev-client}
+
+```sh
+# 只需一次：用 EXPO_PUBLIC_QUIESCO=1 执行 prebuild，并构建模拟器版 dev client（.app）
+pnpm build:ios
+
+# 终端 1：以 e2e 模式运行 Metro
+pnpm start:e2e
+
+# 终端 2：在已启动的模拟器上运行 feature（或用 QUIESCO_IOS_DEVICE / QUIESCO_IOS_OS 指定一台）
+pnpm test:e2e:ios
+```
+
+模拟器与 Mac 共用网络，所以 Metro 和 mock 后端都不需要端口转发。Quiesco 会安装 `.app`，在关闭 expo-dev-menu 的情况下启动它（没有菜单、引导页或悬浮按钮），并关闭模拟器上的密码自动填充（`devices.ios.disablePasswordAutoFill`），这样 iOS 的 "Save Password?" 面板就不会在登录表单之后盖住 App。
+
+## 并行运行 {#parallel-runs}
+
+```sh
+pnpm test:e2e:ios:parallel        # cucumber-js --parallel 2（还有 :android、:web）
+QUIESCO_PLATFORM=android pnpm test:jest:parallel
+QUIESCO_PLATFORM=web pnpm test:vitest:parallel
+```
+
+每个 worker 都有自己的设备，型号与基础设备相同：worker 1 在 iOS 上使用 `"<simulator> (Quiesco 1)"`，在 Android 上使用 AVD `<QUIESCO_AVD>_quiesco_1`，两者都在首次使用时创建并保留（`npx quiesco devices --prune` 会删除它们）；每个 worker 还有自己的 mock 后端，端口为 3001 + worker 序号（App 通过 `quiesco.workerIndex()` 选择，见 `src/e2e.ts`）。参见[并行运行](./parallel)。
+
+Quiesco 自己启动的模拟器以可写方式冷启动（`-no-snapshot-load`，约 14 s）：App 重新安装后，quick-boot 快照就会过期，并导致 Android 在启动后重启。
+
+## 用于 e2e 的 EAS 构建 {#eas-builds-for-e2e}
+
+`eas.json` 中有一个用于 CI 的 `e2e` profile（打包了 JS、`EXPO_PUBLIC_QUIESCO=1`、iOS 模拟器构建、Android APK），以及 `e2e-dev`（与 dev client 相同）。把 `apps.ios.binaryPath` / `apps.android.binaryPath` 指向下载的构建；使用打包好的 `e2e` 构建时去掉 `devClient`。
+
+```sh
+eas build --profile e2e --platform ios
+eas build --profile e2e --platform android
+```
+
+mock 后端由 `features/support/mock-server.ts` 启动。用于健壮性检查的开关：
+
+| 变量 | 效果 |
+|---|---|
+| `MOCK_DELAY_MS=2000` | 后端的每个响应都耗时 2 s |
+| `MOCK_STALL="POST /login"` | 该路由永不响应（用来查看同步超时报告） |
+| `EXPO_PUBLIC_TRANSITION_MS=1000` | 屏幕转场耗时 1 s（启动 Metro 时设置） |
+| `QUIESCO_AVD=<name>` | 要使用 / 启动的 AVD |
+| `QUIESCO_IOS_DEVICE="iPhone 17"`, `QUIESCO_IOS_OS=27.0` | 要使用 / 启动的模拟器（默认：已启动的那台） |
+| `QUIESCO_ACTION_MODE=js` | 调用组件回调，而不是注入真实触摸 |
+
+由于 App 包含原生模块，操作使用 `native` 模式（通过 `@quiesco/native` 注入真实触摸和 IME 文本）；`QUIESCO_ACTION_MODE=js` 切换到回调模式。
+
+## 生产剥离检查 {#production-strip-check}
+
+```sh
+pnpm check:prod-strip --platform web                      # 在仓库根目录执行
+pnpm check:prod-strip --platform android --allow-clean    # 会删除 android/：之后请运行 `pnpm build:android`
+pnpm check:prod-strip --platform ios --allow-clean        # 会删除 ios/：之后请运行 `pnpm build:ios`
+```
+
+[`scripts/check-prod-strip.mjs`](https://github.com/h2nology/quiesco/blob/main/scripts/check-prod-strip.mjs) 分别在不带和带 `EXPO_PUBLIC_QUIESCO=1` 的情况下构建这个 App（Web 导出、启用 R8 的 Android release APK、iOS Release 模拟器构建），并扫描构建产物：生产构建中不得含有任何 agent JS 和 `@quiesco/native` 代码，e2e 构建则必须包含所有标记（作为对照组，这样某个标记不再匹配时就能被发现）。`prebuild --clean` 必须在这个目录中运行，所以当 `android/` / `ios/` 存在时必须加上 `--allow-clean`。CI 在 `prod-strip.yml` 中运行它。
+
+## 基准测试 {#benchmark}
+
+```sh
+pnpm bench:android        # 20 次迭代：软重置、含同步的点击、完整测试套件（native 和 js）
+```
+
+输出是一段 Markdown，用于[基准测试](./benchmarks)页面。
+
+## App 如何集成 Quiesco {#how-the-app-integrates-quiesco}
+
+- `index.ts` 在 `expo-router/entry` 之前导入 `@quiesco/agent`。
+- `src/app/_layout.tsx` 用 `<QuiescoRoot>` 包裹 App，并且只在 `EXPO_PUBLIC_QUIESCO=1` 时加载 `src/e2e.ts`（后门、重置钩子）。
+- `metro.config.js` 用 `withQuiesco()` 包装配置：生产 bundle 得到的是空实现的桩。
+- `app.json` 列出了 `@quiesco/expo-plugin`：prebuild 时如果没有 `EXPO_PUBLIC_QUIESCO=1`，它会把 `@quiesco/native` 排除在 autolinking 之外（Podfile 和 settings.gradle），因此生产二进制中不含触摸注入代码；e2e 构建则保留它，并允许 ws://localhost（Android 网络安全配置、iOS ATS `NSAllowsLocalNetworking`）。
+- 步骤定义（`features/step_definitions`）只调用 `this.app`；从不等待或 sleep。

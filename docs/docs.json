@@ -7,21 +7,145 @@
     "primary": "#2563eb"
   },
   "navbar": {
-    "links": [{ "label": "npm", "href": "https://www.npmjs.com/package/quiesco" }],
-    "primary": { "type": "github", "href": "https://github.com/h2nology/quiesco" }
+    "links": [
+      {
+        "label": "npm",
+        "href": "https://www.npmjs.com/package/quiesco"
+      }
+    ],
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/h2nology/quiesco"
+    }
   },
   "footer": {
-    "socials": { "github": "https://github.com/h2nology/quiesco" }
+    "socials": {
+      "github": "https://github.com/h2nology/quiesco"
+    }
   },
   "navigation": {
     "languages": [
       {
         "language": "en",
         "groups": [
-          { "group": "Get started", "pages": ["index", "quickstart", "native", "runners"] },
-          { "group": "Guides", "pages": ["sync", "platforms", "driver-pattern", "parallel", "troubleshooting", "known-issues"] },
-          { "group": "Reference", "pages": ["api", "cli", "steps", "example-app"] },
-          { "group": "More", "pages": ["benchmarks", "detox-comparison"] }
+          {
+            "group": "Get started",
+            "pages": [
+              "index",
+              "quickstart",
+              "native",
+              "runners"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "sync",
+              "platforms",
+              "driver-pattern",
+              "parallel",
+              "troubleshooting",
+              "known-issues"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "api",
+              "cli",
+              "steps",
+              "example-app"
+            ]
+          },
+          {
+            "group": "More",
+            "pages": [
+              "benchmarks",
+              "detox-comparison"
+            ]
+          }
+        ]
+      },
+      {
+        "language": "zh",
+        "groups": [
+          {
+            "group": "入门",
+            "pages": [
+              "zh/index",
+              "zh/quickstart",
+              "zh/native",
+              "zh/runners"
+            ]
+          },
+          {
+            "group": "指南",
+            "pages": [
+              "zh/sync",
+              "zh/platforms",
+              "zh/driver-pattern",
+              "zh/parallel",
+              "zh/troubleshooting",
+              "zh/known-issues"
+            ]
+          },
+          {
+            "group": "参考",
+            "pages": [
+              "zh/api",
+              "zh/cli",
+              "zh/steps",
+              "zh/example-app"
+            ]
+          },
+          {
+            "group": "其他",
+            "pages": [
+              "zh/benchmarks",
+              "zh/detox-comparison"
+            ]
+          }
+        ]
+      },
+      {
+        "language": "ja",
+        "groups": [
+          {
+            "group": "はじめに",
+            "pages": [
+              "ja/index",
+              "ja/quickstart",
+              "ja/native",
+              "ja/runners"
+            ]
+          },
+          {
+            "group": "ガイド",
+            "pages": [
+              "ja/sync",
+              "ja/platforms",
+              "ja/driver-pattern",
+              "ja/parallel",
+              "ja/troubleshooting",
+              "ja/known-issues"
+            ]
+          },
+          {
+            "group": "リファレンス",
+            "pages": [
+              "ja/api",
+              "ja/cli",
+              "ja/steps",
+              "ja/example-app"
+            ]
+          },
+          {
+            "group": "その他",
+            "pages": [
+              "ja/benchmarks",
+              "ja/detox-comparison"
+            ]
+          }
         ]
       }
     ]

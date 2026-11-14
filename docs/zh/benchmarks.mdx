@@ -1,0 +1,147 @@
+---
+title: "基准测试"
+description: "重置、操作和整套测试的耗时、稳定性运行以及生产剥离检查的实测结果。"
+---
+
+使用 `examples/todo-app/bench/run.mts`（在示例 App 中执行 `pnpm bench:android`）测量；参见 requirements.md §8（性能 / 稳定性）。数据来自从 Metro 加载开发版 JS bundle 的 dev client，因此包含开发模式的开销；release 构建会更快。
+
+测量内容：
+
+- **soft reset (agent)**：agent 报告的 `reset` 耗时（清除存储 → onReset 钩子 → 重新挂载 → 等待空闲）。requirements.md §6.5 中的目标：&lt; 500 ms。
+- **soft reset (host round trip)**：同上，在 host 端围绕 WebSocket 调用测量。
+- **tap incl. sync**：在登录屏幕上 email 为空时执行 `app.tap('login-button')`（显示提示，无网络请求），在 host 端测量：解析目标 + 之前的同步、触摸，以及之后等待空闲的时间。
+- **full example suite**：用 `cucumber-js` 运行全部示例 feature，包括安装 APK 和启动 App。
+
+### 2026-11-07 — android，20 次迭代
+
+- 设备：Medium_Phone_API_37.0（Android 17，API 37）；dev client，Metro（开发版 JS bundle）
+- host 端：Apple M5 Pro，darwin 25.6.0，Node v24.22.1
+
+| 指标（ms） | 模式 | 中位数 | p90 | 最小 | 最大 |
+|---|---|---|---|---|---|
+| soft reset (agent) | native | 195 | 198 | 104 | 215 |
+| soft reset (host round trip) | native | 198 | 199 | 105 | 216 |
+| tap incl. sync (host round trip) | native | 416 | 417 | 284 | 417 |
+| soft reset (agent) | js | 196 | 211 | 134 | 211 |
+| soft reset (host round trip) | js | 198 | 212 | 135 | 212 |
+| tap incl. sync (host round trip) | js | 266 | 271 | 262 | 271 |
+
+| 完整示例测试套件（s，含安装 + 启动） | native | js |
+|---|---|---|
+| `cucumber-js` | 18.8 | 16 |
+
+说明：
+
+- 两种模式下软重置都远低于 500 ms 的目标。
+- native 点击比 js 点击多花约 150 ms。构成：50 ms 的触摸按住时间、"视图已停止移动" 检查（相隔一帧的两次原生查询），以及触摸之后 Pressability 的 `minPressDuration` 定时器（130 ms）——定时器跟踪器会正确地等它结束后才重置按下状态。js 模式直接调用 `onPress`，没有这些开销。
+- js 点击约 260 ms 的下限主要来自同步：操作前后的两个宏任务空闲确认，以及帧稳定跟踪器（两帧相同）。尚未优化。
+
+## 稳定性（requirements.md §8：连续 20 次运行无随机失败） {#stability}
+
+2026-11-07，相同的设备和配置，`native` 模式，每次运行 6 个场景 / 34 个步骤：
+
+| 运行次数 | 通过 | 每次运行耗时（s） |
+|---|---|---|
+| 20 | 20 / 20 | 最小 16.9，中位数 17.8，最大 19.8 |
+
+每次运行（s）：19.8, 18.4, 16.9, 17.1, 17.3, 17.4, 17.7, 17.6, 18.6, 18.7, 17.9, 18.6, 18.0, 17.0, 17.1, 18.6,
+17.4, 18.1, 18.1, 17.5。
+
+## Phase 4 验收（2026-11-08） {#phase-4-acceptance-2026-11-08}
+
+仅串行运行（不支持 `cucumber-js --parallel`；见 requirements.md §6.9）。使用 `examples/todo-app/bench/suite.mts`（`pnpm bench:suite --platform <p> --runs <n>`）测量：围绕 `cucumber-js` 的实际耗时，包括安装、启动和会话建立，设备已预先启动。只运行被测平台的设备。
+
+- host 端：Apple M5 Pro，darwin 25.6.0，Node v24.22.1；dev client 从 Metro 加载开发版 bundle
+- iOS：iPhone 17 模拟器，iOS 26.5；Android：Medium_Phone_API_37.0（Android 17）；Web：Chromium（Playwright）
+- 每次运行 6 个场景 / 34 个步骤，iOS 和 Android 上使用 `native` 操作模式
+
+| 平台 | 运行次数 | 通过 | 每次运行的实际耗时（s） |
+|---|---|---|---|
+| iOS | 20 | 20 / 20 | 最小 15.9，中位数 16.1，最大 16.4 |
+| Android | 5 | 5 / 5 | 最小 17.7，中位数 18.5，最大 18.7 |
+| Web | 5 | 5 / 5 | 最小 6.4，中位数 6.4，最大 6.8 |
+
+iOS 每次运行（s）：16.1, 16.2, 16.1, 16.1, 16.1, 16, 16, 16, 16, 16.4, 16.1, 16, 16.1, 16.2, 16, 15.9, 16.2, 16,
+16, 16.2。
+
+设备启动后的首次运行（不计入上表）：Android 冷启动 14 s，加上 51–72 s 的首次运行（首次加载 bundle，系统仍在稳定中）；iOS 模拟器启动加首次运行共 32 s。
+
+说明：
+
+- 在早先一组 5 次的 Android 运行中，有一次在冷启动后立即失败（机器负载 ≈ 12）：在点击确认 Modal 中的按钮之前同步超时，帧稳定跟踪器在 10 s 内一直看到元素树在变化。在之后的 18 次运行中没有复现（两组冷启动，分别 6 次和 6 次，人为制造 CPU 负载，负载 ≈ 15）。帧稳定超时报告现在会给出采样的帧数和第一个发生变化的节点，因此再次出现时仅凭报告即可诊断。
+
+### 生产剥离检查
+
+`node scripts/check-prod-strip.mjs`（任务 4.7），对示例 App 进行真实构建；各标记在生产 / e2e（对照组）产物中出现的次数：
+
+| 标记 | Web 导出 | Android release APK（R8） | iOS Release 模拟器 .app |
+|---|---|---|---|
+| `getIdleState`（agent） | 0 / 4 | 0 / 1 | 0 / 1 |
+| `waitForIdle`（agent） | 0 / 6 | 0 / 1 | 0 / 1 |
+| `agent error: `（agent） | 0 / 1 | 0 / 1 | 0 / 1 |
+| `QuiescoNative`（原生模块名） | — | 0 / 3 | — |
+| `QSTouchInjector`（iOS 触摸注入器） | — | — | 0 / 38 |
+| `IOHIDEventCreateDigitizerEvent`（私有 IOKit） | — | — | 0 / 4 |
+
+## Phase 6.11 回归检查（2026-11-11） {#phase-611-regression-check-2026-11-11}
+
+与 Phase 4 相同的工作负载（login、new-todo 和 clear-todos 中的 6 个场景 / 34 个步骤，用 `--name` 选出；现在整套测试有 86 个场景），用 `bench/suite.mts … -- --name '<those six>'` 测量。host 端、设备、dev client 和 Metro 开发版 bundle 都与 Phase 4 相同。
+
+| 平台 | Phase 4 中位数（s） | 6.11，其他设备在运行（s） | 6.11，仅被测设备（s） | 6.11，关闭产物（s） |
+|---|---|---|---|---|
+| iOS | 16.1（20 次） | 18.2（20 / 20 通过；最小 17.9，最大 19.9） | 17.6（5 / 5；最小 17.6，最大 18.1） | 18.1（5 / 5，其他设备在运行） |
+| Android | 18.5（5 次） | 21.8（5 / 5；最小 21.4，最大 22.3） | 20.1（3 次稳定后的运行：20.5、20.1、20.1） | 20.9（5 / 5，其他设备在运行） |
+| Web，静态导出（`distDir`） | 6.4（5 次） | — | 6.6（5 / 5；最小 6.5，最大 6.9） | 6.6（5 / 5） |
+
+- "其他设备在运行"：测量 iOS 时，Android 模拟器以及另外两台模拟器（iOS 27 的 iPhone 和 iPad）在运行；测量 Android 时，那几台 iOS 模拟器在运行。Phase 4 时只有被测设备在运行；恢复这种配置后，iOS 和 Android 分别快约 0.6 s 和 1.7 s。
+- Android，仅被测设备：模拟器先冷启动；预热运行（59.7 s）及其后的两次运行（38.7 s、24.6 s）是系统仍在稳定中（与 Phase 4 中的说明一致），不计入中位数。
+- 通过 Metro 开发服务器（`QUIESCO_WEB_URL`）运行 Web 需要 8.3 s（最小 7.9，最大 9.2）：开发版 bundle 更大；Phase 4 测量的是静态导出。
+- 产物（`QUIESCO_ARTIFACTS=none` 对比默认的 `failing` 日志和时间线）在 Android 上每次运行约多花 0.9 s（每个场景的 logcat），在 iOS 和 Web 上没有可测出的开销。
+- **其余耗时从何而来**（2026-11-11 调查）：把 Phase 4 以来的每个提交分别检出到 worktree 中构建，并用各自的 Metro 在同一个 dev client 和同样的设备上计时（所有设备都在运行；每个提交 3–5 次，iOS 波动 ±0.2 s，Android ±0.5 s）：
+
+  | | Phase 4 工具 + Phase 4 示例 App | 当前工具 + Phase 4 示例 App | 当前工具 + 当前示例 App |
+  |---|---|---|---|
+  | iOS | 16.2 s | 16.5 s | 18.1 s |
+  | Android | 20.0 s | 20.5 s | 21.6 s |
+
+  大部分来自示例 App——后续阶段为了演示功能修改了它：在 iOS 上，新建 todo 的标题框加了 `autoFocus`（Phase 6.1，焦点断言；键盘弹出后要在下一次点击前收起，+1.2 s），保存按钮被固定在底部、会被键盘遮住（Phase 5.2，键盘收起，+0.5 s）——各步骤的 cucumber 耗时显示，多出的时间恰好在这两个步骤上。Android 模拟器不显示软键盘（有硬件键盘），所以那里是 App 的其他改动（gesture-handler 根视图、新增的开关）带来了约 1.1 s；未进一步拆分。Quiesco 本身：同一个 App 下，iOS 上约 +0.3 s（1.5 %），Android 上约 +0.5 s（2.5 %，在波动范围内）；下面的单次调用数据持平或更好。
+
+单次调用数据，Android，20 次迭代（`bench/run.mts 20 -- --name '<the six>'`），其他设备在运行：
+
+| 指标（ms） | 模式 | 中位数 | p90 | 最小 | 最大 | 2026-11-07 中位数 |
+|---|---|---|---|---|---|---|
+| soft reset (agent) | native | 147 | 153 | 88 | 154 | 195 |
+| soft reset (host round trip) | native | 149 | 155 | 91 | 155 | 198 |
+| tap incl. sync (host round trip) | native | 400 | 417 | 283 | 417 | 416 |
+| soft reset (agent) | js | 145 | 153 | 132 | 153 | 196 |
+| soft reset (host round trip) | js | 147 | 155 | 133 | 156 | 198 |
+| tap incl. sync (host round trip) | js | 264 | 271 | 249 | 273 | 266 |
+
+| 这 6 个场景（s，含安装 + 启动） | native | js |
+|---|---|---|
+| `cucumber-js` | 20.5 | 18.4 |
+
+## Phase 6.12：并行运行 {#phase-612-parallel-runs}
+
+整套示例测试（86 个场景；iOS 上运行 80 个，Android 上 81 个，Web 上 73 个，其余标记为其他平台专用），用 `cucumber-js --parallel 2`（`pnpm test:e2e:<platform>:parallel`）运行，并与串行运行同一套测试（`pnpm test:e2e:<platform>`）对比。Apple M5 Pro（15 核，24 GB），macOS 26；iPhone 17 / iOS 27.0 模拟器；`Medium_Phone_API_37.0` 模拟器（emulator 37.2，`-gpu host`）；使用静态导出（`distDir`）的 Chromium；dev client 加载 Metro 开发版 bundle。2026-11-13 / 14。计时为整条命令的实际耗时，包括启动尚未运行的设备。
+
+| 平台 | 2 个 worker：通过的运行 | 2 个 worker（s） | 串行（s） | 加速比 |
+|---|---|---|---|---|
+| iOS | **20 / 20** | 中位数 130.0（最小 128.9，最大 132.8） | 271.4 | 2.1 × |
+| Android | **5 / 5** | 中位数 160.0（最小 159.3，最大 161.9） | 305.4 | 1.9 × |
+| Web | **5 / 5** | 中位数 46.5（最小 46.4，最大 46.9） | 88.1 | 1.9 × |
+
+- 每次运行的所有场景都通过了；没有出现需要处理的 "isn't responding" 对话框。Android 运行期间 host 端的 1 分钟平均负载：中位数 2.9，最大 3.9。
+- **让 Mac 保持唤醒。** 第一次尝试 Android 和 Web 运行时，Mac 在夜间进入了空闲睡眠（显示器关闭 20 分钟后），运行仍在继续：此时进程只在每隔约 47 s 一次的短暂 "dark wake" 中运行，运行耗时长达 20 分钟，并出现超时和元素被遮挡。刚唤醒后的几次运行也慢了约 35 %（Android 上 217–241 s）。上面的数据是在 `caffeinate -dimsu` 下测得的。`pmset -g log | grep -E "Entering Sleep|Wake"` 可以显示某次运行是否受到影响。
+
+在全部通过之前，这些运行发现并修复的问题（均在本阶段）：
+
+| 症状 | 原因 | 修复 |
+|---|---|---|
+| Android：每台模拟器约 400 % CPU，system server 被 watchdog 重启 | 在 macOS 上，未带 `-gpu` 启动的模拟器用 CPU 渲染（`lavapipe`） | Quiesco 以 `-gpu host` 启动它们（`devices.android.gpu`），并对已经在用 CPU 渲染的模拟器发出警告 |
+| 重新启动 App 时 Before 钩子超时 | cucumber 默认的 60 s 小于重新连接 + 重新启动所需的时间 | `registerQuiesco({ resetTimeoutMs })`，默认 180 s |
+| Android："先不匹配、再用匹配的手指" 偶尔会一直等待 | 负载较高时，匹配的触摸落入了失败后传感器的锁定期，被丢弃 | 匹配的触摸之后，Quiesco 检查是否还有认证在等待（`dumpsys fingerprint`），如有则再次触摸（最多 3 次，并给出警告） |
+| iOS：打开通知后 App 仍处于挂起状态 | 点击很可能落空，因为横幅还在滑入 | 等两次读取得到相同的位置后再点击；通知仍显示时再次点击（最多 3 次） |
+| 20 次运行中有 17 次 iOS 点击以 `(the touch would reach UIView)` 失败 | Metro 监听了 `artifacts/` 和 `.expo/devices.json`；每次截图（以及每次 App 启动）都会让另一个 worker 的 dev client 在 App 上方显示 "Refreshing..." | `withQuiesco()` 把产物目录（`artifactsDir`）和 `.expo/devices.json` 加入 `resolver.blockList` |
+| iOS：在旋转过设备的场景之后立即 push 的页面丢失了 | 下一个场景导航时，转回去的旋转动画仍在进行 | 下一个场景会等到窗口恢复原来的形状 |
+| iOS：因为上一个场景让 App 处于挂起状态，场景失败 | 重置没有得到响应（`AGENT_TIMEOUT`），而只有连接断开才会重启 App | 场景开始前出现 `AGENT_TIMEOUT` 时也会重启 App |

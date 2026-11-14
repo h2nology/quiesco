@@ -1,0 +1,61 @@
+---
+title: "並列実行"
+description: "cucumber-js、Jest、Vitestで、ワーカーごとにデバイス、ポート、成果物ディレクトリを割り当てます。"
+---
+
+Quiescoは複数のデバイスで同時にテストを実行できます。テストランナーの各**ワーカー**は、専用のデバイス（またはブラウザ）、Quiescoサーバーのポート、成果物ディレクトリを持ちます。featureは変更せずにそのまま動きます。
+
+```sh
+npx quiesco test --platform ios --workers 2                    # cucumber-js --parallel 2
+npx quiesco test --platform android --runner jest --workers 2  # jest --maxWorkers 2
+npx quiesco test --platform web --runner vitest --workers 3    # vitest --fileParallelism --maxWorkers 3
+```
+
+ランナー自身のフラグも使えます。`cucumber-js --parallel 2`、`jest --maxWorkers 2`、Vitestなら`quiesco({ workers: 2 })` / `vitest --fileParallelism --maxWorkers 2`です。
+
+## 各ワーカーが使うデバイス {#which-device-each-worker-uses}
+
+並列ワーカーは1つのスイートを複数のデバイスに分けて早く終わらせるためのものです。そのため、すべてのワーカーが**同じ機種とOSバージョン**を使います。ワーカー0は設定で選んだデバイスを使い、それ以外のワーカーはそのコピーを使います。
+
+| | ワーカー0 | ワーカーN > 0 |
+|---|---|---|
+| iOS | `devices.ios`で指定したシミュレーター（`udid`、または`device` + `os`、または起動中のもの） | `"<that name> (Quiesco N)"`。デバイスタイプとランタイムは同じで、初回使用時に`simctl create`で作成し、その後も残します |
+| Android | `devices.android`で指定したデバイス（`serial`、または`avd`のエミュレーター） | 専用のAVD `<avd>_quiesco_N`。ベースAVDの`config.ini`のコピー（同じハードウェアとシステムイメージ）で、初回使用時に作成し、その後も残します。書き込み可能な状態でコールドブートします |
+| Web | ブラウザ | 専用のブラウザ（プロファイル、ストレージ、Cookieは別） |
+
+- 機種を選ぶには、通常どおりベースデバイスを設定します（`devices.ios.device` / `os`、`devices.android.avd`）。サンプルアプリは`QUIESCO_IOS_DEVICE`、`QUIESCO_IOS_OS`、`QUIESCO_AVD`を読み取ります。ベースが変わると、ワーカー用デバイスも別のセットになります。
+- 各ワーカーのデバイスを自分で指定するには、一覧で渡します：`devices.ios.udids: [...]`、`devices.android.serials: [...]`（ワーカーNはN番目の項目を使います）。機種やOSバージョンが異なる場合、Quiescoは警告を出します。あるワーカーでは通るシナリオが、別のワーカーでは失敗しかねないためです。
+- **複数の機種でスイートを実行する**（デバイスマトリクス）のは別の話です。機種ごとに1回ずつ実行してください。たとえば`QUIESCO_IOS_DEVICE`を軸にしたCIのジョブマトリクスにし、各実行がそれぞれのワーカーを持つようにします。
+- `binaryPath`がない場合（手動でインストールしたdev client）、ワーカーはベースデバイスにあるアプリをインストールします。そのため、ベースデバイスが起動している（Android）か、アプリがインストール済みである（iOS）必要があります。
+- Androidの各ワーカーが専用のAVDを持つのは、1つのAVDを同時に複数起動できるのはすべてのインスタンスが読み取り専用の場合に限られ、すでに開いている書き込み可能なエミュレーターがあるとそれができないためです。
+- `npx quiesco devices`はQuiescoが作成したシミュレーターとAVDを一覧表示し、`npx quiesco devices --prune`はそれらをシャットダウンして削除します（次の並列実行で再作成されます）。自分で用意したデバイスには一切触れません。
+
+## 設定でワーカーごとのリソースを指定する {#per-worker-resources-in-your-config}
+
+設定はワーカーを引数に取る関数にできます。
+
+```ts
+// quiesco.config.ts
+export default defineConfig(({ workerIndex, workerCount }) => ({
+  apps: { android: { package: 'com.example.app', reversePorts: [3001 + workerIndex] } },
+  // …
+}));
+```
+
+Quiesco自身は、ワーカーNにサーバーポート`server.port + N`（デフォルトは7357 + N）を割り当て、成果物を`artifacts/<date-time>-<platform>-wN/`に書き出します。アプリ内では、`quiesco.workerIndex()`が接続先のワーカーを返します（最初の接続前と本番では`null`）。たとえば、そのワーカー用のモックバックエンドと通信するのに使えます。サンプルアプリは`src/e2e.ts`でこれを行っており、モックバックエンドはワーカーごとに1つずつ起動します（`features/support/mock-server.ts`、`e2e/jest/global-setup.mjs`、`e2e/vitest/mock-server.setup.ts`）。
+
+成果物は、他のワーカーのアプリが動いている最中に書き出されます。`withQuiesco()`はMetroが`artifacts/`を監視しないようにします。そうしないと、スクリーンショットのたびにMetroが他のアプリをリロードしてしまいます（dev clientがアプリを「Refreshing...」ウィンドウで覆います）。`artifacts.dir`を別の場所にする場合は、`withQuiesco(config, { artifactsDir })`として渡してください。
+
+シナリオは互いに依存してはいけません。各ワーカーは自分の担当分のシナリオを独自の順序で実行します。ある状態（付与済みの権限、サインイン済みのユーザーなど）が必要なシナリオは、その`Given`ステップで状態を準備します。
+
+## ワーカー数の目安 {#how-many-workers}
+
+各ワーカーは1台分のデバイスをまるごと使います。15コアのMacでは、iOSシミュレーター2台またはAndroidエミュレーター2台が問題なく動きます（AndroidエミュレーターはGPUでレンダリングする必要があります。QuiescoはmacOSでは`-gpu host`を付けて起動します。CPUでレンダリングするエミュレーターは、それだけで約4コアを使います。[トラブルシューティング](./troubleshooting#android)を参照）。マシンが支えきれないほどのデバイスを動かすと、Androidで「&lt;app> isn't responding」ダイアログが出始めます（System UIで出ることが多いです）。Quiescoは各シナリオの前と、アクションの対象要素が覆われていたときに、他のアプリのダイアログに**Wait**で応答し、ロードアベレージを添えて警告します。この警告が出たら、ワーカー数を減らしてください。テスト対象のアプリ自体のダイアログには手を出しません。アプリそのものが固まっているので、テストは失敗します。
+
+## ランナー {#runners}
+
+- **cucumber-js**：`--parallel N`でN個のワーカースレッドを動かします。各スレッドが専用のセッションを持ちます。
+- **Jest**：`maxWorkers: N`（サンプルは`QUIESCO_WORKERS`を読み取ります）。ワーカープロセスごとに専用のセッションを持ちます。Jestは非同期のクリーンアップを待たずにワーカーを終了させるため、QuiescoはJestがワーカーに終了を求めた時点でセッションを閉じ、残ったものを同期的に終了させます。ワーカーが片付けられなかったものは`globalTeardown`（プリセットのもの、または`@quiesco/jest/teardown`を呼ぶ独自のもの）が掃除します。それでもJestは短いスイートをインバンド（1プロセス）で実行することがあり、その場合はワーカー0だけになります。
+- **Vitest**：`@quiesco/vitest/config`の`quiesco({ workers: N })`（`fileParallelism`、`maxWorkers`、`isolate: false`）。各ワーカーは、実行するファイルをまたいでセッションを保持します。
+
+計測結果：[benchmarks.md](./benchmarks#phase-612-parallel-runs)。

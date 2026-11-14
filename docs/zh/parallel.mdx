@@ -1,0 +1,61 @@
+---
+title: "并行运行"
+description: "每个 worker 各有一台设备、一个端口和一个产物目录，支持 cucumber-js、Jest 和 Vitest。"
+---
+
+Quiesco 可以同时在多台设备上运行测试：测试运行器的每个 **worker** 都有自己的设备（或浏览器）、Quiesco 服务器端口和产物目录。同样的 feature 无需修改即可运行。
+
+```sh
+npx quiesco test --platform ios --workers 2                    # cucumber-js --parallel 2
+npx quiesco test --platform android --runner jest --workers 2  # jest --maxWorkers 2
+npx quiesco test --platform web --runner vitest --workers 3    # vitest --fileParallelism --maxWorkers 3
+```
+
+运行器自身的参数同样有效：`cucumber-js --parallel 2`、`jest --maxWorkers 2`，Vitest 则用 `quiesco({ workers: 2 })` / `vitest --fileParallelism --maxWorkers 2`。
+
+## 每个 worker 使用哪台设备 {#which-device-each-worker-uses}
+
+并行 worker 把一套测试分到多台设备上，以便更快跑完，所以每个 worker 拿到的都是**相同型号和系统版本**的设备：worker 0 使用配置选定的设备，其他 worker 使用它的副本。
+
+| | worker 0 | worker N > 0 |
+|---|---|---|
+| iOS | `devices.ios` 指定的模拟器（`udid`，或 `device` + `os`，或已启动的那台） | `"<that name> (Quiesco N)"`，设备类型和运行时相同；首次使用时用 `simctl create` 创建并保留 |
+| Android | `devices.android` 指定的设备（`serial`，或 `avd` 对应的模拟器） | 独立的 AVD `<avd>_quiesco_N`，复制基础 AVD 的 `config.ini`（硬件和系统镜像相同）；首次使用时创建并保留；以可写方式冷启动 |
+| Web | 一个浏览器 | 独立的浏览器（profile、存储和 cookie 各自分开） |
+
+- 要选择型号，照常设置基础设备（`devices.ios.device` / `os`、`devices.android.avd`）；示例 App 读取 `QUIESCO_IOS_DEVICE`、`QUIESCO_IOS_OS` 和 `QUIESCO_AVD`。不同的基础设备会有各自的一组 worker 设备。
+- 要自己指定每个 worker 的设备，就把它们列出来：`devices.ios.udids: [...]`、`devices.android.serials: [...]`（worker N 使用第 N 项）。如果型号或系统版本不同，Quiesco 会发出警告：同一个场景可能在一个 worker 上通过，在另一个 worker 上失败。
+- **在多种型号上运行整套测试**（设备矩阵）是另一回事：每种型号各跑一次，例如在 CI 中按 `QUIESCO_IOS_DEVICE` 建立 job 矩阵，每次运行各有自己的 worker。
+- 没有 `binaryPath` 时（手动安装的 dev client），worker 会安装基础设备上的 App：基础设备必须已启动（Android）或已安装该 App（iOS）。
+- 每个 Android worker 都有自己的 AVD，因为一个 AVD 只有在所有实例都是只读时才能同时运行多次，而你已经打开的可写模拟器排除了这种可能。
+- `npx quiesco devices` 列出 Quiesco 创建的模拟器和 AVD；`npx quiesco devices --prune` 将它们关闭并删除（下次并行运行时会重新创建）。你自己的设备永远不会被动到。
+
+## 在配置中按 worker 分配资源 {#per-worker-resources-in-your-config}
+
+配置可以是一个以 worker 为参数的函数：
+
+```ts
+// quiesco.config.ts
+export default defineConfig(({ workerIndex, workerCount }) => ({
+  apps: { android: { package: 'com.example.app', reversePorts: [3001 + workerIndex] } },
+  // …
+}));
+```
+
+Quiesco 本身会给 worker N 分配服务器端口 `server.port + N`（默认 7357 + N），并把产物写到 `artifacts/<date-time>-<platform>-wN/`。在 App 中，`quiesco.workerIndex()` 返回当前连接的 worker（首次连接前以及在生产环境中为 `null`），例如可用来连接该 worker 的 mock 后端；示例 App 在 `src/e2e.ts` 中就是这样做的，它的 mock 后端每个 worker 各运行一份（`features/support/mock-server.ts`、`e2e/jest/global-setup.mjs`、`e2e/vitest/mock-server.setup.ts`）。
+
+产物是在其他 worker 的 App 运行期间写入的。`withQuiesco()` 会让 Metro 不监听 `artifacts/`，否则每张截图都会让 Metro 重新加载其他 App（dev client 会用 "Refreshing..." 窗口盖住它们）；如果使用了其他 `artifacts.dir`，请以 `withQuiesco(config, { artifactsDir })` 的形式传入。
+
+场景之间不能相互依赖：每个 worker 按自己的顺序运行自己分到的那部分。需要某种状态（已授予的权限、已登录的用户）的场景，应在自己的 `Given` 步骤中准备好。
+
+## 用多少个 worker {#how-many-workers}
+
+每个 worker 都是一台完整的设备。在 15 核的 Mac 上，两台 iOS 模拟器或两台 Android 模拟器可以运行良好（Android 模拟器必须用 GPU 渲染：Quiesco 在 macOS 上以 `-gpu host` 启动它们；用 CPU 渲染的模拟器单台就要占用大约四个核心，见[故障排查](./troubleshooting#android)）；设备数量超出机器承受能力时，Android 会开始弹出 "&lt;app> isn't responding" 对话框（往往是 System UI）。对于其他 App 的这类对话框，Quiesco 会在每个场景开始前以及操作发现目标元素被遮挡时点击 **Wait**，并附带系统负载给出警告；看到这个警告时，请减少 worker 数量。被测 App 自身的对话框则不会处理：那说明 App 本身卡住了，测试失败。
+
+## 运行器 {#runners}
+
+- **cucumber-js**：`--parallel N` 运行 N 个 worker 线程，每个都有自己的会话。
+- **Jest**：`maxWorkers: N`（示例读取 `QUIESCO_WORKERS`）。每个 worker 进程都有自己的会话。Jest 结束 worker 时不会等待异步清理，所以 Quiesco 在 Jest 要求 worker 结束时关闭会话，并同步杀掉剩余的进程；`globalTeardown`（preset 自带的，或你自己调用 `@quiesco/jest/teardown` 的）会清理 worker 没能清理掉的东西。Jest 仍可能把一套很快的测试放在单个进程中运行（in band）：那就只有 worker 0。
+- **Vitest**：使用 `@quiesco/vitest/config` 中的 `quiesco({ workers: N })`（`fileParallelism`、`maxWorkers`、`isolate: false`）：每个 worker 在它运行的所有文件之间保持同一个会话。
+
+测量数据：[benchmarks.md](./benchmarks#phase-612-parallel-runs)。

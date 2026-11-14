@@ -4,7 +4,7 @@
 把 monorepo 的 11 个包（CLI `quiesco` + `@quiesco/{agent,core,cucumber,expo-plugin,jest,native,protocol,steps,vitest,web}`）整理成可发布状态：用 tarball 装进全新 Expo 项目，按 README 快速开始能在 Web / Android / iOS 跑通第一个场景。真正的 `npm login`、创建 `quiesco` org、`pnpm -r publish` 由 HU 自己做。
 
 ## Next Step
-R.A 完成并提交（2026-11-14，`pnpm release:check` 通过）；R.D 计划 HU 已答决定项。R.B tarball 冒烟三端通过（2026-11-14）。两处易用性问题已修并复测，已提交（774a02b）。R.C 完成并提交（2343100）。R.D.0 调研完成；R.D.1 + R.D.2 完成（未提交，validate / broken-links --check-anchors 通过，mint dev 16 页 200）。下一步 R.D.3 翻译。
+R.A 完成并提交（2026-11-14，`pnpm release:check` 通过）；R.D 计划 HU 已答决定项。R.B tarball 冒烟三端通过（2026-11-14）。两处易用性问题已修并复测，已提交（774a02b）。R.C 完成并提交（2343100）。R.D.0 调研完成；R.D.1 + R.D.2 已提交（c2f93ee）。R.D.3 完成（未提交，48 页通过检查），待 HU 抽查译文。下一步 R.D.4。
 
 ## 背景
 - 前置：Quiesco Phase 6 完成（`.planning/2026-11-07-quiesco/`，2026-11-14 验收）；6.13 真机、6.14 LLM 驱动暂缓。
@@ -62,7 +62,7 @@ R.A 完成并提交（2026-11-14，`pnpm release:check` 通过）；R.D 计划 H
 
 - [x] R.D.1 骨架（2026-11-14；zh / ja 的导航在 R.D.3 加，文件没有时 validate 会报错）：`docs/docs.json`（`$schema`、name、theme mint、colors.primary #2563eb、文字 logo、navbar GitHub / npm 链接、`navigation.languages` en / zh / ja，分组标签各自翻译）；`docs/.mintignore`
 - [x] R.D.2 英文迁移（2026-11-14；没有现成的「Note:」段落，只有 steps 页的引用块改成 `<Warning>`；所有 `##` 标题都加了固定 id，被链接的 `###` 也加，id 沿用 GitHub 的写法以免旧链接失效）：`git mv docs/*.md → .mdx`（releasing 除外）；frontmatter `title` / `description`，去掉正文 H1；正文的 `{` `<` 转义；明显的「Note:」段落改用 `<Note>` / `<Warning>`；内容不改写。链接：站内用不带扩展名的相对路径（`./api#…`，翻译文件不用改）；被链接的标题加固定 `{#英文-id}`，三种语言一致（中日文标题会生成不同的锚点）；指向 docs 外（README、examples、packages、spikes）的改成 GitHub 绝对地址。新写 index / quickstart / native / runners / steps / example-app（内容取自现有 README）。仓库里所有指向 `docs/*.md` 的路径（代码注释、各包 README、根 README）改成 `.mdx`，重新 build
-- [ ] R.D.3 翻译 zh / ja：代码、API 名、配置键、错误码、命令输出不翻；代码里的注释翻；Gherkin 示例用 steps 包已有的中文 / 日文步骤（`# language: zh-CN` / `ja`）；术语表写进 findings，全站一致
+- [x] R.D.3 翻译 zh / ja（2026-11-14，4 个子代理并行，统一术语和软换行后复查；未提交）：代码、API 名、配置键、错误码、命令输出不翻；代码里的注释翻；Gherkin 示例不翻（和旁边的 step 定义是成对的代码；steps 页的步骤表本来就有中日文列）；术语表写进 findings，全站一致
 - [ ] R.D.4 `scripts/check-docs.mjs` + 根 `docs:check`：`pnpm dlx mint@4.3.34 validate`、`broken-links --check-anchors`；自写检查：三种语言页面集合一致、docs.json 里的页面都存在、每个 .mdx 都在导航里；`.github/workflows/docs.yml`（docs/** 变更时跑）
 - [ ] R.D.5 维护规则：根 `CONTRIBUTING.md`：英文是源，改英文页的同一个 PR 同时改 zh / ja；README 与 index / quickstart 内容重叠，改一处要同步
 - [ ] R.D.6 上线（HU 做，二选一）：a) Mintlify 后台建项目、装 GitHub App、设子目录 `/docs`；b) `mint deploy --github --subdomain <name> --directory docs` 生成 `.github/workflows/mintlify.yml`，再 `mint claim`（未认领 24 小时后删除）；域名用 `mint add-domain`；后台「Language routing」选是否按浏览器语言跳转；之后根 README / 各包 README 的文档链接改指站点

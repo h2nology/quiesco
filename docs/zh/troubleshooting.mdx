@@ -1,0 +1,74 @@
+---
+title: "故障排查"
+description: "按症状列出的失败情况及修复方法。"
+---
+
+先运行 `npx quiesco doctor`：它会检查工具和项目配置，并说明每个问题的修复方法。下面按症状列出它检查不到的失败情况。
+
+## App 连接不上（`CONNECT_TIMEOUT`） {#app-does-not-connect}
+
+错误信息会列出需要检查的项目。最常见的原因：
+
+- **App 不是 e2e 构建。** JS bundle 和原生 App 都必须在 `EXPO_PUBLIC_QUIESCO=1` 下构建（Metro：`EXPO_PUBLIC_QUIESCO=1 npx expo start`；原生：执行 `expo prebuild` 时也必须设置该变量）。没有它，agent 就只是空实现的桩。
+- **`metro.config.js` 没有使用 `withQuiesco()`**，或者 Metro 是在你添加它之前启动的（Metro 配置在启动时读取：请重启 Metro）。
+- **Android：** host 端端口会自动通过 `adb reverse` 转发；真机还需要授权 USB 调试。App 在 `localhost` 上访问的端口需要配置 `apps.android.reversePorts`。
+- **dev client 显示的是启动器而不是 App：** Metro 没有在 `devClient.metroUrl` 上运行。
+
+## 每个场景都找不到元素 {#no-element-is-found-in-every-scenario}
+
+App 日志中出现 `No React renderer registered with the Quiesco DevTools hook`，说明 agent 是在 React Native 的渲染器之后才初始化的。`metro.config.js` 中的 `withQuiesco()` 会在 React Native 启动前运行 agent 的钩子；请确认它包装了配置（在 release / EAS 构建中也是如此），并且 `@quiesco/agent` 是入口文件的第一个 import。
+
+## App 显示的是旧代码 {#the-app-shows-old-code}
+
+没有 Watchman 时，Metro 可能漏掉文件变更（`git checkout` 之后，或脚本写入的文件），继续提供旧的 bundle。请用 `--clear` 重启 Metro，或安装 Watchman。对于 Android release 构建，Gradle 察觉不到 workspace 包中的变更：构建前请删除 `android/app/build/generated/assets/react/release`。
+
+## `SYNC_TIMEOUT` {#sync-timeout}
+
+App 始终没有进入空闲状态；错误会列出所有处于忙碌状态的跟踪器。各种情况（无休止的请求、定时器循环、动画）见[同步](./sync#when-the-app-never-becomes-idle)。对于带有无限动画的屏幕，请在该步骤的调用中传入 `{ sync: false }`。
+
+如果帧稳定那一行显示在等待期间采样到的帧非常少，说明设备资源不足（过载机器上的模拟器），而不是在播放动画。请关闭其他模拟器。
+
+## `ELEMENT_OBSCURED` {#element-obscured}
+
+真实的触摸会点到别的东西上。错误会指出是什么（`obscuredBy`；在 iOS 上是原生的命中链）。常见原因：对话框或底部弹层仍然打开、toast、内容位于半透明导航栏下方（iOS 26+）、元素仍在以动画移动到位。遮住目标的软键盘会被自动收起。
+
+在 iOS 上，如果出现 `(the touch would reach UIView)`，且 `failure.png` 顶部有一条 **"Refreshing..."** 横条，说明 Metro 监听的某个文件发生了变化，dev client 正在重新加载。有东西在测试运行期间往项目里写文件：通常是写到 `artifacts/` 以外目录的产物（把同一路径传给 `withQuiesco(config, { artifactsDir })` 并重启 Metro），或者是你自己生成的文件（把它们加到 `resolver.blockList`）。在并行运行中，一个 worker 的截图会因此破坏另一个 worker 的点击。
+
+## Android 上的 "… isn't responding"（并行运行） {#android-not-responding}
+
+Quiesco 发出警告 `Android showed "com.android.systemui isn't responding" over the app; Quiesco chose Wait`：机器运行的设备超出了它的承受能力（每个 worker 都是一台完整的模拟器）。Quiesco 会处理这些对话框，让运行继续，但请减少 worker 数量（`--workers`，[parallel.md](./parallel)）。如果对话框针对的是**你的 App**（`<package> itself isn't responding`），Quiesco 不会处理：App 卡住了。
+
+## 场景单独运行通过，并行运行却失败 {#a-scenario-passes-alone-but-fails-in-parallel-runs}
+
+每个 worker 按自己的顺序运行自己分到的场景，各自使用一台全新的设备。依赖于之前某个场景的场景（已授予的权限、遗留的数据）必须在自己的 `Given` 步骤中准备好这些。在 iOS 上，如果该模拟器上从未允许过 App 显示通知，`sendNotification` 会报告 "may not show notifications"。
+
+## `AGENT_TIMEOUT` {#agent-timeout}
+
+agent 没有响应：App 的 JS 线程被耗时的同步任务阻塞，或者 App 崩溃了。请查看 App 日志（按 `logLevel` 转发）和设备日志。
+
+## `APP_ERROR` {#app-error}
+
+App 中未捕获的错误会让当前步骤失败——这通常是真正的 bug。已知无害的框架报错可以用 `appErrors.ignore` 忽略（见[已知问题](./known-issues)）。
+
+## iOS {#ios}
+
+- **登录表单之后 "Save Password?" 盖住了 App：** 保持 `devices.ios.disablePasswordAutoFill` 开启（默认）。
+- **`simctl` 找不到模拟器：** 设置 `devices.ios.device`（当多个运行时都有该设备时还要设置 `os`），或者先启动一台。
+- **相机 / 通知权限没有授予：** 模拟器无法预先授予这些权限（见[权限](./platforms#permissions)）；在测试中避开系统弹窗，或在某个步骤中接受它。
+
+## Android {#android}
+
+- **一切都很慢，Mac 风扇狂转，`qemu-system` 占用 400 % CPU：** 模拟器在用 CPU 渲染（`lavapipe` / `swiftshader`；见 AVD 的 `hardware-qemu.ini` 中的 `hw.gpu.mode`）。在 macOS 上，设为 `auto` 的 AVD 会让模拟器选择 `lavapipe`。Quiesco 在 macOS 上以 `-gpu host` 启动模拟器，并在复用用 CPU 渲染的模拟器时发出警告：请用 `-gpu host` 重启该模拟器（或让 Quiesco 来启动它）。同时运行两台这样的模拟器时，Android 的 system server 可能卡住一分钟，然后被 watchdog 重启。
+- **模拟器启动约 30 s 后重启：** quick-boot 快照过期了。Quiesco 会冷启动它自己启动的模拟器；从 Android Studio 启动的模拟器仍可能加载快照——执行一次 "Cold Boot Now" 即可。
+- **刚启动就出现 "Activity class does not exist"：** 用户尚未解锁；Quiesco 会等待解锁，但卡在这种状态的设备需要执行 `adb reboot`。
+- **某个权限没有被授予：** Android 只授予在 manifest 中声明的权限（`expo.android.permissions`）。
+- **没有出现软键盘：** 模拟器通常带有硬件键盘。见[平台差异](./platforms#android)。
+
+## Web {#web}
+
+- **找不到 `@quiesco/web` / Playwright：** 执行 `npm i -D @quiesco/web playwright` 和 `npx playwright install chromium`。纯原生项目不需要它们。
+- **首次导航到懒加载路由时失败，报 "Requiring unknown module"：** 这是 Expo Router 的无害报错，Quiesco 默认会忽略（[已知问题](./known-issues)）。
+
+## 仍然无法解决 {#still-stuck}
+
+`npx quiesco tree` 显示 agent 看到的内容；`this.app.getIdleState()` 显示当前什么在忙碌。失败的场景会在 cucumber 报告中附带截图、元素树和跟踪器状态。

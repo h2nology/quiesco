@@ -1,0 +1,118 @@
+---
+title: "Driverパターン"
+description: "this.appの上にビジネスの言葉でステップを書き、UIが変わってもfeatureが壊れないようにします。"
+---
+
+featureファイルには、ユーザーがどのボタンを押すかではなく、ユーザーが何をしたいかを書くべきです。ビジネスの言葉で書いたステップは独自の**driver**を呼び出し、テストIDやタップについて知っているのはdriverだけにします。UIが変わったときに変えるのはdriverで、featureとステップは変わりません。
+
+```gherkin
+Scenario: A new todo appears at the top of the list
+  Given the user "a@example.com" is logged in
+  When they add a todo "Buy milk"
+  Then the first todo is "Buy milk"
+```
+
+## `this.app`の上に作るビジネスdriver {#a-business-driver-on-top-of-thisapp}
+
+```ts
+// features/support/todo-driver.ts
+import type { Driver } from '@quiesco/core';
+
+/** Todoのfeatureが必要とするものを、ビジネスの言葉で表す。 */
+export interface TodoDriver {
+  loginAs(email: string): Promise<void>;
+  addTodo(title: string): Promise<void>;
+  todoTitles(): Promise<string[]>;
+}
+
+/** UI経由で、Quiescoを使って実装する。 */
+export class UiTodoDriver implements TodoDriver {
+  constructor(private readonly app: Driver) {}
+
+  async loginAs(email: string) {
+    await this.app.backdoor('loginAs', email);       // UIを使わずに準備する
+  }
+
+  async addTodo(title: string) {
+    await this.app.tap('add-todo');
+    await this.app.type('todo-title', title);
+    await this.app.tap({ role: 'button', text: 'Save' });
+  }
+
+  async todoTitles() {
+    return (await this.app.query('todo-item')).map((e) => e.text);
+  }
+}
+```
+
+Worldにdriverを持たせ、デフォルトのWorldの代わりに登録します。
+
+```ts
+// features/support/world.ts
+import { QuiescoWorld, registerQuiesco } from '@quiesco/cucumber';
+
+import { UiTodoDriver } from './todo-driver';
+
+export class TodoWorld extends QuiescoWorld {
+  get todos() {
+    return new UiTodoDriver(this.app);
+  }
+}
+
+registerQuiesco({ world: TodoWorld });   // import '@quiesco/cucumber/register' の代わり
+```
+
+これで、ステップはfeatureと同じように読めます。
+
+```ts
+// features/step_definitions/todos.steps.ts
+import { Given, Then, When } from '@cucumber/cucumber';
+import assert from 'node:assert/strict';
+
+import type { TodoWorld } from '../support/world';
+
+Given('the user {string} is logged in', async function (this: TodoWorld, email: string) {
+  await this.todos.loginAs(email);
+});
+
+When('they add a todo {string}', async function (this: TodoWorld, title: string) {
+  await this.todos.addTodo(title);
+});
+
+Then('the first todo is {string}', async function (this: TodoWorld, title: string) {
+  assert.equal((await this.todos.todoTitles())[0], title);
+});
+```
+
+使える場面では、Quiescoのアサーション（`this.app.expectText('todo-item', …)`）を優先してください。アプリが期待した状態を表示するまでリトライします。クエリ結果に対する素の`assert`は1回しかチェックしませんが、アクションの後なら問題ありません。アクションの時点で、アプリがアイドルになるのを待っているからです。
+
+## ポートとアダプター：同じfeatureをAPIに対して実行する {#ports-adapters-the-same-features-against-the-api}
+
+ステップからは`TodoDriver`しか見えないので、2つ目の実装を用意すれば、同じfeatureをUIなしで実行できます。バックエンドのAPIに対して数秒で実行できるので、たとえばコミットのたびに走らせられます。
+
+```ts
+export class ApiTodoDriver implements TodoDriver {
+  private token = '';
+  constructor(private readonly baseUrl: string) {}
+
+  async loginAs(email: string) {
+    const res = await fetch(`${this.baseUrl}/login`, { method: 'POST', body: JSON.stringify({ email }) });
+    this.token = ((await res.json()) as { token: string }).token;
+  }
+
+  async addTodo(title: string) {
+    await fetch(`${this.baseUrl}/todos`, { method: 'POST', headers: { authorization: this.token }, body: JSON.stringify({ title }) });
+  }
+
+  async todoTitles() {
+    const res = await fetch(`${this.baseUrl}/todos`, { headers: { authorization: this.token } });
+    return ((await res.json()) as { title: string }[]).map((t) => t.title);
+  }
+}
+```
+
+driverは環境変数かcucumberのプロファイルで切り替えます。APIでの実行にQuiescoはまったく必要ありません。専用のWorld（`ApiTodoDriver`を持つ素のcucumberの`World`）を用意し、そのプロファイルではQuiescoの登録を外してください。
+
+## 汎用ステップ {#generic-steps}
+
+`@quiesco/steps`には、`点击 "add-todo"` / `"add-todo" をタップする` / `I tap "add-todo"`のような既製のステップがあります。これらは操作手順です。アプリを調べたりプロトタイプを素早く作ったりするには便利ですが、featureをUIに縛りつけてしまいます。featureが実際の要件を表すようになったら、すぐにビジネスの言葉のステップに移行してください。[packages/steps](./steps)を参照してください。

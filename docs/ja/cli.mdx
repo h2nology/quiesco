@@ -1,0 +1,76 @@
+---
+title: "CLI"
+description: "quiescoコマンド：init、test、doctor、tree、devicesと、そのすべてのオプション。"
+---
+
+```sh
+npx quiesco <command> [options]
+```
+
+## `quiesco init` {#quiesco-init}
+
+ExpoプロジェクトにQuiescoをセットアップします。各手順で何をしたかを報告します。既存のファイルは決して上書きしません。Quiescoが安全に変更できないファイルについては、追加すべき内容を表示します。
+
+1. プロジェクトのパッケージマネージャー（ロックファイルから判断したnpm、pnpm、yarn、bunのいずれか）でパッケージをインストールします。`@quiesco/agent`と`@quiesco/native`はdependenciesに、`quiesco`、`@quiesco/core`、`@quiesco/cucumber`、`@quiesco/expo-plugin`、`@cucumber/cucumber`（Web向けには`@quiesco/web`と`playwright`も）はdevDependenciesに入ります。
+2. `app.json`のpluginsに`@quiesco/expo-plugin`を追加します。
+3. `withQuiesco()`を使った`metro.config.js`を作成します（既存のものがあれば、ラップする方法を説明します）。
+4. エントリーファイルの最初のimportを`@quiesco/agent`にします。Expo Routerのアプリには`index.ts`（`import '@quiesco/agent'; import 'expo-router/entry';`）と`"main": "index.ts"`を用意します。
+5. `quiesco.config.mts`（バンドルID、パッケージ名、スキームは`app.json`から取得）、`cucumber.mjs`、`features/support/quiesco.ts`、ステップ付きの最初のfeature、`e2e:*`スクリプトを書き出します。
+
+| オプション | |
+|---|---|
+| `--platforms ios,android,web` | セットアップするプラットフォーム。デフォルトはiOSとAndroidで、`react-native-web`がインストールされていればWebも加わります |
+| `--packages <dir>` | `<dir>`内の`.tgz`ファイル（`pnpm pack`の出力）からQuiescoをインストールし、パッケージ間の依存もそれらに固定します |
+| `--skip-install` | インストールコマンドを表示するだけにします |
+
+`init`が行わず、自分で行う作業：ルートを`<QuiescoRoot>`でラップすること、テストIDの付与、iOS / Androidのe2eアプリのビルド。
+
+## `quiesco test` {#quiesco-test}
+
+```sh
+npx quiesco test --platform web
+npx quiesco test --platform android --tags @smoke features/login.feature
+npx quiesco test --platform ios --runner vitest --config vitest.e2e.config.mts
+npx quiesco test --platform web --runner jest e2e/todo.test.js
+```
+
+`QUIESCO_PLATFORM`を設定し、プロジェクトのテストランナーを実行します。ランナーは`cucumber-js`（デフォルト）、`jest`、`vitest run`のいずれかで（`--runner`）、それ以外の引数はすべてそのままランナーに渡します。`--workers N`はN個のワーカーを、それぞれ専用のデバイスで実行します（[parallel.md](./parallel)）。cucumber-jsでは`--parallel N`、Jestでは`--maxWorkers N`、Vitestでは`--fileParallelism --maxWorkers N`に変換されます（ランナー自身のフラグも使えます）。
+
+## `quiesco devices` {#quiesco-devices}
+
+```sh
+npx quiesco devices            # Quiescoが並列ワーカー用に作成したシミュレーター / AVD
+npx quiesco devices --prune    # それらをシャットダウンして削除する
+```
+
+`"<name> (Quiesco N)"`シミュレーターと`<avd>_quiesco_N` AVDを一覧表示します（起動中のものには`[running]`が付きます）。`--prune`はそれらを削除します。次の並列実行で再作成されます。自分で用意したデバイスには一切触れません。
+
+## `quiesco doctor` {#quiesco-doctor}
+
+```sh
+npx quiesco doctor                 # quiesco.config.mtsで設定したすべてのプラットフォーム
+npx quiesco doctor --platform ios
+```
+
+Node.js、プロジェクトのセットアップ（パッケージ、config plugin、Metroの`withQuiesco()`、エントリーの最初のimportとしてのエージェント、`<QuiescoRoot>`、設定ファイル）、プラットフォームのツール（シミュレーター、adbとAVD、PlaywrightのChromium）、アプリのビルド、ポートをチェックします。問題ごとに修正方法を示します。必須のチェックが失敗すると終了コード1で終わります。警告では失敗しません。
+
+## `quiesco tree` {#quiesco-tree}
+
+```sh
+npx quiesco tree                   # 実行中のアプリに接続する
+npx quiesco tree --launch --platform android
+npx quiesco tree --json > tree.json
+```
+
+アプリが表示している画面の要素ツリーを、要素ごとに型、`#testID`、テキスト、`[role]`付きで出力します。ステップで使うマッチャーを探すのに役立ちます。
+
+```
+RCTView #todos-screen
+  RCTText #greeting "a@example.com"
+  RCTScrollView #todo-list
+    RCTText #todo-empty "No todos yet"
+  RCTView #add-todo [button]
+    RCTText "New"
+```
+
+デフォルトではホストサーバーだけを起動し、すでに動いているアプリを待ちます（手動で起動したe2eビルドや、テスト実行後に残ったアプリは数秒以内に再接続します）。そのため、自分で遷移した画面をそのまま確認できます。`--launch`を付けると、テスト実行と同じようにデバイスを起動してからアプリを起動します。`--timeout <ms>`でアプリを待つ時間を設定します。

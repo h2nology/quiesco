@@ -1,0 +1,177 @@
+---
+title: "QuiescoとDetox"
+description: "Detox 20.51.4との項目別の比較。"
+---
+
+**Detox 20.51.4**との項目別の比較です（ドキュメントとソースは667efcb時点のもの、2026-11-08に確認）。Detoxの列は、そのドキュメント、ソース、Issueトラッカーから取ったもので、計測はしていません。Quiescoの列は計測済みです。各項目には、それを確認しているサンプルアプリのfeature（`examples/todo-app/features/`）またはユニットテストを記載しています。また、サンプルのスイート全体が3つのプラットフォームすべてで通っています（結果は末尾を参照）。
+
+凡例：✓ 対応 · ✗ 利用不可 · — そのプラットフォームには該当しない · (iOS) / (Android) Detoxがそのプラットフォームでのみ対応。
+
+## 要素のアクション {#element-actions}
+
+| Detox | Detoxの対応プラットフォーム | Quiesco | iOS | Android | Web | 確認方法 |
+|---|---|---|---|---|---|---|
+| `tap(point?)` | 両方 | `tap(target, { point })` | ✓ | ✓ | ✓ | actions: 点击区域内的指定位置 |
+| `multiTap(n)` | 両方 | `multiTap(target, n)`, `doubleTap(target)` | ✓ | ✓ | ✓ | actions: 连续点击… |
+| `longPress(point?, duration?)` | 両方 | `longPress(target, { durationMs, point })` | ✓ | ✓ | ✓ | ユニットテスト（agent actions、driver） |
+| `longPressAndDrag(…)` | 両方 | `drag(target, to, { holdMs, speed })`：要素または座標へ | ✓ | ✓ | ✓ | actions: 拖拽方块放进区域; showcase: 长按后拖动列表行排序 |
+| `swipe(dir, speed?, offset?, x?, y?)` | 両方 | `swipe(target, dir, { speed, distance, from })` | ✓ | ✓ | ✓ | showcase: 没有长按就滑动不会拿起列表行 |
+| `scroll(offset, dir, x?, y?)` | 両方 | `scroll(target, dir, { distance, from })` | ✓ | ✓ | ✓ | ユニットテスト（agent actions、driver） |
+| `scrollTo(edge)` | 両方 | `scrollToEdge(target, edge)`（伸びていく仮想化リストにも追従） | ✓ | ✓ | ✓ | actions: 长列表滚动到指定行和两端 |
+| `scrollToIndex(i)` | **Android** | `scrollToIndex(list, i, { viewPosition })`、`getItemLayout`なしでも可 | ✓ | ✓ | ✓ | actions: 长列表滚动到指定行和两端 |
+| `whileElement(…).scroll(…)` | 両方 | `scrollTo(container, target)` | ✓ | ✓ | ✓ | ユニットテスト（driver） |
+| `typeText` / `replaceText` / `clearText` | 両方 | `type`（IME経由：どの言語でも可）/ `replaceText` / `clear` | ✓ | ✓ | ✓ | login, new-todo; actions: 键盘按键与替换文本 |
+| `tapReturnKey` / `tapBackspaceKey` | 両方 | `pressKey(target, 'enter' \| 'backspace')`：キーボードのキーに届かない場合でもフィールドに届く | ✓ | ✓ | ✓ | actions: 键盘按键与替换文本; new-todo: 在标题框按回车也能保存 |
+| `setColumnToValue` | **iOS** | `setValue(picker, value)`：iOSでは指でホイールを回す | ✓ | ✓（コールバック：ドロップダウンは別ウィンドウ） | ✓（`<select>`） | values: 选择器按名称或值选择 |
+| `setDatePickerDate` | 両方 | `setValue(datePicker, Date)`：iOSではホイールの列をすべて回す | ✓ | ✓（コールバック：システムダイアログ） | ✓（日付入力） | values: 日期 |
+| `adjustSliderToPosition` | 両方 | `adjustSlider(target, position)`（実際にドラッグし、読み戻して補正）、`setValue(slider, n)`（正確な値） | ✓ | ✓ | ✓ | values: 把滑块设为指定值, 拖动滑块到指定位置 |
+| `pinch(scale, speed, angle)` | **iOS** | `pinch(target, scale, { angle, speed })`、ジェスチャー認識の開始量を補正 | ✓ | ✓ | ✓（タッチ対応ビューポート） | gestures: 双指放大 / 缩小 / 沿斜线方向捏合 |
+| — | — | `rotate(target, radians)`, `multiTouch(fingers)` | ✓ | ✓ | ✓（タッチ対応ビューポート） | gestures: 双指旋转, 双指滑动 |
+| `performAccessibilityAction` | 両方 | `accessibilityAction(target, name)`（VoiceOver / TalkBackの経路） | ✓ | ✓ | ✓ | values: 无障碍动作 |
+| —（スイッチ：タップ） | 両方 | `setValue(switch, boolean)`、セグメンテッドコントロール | ✓ | ✓ | ✓ | values: 开关, 分段控件 |
+| `getAttributes` | 両方 | `attributes(target)`, `query(target)` | ✓ | ✓ | ✓ | device: 横屏（2列の矩形） |
+| `takeScreenshot(name)`（要素） | 両方 | `device.screenshot(target, { full, name })`：要素全体 / ページ全体もつなぎ合わせて撮影 | ✓ | ✓ | ✓ | screenshots（4シナリオ） |
+
+## マッチャー {#matchers}
+
+| Detox | Detoxの対応プラットフォーム | Quiesco | iOS | Android | Web | 確認方法 |
+|---|---|---|---|---|---|---|
+| `by.id` / `by.text` / `by.label`（RegExp） | 両方 | `'id'`, `{ id }`, `{ text }`, `{ label }`（文字列またはRegExp） | ✓ | ✓ | ✓ | すべてのfeature |
+| `by.type`（クラス名） | 両方 | `{ type }`：セマンティックな型（全プラットフォーム共通）、ホストの型、またはコンポーネント名 | ✓ | ✓ | ✓ | ユニットテスト（agent query） |
+| `by.traits` | **iOS** | **代替**：`{ role }`（アクセシビリティロール）とセマンティックな`{ type }`（`button`、`header`、`link`、`image`、…） | ✓ | ✓ | ✓ | ユニットテスト（agent query） |
+| `withAncestor` / `withDescendant` / `and` | 両方 | `within`、`has`、条件の組み合わせ、`not` | ✓ | ✓ | ✓ | ユニットテスト（agent query） |
+| `atIndex(i)`（iOSとAndroidで順序が異なる） | 両方 | `index`：どのプラットフォームでもレンダリング順 | ✓ | ✓ | ✓ | ユニットテスト（agent query） |
+
+## アサーション {#assertions}
+
+| Detox | Detoxの対応プラットフォーム | Quiesco | iOS | Android | Web | 確認方法 |
+|---|---|---|---|---|---|---|
+| `toBeVisible(pct = 75)` | 両方 | `expectVisible(target, { ratio })`：デフォルトでは1ピクセルでも見えればよい。スクロールビューによるクリッピングも考慮 | ✓ | ✓ | ✓ | すべてのfeature; actions: 长列表滚动… |
+| `toExist` | 両方 | `expectExists` / `expectNotExists` | ✓ | ✓ | ✓ | ユニットテスト（driver） |
+| `toBeFocused` | 両方 | `expectFocused` / `expectNotFocused` | ✓ | ✓ | ✓ | form-state |
+| `toHaveText` / `toHaveLabel` / `toHaveId` / `toHaveValue` | 両方 | `expectText` / `expectLabel` / `toHaveId` / `expectValue` | ✓ | ✓ | ✓ | すべてのfeature |
+| `toHaveSliderPosition` / `toHaveToggleValue` | 両方 | `expectValue`（スライダー / スイッチ / ピッカー）/ `expectChecked` | ✓ | ✓ | ✓ | values |
+| — | — | `expectEnabled` / `expectDisabled`, `expectProp`, `expectCount` | ✓ | ✓ | ✓ | form-state; ユニットテスト |
+| `.not` | 両方 | `.not`（チェーン形式）と`expectNot…` | ✓ | ✓ | ✓ | ユニットテスト（driver） |
+| `waitFor(…).withTimeout()`（expectは待たない） | 両方 | すべてのアサーションが、成立するかタイムアウト（`sync.timeoutMs`、設定可能）までリトライする | ✓ | ✓ | ✓ | webview: 等待网页里稍后出现的结果 |
+
+## デバイスとアプリ {#device-and-app}
+
+| Detox | Detoxの対応プラットフォーム | Quiesco | iOS | Android | Web | 確認方法 |
+|---|---|---|---|---|---|---|
+| `launchApp({ newInstance })` / `terminateApp` | 両方 | `device.relaunch()` / `terminate()` | ✓ | ✓ | ✓ | lifecycle: 重新启动后数据还在; 结束 App 之后的操作… |
+| `launchApp({ launchArgs })`, `appLaunchArgs` | 両方 | `relaunch({ args })`（型付きJSON）、設定の`launchArgs`、アプリ内の`quiesco.launchArgs()` | ✓ | ✓ | ✓ | lifecycle: 以启动参数和深链接重新启动 |
+| `launchApp({ url })` / `openURL` | 両方 | `relaunch({ url })`（コールドスタート）/ `openUrl(url)` | ✓ | ✓ | ✓ | lifecycle: 以启动参数和深链接重新启动 |
+| `launchApp({ permissions })` | **iOS** | 設定の`permissions`、`relaunch({ permissions })`、実行中の`setPermission(name, 'grant' \| 'revoke' \| 'reset')` | ✓ | ✓ | ✓ | permissions（Android / Web）; device: 运行时撤销定位权限; system: 拒绝 / 允许通知权限 |
+| `launchApp({ delete })`, `install` / `uninstall` | 両方 | `relaunch({ reinstall })`, `install()` / `uninstall()` | ✓ | ✓ | —（インストールがない。`reinstall` = データ消去） | ユニットテスト（providers） |
+| `resetAppState` / `launchApp({ resetAppState })` | 両方 | 各シナリオの前にソフトリセット（ストレージ + `onReset`、&lt; 500ms）、`@hard-reset`、`relaunch({ clearData })` | ✓ | ✓ | ✓ | すべてのシナリオ; lifecycle: 清除数据后重新启动 |
+| `resetContentAndSettings` | **iOS** | **代替**：`relaunch({ reinstall: true })` + `setPermission(p, 'reset')` + `clearKeychain()`。シナリオが変更したデバイスの状態は自動的に元に戻る | ✓ | ✓（キーチェーンなし） | ✓ | —（ドキュメントに記載、「未対応の項目」を参照） |
+| `reloadReactNative`（ドキュメント上は不安定とされている） | 両方 | 提供しない：`relaunch()`（新しいプロセス）またはソフトリセット | ✓ | ✓ | ✓ | — |
+| `sendToHome` | 両方 | `sendToBackground()` / `bringToForeground()`（同じプロセス） | ✓ | ✓ | ✗（ページはバックグラウンドにできない） | lifecycle: 切到后台再回到前台 |
+| `setOrientation` | 両方 | `setOrientation`（ウィンドウが回転し終わるまで待つ） | ✓ | ✓ | ✓ | device: 横屏（+ 2列レイアウト） |
+| `setLocation` | 両方 | `setLocation(lat, lon)` | ✓ | ✓（エミュレーター） | ✓ | device: 模拟定位 |
+| `languageAndLocale` | **iOS** | `setLocale(tag)` | ✓ | ✓ | ✓ | device: 切换语言 |
+| — | — | `setAppearance`, `setFontScale`, `setNetwork`, `clipboard` | ✓ | ✓ | ✓（フォントスケールなし） | device（ダークモード、フォントスケール、オフライン、クリップボード） |
+| `setURLBlacklist` | 両方 | `sync.ignoreUrls.add()` / 設定の`sync.ignoreUrls` | ✓ | ✓ | ✓ | ユニットテスト（network tracker） |
+| `enable/disableSynchronization`（グローバル） | 両方 | `sync.disable()` / `enable()`、トラッカー単位の`disableTracker(name)`、`ignoreElements`、呼び出し単位の`{ sync: false }` | ✓ | ✓ | ✓ | lifecycle: 运行时只关闭定时器同步… |
+| `sendUserNotification` / `launchApp({ userNotification })` | 両方 | `sendNotification({ title, body, data })`, `openNotification(title)` | ✓ | ✓ | ✗ | system: App 在前台时收到推送, 从通知打开 App |
+| `sendUserActivity` / `launchApp({ userActivity })` | **iOS** | **提供しない**（Handoff / Spotlightのアクティビティ）。ユニバーサルリンクを含むリンクは`openUrl` / `relaunch({ url })`で開く | — | — | — | —（「未対応の項目」を参照） |
+| `tap` / `longPress`（画面座標） | 両方 | `tapAt({ x, y })` / `longPressAt` | ✓ | ✓ | ✓ | actions: 连续点击与按屏幕坐标点击 |
+| `takeScreenshot` | 両方 | `device.screenshot()`、ページ全体をつなぎ合わせて撮影 | ✓ | ✓ | ✓ | screenshots |
+| `captureViewHierarchy` | **iOS** | `getTree()`（JSON、セマンティックな型）。失敗したすべてのシナリオに添付 | ✓ | ✓ | ✓ | ユニットテスト（artifacts） |
+| `generateViewHierarchyXml` | 両方 | `getTree()` | ✓ | ✓ | ✓ | ユニットテスト |
+| `shake` | **iOS** | `shake()` | ✓ | ✓ | ✗ | system: 摇动设备 |
+| 生体認証（登録、顔や指紋の一致 / 不一致） | **iOS** | `biometrics.enroll()` / `match()` / `fail()` | ✓ | ✓ | ✗ | system: 录入生物识别, 生物识别认证成功, 不匹配后… |
+| `clearKeychain` | **iOS** | `clearKeychain()` | ✓ | —（キーチェーンがない：`relaunch({ clearData })`） | — | ユニットテスト（iOS provider） |
+| `setStatusBar` | **iOS** | `setStatusBar({ … })` / `resetStatusBar()` | ✓ | ✓ | —（ステータスバーがない） | device: 截图用的状态栏 |
+| `reverseTcpPort` | **Android** | `reversePort(port)`（デバイスがホストのネットワークを共有する場合は何もしない） | — | ✓ | — | サンプルの設定の`reversePorts`（Androidの全実行） |
+| `pressBack` | **Android** | `pressBack()` | ✗（戻るボタンがない） | ✓ | ✓（ブラウザの戻る） | ユニットテスト（providers） |
+| `getUiDevice`（UiAutomator） | **Android** | `device.system.*`（アプリ外のシステムUI） | ✓ | ✓ | ✓（JSのダイアログ） | system: 拒绝 / 允许通知权限; 取消 / 确定网页的确认对话框 |
+| `selectApp`（複数のアプリ） | 両方 | **提供しない**：1セッションにつき1アプリ | — | — | — | —（「未対応の項目」を参照） |
+
+## システムUI、WebView、LLM {#system-ui-webview-llm}
+
+| Detox | Detoxの対応プラットフォーム | Quiesco | iOS | Android | Web | 確認方法 |
+|---|---|---|---|---|---|---|
+| `system.element(by.system.label)`（実験的） | **iOS** | `device.system.tap` / `expectVisible` / `allowPermission` / `denyPermission` | ✓（XCUITestランナー） | ✓（uiautomator） | ✓（JSのダイアログ） | system: 拒绝通知权限; 取消网页的确认对话框 |
+| `web.element(by.web.*)`：tap / typeText / replaceText / runScript / getText | 両方（Androidで複数の問題あり） | `webview(m).element({ css \| xpath \| id \| text })`：tap / type / replaceText / scrollIntoView / expect* / runScript / url / title | ✓ | ✓ | ✓（iframe） | webview（6シナリオ） |
+| Pilot（LLMが駆動するステップ） | — | **延期**（Phase 6.14、「未対応の項目」を参照） | — | — | — | — |
+
+## テストの実行 {#running-tests}
+
+| Detox | Quiesco | 確認方法 |
+|---|---|---|
+| Jestのみ | Cucumber（zh / ja / enのステップライブラリ）、Jest、Vitest | サンプルのスイート全体、`e2e/jest`、`e2e/vitest`、`features-generic` |
+| 並列ワーカー | cucumber-jsの`--parallel`、Jestの`maxWorkers`、Vitestの`quiesco({ workers })`。ワーカーごとにデバイスを用意し、Quiescoが作成して残す（iOSは`simctl create`、AndroidはワーカーごとにAVDのコピーを作るので、開いている書き込み可能なエミュレーターがあっても支障はない）。ワーカーごとの設定関数、ポート、成果物。[parallel.md](./parallel) | ユニットテスト + 3プラットフォーム × 3ランナー（Phase 6.12） |
+| `retries` | **代替**：ランナー自身のリトライ（`cucumber-js --retry`、Jestの`jest.retryTimes`、Vitestの`retry`） | —（ランナーの機能） |
+| 成果物：スクリーンショット、動画、ログ、uiHierarchy、instruments | 失敗時のスクリーンショット + 要素ツリー + ログ、シナリオごとの動画（MP4 / WebM）、デバイスログ、タイムライン（Chrome trace） | screenshots、ユニットテスト（artifacts） |
+| 実機（DetoxはAndroidのみ。iOSは未対応、#95） | **延期**（Phase 6.13、「未対応の項目」を参照）：シミュレーター、エミュレーター、Chromiumのみ | — |
+| Web：公式サポートなし | Chromium（スマートフォン / タブレット / デスクトップのビューポート）で同じfeatureを実行 | Webのすべての実行 |
+| Expo：「コミュニティによるサポート」 | Expoを第一に考えた設計：config plugin、dev client、Expo Router、`expo/fetch` | サンプルアプリ（Expo SDK 58） |
+
+## Detoxの課題と、Quiescoでの解決方法 {#detox-pain-points-and-what-quiesco-does-instead}
+
+| 課題（Detox） | Quiesco | 確認結果（2026-11-11） |
+|---|---|---|
+| Expo SDK 56以降のAndroidでネットワーク同期が効かない：監視しているのはOkHttpだけだが、グローバルの`fetch`は`expo/fetch`になっている（#4973） | エージェントがJS側でリクエストを追跡する。グローバルの`fetch`、直接importした`expo/fetch`（Metroのリゾルバー）、`XMLHttpRequest`、WebSocket / EventSourceのハンドシェイクを、レスポンスボディを読み終えるまで追跡する | device: 等待 expo/fetch 的慢响应体, 离线时 expo/fetch 也失败, 等待 WebSocket 握手：iOS / Android / Web、リトライせずに結果を一度だけ読む |
+| React Nativeのリリースで壊れる（RN 0.85.3のbridgelessでクラッシュ、#4963：プライベートフィールドへのリフレクション） | 要素はプライベートなネイティブのフィールドではなく、DevToolsフック経由でReact自身のツリーから見つける（1ファイル、`fiber-adapter`）。ネイティブモジュールは入力の注入だけを行う | React Native 0.88 / Expo SDK 58、bridgeless、3プラットフォームでスイート全体 |
+| 同期が全か無か：終わらないアニメーション、ポーリング、ソケットでテストが止まる。抜け出すにはグローバルにオフにするしかない（#1513） | 実行時にトラッカー単位・要素単位で設定でき（`sync.disableTracker`、`ignoreElements`、`ignoreUrls`）、呼び出し単位でも`{ sync: false }`を指定できる。開いたままのWebSocketは数えず、ハンドシェイクだけを数える | lifecycle: 运行时只关闭定时器同步，并忽略轮询计数; device: 等待 WebSocket 握手 |
+| `expect`が待たない。グローバルなタイムアウトがない（#4885） | アサーションは成立するまでリトライする。デフォルトは`sync.timeoutMs`、呼び出し単位で`timeoutMs` | webview: 等待网页里稍后出现的结果（およびすべてのアサーション） |
+| iOSのキーボードが最初のタップを吸収する（#3399）。表示チェックのせいでリターンキーをタップできない（#4546） | 対象を覆うキーボードは先に閉じ、`native`トラッカーがキーボード操作後にiOSがタッチを受け付けない期間を待つ。`pressKey('enter')`はキーボードなしでフィールドに届く | login / new-todo（iOSで入力してからタップ）; new-todo: 在标题框按回车也能保存; actions: 键盘按键与替换文本 |
+| WebViewの入力が不安定で、Androidで複数の問題がある（#4886） | 実際のタップの後に`execCommand('insertText')`で入力する。3つのプラットフォームで同じAPI | webview: 在网页里输入名字后打招呼, 替换输入框里的文字：iOS / Android / Web |
+| 多くの機能がiOS限定（ピンチ、起動時の権限、生体認証、シェイク、ステータスバー、ロケール、システムUI、ピッカーの列） | いずれもiOSとAndroidで使え、ほとんどはWebでも使える（上の表を参照） | gestures, values, device, system |
+| `atIndex`の順序がiOSとAndroidで異なる。`toBeVisible`は75%固定 | `index` = どこでもレンダリング順。表示判定は1ピクセルでも見えればよく、`ratio`は任意 | ユニットテスト（agent query、visibility） |
+| `setTimeout`は1.5秒までしか待たず、`setInterval`は無視され、設定もできない | `sync.timerThresholdMs`（デフォルト1500）で設定可能。ビジーなタイマーはタイムアウトのエラーで名前が示される | ユニットテスト（timer tracker） |
+| 別のテスト用APK、ProGuardのルール、フレームワークのキャッシュが必要 | config plugin経由のアプリのe2eビルド（`EXPO_PUBLIC_QUIESCO=1`）1つだけ。本番ビルドには何も含まれないことを検証済み | `scripts/check-prod-strip.mjs`（benchmarks.md） |
+| Jestのみ。成果物のドキュメントは「to be done」 | Cucumber / Jest / Vitest。成果物もドキュメント化済み（api.md、Artifacts） | e2e/jest, e2e/vitest, features |
+
+## Detoxで片方のプラットフォーム限定の項目と、Quiescoでの対応状況 {#detox-platform-only-items-availability-in-quiesco}
+
+Detoxで1つのプラットフォームでしか使えない項目と、Quiescoがそれをいくつのプラットフォームで提供しているか：
+
+| 項目 | Detox | Quiesco |
+|---|---|---|
+| `scrollToIndex` | Android | iOS、Android、Web |
+| `setColumnToValue`（ピッカー） | iOS | iOS、Android、Web |
+| `pinch` | iOS | iOS、Android、Web（タッチ） |
+| `by.traits` | iOS | `role` / セマンティックな`type`：iOS、Android、Web |
+| `launchApp({ permissions })` | iOS | iOS、Android、Web |
+| `languageAndLocale` | iOS | iOS、Android、Web |
+| `resetContentAndSettings` | iOS | iOS、Android、Webで呼び出しを組み合わせる |
+| `captureViewHierarchy` | iOS | iOS、Android、Web |
+| `shake` | iOS | iOS、Android |
+| 生体認証 | iOS | iOS、Android |
+| `setStatusBar` | iOS | iOS、Android（Webにはない） |
+| `system.element` | iOS | iOS、Android、Web（JSのダイアログ） |
+| `pressBack` | Android | Android、Web（iOSには戻るボタンがない） |
+| `getUiDevice` | Android | `device.system`：iOS、Android、Web |
+| `clearKeychain` | iOS | **iOSのみ**：AndroidとWebにはキーチェーンがない。そちらでは`relaunch({ clearData: true })`が相当する |
+| `reverseTcpPort` | Android | Androidのみ：iOSシミュレーターとブラウザはホストのネットワークを共有するので、リバースするものがない |
+| `sendUserActivity` / `userActivity` | iOS | 提供しない（未対応の項目） |
+
+## 未対応の項目 {#gaps}
+
+作らないと決めたもの（2026-11-11）と、その代替手段：
+
+- **`selectApp`（1つのテストで複数のアプリ）：** 1セッションにつき1アプリです。アプリごとに別々に実行してください。
+- **`sendUserActivity` / `launchApp({ userActivity })`：** Handoff / Spotlight / Siriのアクティビティはシミュレートしません。ユニバーサルリンクを含むリンクは`openUrl`または`relaunch({ url })`で開きます。
+- **`resetContentAndSettings`：** シミュレーター全体の消去はありません。`relaunch({ reinstall: true })`でアプリとそのデータを削除し、`setPermission(p, 'reset')`で権限を「未決定」に戻し、`clearKeychain()`でキーチェーンを空にします。シナリオが変更したデバイスの状態（画面の向き、外観、ロケール、位置情報、ネットワーク、ステータスバー、生体認証）は、次のシナリオの前に自動的に元に戻ります。
+- **`retries`：** ランナー自身のリトライオプションを使います。
+- **`by.traits`：** `{ role }`とセマンティックな`{ type }`を使います。
+
+延期したもの（2026-11-14）で、まだ作っていないもの：
+
+- **実機（Phase 6.13）：** adb経由のAndroid実機とiOS実機は検証していません。シミュレーター、エミュレーター、Chromiumで実行してください。
+- **LLMが駆動するステップ（Phase 6.14、Detox Pilot）：** 提供していません。Driver APIに対してステップを書いてください。
+
+## 結果 {#results}
+
+サンプルのスイート全体、2026-11-14（Phase 6の受け入れ確認）。ワーカーなしで順番に実行し、dev clientとMetroからの開発用バンドルを使用。iPhone 17シミュレーター iOS 27.0、Android 17エミュレーター（API 37、`-gpu host`）、Chromium：
+
+| プラットフォーム | シナリオ | 成功 | スキップ（他のプラットフォーム用のタグ / タッチが必要） | 時間 |
+|---|---|---|---|---|
+| iOS | 86 | 80 | 6 | 4分26秒 |
+| Android | 86 | 81 | 5 | 5分3秒 |
+| Web（スマートフォンのビューポート） | 86 | 73 | 13 | 1分27秒 |
+
+以前のフェーズとの時間の比較：[benchmarks.md](./benchmarks)。

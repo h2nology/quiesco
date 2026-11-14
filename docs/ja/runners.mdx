@@ -1,0 +1,50 @@
+---
+title: "JestとVitest"
+description: "Cucumberの代わりにJestやVitestからQuiescoを使います。"
+---
+
+`@quiesco/vitest`と`@quiesco/jest`は、`@quiesco/cucumber`がCucumberに対して行うことをVitestとJestに対して行います。実行全体で1つのセッション（デバイスとアプリ）を使い、各テストの前にリセットし、別のプラットフォーム向けのタグが付いたテストはスキップし（`@ios`、`@android`、`@web`、`@native`。最も内側の階層が優先されます）、失敗時のメッセージには証跡ファイル（スクリーンショット、要素ツリー、アイドル状態、ログ）が列挙されます。
+
+## Vitest {#vitest}
+
+`app`はテストフィクスチャーです。
+
+```ts
+// vitest.config.ts
+import { quiesco } from '@quiesco/vitest/config';
+import { defineConfig } from 'vitest/config';
+export default defineConfig({ test: { ...quiesco(), include: ['e2e/**/*.test.ts'] } });
+
+// e2e/todo.test.ts
+import { test } from '@quiesco/vitest';
+
+test('a new todo appears at the top', async ({ app }) => {
+  await app.tap('add-todo');                      // アプリがアイドルになるまで待ってからタップ
+  await app.type('todo-title', 'Buy milk');
+  await app.tap({ role: 'button', text: 'Save' });
+  await app.expectText({ id: 'todo-item', index: 0 }, 'Buy milk');
+});
+test('Android only', { tags: ['@android'] }, async ({ app }) => { /* … */ });
+```
+
+`quiesco()`はファイルをまたいでアプリを保持し（`isolate: false`）、ファイルを1つずつ実行し（`quiesco({ workers: N })`ならN台のデバイスで実行）、プラットフォームタグを宣言します。
+
+## Jest {#jest}
+
+プリセットです。テストからはグローバルの`quiesco`を通じてアプリにアクセスします。
+
+```js
+// jest.config.js
+module.exports = { preset: '@quiesco/jest', maxWorkers: 1, testTimeout: 120_000 }; // maxWorkers: N = N台のデバイス
+
+// e2e/todo.test.js
+test('a new todo appears at the top @ios', async () => {
+  await quiesco.app.tap('add-todo');
+});
+```
+
+プラットフォームタグはテストまたは`describe`のタイトルに書きます（Jestにはテストオプションがないため）。
+
+## 実行 {#running}
+
+どちらも`npx quiesco test --platform ios --runner vitest|jest`で実行します。両方のサンプルが[examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e)にあります。詳しくは[CucumberなしでQuiescoを使う](./api#using-quiesco-without-cucumber)を、複数のデバイスで同時に実行する方法は[並列実行](./parallel)を参照してください。

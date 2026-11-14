@@ -1,0 +1,53 @@
+---
+title: "同期"
+description: "アイドルとは何か、それを判定するトラッカー、そしてアプリがいつまでもアイドルにならないときの対処。"
+---
+
+Quiescoは、すべてのクエリとアサーションの前、そしてすべてのアクションの後に、アプリが**アイドル**になるのを待ちます。そのため、ステップでsleepやポーリングをする必要はありません。「アイドル」はアプリ内で独立した複数のトラッカーが判定します。すべてのトラッカーが、マクロタスク1つ分を空けて2回続けてアイドルだったとき、アプリはアイドルとみなされます（タイマーが発火して同じtickでリクエストを開始しても、すり抜けることはありません）。
+
+## トラッカー {#trackers}
+
+| トラッカー | ビジーになる条件 | 補足 |
+|---|---|---|
+| `network` | `fetch` / `XMLHttpRequest`が実行中、レスポンスボディを読み込み中、または`WebSocket` / `EventSource`が接続中 | `fetch`はレスポンスが届くまでカウントされます。その直後に開始したボディの読み込み（`json()`、`text()`など）はボディが揃うまでビジーを維持し、後から読み込むと再びカウントされます。直接importした`expo/fetch`も追跡されます（e2eビルドでは`withQuiesco()`が追跡用の再エクスポートに差し替えます）。`WebSocket` / `EventSource`は、開くか、失敗するか、閉じるまでの間だけカウントされます。開いたままの接続はカウントされません（エージェント自身の接続も同様です）。`sync.ignoreUrls`でロングポーリング、SSE、アナリティクスを除外できます。XHR上に実装された`fetch`（React Native）は1回だけカウントされます。 |
+| `timer` | 遅延が`sync.timerThresholdMs`（1.5秒）以下の`setTimeout`が保留中 | それより長いタイマー（セッションの有効期限、30秒ごとのポーリング）はブロックしません。`setInterval`は`sync.countIntervals: true`のときだけカウントされます。 |
+| `react` | Reactに未コミットの作業がある：保留中のレーンやスケジュール済みのコールバックを持つルート、またはReactのスケジューラーに保留中のタスク（レンダリング作業、パッシブエフェクト） | DevToolsフック経由でReact自身の管理情報を読み取ります。アプリ側の変更は不要です。 |
+| `idle-callback` | `requestIdleCallback`が保留中（`InteractionManager`がまだあるReact Nativeのバージョンでは、その作業も） | |
+| `native`（iOS） | ビューコントローラーの遷移（ナビゲーション、モーダル表示）が実行中、またはキーボードが動いている / 使われた直後 | `@quiesco/native`が報告します。JavaScriptからは見えないUIKitの処理をカバーします。 |
+| `frame-stable` | 要素ツリー（すべての要素の型、testID、テキスト、丸めた位置とサイズ）が直近の`sync.stableFrames`（2）フレームの間に変化した | UIスレッド上のアニメーション（Reanimated、native driverの`Animated`）のためのフォールバックです。呼び出しが待機している間だけサンプリングされます。 |
+
+トラッカーをオフにするには`sync: { trackers: { 'frame-stable': false } }`とします。
+
+Reactトラッカーの仕組みと、エージェントをReact Nativeのレンダラーより先に読み込む必要がある理由は、[docs/spikes/02-react-idle.md](https://github.com/h2nology/quiesco/blob/main/docs/spikes/02-react-idle.md)で説明しています。読み込み順は`metro.config.js`の`withQuiesco()`が面倒を見ます（React Native 0.88はアプリのエントリーファイルより先にレンダラーを読み込みます）。
+
+## アプリがいつまでもアイドルにならないとき {#when-the-app-never-becomes-idle}
+
+`sync.timeoutMs`（10秒）より長く待った呼び出しは`SYNC_TIMEOUT`で失敗し、何がビジーだったかを列挙します。
+
+```
+App did not become idle within the 10000ms timeout. Busy:
+  - network: GET https://api.example.com/todos (10012ms)
+  - timer: setTimeout(poll, 1000ms), fires in 420ms
+  - frame-stable: element tree changing: stable for 1/2 frames (580 frames sampled in 9960ms)
+    last change: first difference at node 12: Text "Loading 41%" … → Text "Loading 42%" …
+```
+
+対処はトラッカーによって異なります。
+
+- **network**：終わらないリクエスト（ロングポーリング、応答が止まったバックエンド）です。`sync.ignoreUrls`に追加するか、バックエンド / モックを修正します。意図的に再現するには、モックサーバーに`MOCK_STALL`のような切り替えを用意します。
+- **timer**：短いタイマーが延々と再設定されています（`setTimeout`によるポーリングループ、自分自身を再スケジュールするトースト）。`sync.timerThresholdMs`を上げるのは、ループの間隔がしきい値より長い場合だけにしてください。そうでなければ、そのステップの同期をスキップする（`{ sync: false }`）か、e2eビルドではループを止めます。
+- **frame-stable**：何かが動き続けています。終わらないアニメーション（スピナー、シマー、マーキー、ゆっくり動く装飾用の光）やカウンターです。レポートには最初に変化した要素が示されます。その要素が装飾であれば、testIDを付けて`sync.ignoreElements`に加えます。その要素とサブツリーはこのチェックから外れ、それ以外はこれまでどおりチェックされます。そうでなければ、そのステップを`{ sync: false }`付きで呼び出して、必要なことを後からアサートするか、e2eビルドではアニメーションを無効にします。待った時間に対して`frames sampled`が極端に少ない場合は、アニメーションではなくUIスレッドが処理しきれていない（エミュレーターが過負荷）状態です。
+- **react**：レンダリングループ（ガードのないエフェクト内での状態更新）が収まらない状態です。実際のバグです。
+
+`AGENT_TIMEOUT`は別物です。エージェントがまったく応答しなかったことを示し、たいていは長い同期処理でJSスレッドがブロックされています。
+
+## 1回の呼び出しだけ同期をスキップする {#skipping-sync-for-one-call}
+
+```ts
+await this.app.tap('start-spinner', { sync: false });        // 前後で待たない
+await this.app.expectVisible('spinner', { sync: false });    // 回っている間にアサートする
+```
+
+## プラットフォームごとの補足 {#platform-notes}
+
+3つのプラットフォームすべてで同じトラッカーが動きます。Webでは、ページ全体の読み込み後にエージェントが再接続し、ホスト側はそれを意識させずに待ちます。Expo Routerの静的出力では、ハイドレーションの後にアプリの準備ができたとみなします。`native`トラッカーはiOSにしかありません。[プラットフォームの違い](./platforms)を参照してください。

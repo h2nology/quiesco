@@ -1,0 +1,49 @@
+---
+title: "快速开始（Web）"
+description: "从一个新建的 Expo App 到在 Chromium 中通过的 feature，大约 10 分钟。"
+---
+
+前提条件：Node.js 24+，一个基于 SDK 58 的 Expo App （`npx create-expo-app@latest`）。
+
+<Steps>
+  <Step title="初始化项目">
+    ```sh
+    cd my-app
+    npx quiesco init          # 依赖、config plugin、Metro、入口文件、quiesco.config.mts，以及第一个 feature
+    ```
+  </Step>
+  <Step title="包裹根布局">
+    用 `<QuiescoRoot>` 包裹根布局（默认模板中是 `src/app/_layout.tsx`）：
+
+    ```tsx
+    import { QuiescoRoot } from '@quiesco/agent';
+
+    export default function TabLayout() {
+      // …
+      return (
+        <QuiescoRoot>
+          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>…</ThemeProvider>
+        </QuiescoRoot>
+      );
+    }
+    ```
+  </Step>
+  <Step title="给首页加上 test id">
+    在 `src/app/index.tsx` 中写 `<ThemedView style={styles.container} testID="home">`。生成的`features/app.feature` 会检查它是否可见。
+  </Step>
+  <Step title="让首页稳定下来">
+    默认模板会在首页上让一个装饰性的光晕转动四分钟，因此页面一直无法稳定。给它加上 test id——在`src/components/animated-icon.web.tsx`（iOS / Android 则是 `animated-icon.tsx`）中写`<Animated.View … style={styles.glow} testID="logo-glow">`——然后取消 `quiesco.config.mts` 中`sync: { ignoreElements: ['logo-glow'] }` 的注释。
+  </Step>
+  <Step title="运行">
+    ```sh
+    npx playwright install chromium
+    npm run e2e:web           # 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
+    ```
+
+    该模板在服务端渲染（`web.output: "server"`）；对于这种导出，Quiesco 会自行运行 `npx expo serve`。静态导出则直接托管。
+  </Step>
+</Steps>
+
+`npx quiesco doctor` 会检查配置，并说明如何补齐缺失的部分。`npx quiesco tree` 会打印运行中 App 的元素树，便于查找 test id。
+
+下一步：[iOS 和 Android](./native)、用业务语言编写步骤的 [Driver 模式](./driver-pattern)，以及 [API 参考](./api)。

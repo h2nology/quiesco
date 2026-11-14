@@ -1,0 +1,521 @@
+---
+title: "API 参考"
+description: "this.app（Driver）、匹配器、App 内 API、配置、场景标签、错误与产物。"
+---
+
+- [Driver（`this.app`）](#driver-thisapp)：操作、断言、查询、后门
+- [匹配器](#matchers)
+- [ App 内 API（`@quiesco/agent`）](#in-app-api-quiescoagent)
+- [配置（`quiesco.config.ts`）](#configuration)
+- [场景标签](#scenario-tags)
+- [错误](#errors)
+- [不使用 Cucumber 时如何使用 Quiesco](#using-quiesco-without-cucumber)——Jest、Vitest 及其他运行器
+
+## Driver（`this.app`） {#driver-thisapp}
+
+在步骤定义中，`this.app` 是当前会话的 `Driver`（`@quiesco/core`）。每个调用都是`async` 的，会先等待 App 空闲（见 [同步](./sync)），对于操作，执行之后还会再等待一次。步骤里无需任何等待或 sleep。
+
+所有调用都接受一个可选的最后参数：
+
+| 选项 | 含义 |
+|---|---|
+| `timeoutMs` | 本次调用的超时（默认 `sync.timeoutMs`，10 s） |
+| `sync: false` | 本次调用前后不等待空闲（用于有无限动画的页面） |
+| `mode: 'native' \| 'js'` | 仅限操作：真实输入，或调用组件的回调（默认取 `actions.mode`） |
+
+### 操作
+
+| 方法 | 作用 |
+|---|---|
+| `tap(target, { point })` | 点击元素：点击其中心，或其自身坐标系中的 `point`（`{ x, y }`，以左上角为原点） |
+| `doubleTap(target)` / `multiTap(target, n)` | 在一个手势中点击 `n` 次 |
+| `longPress(target, { durationMs, point })` | 按住（默认 800 ms） |
+| `type(target, text)` | 聚焦输入框并输入 `text`（native 模式下经由输入法，因此任何语言都可以） |
+| `replaceText(target, text)` | 一次性替换全部文本 |
+| `clear(target)` | 清空文本输入框 |
+| `pressKey(target, 'enter' \| 'backspace')` | 向字段发送回车键（提交；在多行输入框中是换行）或退格键。字段只需存在即可：即使键盘的回车键够不着，按键也能送达 |
+| `scroll(target, direction, { distance, from })` | 滚动一个滚动视图（`down` 显示下方内容）。`from`：起点，在元素内归一化为 0–1 |
+| `scrollTo(container, target)` | 滚动 `container`，直到 `target` 可见 |
+| `scrollToEdge(target, 'top' \| 'bottom' \| 'left' \| 'right')` | 滚动到一端；虚拟化列表在增长时会持续跟随（native 模式：真实的快速滑动） |
+| `scrollToIndex(list, index, { viewPosition })` | 将 FlatList / FlashList 的第 `index` 行滚入视图，无需 `getItemLayout`；`viewPosition` 0 = 顶部，0.5 = 中间，1 = 底部 |
+| `swipe(target, direction, { speed, distance, from })` | 一个滑动手势（带惯性）；`direction` 指手指移动的方向 |
+| `drag(target, to, { holdMs, speed })` | 按住元素（默认 800 ms），移动到 `to`（一个元素）的中心或 `{ point }`（窗口坐标），然后松开 |
+| `tapAt({ x, y })` / `longPressAt({ x, y }, { durationMs })` | 触摸屏幕上的一个点（窗口坐标），不管那里是什么 |
+| `pressBack()` | Android 返回键；web 上是浏览器后退；iOS 上不可用 |
+| `openUrl(url)` | 打开一个深层链接（iOS 上在 App 内打开，Android 上用 `am start`，web 上通过地址栏） |
+| `dismissKeyboard()` | 隐藏软键盘 |
+| `setValue(target, value)` | 设置值控件：滑块（数字）、开关 / 复选框（布尔值）、选择器（某一项的值或标签）、分段控件（某一段的值或索引）、日期 / 时间选择器或日期输入框（`Date`）。见 [值控件](#value-controls) |
+| `adjustSlider(target, position)` | 用真实的手指 / 鼠标将滑块的滑柄拖到 `position`（0 = 最小值，1 = 最大值）；落点与目标相差不超过一个步长 |
+| `accessibilityAction(target, name)` | 像屏幕阅读器一样，执行元素在 `accessibilityActions` 中声明的操作 |
+| `pinch(target, scale, { angle, speed })` | 两指在元素上沿角度为 `angle` 弧度（0 = 水平）的直线张开（`scale` > 1）或捏合（&lt; 1）。见 [多指手势](#multi-finger-gestures) |
+| `rotate(target, radians, { speed })` | 两指绕元素中心旋转（正值：屏幕上顺时针） |
+| `multiTouch(fingers, { within })` | 任意数量的手指沿定时路径移动：`fingers[i]` 是第 i 根手指的 `{ x, y, t }` 点列（t 单位为 ms，非递减）；有 `within` 时为元素坐标，否则为窗口坐标 |
+
+坐标使用逻辑单位（iOS 上为 pt，Android 上为 dp，web 上为 CSS px）。`scrollToEdge` 和`scrollToIndex` 分多步完成；每一步最多可等待一个调用超时时长，让 App 稳定下来。
+
+在 `js` 模式下（用回调代替真实输入），点击某个点会按下该处最上层的元素；点击没有 `onPress` 的开关时，通过 `onValueChange` 切换它；`pressKey` 调用 `onSubmitEditing` / `onKeyPress`；`scrollToEdge` 直接设置滚动偏移；`from` 被忽略；`drag` 不受支持（它需要真实的触摸）。
+
+### 值控件 {#value-controls}
+
+`setValue` 根据目标周围组件的 props 找到控件（元素本身及其上几层；如果都没有，则取元素内部唯一的控件，例如一个承载 testID、包裹着会丢掉 testID 的组件的 `View`）：
+
+| 控件 | 识别依据 | `value` |
+|---|---|---|
+| `@react-native-community/slider` | `onValueChange` / `onSlidingComplete`，以及数值型的 `value` 或 `minimumValue` / `maximumValue` | 范围内且落在 `step` 上的数字 |
+| `Switch`、`expo-checkbox` | 布尔型的 `value` 和 `onValueChange` | `true` / `false` |
+| `@react-native-picker/picker` | `onValueChange` 和 `selectedValue` | 某一项的值（也可以是字符串形式），或其标签 |
+| `@react-native-segmented-control/segmented-control` | `values` 数组和 `onChange` / `onValueChange` | 某一段的值，或其索引 |
+| `@react-native-community/datetimepicker` | `Date` 类型的 `value` 和 `onChange` / `onValueChange` | 一个 `Date`（会对照 `minimumDate` / `maximumDate` 检查） |
+| DOM `<select>`、`<input type="date" / "time" / "datetime-local" / "month" / "week" / "range" / "number">`、复选框 | 元素本身（web） | 某个选项的值或标签；一个 `Date`（按本地时间写入），或输入框自身格式的字符串 |
+
+其他控件都会以 `ACTION_NOT_SUPPORTED` 失败，并列出找到的回调。设置为当前值时不会发送事件，禁用的控件不会被改动（与用户尝试操作时一样）。
+
+各模式下值是如何设置进去的：
+
+| | `native`（iOS / Android） | web（真实输入） | `js` |
+|---|---|---|---|
+| 开关 / 复选框 | 需要改变值时进行一次真实点击 | 一次 click | `onChange` + `onValueChange` |
+| 分段控件 | 在该段上真实点击 | 在该段上 click | `onChange`（原生事件）+ `onValueChange` |
+| 选择器 | iOS：用手指转动滚轮（缓慢拖动，抬起前停顿，读回结果并修正）；Android：回调（下拉菜单 / 对话框是单独的窗口） | `<select>`：`selectOption` | `onValueChange(value, index)` |
+| 日期选择器 | iOS 滚轮（`display="spinner"`）：每一列都用手指转动——通过将某列转动一行来判断它对应哪个单位，因此任何语言区域和顺序都适用；compact / inline 样式以及 Android（系统对话框）：回调 | 日期输入框：`fill` | `onValueChange` / `onChange`，参数为 `{ type: 'set', nativeEvent: { timestamp, utcOffset } }` |
+| 滑块 | 回调（精确值；真实拖动请用 `adjustSlider`） | 回调 | `onSlidingStart`、`onValueChange`、`onSlidingComplete` |
+
+Android 的 `DateTimePicker` 不渲染任何视图（它会打开一个对话框），因此在 App 显示它之后，`setValue({ id })`会通过 testID（或按名称用 `{ type: 'DateTimePicker' }`）直接找到该组件；App 处理这次变更时会关闭对话框，与处理用户的选择一样。这类组件只能通过 `id`、`type` 和 `index` 匹配。
+
+`adjustSlider` 在 `native` 模式下拖动滑柄并读回值：滑柄跟随手指移动时会扣除触摸容差（touch slop），因此它会再次拖动（始终朝同一方向，并带助跑），直到滑块与目标位置相差不超过一个步长（连续滑块为范围的 1%）。Web：用鼠标拖动滑柄。`js`：通过回调设置该位置对应的值。
+
+`accessibilityAction(target, name)` 作用于目标，或最近的声明了 `accessibilityActions` 的祖先；目标不必在屏幕上。`name` 必须已声明（否则错误信息会列出已声明的名称）。iOS：`increment` / `decrement`通过 `accessibilityIncrement` / `accessibilityDecrement`，`magicTap` / `escape` 通过各自的 perform 方法，其他名称都通过视图的自定义操作（VoiceOver 的“操作”转子）。Android：`performAccessibilityAction`，使用React Native 为该操作分配的 id。Web（`accessibilityActions` 不会传到 DOM）和 `js`：`onAccessibilityAction({ nativeEvent: { actionName } })`。
+
+### 多指手势 {#multi-finger-gestures}
+
+`pinch`、`rotate` 和 `multiTouch` 会同时注入多个真实触摸：iOS 在一个事件中合成多个 `UITouch`，Android 使用多指针的 `MotionEvent`，web 使用 CDP 的 `Input.dispatchTouchEvent`（仅限支持触摸的视口；不支持触摸的视口会以 `ACTION_NOT_SUPPORTED` 失败）。`js` 模式无法执行它们（手势识别器需要真实的触摸）。
+
+手势识别器只有在激活之后（手指移动了一小段距离后）才开始测量，因此单纯的“两指距离变为两倍”在 App 中显示出的结果会小于 2。Quiesco 会先让手指移动这段激活距离，因此 App 的识别器报告的缩放比例 / 角度就是所请求的值（实测误差在约 2% 和 1° 以内）。默认值对应各平台的标准识别器：
+
+| | 捏合 | 旋转 |
+|---|---|---|
+| iOS（UIKit 识别器，也包括 react-native-gesture-handler 和 `ScrollView` 缩放所用的识别器） | 9 pt | 7° |
+| Android（react-native-gesture-handler：3 × touch slop） | 26 dp | 9° |
+| Web（react-native-gesture-handler web：3 × 15 px） | 46 px | 0° |
+
+对于其他识别器，设置 `actions.gestureSlop: { pinch, rotation }`（逻辑单位、弧度；`0`：手指严格按`scale` / `radians` 移动）。一次无法在屏幕内完成的捏合（例如 `pinch(t, 10)`）会像用户那样分成多次捏合完成；手指在元素上按下，并始终留在窗口内。给需要多指的场景加上标签，以便不支持触摸的视口跳过它们（示例中使用`@multi-touch`，并以 `--tags 'not @multi-touch'` 运行桌面视口）。
+
+一个操作需要恰好一个**可见**元素：它会等待目标存在且可见（否则以 `ELEMENT_NOT_FOUND` 失败，并说明是缺失还是被隐藏），当匹配到多个元素时会立即以 `MULTIPLE_MATCHES` 失败。在 `native` 模式下，触摸还必须能到达该元素：如果被对话框或其他窗口遮挡，操作会以 `ELEMENT_OBSCURED` 失败，并指出位于上层的是什么。遮挡目标的软键盘会先被收起。
+
+### 断言
+
+断言会不断重试，直到成立或超时（`ASSERTION_FAILED`，附带期望值 / 实际值）。
+
+| 方法 | 成立条件 |
+|---|---|
+| `expectVisible(target, { ratio })` | 至少有一个匹配元素可见；指定 `ratio`（0–1]时，其可见面积至少达到该比例 |
+| `expectNotVisible(target)` | 没有可见的匹配元素（不存在或被隐藏） |
+| `expectExists(target)` / `expectNotExists(target)` | 元素在 / 不在元素树中，无论是否可见 |
+| `expectText(target, text \| RegExp)` | 恰好一个匹配，且其文本等于 / 匹配 |
+| `expectValue(target, value \| RegExp)` | 恰好一个匹配，且其值等于 / 匹配：输入框文本、开关状态、滑块 / 选择器的值或 `accessibilityValue` |
+| `expectLabel(target, text \| RegExp)` | 恰好一个匹配，且其无障碍标签等于 / 匹配 |
+| `expectFocused(target)` / `expectNotFocused(target)` | 恰好一个匹配，且它拥有 / 没有输入焦点 |
+| `expectEnabled(target)` / `expectDisabled(target)` | 恰好一个匹配，且它已启用 / 已禁用（`disabled`、`accessibilityState.disabled`、`aria-disabled`、`editable={false}`，也包括从祖先继承的） |
+| `expectChecked(target)` / `expectNotChecked(target)` | 恰好一个匹配，且它已选中 / 未选中（开关、复选框、单选框或 `accessibilityState.checked`）；没有选中状态的元素两者都不成立 |
+| `expectProp(target, prop, value)` | 恰好一个匹配，且该 prop 的 JSON 值等于此值（先查 host props，再查其组件的，例如 `disabled`、`value`） |
+| `expectCount(target, n)` | 恰好有 `n` 个元素匹配 |
+
+同样的断言也有链式的、类似 Detox / Jest 的写法（两种写法调用同一套实现）：
+
+```ts
+await this.app.expect('save').toBeEnabled();
+await this.app.expect({ type: 'switch', label: 'Wi-Fi' }).not.toBeChecked();
+await this.app.expect('banner').toBeVisible({ ratio: 0.75 });     // Detox：toBeVisible(75)
+await this.app.expect({ id: 'title' }).not.toHaveValue('');
+```
+
+`toBeVisible({ ratio })`、`toExist()`、`toBeFocused()`、`toBeEnabled()`、`toBeDisabled()`、`toBeChecked()`、`toHaveText()`、`toHaveValue()`、`toHaveLabel()`、`toHaveProp()`、`toHaveCount()` 和 `toHaveId()`，每个都支持 `.not`。取反的单元素断言（`not.toHaveText` 等）仍然需要恰好一个匹配。
+
+### 查询、同步与状态
+
+| 方法 | 返回值 |
+|---|---|
+| `query(target)` | 匹配元素的摘要（不等待） |
+| `attributes(target)` | 等待元素出现后，返回唯一匹配元素的摘要（相当于 Detox 的 `getAttributes`）；多个匹配时为 `MULTIPLE_MATCHES` |
+| `getTree()` | JSON 格式的元素树，带语义类型（失败的场景也会附上它） |
+| `waitForIdle({ timeoutMs })` | 等待直到空闲；resolve 的值为所用时间 |
+| `getIdleState()` | 每个跟踪器的状态——当前有什么在忙碌 |
+| `backdoor(name, ...args)` | 调用 App 中注册的后门；参数和结果均为 JSON |
+| `reset()` | 软重置（Quiesco 在每个场景之前都会执行） |
+
+元素摘要包含 `type`（host 组件）、`semanticType`、`testID`、`text`、`label`、`role`、`value`、`checked`、`enabled`、`focused`、`rect`、`visible`、`visibleRatio` 以及可序列化的 `props`。
+
+### App 生命周期（`this.app.device`）
+
+```ts
+// 以带类型的启动参数和深层链接启动一个新进程（真正的冷启动：getInitialURL 能拿到它）。
+await this.app.device.relaunch({ args: { user: 'ann', retries: 3 }, url: 'myapp://todos/1' });
+await this.app.device.relaunch({ clearData: true });              // 先删除 App 数据
+await this.app.device.relaunch({ reinstall: true, permissions: ['camera'] });
+await this.app.device.sendToBackground();                         // Home 键；进程继续运行
+await this.app.device.bringToForeground();                        // 同一个进程，等待其处于活跃且空闲状态
+await this.app.device.terminate();
+const png = await this.app.device.screenshot('avatar');           // 单个元素；不传参数：整个屏幕
+await this.app.device.screenshot({ fullPage: true }, { name: 'todos' }); // 整个列表，拼接而成；保存并附加到报告
+await this.app.device.reversePort(3001);                          // Android：adb reverse；其他平台不做任何事
+```
+
+| 方法 | 作用 |
+|---|---|
+| `relaunch({ args, url, clearData, reinstall, permissions })` | 终止并重新启动 App ——始终是一个新进程。除非指定 `clearData` / `reinstall`，否则保留 App 数据。`args`（任意 JSON）会合并覆盖配置中的 `launchArgs`；`url` 以该深层链接打开 App；`permissions` 会在启动前授予，作为配置中权限的补充（`clearData` / `reinstall` 之后会重新授予配置中的权限）。App 连接上之后 resolve |
+| `terminate()` | 停止 App。在 `relaunch()` 之前，所有元素调用都会立即以 `APP_NOT_RUNNING` 失败（不等待） |
+| `sendToBackground()` / `bringToForeground()` | 回到主屏幕再返回，不重启。在此期间，元素调用会以 `APP_IN_BACKGROUND` 失败。web 上不可用（`ACTION_NOT_SUPPORTED`） |
+| `install()` / `uninstall()` | 安装 `binaryPath` / 移除 App |
+| `screenshot(target?, { full, name }?)` | PNG（`Buffer`）。无目标：当前显示的屏幕（web：浏览器视口）。元素：从屏幕中裁出（屏幕上可见的部分）；`full: true`：元素的全部内容——包含全部内容的滚动视图、部分被滚出屏幕的元素连同其余部分——滚动并拼接而成。`{ fullPage: true }`：屏幕上主（最大）滚动视图的全部内容；`{ fullPage: 'list' }`：指定滚动视图的全部内容。见 [截图](#screenshots)。`name`：同时保存到场景的产物目录并附加到报告 |
+| `reversePort(port)` / `unreversePort(port)` | 让 host 端的端口在 Android 设备上可以通过 `localhost:port` 访问；在 iOS 模拟器和 web 上不做任何事 |
+| `openUrl(url)` / `pressBack()` | 与 `this.app.openUrl` / `this.app.pressBack` 相同 |
+| `appState` | `'running'`、`'background'` 或 `'terminated'`——测试对 App 做了什么 |
+
+在每个场景之前，Quiesco 会启动被上一个场景终止的 App，并把处于后台的 App 切回前台，从而保持场景之间相互独立。
+
+#### 设备状态
+
+```ts
+await this.app.device.setOrientation('landscape');      // App 窗口旋转完成后 resolve
+await this.app.device.setAppearance('dark');
+await this.app.device.setFontScale(1.3);                 // iOS：最接近的 Dynamic Type 尺寸；返回实际 App 的缩放比例
+await this.app.device.setLocale('ja-JP');                // iOS / web：以该设置重新启动 App
+await this.app.device.setLocation(35.68, 139.76);
+await this.app.device.setPermission('location', 'revoke');
+await this.app.device.setNetwork('offline');             // App 的请求会失败；Quiesco 保持连接
+await this.app.device.clipboard.set('hello');            // App 粘贴的内容
+const copied = await this.app.device.clipboard.get();    // App 复制的内容
+await this.app.device.setStatusBar({ time: '9:41', batteryLevel: 100 }); // 用于截图
+```
+
+| 方法 | 作用 |
+|---|---|
+| `setOrientation('portrait' \| 'landscape')` | 旋转 App，并等待其窗口变为新的形状。App 不能锁定方向（app.json 中 `"orientation": "default"`） |
+| `setAppearance('light' \| 'dark')` | 系统配色方案；会对照 App 上报的值进行检查。App 必须跟随系统（`"userInterfaceStyle": "automatic"`） |
+| `setFontScale(n)` | 系统文字大小（0.5–4）；resolve 的值为实际采用的缩放比例。Android 会重新启动 App （保留数据）。web 上不可用 |
+| `setLocale(tag \| null)` | App 的语言和地区（BCP 47）；`null` = 设备默认值。会以该设置重新启动 App （保留数据）。iOS 要求该语言在 `CFBundleLocalizations` 中 |
+| `setLocation(lat, lon)` | 模拟 GPS 位置（Android：仅限模拟器） |
+| `setPermission(name, 'grant' \| 'revoke' \| 'reset')` | 在 App 运行时更改权限。Android 在撤销权限时会杀掉 App：Quiesco 会在 resolve 之前重新启动它（保留数据），因此 App 会回到首屏。`'reset'` = 未决定状态，与全新安装后相同：App 下一次请求时会再次显示系统弹窗（Android：撤销并清除“不再询问”；iOS：`simctl privacy reset`；web：由浏览器询问）。在 iOS 上，通知和相机权限只能通过重新安装 App 来重置：Quiesco 会重新安装并启动 App，**删除其数据**（需要 `binaryPath`；会有警告提示） |
+| `setNetwork('offline' \| 'online')` | 离线：App 新建的 `fetch` / `XMLHttpRequest` / `WebSocket` 连接会像没有网络时一样失败（Quiesco 自己的连接不受影响；已打开的连接保持打开）。Android 还会关闭 Wi-Fi 和移动数据，web 会报告 `navigator.onLine === false`，因此这两个平台上 NetInfo 能感知到；iOS 模拟器没有网络开关，NetInfo 仍报告在线。跨重新启动持续有效 |
+| `clipboard.set(text)` / `clipboard.get()` | 设备剪贴板，在 App 内写入 / 读取（iOS / Android 需要 `@quiesco/native` ≥ Phase 6.6；iOS 读取失败时回退到 `simctl pbpaste`）。设置过的话，会在下一个场景前清空 |
+| `setStatusBar({ time, batteryLevel, charging, wifiBars, cellularBars, dataNetwork })` / `resetStatusBar()` | 为干净的截图设置状态栏：`time` `'9:41'`，`batteryLevel` 0–100，`wifiBars` 0–3，`cellularBars` 0–4，`dataNetwork` `'wifi' \| '3g' \| '4g' \| 'lte' \| '5g' \| 'hide'`。web 上无需处理 |
+
+每项更改都会在下一个场景之前以及会话结束时撤销：权限恢复为配置中的权限，其余恢复为设备原来的状态（只改动被更改过的部分）。会重新启动 App 的调用会让 App 停在首屏。Detox 的 `setURLBlacklist`在这里对应 `this.app.sync.ignoreUrls.add()`。
+
+#### 系统集成
+
+```ts
+await this.app.device.biometrics.enroll();     // 设置好 Face ID / Touch ID / 指纹
+await this.app.tap('login-with-face-id');      // App 调用 LocalAuthentication.authenticateAsync()
+await this.app.device.biometrics.match();      // 匹配的面容 / 指纹：App 的认证成功
+await this.app.device.shake();
+await this.app.device.clearKeychain();         // iOS
+await this.app.device.sendNotification({ title: 'New message', data: { chatId: '42' } });
+await this.app.device.openNotification('New message'); // 点击它（iOS：横幅 / 通知中心；Android：通知栏）
+
+await this.app.tap('enable-notifications');           // App 请求一项权限
+await this.app.device.system.allowPermission();        // 系统弹窗的允许按钮
+await this.app.device.system.tap({ text: 'Cancel' });  // App 之外的任意系统 UI
+```
+
+| 方法 | 作用 |
+|---|---|
+| `biometrics.enroll(enrolled = true)` | 录入（或移除）面容 / 指纹。Android：Quiesco 会设置锁屏 PIN（指纹需要），并走完“设置”中的录入流程；之后 App 会被切回前台。在下一个场景之前撤销 |
+| `biometrics.match()` / `biometrics.fail()` | 向 App 正在显示的认证提供匹配的 / 未知的面容或指纹。`fail()` 之后，系统会保留重试提示，与真机一样：在提示被应答之前，App 得不到结果。连续多次失败会让传感器锁定一段时间（Android 模拟器：从约 0.5 s 到 30 s） |
+| `shake()` | 摇晃设备（iOS：Simulator 的 *Device > Shake*；Android 模拟器：加速度计推送），然后等待空闲 |
+| `sendNotification({ title, body?, data? })` | iOS：模拟一次远程推送（`simctl push`，`data` 与 `aps` 并列）；App 在前台时，推送库会收到它，而系统只在 App 被允许显示通知时才显示它（模拟器上无法预先授予该权限）。Android：模拟器没有推送服务，因此通知以 App 的身份发出（需要 `notifications` 权限）；点击它会以 `data` 作为 intent extras 打开 App，推送库的回调不会触发。App 在后台时也可用 |
+| `openNotification(title)` | 点击通知：iOS 上点击横幅，横幅消失后在通知中心中点击；Android 上在通知栏中点击。App 回到前台并空闲后 resolve |
+| `clearKeychain()` | iOS：重置模拟器的钥匙串（所有 App 的）。Android 没有钥匙串：`ACTION_NOT_SUPPORTED`，请使用 `relaunch({ clearData: true })` |
+| `system.tap(query, { timeoutMs }?)` | 点击 App 之外的系统 UI（权限弹窗、生物识别提示、网页的 JS 对话框）。`query`：`{ text }`（精确匹配，忽略弯引号与直引号的差别，或一个 RegExp）和 / 或 `{ id }`（Android resource-id，或 `:id/` 之后的部分）。最多等待 `timeoutMs`（10 s）让它出现，然后等待 App 空闲 |
+| `system.expectVisible(query)` / `system.expectNotVisible(query)` | 等待此类系统 UI 出现在 / 离开屏幕；`ELEMENT_NOT_FOUND` / `ASSERTION_FAILED` 会列出看到的文本 |
+| `system.allowPermission()` / `system.denyPermission()` | 无论设备语言是什么，都能应答运行时权限弹窗（Android：根据按钮的 id，也包括“仅在使用该 App 时允许”和“不再询问”；iOS：按 iOS 的布局根据位置）；App 回到前台并空闲后 resolve |
+
+这些在 web 上都不存在（`ACTION_NOT_SUPPORTED`；请给此类场景加上 `@native` 标签），只有 `system.tap` /
+`expectVisible` / `expectNotVisible` 例外，用于页面的 JavaScript 对话框（见下文）。在 Android 上，它们需要模拟器（由其控制台模拟传感器）。在 iOS 上，系统 UI 属于 SpringBoard：Quiesco 会在第一次需要时构建一个小型的 XCUITest runner（每个 Xcode 版本一次，缓存在 `~/Library/Caches/quiesco/ios-runner`，约 10 s），并在模拟器上启动它（2–4 s，每个会话一次）。弹窗的生命周期比 App 更长：上一个场景遗留的弹窗会在下一个场景之前被关闭（取消 / 拒绝）。要再次请求某项权限，请先重置它：`setPermission('notifications', 'reset')`。
+
+当权限弹窗（另一个 activity）位于前台时，Android 会暂停 App 的 JS 定时器；Quiesco 的空闲等待会察觉到 App 进入了后台并返回，因此打开弹窗的那次点击能够完成。
+
+**Web JavaScript 对话框。** `alert`、`confirm` 和 `prompt` 会一直保持打开，直到测试应答它们，就像用户那样：它们也属于系统 UI。对话框的消息是一个 id 为 `dialog.message` 的节点，其按钮为 `OK`（`dialog.accept`），对于 `confirm` / `prompt` 还有 `Cancel`（`dialog.dismiss`）；被接受的 prompt 会得到其默认值。
+
+```ts
+await this.app.tap('clear-all');                                   // 页面调用 confirm('Delete all?')
+await this.app.device.system.expectVisible({ text: 'Delete all?' });
+await this.app.device.system.tap({ text: 'Cancel' });              // confirm() 返回 false；然后等待空闲
+```
+
+对话框打开期间，页面不运行任何脚本、也不接受任何输入，因此打开它的操作会在对话框出现后立即返回（不等待空闲），而对 App 的其他任何调用都会立即以 `DIALOG_OPEN` 失败并指出该对话框（请先应答它）；截图也一样，因为页面不会绘制。场景结束时仍然打开的对话框会在下一个场景之前被关闭，并给出警告。`beforeunload`提示总是会被接受（离开或重新加载页面永远不会被拦住）。
+
+### 截图 {#screenshots}
+
+```ts
+await this.app.device.screenshot();                                   // 整个屏幕
+await this.app.device.screenshot('avatar');                           // 一个元素（屏幕上可见的部分）
+await this.app.device.screenshot('terms', { full: true });            // 元素的全部内容，滚动并拼接
+await this.app.device.screenshot({ fullPage: true });                 // 主滚动视图的全部内容
+await this.app.device.screenshot({ fullPage: 'todo-list' });          // 指定滚动视图的全部内容
+await this.app.webview('help').element({ css: '#chart' }).screenshot(); // WebView 页面中的一个元素
+await this.app.device.screenshot(undefined, { name: 'home' });        // + artifacts/<run>/<scenario>/home.png，并附加到报告
+```
+
+整页截图在所有平台上都一样：Quiesco 把滚动视图滚动到顶部（以编程方式，与 `scrollToEdge` 在 js 模式下的做法相同），每一屏截一张图，然后拼接——滚动视图上方的部分（状态栏、header）取自第一张，之后每一张取新露出的那一条，滚动视图下方的部分（tab bar）取自最后一张——因此固定的页头和页脚只出现一次。滚动时会渲染更多行的虚拟化列表会被一直跟随到末尾。在此期间滚动指示器会被隐藏（native），完成后滚动位置会被恢复。滚动过程中会变化的内容（吸顶的分组标题、动画）显示的是每一屏截图时的样子。
+
+### WebView（`this.app.webview()`）
+
+WebView 中所显示页面的元素：iOS / Android 上是 react-native-webview，web 上是 `<iframe>`（react-native-webview 没有 web 实现，因此 App 在 web 上会渲染一个 iframe，例如在`MyWebView.web.tsx` 中）。
+
+```ts
+const help = this.app.webview('help');                  // 通过匹配器（testID 等）指定 WebView；不传参数：屏幕上唯一的那个
+await help.element({ css: '#name' }).type('Alice');
+await help.element({ xpath: '//input[@name="name"]' }).replaceText('Bob');
+await help.element({ text: '打招呼' }).tap();
+await help.element({ id: 'result' }).expectText('你好，Bob');
+await help.element({ text: /^Loading/ }).expectNotVisible();
+const title = await help.runScript<string>('return document.title');   // 函数体；可用 `arguments`，promise 会被 await
+await help.url(); await help.title();
+```
+
+| 方法 | 作用 |
+|---|---|
+| `element({ css } \| { xpath } \| { id } \| { text }, index?)` | 页面中的一个元素。`text`：元素文本（空白合并后）的精确匹配，或一个 RegExp；取最内层的匹配元素 |
+| `tap()` | 先将元素滚入视图，再进行一次真实点击（iOS / Android：在元素的屏幕位置触摸；web：Playwright 输入）。会立即以 `MULTIPLE_MATCHES` 失败，或在超时内没有出现可见且启用的匹配时以 `ELEMENT_NOT_FOUND` 失败 |
+| `type(text)` / `replaceText(text)` | 点击字段（像用户一样让它获得焦点），然后在光标处插入文本（`execCommand('insertText')`：会产生与键入相同的 `input` 事件）/ 替换其值。不经由软键盘输入 |
+| `scrollIntoView()` | 滚动页面，直到元素进入视图 |
+| `expectText(text \| RegExp)` | 唯一匹配的文本（输入框：其值） |
+| `expectExists()` / `expectNotExists()` / `expectVisible()` / `expectNotVisible()` | 可见 = 位于页面视口内（未被滚出）且未被 CSS 隐藏 |
+| `runScript(body, args?)` | 在页面中运行一个函数体，并返回其（JSON）值；返回的 promise 会被 await。页面异常会以 `APP_ERROR` 失败 |
+| `url()` / `title()` | `location.href` / `document.title` |
+
+每个调用都会等待 App 空闲、页面稳定：加载完成，且页面没有正在进行的 `fetch` / `XMLHttpRequest`（由 Quiesco 注入页面的脚本统计；页面的定时器不被跟踪——反正断言会一直重试到超时）。只处理 WebView 的主框架：页面内的 iframe 和 shadow DOM 无法访问。iOS / Android 需要 `@quiesco/native`（脚本通过原生WebView 运行，App 中无需 `onMessage`）；没有它则为 `ACTION_NOT_SUPPORTED`。`runScript` 使用 `new Function`，页面的 Content-Security-Policy 可能会禁止它。
+
+### 运行时同步（`this.app.sync`）
+
+在场景的剩余部分中更改 Quiesco 要等待的内容——而不是把同步完全关闭：
+
+```ts
+await this.app.sync.disableTracker('timer');            // 例如每 200 ms 轮询一次的页面
+await this.app.sync.ignoreElements.add('poll-count');   // 它的文本随每次轮询变化
+await this.app.sync.ignoreUrls.add(/\/analytics/);      // 一个永不结束的请求
+await this.app.sync.disable();                          // 关闭所有跟踪器（Detox 的 disableSynchronization）
+await this.app.sync.enable();
+```
+
+`disableTracker` / `enableTracker` 接受 `network`、`timer`、`react`、`idle-callback`、`frame-stable`、`native`。`ignoreUrls` 和 `ignoreElements` 在配置中的列表基础上添加 / 移除。这些更改在重新启动和重新连接之后依然有效，并会在下一个场景之前撤销。对于单次调用，`{ sync: false }` 依然可用。
+
+## 匹配器 {#matchers}
+
+普通字符串表示 **testID**：`tap('add-todo')`。对象可以组合多个条件：
+
+```ts
+{ id: 'todo-item', index: 0 }                  // 多个中的第一个，按渲染顺序
+{ id: /^todo-\d+$/ }                            // 用正则表达式匹配 testID
+{ text: 'Save' }                                // 显示的文本，精确匹配
+{ text: /saved \d+ items/i }                    // 或正则表达式
+{ label: 'Close' }                              // accessibilityLabel / aria-label
+{ role: 'button', text: 'Save' }                // accessibilityRole / role
+{ type: 'switch' }                              // 语义类型，各平台相同（见下文）
+{ type: 'TodoCard' }                            // 或 host 类型（'RCTView'、'div'）或组件的 displayName
+{ type: 'button', has: { text: 'Buy milk' } }   // 带有匹配的后代元素（Detox 的 withDescendant）
+{ type: 'button', not: { id: 'cancel' } }       // 排除匹配的元素
+{ text: 'Delete', within: 'todo-item-3' }       // 位于另一个元素内部（Detox 的 withAncestor）
+```
+
+`text` 匹配自身文本相符的最深层元素（按钮和它的标签不会同时匹配）。在 web 上，`testID` 渲染为 `data-testid`；匹配器在所有平台上都相同，`index` 在所有平台上都遵循渲染顺序（Detox 的 `atIndex` 顺序在 iOS 和 Android 之间不同）。
+
+### 语义类型
+
+`type` 接受以下与平台无关的类别。它们首先取自无障碍角色，其次取自 host 组件，因此在组件名被压缩的release 构建中也能使用。
+
+| `type` | iOS / Android host（React Native 0.88） | Web（react-native-web） | 角色 |
+|---|---|---|---|
+| `button` | `Pressable`、`Touchable*`、`Button`，或其组件带有 `onPress` 的视图 | `<button>`，以及相同的组件 | `button`、`togglebutton`、`imagebutton` |
+| `link` | — | `<a>` | `link` |
+| `header` | — | `<h1>`–`<h6>` | `header`、`heading` |
+| `text` | `RCTText`、`RCTVirtualText`、`RCTSelectableText` | `Text` | `text` |
+| `input` | `RCTSinglelineTextInputView`、`RCTMultilineTextInputView`、`AndroidTextInput` | `<input>`、`<textarea>` | `textbox`、`searchbox`、`search` |
+| `image` | `RCTImageView`、`ExpoImage` | `<img>`、`Image` | `image`、`img` |
+| `switch` | `Switch`（iOS）、`AndroidSwitch` | `Switch` | `switch` |
+| `checkbox` / `radio` | — | `<input type="checkbox">` / `"radio"` | `checkbox` / `radio` |
+| `slider` | `RNCSlider` | `<input type="range">` | `adjustable`、`slider` |
+| `picker` | `RNCPicker`、`RNCAndroidDialogPicker`、`RNCAndroidDropdownPicker`、`RNDateTimePicker` | `<select>` | `combobox`、`spinbutton` |
+| `progress` | `ActivityIndicatorView`、`AndroidProgressBar` | `<progress>`、`ActivityIndicator` | `progressbar` |
+| `scroll` | `RCTScrollView`、`AndroidHorizontalScrollView` | `ScrollView` | — |
+| `list` | `FlatList` / `SectionList` / `FlashList` 的滚动视图（其组件带有 `renderItem`） | 同左 | `list` |
+
+由多个 host 组成的控件只算一个。例如，react-native-web 的 `Switch` 是一个包裹着`<input role="switch">` 的 `<div>`：`{ type: 'switch' }` 匹配外层元素，它同时会报告内部 input 的选中状态、值、焦点、禁用状态和标签。
+
+### 可见性
+
+当元素本身及其祖先都没有被样式隐藏（`display: none`、`opacity: 0`），且它有一部分在屏幕上时，元素即为可见：即位于窗口内，**并且**位于每一个会裁剪内容的祖先（滚动视图、`overflow` 不为 `visible` 的元素）之内。被滚出滚动视图的元素即使其位置在窗口内也不可见。`visibleRatio` 是其面积中可见部分的比例。被其他元素遮挡不属于可见性的范畴；操作会单独检查这一点（`ELEMENT_OBSCURED`）。
+
+## App 内 API（`@quiesco/agent`） {#in-app-api-quiescoagent}
+
+App 在入口文件的第一行导入 agent，并用 `<QuiescoRoot>` 包裹其根组件（`npx quiesco init` 会把两者都配置好）。在没有 `EXPO_PUBLIC_QUIESCO=1` 的构建中，`metro.config.js` 里的 `withQuiesco()` 会把该包替换为一个空实现的桩，因此这些代码可以一直留在 App 中。
+
+`withQuiesco(config, options?)` 还会让 Metro 不监听产物目录：每当被监听的文件发生变化，Metro 都会向 App 发送一次 HMR 更新，dev client 的 “Refreshing...” 窗口会在另一个 worker 点击时遮住 App。修改 `artifacts.dir` 时，`options.artifactsDir`（默认 `'artifacts'`，相对于项目根目录）必须与之一致（`false`：不排除任何目录）。`.expo/devices.json` 也会被排除：每次有 dev client App 启动，Expo 的开发服务器都会重写它。
+
+```ts
+import { QuiescoRoot, quiesco } from '@quiesco/agent';
+
+// 仅用于测试的准备工作，无需经过 UI。参数和结果必须是 JSON。
+quiesco.backdoor('loginAs', async (email: string) => {
+  await authStore.setSession(await testApi.createSession(email));
+});
+
+// 在每次软重置时运行：存储清空之后、App 重新挂载之前。
+quiesco.onReset(async () => {
+  queryClient.clear();
+});
+
+// 除内置存储外，软重置时还要清空的存储
+// （iOS / Android 上是 AsyncStorage 的默认存储；web 上是 localStorage、sessionStorage、IndexedDB）。
+quiesco.registerStorage({ name: 'mmkv', clear: () => storage.clearAll() });
+
+// 本次启动的启动参数（配置中的 `launchArgs` + `app.device.relaunch({ args })`），保留其
+// JSON 类型。同步调用，因此可以在启动时读取。在生产环境中，以及 iOS / Android 上未包含
+// @quiesco/native 的构建中为 `{}`。
+const { user } = quiesco.launchArgs() as { user?: string };
+```
+
+在只会被 e2e 构建导入的模块中注册后门和 hook（`if (process.env.EXPO_PUBLIC_QUIESCO === '1') require('./e2e')`），这样测试代码根本不会进入生产包。每次注册都会返回一个用于移除该注册的函数。
+
+## 配置 {#configuration}
+
+项目根目录下的 `quiesco.config.ts`（`.mts`、`.js` 和 `.mjs` 也可以）：
+
+```ts
+import { defineConfig } from '@quiesco/core';
+
+export default defineConfig({
+  apps: {
+    ios: { bundleId: 'com.example.app', binaryPath: 'ios/build/…/App.app', devClient: { metroUrl: 'http://localhost:8081' } },
+    android: { package: 'com.example.app', binaryPath: 'android/app/build/outputs/apk/debug/app-debug.apk', devClient: { scheme: 'myapp' } },
+    web: { distDir: 'dist' },                       // 或 { url: 'http://localhost:8081' }
+  },
+  devices: {
+    ios: { device: 'iPhone 17', os: '27.0' },
+    android: { avd: 'Pixel_9_API_37' },
+    web: { browser: 'chromium', viewport: { width: 390, height: 844, hasTouch: true, isMobile: true } },
+  },
+  permissions: ['location'],
+  sync: { timeoutMs: 10_000, ignoreUrls: [/\/analytics\//] },
+});
+```
+
+| 键 | 默认值 | 含义 |
+|---|---|---|
+| `apps.ios.bundleId` / `binaryPath` / `devClient.metroUrl` | | 要安装（模拟器用 `.app`）并启动的 App；`devClient`：用此 Metro 启动 Expo dev client |
+| `apps.android.package` / `binaryPath` / `activity` / `devClient` / `reversePorts` | `.MainActivity` | 要安装并启动的 APK；`devClient: { scheme, metroUrl }`；`reversePorts`：App 通过 `localhost` 访问的 host 端端口（`adb reverse`） |
+| `apps.web.distDir` / `url` / `path` | `/` | 一个导出（静态导出：由 Quiesco 托管；`web.output: "server"`：用 `npx expo serve` 托管），或一个正在运行的服务器 |
+| `devices.ios.device` / `os` / `udid` | 已启动的模拟器 | 使用哪个模拟器；必要时会启动它 |
+| `devices.ios.disablePasswordAutoFill` | `true` | 防止 iOS 的“存储密码？”面板遮住 App |
+| `devices.android.avd` / `serial` | 正在运行的设备 | 使用哪个模拟器 / 设备；AVD 未运行时会（冷）启动 |
+| `devices.android.gpu` | AVD 自身的模式；macOS 上 `auto` → `host` | Quiesco 启动的模拟器的 `-gpu`。在 macOS 上，模拟器会把 `auto` 变成 `lavapipe`，一个 CPU 渲染器（每个空闲模拟器约占 4 个核心） |
+| `devices.*.shutdown` | `false` | 运行结束时关闭由 Quiesco 启动的设备 |
+| `devices.web.browser` / `headless` / `viewport` | `chromium`，headless | 浏览器和屏幕尺寸（没有内置预设） |
+| `permissions` | `[]` | 启动前授予：`camera`、`microphone`、`location`、`notifications`、`contacts`、`photos`、`calendar`（[各平台情况](./platforms#permissions)） |
+| `sync.timeoutMs` | `10000` | 一次调用等待空闲的时长 |
+| `sync.timerThresholdMs` | `1500` | 延迟不超过此值的定时器会让 App 保持忙碌 |
+| `sync.countIntervals` | `false` | `setInterval` 是否让 App 保持忙碌 |
+| `sync.stableFrames` | `2` | 元素树必须保持不变的帧数 |
+| `sync.ignoreUrls` | `[]` | 永远不会让 App 保持忙碌的请求（字符串按子串匹配） |
+| `sync.trackers` | 全部开启 | 例如 `{ 'frame-stable': false }` |
+| `sync.ignoreElements` | `[]` | 排除在 frame-stable 检查之外的元素（连同其子树）的匹配器，例如装饰性动画：`['logo-glow']` |
+| `actions.mode` | App 包含 `@quiesco/native` 时为 `native`，否则为 `js` | 真实输入或回调 |
+| `actions.gestureSlop` | 因平台而异（见 [多指手势](#multi-finger-gestures)） | `{ pinch, rotation }`：App 的识别器激活前手指需要移动的距离 |
+| `reset.default` | `soft` | `hard` 会在每个场景之前重新启动 App |
+| `server.port` / `server.host` | `7357` / 所有网络接口 | host 端的 WebSocket 服务器 |
+| `connectTimeoutMs` | `30000` | 启动后等待 App 连接的时长 |
+| `logLevel` | `warn` | 转发到测试输出的 App 控制台消息（`off` 为关闭） |
+| `tags` | 见下文 | 重命名场景标签 |
+| `appErrors.ignore` / `ignoreDefaults` | `[]` / `true` | 只记录警告、不使步骤失败的 App 错误 |
+
+平台取自 `QUIESCO_PLATFORM`（`ios`、`android`、`web`）或 `quiesco test --platform`。配置文件就是普通的 TypeScript，因此配置值可以来自环境变量。
+
+## 场景标签 {#scenario-tags}
+
+| 标签 | 效果 |
+|---|---|
+| `@ios`、`@android`、`@web` | 只在这些平台上运行该场景（多个标签：任一平台即可） |
+| `@native` | 仅限 iOS 和 Android |
+| `@hard-reset` | 在该场景之前重新启动 App，而不是软重置 |
+
+没有标签的场景在所有平台上运行。用 `tags: { web: '@browser' }` 重命名标签。
+
+平台标签可以放在 feature、`Rule`、场景或 `Examples` 块上；由最内层的标签决定。在标记为 `@native` 的 feature 中，没有标签的场景在 iOS 和 Android 上运行，标记为 `@android` 的场景只在 Android 上运行。这与 cucumber-js 的 `--tags` 不同，后者也会匹配继承来的标签。
+
+## 错误 {#errors}
+
+失败均为 `QuiescoError`，带有 `errorName`、一条说明该怎么做的消息，以及结构化的 `data`。
+
+| 错误 | 含义 |
+|---|---|
+| `ELEMENT_NOT_FOUND` | 超时内没有可见元素匹配（缺失，或存在但被隐藏） |
+| `MULTIPLE_MATCHES` | 操作的匹配器匹配到多个元素；`data.matches` 会列出它们 |
+| `ELEMENT_OBSCURED` | 真实触摸会落在别的东西上；`data.obscuredBy`（iOS 上还有原生的命中链） |
+| `SYNC_TIMEOUT` | App 没有进入空闲；列出每个忙碌的跟踪器（[详情](./sync#when-the-app-never-becomes-idle)） |
+| `ASSERTION_FAILED` | `data.expected`、`data.actual` 以及看到的元素 |
+| `ACTION_NOT_SUPPORTED` | 例如 iOS 上的 `pressBack`，或没有原生模块时的 `native` 模式（附带提示） |
+| `BACKDOOR_NOT_REGISTERED` / `BACKDOOR_FAILED` / `NOT_SERIALIZABLE` | 后门相关问题；第一个会列出已注册的名称，最后一个会给出不合法值的路径 |
+| `APP_ERROR` | App 中未捕获的错误使当前步骤失败（忽略已知错误请见 `appErrors`） |
+| `RESET_FAILED` | 指出软重置的哪一步失败了（`storage:<name>`、`onReset#<n>`、`remount`） |
+| `PROTOCOL_MISMATCH` / `SESSION_MISMATCH` | agent 与 host 端版本不一致 / 连接上的是另一次运行的 App |
+| `CONNECT_TIMEOUT` | App 启动后没有连接上（消息中附有检查清单） |
+| `AGENT_TIMEOUT` | App 不再响应——通常是其 JS 线程被阻塞 |
+| `AGENT_DISCONNECTED`、`DEVICE_ERROR`、`CONFIG_ERROR` | 连接丢失、设备工具失败（adb / simctl / Playwright）、配置无效 |
+| `APP_NOT_RUNNING` / `APP_IN_BACKGROUND` | 测试终止了 App / 把 App 切到了后台（`this.app.device`）；请先重新启动 / 切回前台 |
+| `DIALOG_OPEN` | Web：页面正在显示 JavaScript 对话框（`data.message`）；请先用 `app.device.system.tap({ text: 'OK' })` / `{ text: 'Cancel' }` 应答它 |
+
+## 产物 {#artifacts}
+
+按场景存放在 `artifacts/<date-time>-<platform>/<nnn>-<scenario>/` 下，并附加到报告中：
+
+| 产物 | 何时生成 | 内容 |
+|---|---|---|
+| 失败证据 | 场景失败时 | `failure.png`——用红框标出失败调用所涉及元素的屏幕截图（断言的元素、被遮挡的目标、多个匹配）；`element-tree.json`；`idle-state.json`（当时有什么在忙碌） |
+| 保存的截图 | `screenshot(…, { name })` | `<name>.png` |
+| `video` | 按策略 | iOS 用 `simctl io recordVideo`（MP4）；Android 用 `screenrecord`（MP4，每 3 分钟一个新片段）；web 用 Playwright 的录屏（WebM）。以文件路径的形式附加 |
+| `logs` | 按策略 | `device.log`：iOS 为 App 进程的统一日志（`log stream`，info 及以上级别），Android 为 App uid 的 logcat，web 为页面控制台和未捕获的错误。最后 300 行内联显示 |
+| `timeline` | 按策略 | 对 App 的每次调用及其耗时、其中等待空闲所占的时间，以及失败调用的错误：`timeline.html`（内联）和 `timeline.trace.json`（Chrome trace：`chrome://tracing`、ui.perfetto.dev） |
+
+```ts
+export default defineConfig({
+  artifacts: { dir: 'artifacts', video: 'failing', logs: 'failing', timeline: 'failing' },
+});
+```
+
+策略：`none`、`failing`（每个场景都记录，场景失败时保留）或 `all`。默认值：video 为`none`（录制会给每个场景带来少量开销；请在 CI 中开启），logs 和 timeline 为 `failing`。`QUIESCO_ARTIFACTS=all`（或 `failing`、`none`）会为单次运行同时设置这三项。其他运行器通过会话使用同样的机制：在 `beforeScenario` 之前调用 `session.startScenario({ name })`，之后`session.afterScenario({ failed })` 会返回附件和文件。
+
+## 不使用 Cucumber 时如何使用 Quiesco {#using-quiesco-without-cucumber}
+
+**Jest 和 Vitest** 有适配器 `@quiesco/jest` 和 `@quiesco/vitest`（示例见[README](./runners) 和[examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e)）。它们的行为与 Cucumber 适配器一致：
+
+| | Vitest（`@quiesco/vitest`） | Jest（`@quiesco/jest`） |
+|---|---|---|
+| 配置 | 来自 `@quiesco/vitest/config` 的 `test: { ...quiesco() }` | `preset: '@quiesco/jest'`、`maxWorkers`，以及一个 `testTimeout` |
+| Driver | `test('…', async ({ app, session }) => …)` | 全局的 `quiesco.app` / `quiesco.session` |
+| 会话 | 每个 worker 一个：一个 worker fixture | 每个 worker 进程一个：由测试环境持有，在 Jest 结束该 worker 时关闭（in band 模式下：由 preset 的 `globalTeardown` 关闭） |
+| 平台标签 | 写在 `describe` / 测试标题和 `{ tags }` 中（由 `quiesco()` 声明） | 写在 `describe` / 测试标题中 |
+| 每个测试之前 | 若标记为其他平台则跳过，否则重置 | 同左（Jest 的 `test_start` / `test_started` 事件） |
+| 失败之后 | 证据写入产物目录，其文件列在失败消息中 | 同左 |
+| 并行运行 | `quiesco({ workers: N })`：每个 worker 使用各自的设备（[parallel.md](./parallel)） | `maxWorkers: N`，同左 |
+
+与 Gherkin 一样，由带有平台标签的最内层决定：在 `describe('… @native')` 中标记为 `@android` 的测试只在 Android 上运行。启动失败的会话会让剩余的测试立即失败，而不是为每个测试重新启动。使用 Jest 时，配置自己的 `globalTeardown` 会替换 preset 的：请在其中调用 `@quiesco/jest/teardown`（见示例）。Vitest 运行中的第一个测试还要等待会话启动（启动设备可能需要几分钟）：因此 `quiesco()` 把 `testTimeout` 设为300 s。
+
+**其他任何运行器**（Mocha、普通脚本）直接使用 `@quiesco/core`。`Lifecycle` 把一次运行映射为四个调用——上面的适配器只是它之上的薄封装：
+
+```ts
+import { Lifecycle, titleTags } from '@quiesco/core';
+
+const lifecycle = new Lifecycle();                                 // 配置来自 quiesco.config.*、QUIESCO_PLATFORM
+await lifecycle.beforeAll();                                        // 服务器、设备、安装、启动、连接
+if ((await lifecycle.before([titleTags(name)], name)) !== 'skipped') {   // 按层级的标签；重置
+  await lifecycle.current.driver.tap('login-button');               // Driver
+}
+const { attachments, files } = await lifecycle.after({ tags, failed });  // 证据 + 按策略生成的产物
+await lifecycle.afterAll();
+```
+
+或者直接使用会话：先 `createSession`，在每个测试之前调用 `startScenario` + `beforeScenario`，之后调用 `afterScenario`（失败时：带红框的截图、元素树和空闲状态，以及按 [产物策略](#artifacts) 生成的 video /
+logs / timeline），最后调用 `dispose`（它会关闭 App；除非设置了 `devices.*.shutdown`，否则设备会继续运行）。`collectEvidence()` 仍然只返回失败证据。
+
+运行是串行的：一个会话驱动一台设备。`quiesco test --runner cucumber|jest|vitest` 会设置`QUIESCO_PLATFORM` 并启动运行器；对于其他运行器，请自行设置 `QUIESCO_PLATFORM`（或把平台传给`resolvePlatform`）并启动运行器。

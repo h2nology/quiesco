@@ -1,0 +1,94 @@
+---
+title: "サンプルアプリ"
+description: "リポジトリにあるTodoアプリ：3つのプラットフォームでのe2e実行、並列実行、EASビルド、本番ビルドからの除去チェック、ベンチマーク。"
+---
+
+[`examples/todo-app`](https://github.com/h2nology/quiesco/tree/main/examples/todo-app)は、Quiescoの受け入れ確認（requirements.md §9）に使うExpo SDK 58 + Expo Routerのアプリです。ログイン、Todo一覧、新規Todoフォーム、アニメーション付きの画面遷移、ローカルのモックバックエンドへのネットワーク通信を備えています。
+
+## Androidでe2eテストを実行する（dev client） {#run-the-e2e-tests-on-android-dev-client}
+
+```sh
+# 初回のみ：dev clientのAPKをビルドして（再）インストールする
+pnpm build:android
+
+# ターミナル1：e2eモードのMetro（EXPO_PUBLIC_QUIESCO=1で本物のエージェントをバンドルに残す）
+pnpm start:e2e
+
+# ターミナル2：featureを実行する（エミュレーターを起動しておくか、QUIESCO_AVDを設定して起動させる）
+pnpm test:e2e:android
+```
+
+## iOSでe2eテストを実行する（シミュレーター、dev client） {#run-the-e2e-tests-on-ios-simulator-dev-client}
+
+```sh
+# 初回のみ：EXPO_PUBLIC_QUIESCO=1でprebuildし、シミュレーター用のdev client（.app）をビルドする
+pnpm build:ios
+
+# ターミナル1：e2eモードのMetro
+pnpm start:e2e
+
+# ターミナル2：起動中のシミュレーターでfeatureを実行する（QUIESCO_IOS_DEVICE / QUIESCO_IOS_OSで選ぶこともできる）
+pnpm test:e2e:ios
+```
+
+シミュレーターはMacのネットワークを共有するため、Metroとモックバックエンドにポートフォワーディングは不要です。Quiescoは`.app`をインストールし、expo-dev-menuを無効にして（メニュー、オンボーディング、フローティングボタンなし）起動します。また、シミュレーターのパスワード自動入力をオフにする（`devices.ios.disablePasswordAutoFill`）ので、ログインフォームの後にiOSの「Save Password?」シートがアプリを覆うことはありません。
+
+## 並列実行 {#parallel-runs}
+
+```sh
+pnpm test:e2e:ios:parallel        # cucumber-js --parallel 2（:android、:webもある）
+QUIESCO_PLATFORM=android pnpm test:jest:parallel
+QUIESCO_PLATFORM=web pnpm test:vitest:parallel
+```
+
+各ワーカーは、ベースと同じ機種の専用デバイスを持ちます。ワーカー1はiOSでは`"<simulator> (Quiesco 1)"`を、AndroidではAVD `<QUIESCO_AVD>_quiesco_1`を使います。どちらも初回使用時に作成され、その後も残ります（`npx quiesco devices --prune`で削除できます）。また、各ワーカーは3001 + ワーカー番号のポートで専用のモックバックエンドを持ちます（アプリは`quiesco.workerIndex()`から選びます。`src/e2e.ts`）。[並列実行](./parallel)を参照してください。
+
+Quiescoが自分で起動するエミュレーターは、書き込み可能な状態でコールドブートします（`-no-snapshot-load`、約14秒）。クイックブートのスナップショットは、アプリを再インストールすると古くなり、起動後にAndroidが再起動する原因になるためです。
+
+## e2e用のEASビルド {#eas-builds-for-e2e}
+
+`eas.json`には、CI向けの`e2e`プロファイル（JSを同梱、`EXPO_PUBLIC_QUIESCO=1`、iOSシミュレータービルド、AndroidはAPK）と、`e2e-dev`（dev clientと同じ）があります。`apps.ios.binaryPath` / `apps.android.binaryPath`をダウンロードしたビルドに向けてください。JSを同梱した`e2e`ビルドでは`devClient`を外します。
+
+```sh
+eas build --profile e2e --platform ios
+eas build --profile e2e --platform android
+```
+
+モックバックエンドは`features/support/mock-server.ts`が起動します。堅牢性を確かめるための設定項目：
+
+| 変数 | 効果 |
+|---|---|
+| `MOCK_DELAY_MS=2000` | バックエンドのすべてのレスポンスに2秒かかる |
+| `MOCK_STALL="POST /login"` | そのルートが応答しなくなる（同期タイムアウトのレポートを確認するため） |
+| `EXPO_PUBLIC_TRANSITION_MS=1000` | 画面遷移に1秒かかる（Metroの起動時に設定する） |
+| `QUIESCO_AVD=<name>` | 使用 / 起動するAVD |
+| `QUIESCO_IOS_DEVICE="iPhone 17"`, `QUIESCO_IOS_OS=27.0` | 使用 / 起動するシミュレーター（デフォルトは起動中のもの） |
+| `QUIESCO_ACTION_MODE=js` | 実際のタッチを注入する代わりに、コンポーネントのコールバックを呼び出す |
+
+アプリにネイティブモジュールが含まれているため、アクションは`native`モード（`@quiesco/native`による実際のタッチとIMEでのテキスト入力）を使います。`QUIESCO_ACTION_MODE=js`でコールバックモードに切り替わります。
+
+## 本番ビルドからの除去チェック {#production-strip-check}
+
+```sh
+pnpm check:prod-strip --platform web                      # リポジトリのルートで実行する
+pnpm check:prod-strip --platform android --allow-clean    # android/を削除する：後で`pnpm build:android`を実行すること
+pnpm check:prod-strip --platform ios --allow-clean        # ios/を削除する：後で`pnpm build:ios`を実行すること
+```
+
+[`scripts/check-prod-strip.mjs`](https://github.com/h2nology/quiesco/blob/main/scripts/check-prod-strip.mjs)は、このアプリを`EXPO_PUBLIC_QUIESCO=1`なしとありでビルドし（WebのExport、R8を有効にしたAndroidのリリースAPK、iOSのReleaseシミュレータービルド）、成果物をスキャンします。本番ビルドにはエージェントのJSも`@quiesco/native`のコードも含まれていてはならず、e2eビルドにはすべてのマーカーが含まれていなければなりません（対照群です。これにより、マッチしなくなったマーカーに気づけます）。`prebuild --clean`はこのディレクトリで実行する必要があるため、`android/` / `ios/`が存在する場合は`--allow-clean`が必須です。CIでは`prod-strip.yml`で実行しています。
+
+## ベンチマーク {#benchmark}
+
+```sh
+pnpm bench:android        # 20回反復：ソフトリセット、同期込みのタップ、スイート全体（nativeとjs）
+```
+
+出力は[ベンチマーク](./benchmarks)用のMarkdownセクションです。
+
+## アプリへのQuiescoの組み込み方 {#how-the-app-integrates-quiesco}
+
+- `index.ts`は`expo-router/entry`より前に`@quiesco/agent`をimportします。
+- `src/app/_layout.tsx`はアプリを`<QuiescoRoot>`でラップし、`EXPO_PUBLIC_QUIESCO=1`のときだけ`src/e2e.ts`（バックドア、リセットフック）を読み込みます。
+- `metro.config.js`は設定を`withQuiesco()`でラップします。本番バンドルには何もしないスタブが入ります。
+- `app.json`には`@quiesco/expo-plugin`が登録されています。prebuild時に`EXPO_PUBLIC_QUIESCO=1`がなければ、`@quiesco/native`をautolinkingから除外する（Podfileとsettings.gradle）ので、本番バイナリにタッチ注入のコードは含まれません。e2eビルドではこれを残し、ws://localhostへの接続を許可します（Androidのネットワークセキュリティ設定、iOS ATSの`NSAllowsLocalNetworking`）。
+- ステップ定義（`features/step_definitions`）は`this.app`を呼び出すだけで、待機やスリープは一切しません。

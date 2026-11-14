@@ -1,0 +1,117 @@
+---
+title: "平台差异"
+description: "iOS、Android 和 Web 并列对比：输入、权限、系统弹窗和限制。"
+---
+
+同样的 feature 文件、步骤和 `this.app` 调用可以在三个平台上运行。差异在底层：
+
+| | iOS | Android | Web |
+|---|---|---|---|
+| 设备 | 模拟器（`xcrun simctl`），必要时自动启动 | 模拟器或真机（`adb`）；必要时冷启动 AVD | 通过 Playwright 库驱动的 Chromium（每次启动一个新的浏览器上下文） |
+| App 构建 | 用 `EXPO_PUBLIC_QUIESCO=1` 构建的模拟器版 `.app` | 用 `EXPO_PUBLIC_QUIESCO=1` 构建的 APK | 带 `EXPO_PUBLIC_QUIESCO=1` 的 `npx expo export --platform web`（静态输出由 Quiesco 提供服务，服务端输出用 `npx expo serve` 托管），或开发服务器 |
+| App 如何找到 host 端 | 启动参数 | intent extras | 页面中的初始化脚本 |
+| 真实输入（`native` 模式） | 合成的 `UITouch` 事件（`@quiesco/native`，私有 API，仅限 e2e 构建） | 派发到 activity 的 `MotionEvent`（`@quiesco/native`） | Playwright 触摸屏（触摸视口）或鼠标；文本通过键盘输入 |
+| 文本输入 | `insertText` | `InputConnection.commitText`（任何语言，一次性写入） | Playwright 键盘 |
+| 没有 `@quiesco/native` 时 | 只有 `js` 模式（此时为默认）；`openUrl` 不可用 | 只有 `js` 模式（此时为默认） | 始终是真实输入 |
+| `pressBack()` | 不可用（`ACTION_NOT_SUPPORTED`） | 返回键 | 浏览器后退 |
+| 在某个坐标 `tap`、`drag`、`pressKey`（native 模式） | 需要用 `@quiesco/native` ≥ Phase 6.2 构建的 App（`gesture`、`pressKey`）；较旧的构建会得到 `ACTION_NOT_SUPPORTED` 并提示重新构建 | 同左 | 通过 Playwright 进行真实输入 |
+| `drag` | 真实触摸；在 iOS 26 上，内容区域内向右滑动还会返回上一屏（在需要向右拖动内容的屏幕上关闭返回手势） | 真实触摸 | 鼠标拖动；指针下的文本必须不可选中（一旦选中文本，Web responder 手势就会结束） |
+| `openUrl()` | 在 App 内打开（无系统确认） | `am start` | 页面导航 |
+| 软重置清除的内容 | AsyncStorage + 已注册的适配器 | AsyncStorage + 已注册的适配器 | `localStorage`、`sessionStorage`、IndexedDB + 已注册的适配器 |
+| `@hard-reset` | 终止并重新启动 | force-stop 并重新启动 | 新的浏览器上下文（数据丢弃），重新加载 |
+| 截图 | `simctl io screenshot` | `adb exec-out screencap` | `page.screenshot` |
+| 同步跟踪器 | 全部，外加 `native`（UIKit 转场、键盘） | 除 `native` 外全部 | 除 `native` 外全部 |
+| 软键盘遮住目标 | 触摸前收起 | 触摸前收起 | — |
+| 对 picker / 日期 picker 执行 `setValue` | 用手指转动滚轮（日期用 `display="spinner"`；compact / inline：回调） | 回调（下拉框和日期对话框是独立的窗口） | `<select>` / 日期输入框由 Playwright 填写；其他组件：回调 |
+| `adjustSlider` | 真实拖动，读回数值并修正 | 真实拖动，读回数值并修正 | 鼠标拖动（不读回） |
+| `accessibilityAction` | VoiceOver 路径（increment / decrement、自定义操作） | `performAccessibilityAction` | `onAccessibilityAction` |
+| `pinch`、`rotate`、`multiTouch` | 一个事件中包含多个 `UITouch`（需要 `@quiesco/native` ≥ Phase 6.4：`multiGesture`） | 多指针 `MotionEvent`（同左） | 触摸视口上用 CDP 触摸事件；桌面视口：`ACTION_NOT_SUPPORTED` |
+| 补偿的识别器激活阈值（`actions.gestureSlop`） | 9 pt，7° | 26 dp，9° | 46 px，0° |
+| `relaunch({ args })` → `quiesco.launchArgs()` | `-quiescoArgs` 启动参数（需要 `@quiesco/native` ≥ Phase 6.5） | `--es quiescoArgs` extra（同左） | 初始化脚本 |
+| `relaunch({ url })` | `-quiescoUrl`，由 `@quiesco/native` 在 JS 运行前交给 expo-linking（≥ Phase 6.5；否则在启动后打开） | intent data（dev client：带 `__expo_url` 的链接） | 打开该 URL 的路径（`myapp://todos/1` → `/todos/1`） |
+| `relaunch({ clearData })` | 清空数据容器，删除 UserDefaults；保留 keychain | `pm clear`（同时撤销权限；配置中的权限会重新授予） | 新的浏览器上下文 |
+| `relaunch()` 保留数据 | 是 | 是 | 带上 cookie、localStorage、IndexedDB（Playwright storage state） |
+| `sendToBackground()` | 通过 `-[UIApplication suspend]` 回到主屏幕（`@quiesco/native` ≥ Phase 6.5），否则打开设置 App | HOME 键 | `ACTION_NOT_SUPPORTED` |
+| `bringToForeground()` | `simctl launch`（同一进程） | launcher intent（同一 task） | — |
+| `install()` / `uninstall()` | `simctl install` / `uninstall` | `adb install -r -g` / `uninstall` | 不需要安装：`uninstall` 为 `ACTION_NOT_SUPPORTED`，`relaunch({ reinstall })` 的效果等同于 `clearData` |
+| `reversePort()` | 空操作（与 Mac 共用网络） | `adb reverse` | 空操作 |
+| `setOrientation()` | 由 `@quiesco/native` ≥ Phase 6.6 旋转 window scene（simctl 无法旋转） | 关闭自动旋转，设置 `user_rotation` | 交换视口的宽高 |
+| `setAppearance()` | `simctl ui appearance` | `cmd uimode night` | `emulateMedia({ colorScheme })` |
+| `setFontScale()` | `simctl ui content_size`，取最接近的 Dynamic Type 尺寸（0.823 … 3.571），实时生效 | `settings put system font_scale`，然后重新启动 App（保留数据） | `ACTION_NOT_SUPPORTED` |
+| `setLocale()` | 用 `-AppleLanguages` / `-AppleLocale` 重新启动（需要 `CFBundleLocalizations`） | 按 App 设置语言，`cmd locale set-app-locales`（Android 13+），然后重新启动 App | 使用该 locale 的新浏览器上下文（保留数据） |
+| `setLocation()` | `simctl location set`（重置：`clear`） | `adb emu geo fix`（仅限模拟器） | `context.setGeolocation` |
+| `setPermission()` | `simctl privacy grant / revoke / reset`（不支持相机 / 通知；它们的 `'reset'` 会重新安装 App）；App 保持运行 | `pm grant / revoke`（+ `clear-permission-flags`）；revoke 或 reset 会杀掉 App → 重新启动 | `grantPermissions` / `clearPermissions` |
+| `setNetwork('offline')` | 由 agent 让 App 的新连接失败；不切换设备网络（NetInfo 仍为在线） | agent，外加 `svc wifi / data disable`（NetInfo 能感知；`adb reverse` 仍可用） | agent，外加中止页面请求和 CDP `Network.overrideNetworkState`（`navigator.onLine`、`offline` / `connection` `change` 事件；Chromium） |
+| `clipboard.set()` / `get()` | App 内的 `UIPasteboard`（`@quiesco/native` ≥ Phase 6.6）；没有它时 `get` 用 `simctl pbpaste` | App 内的 `ClipboardManager`（同左；没有它则 `ACTION_NOT_SUPPORTED`） | `navigator.clipboard`（为页面授予剪贴板权限） |
+| `setStatusBar()` | `simctl status_bar override`（重置：`clear`） | SystemUI 演示模式（`sysui_demo_allowed`，隐藏通知图标；重置：`exit`） | 没有状态栏：无需操作 |
+| `biometrics.enroll()` | 在模拟器中执行 `notifyutil`：`com.apple.BiometricKit.enrollmentChanged`（之后恢复为原值） | 锁屏 PIN（`locksettings set-pin`），用 `uiautomator` 操作设置中的录入流程（按位置点击按钮）并执行 `adb emu finger touch 1`；移除 PIN 时指纹也会被移除 | `ACTION_NOT_SUPPORTED` |
+| `biometrics.match()` / `fail()` | `notifyutil -p com.apple.BiometricKit_Sim.pearl.match` / `.nomatch`（Touch ID 机型用 `fingerTouch.*`） | 认证开始后（`dumpsys fingerprint`）执行 `adb emu finger touch 1` / `2` | `ACTION_NOT_SUPPORTED` |
+| `shake()` | `notifyutil -p com.apple.UIKit.SimulatorShake`（即 *Device > Shake* 发出的通知） | `adb emu sensor set acceleration`，交替推动 12 次 | `ACTION_NOT_SUPPORTED` |
+| `clearKeychain()` | `simctl keychain reset`（整个模拟器） | `ACTION_NOT_SUPPORTED` | `ACTION_NOT_SUPPORTED` |
+| `sendNotification()` | `simctl push`（模拟的 APNs 推送） | 由 `@quiesco/native` ≥ Phase 6.7 以 App 的身份发出（模拟器上没有推送服务） | `ACTION_NOT_SUPPORTED` |
+| `openNotification()` | 点击横幅，否则点击通知中心（下拉打开）中的通知，通过 XCUITest runner 完成 | 通知栏（`cmd statusbar expand-notifications`），由 `uiautomator` 点击 | `ACTION_NOT_SUPPORTED` |
+| `system.*`（App 之外的系统 UI） | Quiesco 的 XCUITest runner（`@quiesco/core/ios-runner`，每个 Xcode 版本构建一次）读取并点击 SpringBoard；权限弹窗按按钮位置点击（没有标识符，标签已本地化），Face ID 的重试弹窗按标识符点击 | `uiautomator dump`（其他 package 的节点；每次 dump 约 2 s）+ `input tap`；权限按钮按 `com.android.permissioncontroller` 的 id 定位 | JavaScript `alert` / `confirm` / `prompt`（由 Playwright 的 `dialog` 事件挂起，直到作出回应：`OK` / `Cancel`）；`beforeunload` 始终接受；回应权限请求：`ACTION_NOT_SUPPORTED`（`setPermission`） |
+| 产物：视频（Phase 6.9） | 每个场景执行 `simctl io recordVideo --codec=h264`（MP4；约 0.2 s 开始录制） | 在设备上执行 `screenrecord`（MP4，3 分钟一段，事后拉取） | Playwright `page.screencast`（WebM）；重新启动会开始新的一段 |
+| 产物：设备日志 | App 进程的 `simctl spawn log stream`（info 及以上） | App 的 `logcat --uid`（重启后依然有效） | 页面的 `console` 和 `pageerror` |
+| 整页 / 整个元素截图 | 以编程方式滚动，每屏执行一次 `simctl io screenshot` 并拼接；通过 `@quiesco/native` 隐藏滚动指示器（`setScrollIndicators`） | 用 `screencap` 同样处理；滚动条（每次滚动后会显示一会儿）用同样方式隐藏 | 用 Playwright 截图同样处理；RN-web 的 ScrollView 是一个 `div`，页面的 `fullPage` 截图覆盖不到它 |
+| `app.webview()`（Phase 6.8） | `@quiesco/native` 在 `WKWebView` 中执行脚本（`evaluateJavaScript`，约 50 ms），并把页面钩子作为文档开始时注入的 `WKUserScript`；点击是在元素的窗口位置上的触摸 | 用 `android.webkit.WebView`（`evaluateJavascript`，模拟器上 120–375 ms）和 androidx.webkit `addDocumentStartJavaScript` 同样处理 | 通过 Playwright 的 frame 访问 `<iframe>`（跨域也可以），按位置选取；点击 / 输入与其他平台相同 |
+| 值控件、无障碍操作（native 模式） | 需要用 `@quiesco/native` ≥ Phase 6.3 构建的 App（`sliderInfo`、`wheelInfo`、`accessibilityAction`） | 同左（`sliderInfo`、`accessibilityAction`） | — |
+
+## 权限 {#permissions}
+
+配置中的 `permissions` 会在 App 启动前授予，因此不会有系统弹窗打断场景。平台无法预先授予的权限会被跳过并给出警告。
+
+| Quiesco | iOS 模拟器（`simctl privacy`） | Android（`pm grant`） | Web（`grantPermissions`） |
+|---|---|---|---|
+| `camera` | —（simctl 无此服务） | `CAMERA` | `camera` |
+| `microphone` | `microphone` | `RECORD_AUDIO` | `microphone` |
+| `location` | `location` | `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | `geolocation` |
+| `notifications` | —（simctl 无此服务） | `POST_NOTIFICATIONS` | `notifications` |
+| `contacts` | `contacts` | `READ_CONTACTS` | — |
+| `photos` | `photos` | `READ_MEDIA_IMAGES` | — |
+| `calendar` | `calendar` | `READ_CALENDAR`, `WRITE_CALENDAR` | — |
+
+- Android 只授予 App 在 manifest 中声明的权限（`app.json` 中的 `expo.android.permissions`）；其他权限会以警告形式报告。
+- iOS 仍然需要在 `Info.plist`（`expo.ios.infoPlist`）中提供使用说明（`NSLocationWhenInUseUsageDescription` …），否则 App 根本无法请求该权限。
+
+## iOS {#ios}
+
+- Quiesco 会关闭模拟器上的密码自动填充（`devices.ios.disablePasswordAutoFill`），否则 iOS 会在登录表单之后用 "Save Password?" 盖住 App。
+- dev client 启动时会关闭开发菜单、它的引导页、悬浮按钮和摇一摇手势（否则 `shake()` 会在 App 上方打开开发菜单；App 自己的摇一摇处理程序仍能收到事件）。
+- 在 iOS 26+ 上，屏幕内容可能布局在半透明导航栏下方；位于那里的元素会被报告为被遮挡（`ELEMENT_OBSCURED`）。请使用 header 高度（`useHeaderHeight()`）或不透明的 header。
+- 键盘活动之后，iOS 会在短时间内忽略触摸；`native` 跟踪器会等待这段时间。
+- 滚轮 picker：各列的视图是使用 3D 变换布局的 UIKit 私有类；Quiesco 沿选中带做命中测试，找出每一列接收触摸的位置。每次转动都要等滚轮停下（UIDatePicker 只在停下后才报告日期），所以设置一个日期要花几秒。
+- iOS 26+ 的 slider：短距离或折返的拖动会让滑块移动得比手指少；`adjustSlider` 会带助跑地朝一个方向拖动，再根据读回的值进行修正。
+- `relaunch({ url })`：expo-router 从 expo-linking（`getLinkingURL()`）读取启动 URL，而 `@quiesco/native` 会根据 `-quiescoUrl` 设置它。React Native 自己的 `Linking.getInitialURL()` 只读取 launch options，对此会返回 `null`。该 URL 在原生模块创建后立即在主队列上设置；实际上这发生在首次渲染之前。
+- 在后台，iOS 会在几秒后挂起 App 的 JS；元素调用会立即以 `APP_IN_BACKGROUND` 失败，而不是等待响应。
+- 剪贴板：由其他进程（`simctl pbcopy`）放入的文本，在 App 粘贴前 iOS 会先询问用户，而 App 的读取会一直挂起，直到有人回应。因此 `clipboard.set()` 从 App 内部写入（`@quiesco/native` ≥ Phase 6.6）；App 读取自己写入的内容时不会被询问。
+- 生物识别：Face ID / Touch ID 尝试失败后，系统的重试弹窗（"Try Face ID again" / "Cancel"）会留在 App 上方；App 的 `authenticateAsync` 只有在弹窗得到回应后才会 resolve，在此期间元素调用无法到达 App。`match()` 不会关闭这个弹窗。
+- `shake()` 使用模拟器 *Device > Shake* 发出的 Darwin 通知；UIKit 会把它转成真正的摇动 motion 事件（iOS 26 已不再提供 Detox 所用的私有方法 `-[UIApplication _sendMotionEnded:]`）。
+- `setNetwork('offline')`：模拟器与 Mac 共用网络，没有自己的开关。只有 agent 会让 App 的连接失败（发往一个 `.invalid` host，因此会以 React Native 自己的 "Network request failed" 失败）；NetInfo 仍然报告 Mac 的网络状态。
+
+## Android {#android}
+
+- Quiesco 启动的模拟器会冷启动（`-no-snapshot-load`，约 14 s）：在 App 重新安装之前拍下的 quick-boot 快照会让 Android 在启动约 30 s 后重启。
+- App 在重新安装前会被 force-stop（否则 Android 17 会在没有连接参数的情况下重新启动它）。
+- `ACCESS_LOCAL_NETWORK`（Android 17）会在启动前授予，以便 App 能连接到 host 端。
+- App 在 `localhost` 上访问的端口（mock 后端）需要配置 `apps.android.reversePorts`。
+- `DateTimePicker` 以及 picker 的对话框 / 下拉框位于独立的窗口中，App 内的触摸无法到达：`setValue` 通过它们的回调来设置（日期 picker 按 testID 定位，因为它不渲染任何视图）。
+- 无障碍操作会像 TalkBack 一样，在读取节点信息之后执行：React Native 的 delegate 只处理它在节点信息中列出的操作。
+- 字体缩放或语言变更会重建 activity（React Native 默认的 `configChanges` 不包括 `fontScale` / `locale`）。此时 React 的根组件会在同一个 JS 上下文中重新挂载，而 expo-router 58 的命令式 router 会停止工作（"unavailable before the first render has finished"），直到 App 重启。因此 `setFontScale` / `setLocale` 会重新启动 App（保留数据），在下一个场景开始前撤销这些设置时也会如此。
+- 在后台，Android 会暂停 React Native 的定时器，也不进行任何绘制；App 处于非活动状态时，agent 会把定时器、帧和 native 跟踪器都视为空闲。
+- 模拟器通常带有硬件键盘，因此输入时不会出现软键盘。要测试与键盘相关的行为：`adb shell settings put secure show_ime_with_hard_keyboard 1`。
+- `setNetwork('offline')` 会关闭整个模拟器的 Wi-Fi 和移动数据；`adb reverse` 仍然有效，因此 host 端上的 Quiesco、Metro 和 mock 后端仍可访问——App 对它们的请求由 agent 让其失败。在下一个场景开始前会恢复之前的 Wi-Fi / 数据状态。
+- adb 没有剪贴板命令：`clipboard.*` 需要 App 中有 `@quiesco/native` ≥ Phase 6.6。
+- `biometrics.enroll()` 需要一台本身没有锁屏的模拟器（Quiesco 会设置 PIN 7357，并在下一个场景开始前连同指纹一起移除）。设置进行录入时 App 会进入后台，之后再被带回前台。识别到未知手指后，传感器会锁定约半秒；连续失败多次后锁定更久（计数只在成功后重置）。
+- `setPermission(p, 'revoke')` 还会清除该权限的 user-set / user-fixed 标志：被拒绝两次后 Android 就不再询问，但被撤销的权限会像全新安装时一样再次询问。
+
+## Web {#web}
+
+- 支持的浏览器是 Chromium；`firefox` / `webkit` 可以配置，但未经测试。
+- 视口来自配置（手机、平板、桌面…）；触摸视口使用触摸输入。
+- 整页加载会让 agent 重新连接；host 端会等待重连，而不会让步骤失败。
+- 只测试原生平台时不需要 Playwright；Web 提供者按需加载。
+- `setNetwork('offline')` 不使用 Playwright 的 `context.setOffline()`：它还会断掉 Quiesco 自己的 WebSocket（socket 保持打开，但收不到任何消息）。取而代之的是中止页面的请求（路由看不到 WebSocket），并用 CDP `Network.overrideNetworkState` 设置 `navigator.onLine`，同时触发真实的 `offline` / `online` 事件；吞吐量为零时还会触发 `navigator.connection` 的 `change`，这正是 NetInfo 在 Chromium 中监听的事件。离线状态下重新启动时，会先加载页面，再切换到离线。
+- 读取设备状态时绝不触碰 App 自己的 `MediaQueryList`：读取 react-native-web 的 `Appearance` 所监听的那个 list 的 `matches`，会让 Chromium 跳过 change 事件，`useColorScheme()` 就永远不会更新。
+- 没有后台状态：由 Playwright 驱动的页面无论怎么尝试都保持 `visible`（前面打开另一个标签页、最小化窗口、CDP 生命周期状态，无论是否使用 Chromium 的后台相关开关）。请给涉及后台的场景加上 `@native` 标签。
+- `@react-native-community/datetimepicker` 没有 Web 实现；在 Web 上请使用 `<input type="date">`（`setValue` 会填写它）。`@react-native-segmented-control` 的 Web / Android 实现不会传递 `testID`：请把 testID 放在外层包裹的 `View` 上（`setValue` 会使用其中唯一的控件）。

@@ -1,0 +1,521 @@
+---
+title: "APIリファレンス"
+description: "this.app（Driver）、マッチャー、アプリ内API、設定、シナリオタグ、エラー、成果物。"
+---
+
+- [Driver（`this.app`）](#driver-thisapp)：アクション、アサーション、クエリ、バックドア
+- [マッチャー](#matchers)
+- [アプリ内API（`@quiesco/agent`）](#in-app-api-quiescoagent)
+- [設定（`quiesco.config.ts`）](#configuration)
+- [シナリオタグ](#scenario-tags)
+- [エラー](#errors)
+- [CucumberなしでQuiescoを使う](#using-quiesco-without-cucumber)：Jest、Vitest、その他のランナー
+
+## Driver（`this.app`） {#driver-thisapp}
+
+ステップ定義の中で、`this.app`は現在のセッションの`Driver`です（`@quiesco/core`）。すべての呼び出しは`async`で、まずアプリがアイドルになるのを待ち（[同期](./sync)を参照）、アクションの場合は実行後にもう一度待ちます。ステップの中で待機やsleepを書く必要はありません。
+
+すべての呼び出しは、省略可能な最後の引数を受け取ります。
+
+| オプション | 意味 |
+|---|---|
+| `timeoutMs` | この呼び出しのタイムアウト（デフォルトは`sync.timeoutMs`、10秒） |
+| `sync: false` | この呼び出しの前後でアイドルを待たない（アニメーションが終わらない画面向け） |
+| `mode: 'native' \| 'js'` | アクションのみ：実際の入力か、コンポーネントのコールバック呼び出しか（デフォルトは`actions.mode`） |
+
+### アクション
+
+| メソッド | 動作 |
+|---|---|
+| `tap(target, { point })` | 要素をタップします。中心、または要素自身の座標系での`point`（左上隅からの`{ x, y }`） |
+| `doubleTap(target)` / `multiTap(target, n)` | 1つのジェスチャーで`n`回タップ |
+| `longPress(target, { durationMs, point })` | 押し続ける（デフォルト800 ms） |
+| `type(target, text)` | 入力欄にフォーカスして`text`を入力（nativeモード：IME経由なので、どの言語でも入力できます） |
+| `replaceText(target, text)` | テキスト全体を一度に置き換える |
+| `clear(target)` | テキスト入力をクリアする |
+| `pressKey(target, 'enter' \| 'backspace')` | Returnキー（送信。複数行入力では改行）またはBackspaceをフィールドに送ります。フィールドが存在しさえすればよく、キーボードのReturnキーに手が届かない状況でもキーはフィールドに届きます |
+| `scroll(target, direction, { distance, from })` | スクロールビューをスクロールする（`down`で下のコンテンツが現れる）。`from`：要素内で0–1に正規化した開始点 |
+| `scrollTo(container, target)` | `target`が表示されるまで`container`をスクロールする |
+| `scrollToEdge(target, 'top' \| 'bottom' \| 'left' \| 'right')` | 端までスクロールする。仮想化リストは伸びていく間も追従します（nativeモード：実際のフリック） |
+| `scrollToIndex(list, index, { viewPosition })` | FlatList / FlashListの`index`行目を表示する。`getItemLayout`がなくても動作します。`viewPosition`は0 = 上端、0.5 = 中央、1 = 下端 |
+| `swipe(target, direction, { speed, distance, from })` | スワイプジェスチャー（慣性あり）。`direction`は指の動く向き |
+| `drag(target, to, { holdMs, speed })` | 要素を長押しし（デフォルト800 ms）、`to`の中心（要素）または`{ point }`（ウィンドウ座標）まで動かして離す |
+| `tapAt({ x, y })` / `longPressAt({ x, y }, { durationMs })` | 画面上の一点をタッチする（ウィンドウ座標）。そこに何があっても構いません |
+| `pressBack()` | Androidの戻るボタン。WebではブラウザーのBack。iOSでは使えません |
+| `openUrl(url)` | ディープリンクを開く（iOSではアプリ内で、Androidでは`am start`で、Webではアドレスバーで） |
+| `dismissKeyboard()` | ソフトウェアキーボードを閉じる |
+| `setValue(target, value)` | 値コントロールに値を設定する：スライダー（数値）、スイッチ / チェックボックス（真偽値）、ピッカー（項目の値またはラベル）、セグメンテッドコントロール（セグメントの値またはインデックス）、日付 / 時刻ピッカーや日付入力（`Date`）。[値コントロール](#value-controls)を参照 |
+| `adjustSlider(target, position)` | スライダーのつまみを実際の指 / マウスで`position`（0 = 最小、1 = 最大）までドラッグする。1ステップ以内の位置に止まります |
+| `accessibilityAction(target, name)` | 要素が`accessibilityActions`で宣言しているアクションを、スクリーンリーダーと同じように実行する |
+| `pinch(target, scale, { angle, speed })` | 要素上で2本の指を広げる（`scale` > 1）または狭める（&lt; 1）。指は`angle`ラジアン（0 = 水平）の直線上を動きます。[マルチタッチジェスチャー](#multi-finger-gestures)を参照 |
+| `rotate(target, radians, { speed })` | 2本の指が要素の中心のまわりを回る（正の値：画面上で時計回り） |
+| `multiTouch(fingers, { within })` | 任意の本数の指を、時刻付きの経路に沿って動かす：`fingers[i]`は指iの`{ x, y, t }`の点列（tはms、単調非減少）。`within`があれば要素座標、なければウィンドウ座標 |
+
+座標は論理単位です（iOSではpt、Androidではdp、WebではCSS px）。`scrollToEdge`と`scrollToIndex`は複数のステップに分けて動き、各ステップでアプリが落ち着くまで、呼び出しのタイムアウトを上限に待つことがあります。
+
+`js`モード（実際の入力ではなくコールバックを呼ぶ）では、座標を指定したタップはその位置の最前面の要素を押し、`onPress`のないスイッチへのタップは`onValueChange`で切り替え、`pressKey`は`onSubmitEditing` / `onKeyPress`を呼び、`scrollToEdge`はスクロールオフセットを直接設定し、`from`は無視されます。`drag`はサポートされません（実際のタッチが必要なため）。
+
+### 値コントロール {#value-controls}
+
+`setValue`は、ターゲットを囲むコンポーネントのpropsからコントロールを見つけます（要素自身と数階層上まで。見つからなければ、要素の中にある唯一のコントロール。例：testIDを落としてしまうコンポーネントを、testIDを持つ`View`で囲んだ場合）。
+
+| コントロール | 判別方法 | `value` |
+|---|---|---|
+| `@react-native-community/slider` | `onValueChange` / `onSlidingComplete`と、数値の`value`または`minimumValue` / `maximumValue` | 範囲内で、`step`に乗った数値 |
+| `Switch`、`expo-checkbox` | 真偽値の`value`と`onValueChange` | `true` / `false` |
+| `@react-native-picker/picker` | `onValueChange`と`selectedValue` | 項目の値（文字列でも可）、またはそのラベル |
+| `@react-native-segmented-control/segmented-control` | `values`配列と`onChange` / `onValueChange` | セグメントの値、またはそのインデックス |
+| `@react-native-community/datetimepicker` | `Date`型の`value`と`onChange` / `onValueChange` | `Date`（`minimumDate` / `maximumDate`と照合されます） |
+| DOMの`<select>`、`<input type="date" / "time" / "datetime-local" / "month" / "week" / "range" / "number">`、チェックボックス | 要素そのもの（Web） | 選択肢の値またはラベル。`Date`（ローカル時刻で書き込まれます）、または入力欄自身の文字列 |
+
+それ以外は`ACTION_NOT_SUPPORTED`で失敗し、見つかったコールバックが示されます。現在と同じ値を設定してもイベントは送られず、無効なコントロールには何もしません（ユーザーが操作しようとした場合と同じです）。
+
+モードごとの値の入れ方：
+
+| | `native`（iOS / Android） | Web（実際の入力） | `js` |
+|---|---|---|---|
+| スイッチ / チェックボックス | 値を変える必要があるときに実際にタップ | クリック | `onChange` + `onValueChange` |
+| セグメンテッドコントロール | セグメントを実際にタップ | セグメントをクリック | `onChange`（ネイティブイベント）+ `onValueChange` |
+| ピッカー | iOS：指でホイールを回す（離す前に静止するゆっくりしたドラッグで、値を読み返して補正）。Android：コールバック（ドロップダウン / ダイアログは別ウィンドウのため） | `<select>`：`selectOption` | `onValueChange(value, index)` |
+| 日付ピッカー | iOSのホイール（`display="spinner"`）：各列を指で回します。どの列がどの単位かは1行回して判定するので、どのロケールや並び順でも動作します。compact / inlineスタイルとAndroid（システムダイアログ）：コールバック | 日付入力：`fill` | `{ type: 'set', nativeEvent: { timestamp, utcOffset } }`を渡して`onValueChange` / `onChange` |
+| スライダー | コールバック（正確な値。実際にドラッグするには`adjustSlider`） | コールバック | `onSlidingStart`、`onValueChange`、`onSlidingComplete` |
+
+Androidの`DateTimePicker`はビューを描画せず（ダイアログを開くため）、アプリがダイアログを表示した後は、`setValue({ id })`がtestIDでコンポーネント自体を見つけます（名前で探すなら`{ type: 'DateTimePicker' }`）。アプリは変更を処理するときにダイアログを閉じます。ユーザーが選んだときと同じです。こうしたコンポーネントに届くのは`id`、`type`、`index`だけです。
+
+`adjustSlider`は`native`モードでつまみをドラッグし、値を読み返します。つまみはタッチスロップの分だけ指に遅れて動くため、スライダーが目標位置から1ステップ（連続値スライダーでは範囲の1%）以内に収まるまで、再度ドラッグします（常に同じ向きに、助走をつけて）。Web：つまみをマウスでドラッグ。`js`：その位置に当たる値をコールバックで渡します。
+
+`accessibilityAction(target, name)`は、ターゲット、または`accessibilityActions`を宣言している最も近い祖先に作用します。ターゲットが画面上にある必要はありません。`name`は宣言済みでなければなりません（そうでない場合、エラーに宣言済みのアクションが列挙されます）。iOS：`increment` / `decrement`は`accessibilityIncrement` /
+`accessibilityDecrement`で、`magicTap` / `escape`はそれぞれのperformメソッドで、それ以外の名前はビューのカスタムアクション（VoiceOverのアクションローター）で実行します。Android：React Nativeがアクションに割り当てたIDで`performAccessibilityAction`。Web（`accessibilityActions`はDOMに届かない）と`js`：`onAccessibilityAction({ nativeEvent: { actionName } })`。
+
+### マルチタッチジェスチャー {#multi-finger-gestures}
+
+`pinch`、`rotate`、`multiTouch`は、複数の実際のタッチを同時に注入します。iOSは1つのイベントに合成した`UITouch`、Androidはマルチポインターの`MotionEvent`、WebはCDPの`Input.dispatchTouchEvent`です（タッチ対応のビューポートのみ。タッチ非対応のビューポートでは`ACTION_NOT_SUPPORTED`で失敗します）。`js`モードでは実行できません（ジェスチャー認識器には実際のタッチが必要なため）。
+
+ジェスチャー認識器は、指が少し動いて有効になってから測定を始めます。そのため、単に「指の間隔を2倍にする」だけでは、アプリ側では2未満として現れます。Quiescoはまずその有効化に必要な距離だけ指を動かすので、アプリの認識器は要求どおりのスケール / 角度を報告します（誤差は約2%と1°以内）。デフォルト値は各プラットフォームの標準の認識器に合わせています。
+
+| | ピンチ | 回転 |
+|---|---|---|
+| iOS（UIKitの認識器。react-native-gesture-handlerや`ScrollView`のズームの裏側でも使われる） | 9 pt | 7° |
+| Android（react-native-gesture-handler：3 × タッチスロップ） | 26 dp | 9° |
+| Web（react-native-gesture-handlerのWeb版：3 × 15 px） | 46 px | 0° |
+
+別の認識器を使う場合は`actions.gestureSlop: { pinch, rotation }`を設定します（論理単位、ラジアン。`0`：指を`scale` / `radians`のとおり正確に動かす）。1回では画面に収まらないピンチ（例：`pinch(t, 10)`）は、ユーザーと同じように複数回のピンチに分けて行います。指は要素の上に置かれ、ウィンドウの外には出ません。複数の指が必要なシナリオにはタグを付け、タッチ非対応のビューポートではスキップできるようにします（サンプルでは`@multi-touch`を使い、デスクトップのビューポートを`--tags 'not @multi-touch'`で実行しています）。
+
+アクションには、**表示されている**要素がちょうど1つ必要です。ターゲットが存在して表示されるまで待ち（そうならなければ`ELEMENT_NOT_FOUND`で失敗し、存在しないのか隠れているのかを示します）、複数の要素がマッチした場合は直ちに`MULTIPLE_MATCHES`で失敗します。`native`モードでは、タッチが要素に届くことも必要です。ダイアログや別のウィンドウが要素を覆っている場合、アクションは`ELEMENT_OBSCURED`で失敗し、上に何があるかを示します。ソフトウェアキーボードがターゲットを覆っている場合は、先にキーボードを閉じます。
+
+### アサーション
+
+アサーションは、成り立つかタイムアウトになるまで再試行します（失敗時は期待値 / 実際の値を含む`ASSERTION_FAILED`）。
+
+| メソッド | 成り立つ条件 |
+|---|---|
+| `expectVisible(target, { ratio })` | マッチする要素が少なくとも1つ表示されている。`ratio`（0–1]を指定すると、その要素の面積のうち少なくともその割合が表示されている |
+| `expectNotVisible(target)` | マッチする要素が1つも表示されていない（存在しない、または隠れている） |
+| `expectExists(target)` / `expectNotExists(target)` | 表示の有無にかかわらず、要素がツリーにある / ない |
+| `expectText(target, text \| RegExp)` | マッチがちょうど1つで、そのテキストが一致する / マッチする |
+| `expectValue(target, value \| RegExp)` | マッチがちょうど1つで、その値が一致する / マッチする：入力テキスト、スイッチの状態、スライダー / ピッカーの値、または`accessibilityValue` |
+| `expectLabel(target, text \| RegExp)` | マッチがちょうど1つで、そのアクセシビリティラベルが一致する / マッチする |
+| `expectFocused(target)` / `expectNotFocused(target)` | マッチがちょうど1つで、入力フォーカスがある / ない |
+| `expectEnabled(target)` / `expectDisabled(target)` | マッチがちょうど1つで、有効 / 無効である（`disabled`、`accessibilityState.disabled`、`aria-disabled`、`editable={false}`。祖先から継承したものも含む） |
+| `expectChecked(target)` / `expectNotChecked(target)` | マッチがちょうど1つで、チェックされている / いない（スイッチ、チェックボックス、ラジオ、または`accessibilityState.checked`）。チェック状態を持たない要素は両方とも失敗します |
+| `expectProp(target, prop, value)` | マッチがちょうど1つで、そのpropがこのJSON値を持つ（まずホストのprops、次にそのコンポーネントのprops。例：`disabled`、`value`） |
+| `expectCount(target, n)` | マッチする要素がちょうど`n`個 |
+
+同じアサーションを、Detox / Jest風のチェーン形式でも書けます（どちらの形式も同じ実装を呼び出します）。
+
+```ts
+await this.app.expect('save').toBeEnabled();
+await this.app.expect({ type: 'switch', label: 'Wi-Fi' }).not.toBeChecked();
+await this.app.expect('banner').toBeVisible({ ratio: 0.75 });     // Detoxでは toBeVisible(75)
+await this.app.expect({ id: 'title' }).not.toHaveValue('');
+```
+
+`toBeVisible({ ratio })`、`toExist()`、`toBeFocused()`、`toBeEnabled()`、`toBeDisabled()`、`toBeChecked()`、`toHaveText()`、`toHaveValue()`、`toHaveLabel()`、`toHaveProp()`、`toHaveCount()`、`toHaveId()`があり、それぞれ`.not`を付けられます。単一要素に対する否定のアサーション（`not.toHaveText`など）でも、マッチはちょうど1つ必要です。
+
+### クエリ、同期、状態
+
+| メソッド | 戻り値 |
+|---|---|
+| `query(target)` | マッチした要素の概要（待機なし） |
+| `attributes(target)` | 要素が存在するまで待ったうえで、マッチした唯一の要素の概要（Detoxの`getAttributes`）。複数あれば`MULTIPLE_MATCHES` |
+| `getTree()` | セマンティックな型付きの要素ツリー（JSON）。失敗したシナリオにも添付されます |
+| `waitForIdle({ timeoutMs })` | アイドルになるまで待ち、かかった時間で解決します |
+| `getIdleState()` | 各トラッカーの状態。今何がビジーかがわかります |
+| `backdoor(name, ...args)` | アプリに登録されたバックドアを呼び出します。引数と結果はJSON |
+| `reset()` | ソフトリセット（Quiescoは各シナリオの前にこれを行います） |
+
+要素の概要には、`type`（ホストコンポーネント）、`semanticType`、`testID`、`text`、`label`、`role`、`value`、`checked`、`enabled`、`focused`、`rect`、`visible`、`visibleRatio`と、シリアライズ可能な`props`が含まれます。
+
+### アプリのライフサイクル（`this.app.device`）
+
+```ts
+// 型付きの起動引数とディープリンクを指定して新しいプロセスを起動（本当のコールドスタート：getInitialURLにも見える）。
+await this.app.device.relaunch({ args: { user: 'ann', retries: 3 }, url: 'myapp://todos/1' });
+await this.app.device.relaunch({ clearData: true });              // 先にアプリのデータを削除
+await this.app.device.relaunch({ reinstall: true, permissions: ['camera'] });
+await this.app.device.sendToBackground();                         // ホームボタン。プロセスは動き続ける
+await this.app.device.bringToForeground();                        // 同じプロセス。アクティブかつアイドルになるまで待つ
+await this.app.device.terminate();
+const png = await this.app.device.screenshot('avatar');           // 1つの要素。引数なしなら画面
+await this.app.device.screenshot({ fullPage: true }, { name: 'todos' }); // リスト全体をつなぎ合わせて保存・添付
+await this.app.device.reversePort(3001);                          // Androidではadb reverse。それ以外では何もしない
+```
+
+| メソッド | 動作 |
+|---|---|
+| `relaunch({ args, url, clearData, reinstall, permissions })` | アプリを終了して再び起動します。常に新しいプロセスです。`clearData` / `reinstall`を指定しない限り、アプリのデータは残ります。`args`（任意のJSON）は設定の`launchArgs`の上にマージされます。`url`を指定するとそのディープリンクでアプリを開きます。`permissions`は設定の権限に加えて起動前に付与されます（`clearData` / `reinstall`の後は設定の権限も再度付与されます）。アプリが接続した時点で解決します |
+| `terminate()` | アプリを停止します。`relaunch()`までは、要素に対する呼び出しはすべて直ちに`APP_NOT_RUNNING`で失敗します（待機なし） |
+| `sendToBackground()` / `bringToForeground()` | 再起動せずにホーム画面へ移動し、戻ります。その間、要素に対する呼び出しは`APP_IN_BACKGROUND`で失敗します。Webでは使えません（`ACTION_NOT_SUPPORTED`） |
+| `install()` / `uninstall()` | `binaryPath`をインストール / アプリを削除 |
+| `screenshot(target?, { full, name }?)` | PNG（`Buffer`）。ターゲットなし：表示されているままの画面（Web：ブラウザーのビューポート）。要素：画面から切り出したもの（画面上にある部分）。`full: true`：その全体。コンテンツ全体を含むスクロールビューや、一部がスクロールで隠れた要素の残りの部分も、スクロールしてつなぎ合わせます。`{ fullPage: true }`：画面のメイン（最大）のスクロールビューのコンテンツ全体。`{ fullPage: 'list' }`：そのスクロールビューのコンテンツ全体。[スクリーンショット](#screenshots)を参照。`name`：シナリオの成果物ディレクトリにも保存し、レポートに添付します |
+| `reversePort(port)` / `unreversePort(port)` | ホストのポートをAndroidデバイスから`localhost:port`として到達できるようにします。iOSシミュレーターとWebでは何もしません |
+| `openUrl(url)` / `pressBack()` | `this.app.openUrl` / `this.app.pressBack`と同じ |
+| `appState` | `'running'`、`'background'`、`'terminated'`のいずれか。テストがアプリに対して行ったことを表します |
+
+Quiescoは各シナリオの前に、前のシナリオが終了させたアプリを起動し、バックグラウンドに送られたアプリを前面に戻します。こうしてシナリオ同士の独立が保たれます。
+
+#### デバイスの状態
+
+```ts
+await this.app.device.setOrientation('landscape');      // アプリのウィンドウが回転した時点で解決
+await this.app.device.setAppearance('dark');
+await this.app.device.setFontScale(1.3);                 // iOS：最も近いDynamic Typeのサイズ。適用されたスケールを返す
+await this.app.device.setLocale('ja-JP');                // iOS / Web：その設定でアプリを再起動
+await this.app.device.setLocation(35.68, 139.76);
+await this.app.device.setPermission('location', 'revoke');
+await this.app.device.setNetwork('offline');             // アプリのリクエストは失敗する。Quiescoの接続は維持される
+await this.app.device.clipboard.set('hello');            // アプリが貼り付ける内容
+const copied = await this.app.device.clipboard.get();    // アプリがコピーした内容
+await this.app.device.setStatusBar({ time: '9:41', batteryLevel: 100 }); // スクリーンショット用
+```
+
+| メソッド | 動作 |
+|---|---|
+| `setOrientation('portrait' \| 'landscape')` | アプリを回転させ、ウィンドウが新しい形になるまで待ちます。アプリが画面の向きを固定していてはいけません（app.jsonの`"orientation": "default"`） |
+| `setAppearance('light' \| 'dark')` | システムのカラースキーム。アプリが報告する値と照合します。アプリがシステムの設定に従っている必要があります（`"userInterfaceStyle": "automatic"`） |
+| `setFontScale(n)` | システムの文字サイズ（0.5–4）。適用されたスケールで解決します。Androidではアプリを再起動します（データは保持）。Webでは使えません |
+| `setLocale(tag \| null)` | アプリの言語と地域（BCP 47）。`null` = デバイスのデフォルト。その設定でアプリを再起動します（データは保持）。iOSでは`CFBundleLocalizations`にその言語が必要です |
+| `setLocation(lat, lon)` | 擬似的なGPS位置（Androidではエミュレーターのみ） |
+| `setPermission(name, 'grant' \| 'revoke' \| 'reset')` | アプリの実行中に権限を変更します。Androidは取り消し時にアプリを強制終了します。Quiescoは解決する前にアプリを再起動する（データは保持）ため、アプリは最初の画面に戻ります。`'reset'` = 新規インストール直後と同じ未決定の状態。アプリが次に要求するとシステムダイアログが再び表示されます（Android：取り消し済みにし、「今後表示しない」をクリア。iOS：`simctl privacy reset`。Web：ブラウザーが確認します）。iOSでは、通知とカメラはアプリを再インストールしないとリセットできません。Quiescoは再インストールして起動するため、**アプリのデータは削除されます**（`binaryPath`が必要。その旨の警告が出ます） |
+| `setNetwork('offline' \| 'online')` | オフライン：アプリが新たに開く`fetch` / `XMLHttpRequest` / `WebSocket`接続は、ネットワークがないときと同じように失敗します（Quiesco自身の接続は動き続け、既に開いている接続も開いたままです）。AndroidではWi-Fiとモバイルデータもオフにし、Webでは`navigator.onLine === false`を報告するので、これらではNetInfoも検知します。iOSシミュレーターにはネットワークの切り替えがないため、NetInfoはオンラインと報告し続けます。再起動をまたいで持続します |
+| `clipboard.set(text)` / `clipboard.get()` | デバイスのクリップボードを、アプリの中で書き込み / 読み取りします（iOS / Androidでは`@quiesco/native` ≥ Phase 6.6が必要。iOSの読み取りは`simctl pbpaste`にフォールバックします）。設定した場合は次のシナリオの前にクリアされます |
+| `setStatusBar({ time, batteryLevel, charging, wifiBars, cellularBars, dataNetwork })` / `resetStatusBar()` | きれいなスクリーンショットのためのステータスバー：`time`は`'9:41'`、`batteryLevel`は0–100、`wifiBars`は0–3、`cellularBars`は0–4、`dataNetwork`は`'wifi' \| '3g' \| '4g' \| 'lte' \| '5g' \| 'hide'`。Webでは何もしません |
+
+どの変更も、次のシナリオの前とセッション終了時に元に戻されます。権限は設定どおりに戻り、それ以外はデバイスの元の状態に戻ります（変更したものだけが対象です）。アプリを再起動する呼び出しの後は、アプリは最初の画面にあります。Detoxの`setURLBlacklist`は、ここでは`this.app.sync.ignoreUrls.add()`です。
+
+#### システム連携
+
+```ts
+await this.app.device.biometrics.enroll();     // Face ID / Touch ID / 指紋が設定された状態にする
+await this.app.tap('login-with-face-id');      // アプリがLocalAuthentication.authenticateAsync()を呼ぶ
+await this.app.device.biometrics.match();      // 一致する顔 / 指：アプリの認証が成功する
+await this.app.device.shake();
+await this.app.device.clearKeychain();         // iOS
+await this.app.device.sendNotification({ title: 'New message', data: { chatId: '42' } });
+await this.app.device.openNotification('New message'); // 通知をタップ（iOS：バナー / 通知センター。Android：通知シェード）
+
+await this.app.tap('enable-notifications');           // アプリが権限を要求する
+await this.app.device.system.allowPermission();        // システムダイアログの許可ボタン
+await this.app.device.system.tap({ text: 'Cancel' });  // アプリ外の任意のシステムUI
+```
+
+| メソッド | 動作 |
+|---|---|
+| `biometrics.enroll(enrolled = true)` | 顔 / 指紋を登録（または削除）します。Android：Quiescoが画面ロックのPINを設定し（指紋に必須）、設定アプリの登録手順を進めたうえで、アプリを前面に戻します。次のシナリオの前に元に戻されます |
+| `biometrics.match()` / `biometrics.fail()` | アプリが表示している認証に、一致する / 未登録の顔や指を提示します。`fail()`の後は、実機と同じくシステムが再試行のプロンプトを表示し続け、プロンプトに応答するまでアプリには結果が返りません。続けて何度か失敗すると、センサーがしばらくロックされます（Androidエミュレーター：約0.5秒から最大30秒） |
+| `shake()` | デバイスを振ります（iOS：シミュレーターの*Device > Shake*。Androidエミュレーター：加速度センサーへの入力）。その後アイドルを待ちます |
+| `sendNotification({ title, body?, data? })` | iOS：擬似的なリモートプッシュ（`simctl push`、`data`は`aps`と並べて配置）。アプリが前面にある間はアプリのプッシュライブラリが受け取り、システムが通知を表示するのはアプリが通知を表示できる場合だけです（シミュレーターでは事前に許可できません）。Android：エミュレーターにはプッシュサービスがないため、通知はアプリとして投稿されます（`notifications`権限が必要）。タップすると`data`をintentのextrasとしてアプリが開き、プッシュライブラリのコールバックは呼ばれません。アプリがバックグラウンドにあっても動作します |
+| `openNotification(title)` | 通知をタップします。iOSではバナー、バナーが消えていれば通知センターで。Androidでは通知シェードで。アプリが前面に来てアイドルになった時点で解決します |
+| `clearKeychain()` | iOS：シミュレーターのキーチェーン（全アプリ分）をリセットします。Androidにはキーチェーンがないため`ACTION_NOT_SUPPORTED`。`relaunch({ clearData: true })`を使ってください |
+| `system.tap(query, { timeoutMs }?)` | アプリ外のシステムUI（権限ダイアログ、生体認証のプロンプト、WebページのJSダイアログ）をタップします。`query`：`{ text }`（完全一致。タイポグラフィ用の引用符は区別しません。またはRegExp）、および / または`{ id }`（Androidのresource-id、または`:id/`より後ろの部分）。表示されるまで`timeoutMs`（10秒）を上限に待ち、その後アプリがアイドルになるのを待ちます |
+| `system.expectVisible(query)` / `system.expectNotVisible(query)` | そのシステムUIが画面に表示される（されなくなる）まで待ちます。`ELEMENT_NOT_FOUND` / `ASSERTION_FAILED`には見つかったテキストが列挙されます |
+| `system.allowPermission()` / `system.denyPermission()` | デバイスの言語に関係なく、実行時の権限ダイアログに応答します（Android：ボタンのIDで判別し、「アプリの使用中のみ」や「今後表示しない」にも対応。iOS：iOSのレイアウトに従い位置で判別）。アプリが前面に来てアイドルになった時点で解決します |
+
+これらはWebには存在しません（`ACTION_NOT_SUPPORTED`。こうしたシナリオには`@native`タグを付けてください）。ただし`system.tap` /
+`expectVisible` / `expectNotVisible`は、ページのJavaScriptダイアログに対して使えます（後述）。Androidではエミュレーターが必要です（エミュレーターのコンソールでセンサーを偽装するため）。iOSでは、システムUIはSpringBoardに属します。Quiescoは、初めて必要になったときに小さなXCUITestランナーをビルドし（Xcodeのバージョンごとに1回。`~/Library/Caches/quiesco/ios-runner`にキャッシュされ、約10秒）、シミュレーター上で起動します（2–4秒、セッションごとに1回）。アラートはアプリより長く残ります。シナリオが残したアラートは次のシナリオの前に閉じられます（キャンセル / 拒否）。権限を再び要求させるには、先にリセットします：`setPermission('notifications', 'reset')`。
+
+権限ダイアログ（別のアクティビティ）が前面にある間、AndroidはアプリのJSタイマーを一時停止します。Quiescoのアイドル待機はアプリがバックグラウンドに移ったことを検知して戻るので、ダイアログを開いたタップは完了します。
+
+**WebのJavaScriptダイアログ。**`alert`、`confirm`、`prompt`は、ユーザーの場合と同じく、テストが応答するまで開いたままです。これらもシステムUIです。ダイアログのメッセージはid `dialog.message`のノードで、ボタンは`OK`（`dialog.accept`）と、`confirm` / `prompt`の場合は`Cancel`（`dialog.dismiss`）です。承認されたpromptにはデフォルト値が入ります。
+
+```ts
+await this.app.tap('clear-all');                                   // ページがconfirm('Delete all?')を呼ぶ
+await this.app.device.system.expectVisible({ text: 'Delete all?' });
+await this.app.device.system.tap({ text: 'Cancel' });              // confirm()はfalseを返す。その後アイドルを待つ
+```
+
+ダイアログが開いている間、ページはスクリプトを実行せず入力も受け付けません。そのため、ダイアログを開いたアクションはダイアログが表示された時点で（アイドルを待たずに）戻り、アプリに対するそれ以外の呼び出しは直ちに、ダイアログを示す`DIALOG_OPEN`で失敗します（先に応答してください）。スクリーンショットも同様で、ページが描画されないためです。シナリオ終了時に開いたままのダイアログは、警告とともに次のシナリオの前に閉じられます。`beforeunload`のプロンプトは常に承認されます（ページを離れる・再読み込みする操作が止まることはありません）。
+
+### スクリーンショット {#screenshots}
+
+```ts
+await this.app.device.screenshot();                                   // 画面
+await this.app.device.screenshot('avatar');                           // 要素（画面上にある部分）
+await this.app.device.screenshot('terms', { full: true });            // その全体。スクロールしてつなぎ合わせる
+await this.app.device.screenshot({ fullPage: true });                 // メインのスクロールビューのコンテンツ全体
+await this.app.device.screenshot({ fullPage: 'todo-list' });          // そのスクロールビューのコンテンツ全体
+await this.app.webview('help').element({ css: '#chart' }).screenshot(); // WebViewのページ内の要素
+await this.app.device.screenshot(undefined, { name: 'home' });        // + artifacts/<run>/<scenario>/home.png、添付される
+```
+
+フルページのスクリーンショットはどのプラットフォームでも同じです。Quiescoはスクロールビューを先頭までスクロールし（jsモードの`scrollToEdge`と同じくプログラムから）、1画面分ずつスクリーンショットを撮ってつなぎ合わせます。スクロールビューより上にあるもの（ステータスバー、ヘッダー）は最初の1枚から、以降の各枚からは新たに現れた帯の部分を、スクロールビューより下にあるもの（タブバー）は最後の1枚から取るので、固定のヘッダーとフッターは1回だけ写ります。スクロールに応じて行を追加描画する仮想化リストは、最後まで追従します。スクロールインジケーターは撮影中は隠され（ネイティブ）、スクロール位置は撮影後に元に戻されます。スクロール中に変化するコンテンツ（スティッキーなセクションヘッダー、アニメーション）は、それぞれの画面を撮った時点の状態で写ります。
+
+### WebView（`this.app.webview()`）
+
+WebViewに表示されたページの要素を扱います。iOS / Androidではreact-native-webview、Webでは`<iframe>`です（react-native-webviewにはWeb実装がないため、アプリはWebではiframeを描画します。例：`MyWebView.web.tsx`の中で）。
+
+```ts
+const help = this.app.webview('help');                  // マッチャー（testIDなど）でWebViewを指定。引数なしなら画面上の唯一のWebView
+await help.element({ css: '#name' }).type('Alice');
+await help.element({ xpath: '//input[@name="name"]' }).replaceText('Bob');
+await help.element({ text: '打招呼' }).tap();
+await help.element({ id: 'result' }).expectText('你好，Bob');
+await help.element({ text: /^Loading/ }).expectNotVisible();
+const title = await help.runScript<string>('return document.title');   // 関数本体。`arguments`が使え、Promiseは待たれる
+await help.url(); await help.title();
+```
+
+| メソッド | 動作 |
+|---|---|
+| `element({ css } \| { xpath } \| { id } \| { text }, index?)` | ページ内の要素。`text`：空白をまとめた要素のテキストとの完全一致、またはRegExp。マッチする最も内側の要素 |
+| `tap()` | 実際のタップ（iOS / Android：画面上の要素の位置をタッチ。Web：Playwrightの入力）。先に要素が見える位置までスクロールします。`MULTIPLE_MATCHES`なら直ちに失敗し、表示されていて有効なマッチがタイムアウトまでに現れなければ`ELEMENT_NOT_FOUND`で失敗します |
+| `type(text)` / `replaceText(text)` | フィールドをタップし（ユーザーの操作と同じくフォーカスが入ります）、キャレット位置にテキストを挿入します（`execCommand('insertText')`：入力時と同じ`input`イベントが発生）/ 値を置き換えます。ソフトウェアキーボードからの入力ではありません |
+| `scrollIntoView()` | 要素が見える位置までページをスクロールする |
+| `expectText(text \| RegExp)` | 唯一のマッチのテキスト（入力欄は値） |
+| `expectExists()` / `expectNotExists()` / `expectVisible()` / `expectNotVisible()` | 表示されている = ページのビューポート内にあり（スクロールで外れていない）、CSSで隠されていない |
+| `runScript(body, args?)` | ページ内で関数本体を実行し、その（JSON）値を返します。返されたPromiseは待たれます。ページで例外が発生すると`APP_ERROR`で失敗します |
+| `url()` / `title()` | `location.href` / `document.title` |
+
+どの呼び出しも、アプリがアイドルになり、ページが落ち着くのを待ちます。落ち着くとは、読み込みが終わり、ページの`fetch` / `XMLHttpRequest`が実行中でないことです（Quiescoがページに追加するスクリプトで数えます。ページのタイマーは追跡しませんが、アサーションはいずれにせよタイムアウトまで再試行します）。対象はWebViewのメインフレームだけで、ページ内のiframeやshadow DOMには届きません。iOS / Androidでは`@quiesco/native`が必要です（スクリプトはネイティブのWebView経由で実行されるので、アプリに`onMessage`は不要です）。ない場合は`ACTION_NOT_SUPPORTED`になります。`runScript`は`new Function`を使うため、ページのContent-Security-Policyによっては禁止されることがあります。
+
+### 実行時の同期（`this.app.sync`）
+
+同期を丸ごとオフにする代わりに、Quiescoが何を待つかを、シナリオの残りの間だけ変更できます。
+
+```ts
+await this.app.sync.disableTracker('timer');            // 例：200 msごとにポーリングする画面
+await this.app.sync.ignoreElements.add('poll-count');   // ポーリングのたびにテキストが変わる
+await this.app.sync.ignoreUrls.add(/\/analytics/);      // 終わらないリクエスト
+await this.app.sync.disable();                          // 全トラッカーをオフ（DetoxのdisableSynchronization）
+await this.app.sync.enable();
+```
+
+`disableTracker` / `enableTracker`には`network`、`timer`、`react`、`idle-callback`、`frame-stable`、`native`を指定できます。`ignoreUrls`と`ignoreElements`は、設定のリストへの追加 / 削除です。変更は再起動や再接続をまたいで維持され、次のシナリオの前に元に戻されます。1回の呼び出しだけなら、引き続き`{ sync: false }`も使えます。
+
+## マッチャー {#matchers}
+
+単なる文字列は**testID**です：`tap('add-todo')`。オブジェクトでは条件を組み合わせられます。
+
+```ts
+{ id: 'todo-item', index: 0 }                  // 複数あるうちの最初の要素（描画順）
+{ id: /^todo-\d+$/ }                            // 正規表現によるtestID
+{ text: 'Save' }                                // 表示テキストの完全一致
+{ text: /saved \d+ items/i }                    // または正規表現
+{ label: 'Close' }                              // accessibilityLabel / aria-label
+{ role: 'button', text: 'Save' }                // accessibilityRole / role
+{ type: 'switch' }                              // セマンティックな型。どのプラットフォームでも同じ（後述）
+{ type: 'TodoCard' }                            // またはホストの型（'RCTView'、'div'）やコンポーネントのdisplayName
+{ type: 'button', has: { text: 'Buy milk' } }   // マッチする子孫を持つ（DetoxのwithDescendant）
+{ type: 'button', not: { id: 'cancel' } }       // マッチする要素を除外
+{ text: 'Delete', within: 'todo-item-3' }       // 別の要素の内側（DetoxのwithAncestor）
+```
+
+`text`は、自身のテキストがマッチする最も深い要素にマッチします（ボタンとそのラベルの両方がマッチすることはありません）。Webでは`testID`は`data-testid`として描画されます。マッチャーはどのプラットフォームでも同じで、`index`もどのプラットフォームでも描画順に従います（Detoxの`atIndex`の順序はiOSとAndroidで異なります）。
+
+### セマンティックな型
+
+`type`には、次のプラットフォームに依存しない種別を指定できます。種別はまずアクセシビリティロールから、次にホストコンポーネントから決まるので、コンポーネント名が圧縮されるリリースビルドでも機能します。
+
+| `type` | iOS / Androidのホスト（React Native 0.88） | Web（react-native-web） | ロール |
+|---|---|---|---|
+| `button` | `Pressable`、`Touchable*`、`Button`、またはコンポーネントが`onPress`を持つビュー | `<button>`、同じコンポーネント | `button`、`togglebutton`、`imagebutton` |
+| `link` | — | `<a>` | `link` |
+| `header` | — | `<h1>`–`<h6>` | `header`、`heading` |
+| `text` | `RCTText`、`RCTVirtualText`、`RCTSelectableText` | `Text` | `text` |
+| `input` | `RCTSinglelineTextInputView`、`RCTMultilineTextInputView`、`AndroidTextInput` | `<input>`、`<textarea>` | `textbox`、`searchbox`、`search` |
+| `image` | `RCTImageView`、`ExpoImage` | `<img>`、`Image` | `image`、`img` |
+| `switch` | `Switch`（iOS）、`AndroidSwitch` | `Switch` | `switch` |
+| `checkbox` / `radio` | — | `<input type="checkbox">` / `"radio"` | `checkbox` / `radio` |
+| `slider` | `RNCSlider` | `<input type="range">` | `adjustable`、`slider` |
+| `picker` | `RNCPicker`、`RNCAndroidDialogPicker`、`RNCAndroidDropdownPicker`、`RNDateTimePicker` | `<select>` | `combobox`、`spinbutton` |
+| `progress` | `ActivityIndicatorView`、`AndroidProgressBar` | `<progress>`、`ActivityIndicator` | `progressbar` |
+| `scroll` | `RCTScrollView`、`AndroidHorizontalScrollView` | `ScrollView` | — |
+| `list` | `FlatList` / `SectionList` / `FlashList`のスクロールビュー（コンポーネントが`renderItem`を持つ） | 同じ | `list` |
+
+複数のホストで構成されたウィジェットは1つとして数えます。たとえば、react-native-webの`Switch`は`<input role="switch">`を囲む`<div>`です。`{ type: 'switch' }`は外側の要素にマッチし、その要素が入力欄のチェック状態、値、フォーカス、無効状態、ラベルも報告します。
+
+### 可視性
+
+要素が表示されているとは、その要素も祖先もスタイルで隠されておらず（`display: none`、`opacity: 0`）、かつ一部が画面上にあることです。画面上とは、ウィンドウの内側**かつ**コンテンツをクリップするすべての祖先（スクロールビュー、`visible`以外の`overflow`）の内側を指します。スクロールビューの外にスクロールされた要素は、その位置がウィンドウの内側でも表示されていません。`visibleRatio`は、要素の面積のうち表示されている割合です。別の要素に覆われているかどうかは可視性には含まれません。アクションがそれを別途チェックします（`ELEMENT_OBSCURED`）。
+
+## アプリ内API（`@quiesco/agent`） {#in-app-api-quiescoagent}
+
+アプリはエントリーファイルの1行目でエージェントをimportし、ルートを`<QuiescoRoot>`でラップします（`npx quiesco init`が両方を設定します）。`EXPO_PUBLIC_QUIESCO=1`なしのビルドでは、`metro.config.js`の`withQuiesco()`がこのパッケージを何もしないスタブに置き換えるので、このコードはアプリに残しておけます。
+
+`withQuiesco(config, options?)`は、Metroが成果物ディレクトリを監視しないようにもします。Metroは監視中のファイルが変わるたびにアプリへHMRの更新を送るため、dev clientの「Refreshing...」ウィンドウが、別のワーカーがタップしている最中のアプリを覆ってしまいます。`options.artifactsDir`（デフォルトは`'artifacts'`、プロジェクトルートからの相対パス）は、`artifacts.dir`を変更した場合はそれに合わせる必要があります（`false`：除外しない）。`.expo/devices.json`も除外されます。Expoの開発サーバーが、dev clientアプリが起動するたびにこのファイルを書き換えるためです。
+
+```ts
+import { QuiescoRoot, quiesco } from '@quiesco/agent';
+
+// UIを通さないテスト専用のセットアップ。引数と結果はJSONでなければならない。
+quiesco.backdoor('loginAs', async (email: string) => {
+  await authStore.setSession(await testApi.createSession(email));
+});
+
+// ソフトリセットのたびに、ストレージのクリア後、アプリの再マウント前に実行される。
+quiesco.onReset(async () => {
+  queryClient.clear();
+});
+
+// 組み込みのストレージに加えて、ソフトリセット時にクリアするストレージ
+// （iOS / AndroidではAsyncStorageのデフォルトストア、WebではlocalStorage、sessionStorage、IndexedDB）。
+quiesco.registerStorage({ name: 'mmkv', clear: () => storage.clearAll() });
+
+// 今回の起動の起動引数（設定の`launchArgs` + `app.device.relaunch({ args })`）を、
+// JSONの型のまま返す。同期的なので起動時に読める。本番環境と、iOS / Androidで
+// @quiesco/nativeを含まないビルドでは`{}`。
+const { user } = quiesco.launchArgs() as { user?: string };
+```
+
+バックドアとフックは、e2eビルドでだけimportされるモジュールに登録してください（`if (process.env.EXPO_PUBLIC_QUIESCO === '1') require('./e2e')`）。そうすれば、テスト用のコードは本番のバンドルに一切入りません。どの登録も、登録を解除する関数を返します。
+
+## 設定 {#configuration}
+
+プロジェクトルートの`quiesco.config.ts`です（`.mts`、`.js`、`.mjs`も使えます）。
+
+```ts
+import { defineConfig } from '@quiesco/core';
+
+export default defineConfig({
+  apps: {
+    ios: { bundleId: 'com.example.app', binaryPath: 'ios/build/…/App.app', devClient: { metroUrl: 'http://localhost:8081' } },
+    android: { package: 'com.example.app', binaryPath: 'android/app/build/outputs/apk/debug/app-debug.apk', devClient: { scheme: 'myapp' } },
+    web: { distDir: 'dist' },                       // または { url: 'http://localhost:8081' }
+  },
+  devices: {
+    ios: { device: 'iPhone 17', os: '27.0' },
+    android: { avd: 'Pixel_9_API_37' },
+    web: { browser: 'chromium', viewport: { width: 390, height: 844, hasTouch: true, isMobile: true } },
+  },
+  permissions: ['location'],
+  sync: { timeoutMs: 10_000, ignoreUrls: [/\/analytics\//] },
+});
+```
+
+| キー | デフォルト | 意味 |
+|---|---|---|
+| `apps.ios.bundleId` / `binaryPath` / `devClient.metroUrl` | | インストール（シミュレーター用の`.app`）して起動するアプリ。`devClient`：このMetroを使ってExpoのdev clientを起動 |
+| `apps.android.package` / `binaryPath` / `activity` / `devClient` / `reversePorts` | `.MainActivity` | インストールして起動するAPK。`devClient: { scheme, metroUrl }`。`reversePorts`：アプリが`localhost`で呼び出すホスト側のポート（`adb reverse`） |
+| `apps.web.distDir` / `url` / `path` | `/` | エクスポート（静的：Quiescoが配信。`web.output: "server"`：`npx expo serve`でホスト）、または実行中のサーバー |
+| `devices.ios.device` / `os` / `udid` | 起動中のシミュレーター | どのシミュレーターを使うか。必要なら起動します |
+| `devices.ios.disablePasswordAutoFill` | `true` | iOSの「Save Password?」シートがアプリを覆わないようにする |
+| `devices.android.avd` / `serial` | 実行中のデバイス | どのエミュレーター / デバイスを使うか。AVDが実行中でなければ（コールドブートで）起動します |
+| `devices.android.gpu` | AVDのモード。macOSでは`auto` → `host` | Quiescoが起動するエミュレーターの`-gpu`。macOSではエミュレーターが`auto`を`lavapipe`（CPUレンダラー。アイドル状態のエミュレーター1台あたり約4コア）に変えてしまいます |
+| `devices.*.shutdown` | `false` | Quiescoが起動したデバイスを、実行終了時にシャットダウンする |
+| `devices.web.browser` / `headless` / `viewport` | `chromium`、ヘッドレス | ブラウザーと画面サイズ（組み込みのプリセットはありません） |
+| `permissions` | `[]` | 起動前に付与する権限：`camera`、`microphone`、`location`、`notifications`、`contacts`、`photos`、`calendar`（[プラットフォームごと](./platforms#permissions)） |
+| `sync.timeoutMs` | `10000` | 呼び出しがアイドルを待つ時間 |
+| `sync.timerThresholdMs` | `1500` | 遅延がこの値以下のタイマーはアプリをビジーにする |
+| `sync.countIntervals` | `false` | `setInterval`がアプリをビジーにするかどうか |
+| `sync.stableFrames` | `2` | 要素ツリーが変わらないままでなければならないフレーム数 |
+| `sync.ignoreUrls` | `[]` | アプリをビジーにしないリクエスト（文字列は部分一致） |
+| `sync.trackers` | すべてオン | 例：`{ 'frame-stable': false }` |
+| `sync.ignoreElements` | `[]` | frame-stableのチェックから（サブツリーごと）外す要素のマッチャー。例：装飾用のアニメーション`['logo-glow']` |
+| `actions.mode` | アプリに`@quiesco/native`があれば`native`、なければ`js` | 実際の入力か、コールバックか |
+| `actions.gestureSlop` | プラットフォームごと（[マルチタッチジェスチャー](#multi-finger-gestures)を参照） | `{ pinch, rotation }`：アプリの認識器が有効になるまでに指が動く距離 |
+| `reset.default` | `soft` | `hard`にすると各シナリオの前にアプリを再起動する |
+| `server.port` / `server.host` | `7357` / すべてのインターフェース | ホスト側のWebSocketサーバー |
+| `connectTimeoutMs` | `30000` | 起動後にアプリの接続を待つ時間 |
+| `logLevel` | `warn` | テスト出力に転送するアプリのコンソールメッセージ（`off`で無効） |
+| `tags` | 後述 | シナリオタグの名前を変える |
+| `appErrors.ignore` / `ignoreDefaults` | `[]` / `true` | ステップを失敗させず、警告をログに出すだけにするアプリのエラー |
+
+プラットフォームは`QUIESCO_PLATFORM`（`ios`、`android`、`web`）または`quiesco test --platform`で決まります。設定ファイルは普通のTypeScriptなので、値を環境変数から取ることもできます。
+
+## シナリオタグ {#scenario-tags}
+
+| タグ | 効果 |
+|---|---|
+| `@ios`、`@android`、`@web` | シナリオをこれらのプラットフォームでだけ実行する（複数のタグはいずれか一つに該当すれば実行） |
+| `@native` | iOSとAndroidのみ |
+| `@hard-reset` | このシナリオの前に、ソフトリセットの代わりにアプリを再起動する |
+
+タグのないシナリオはどこでも実行されます。名前を変えるには`tags: { web: '@browser' }`とします。
+
+プラットフォームタグは、feature、`Rule`、シナリオ、`Examples`ブロックのどこにでも付けられ、最も内側のタグが判定に使われます。`@native`タグの付いたfeatureでは、タグのないシナリオはiOSとAndroidで実行され、`@android`タグの付いたシナリオはAndroidでだけ実行されます。継承したタグにもマッチするcucumber-jsの`--tags`とは、この点が異なります。
+
+## エラー {#errors}
+
+失敗は`QuiescoError`として報告されます。`errorName`、対処法を示すメッセージ、構造化された`data`を持ちます。
+
+| エラー | 意味 |
+|---|---|
+| `ELEMENT_NOT_FOUND` | タイムアウトまでに、表示されている要素が1つもマッチしなかった（存在しない、または存在するが隠れている） |
+| `MULTIPLE_MATCHES` | アクションのマッチャーが複数の要素にマッチした。`data.matches`に列挙されます |
+| `ELEMENT_OBSCURED` | 実際のタッチが別のものに当たる。`data.obscuredBy`（iOSではネイティブのヒットチェーンも） |
+| `SYNC_TIMEOUT` | アプリがアイドルにならなかった。ビジーなトラッカーをすべて列挙します（[詳細](./sync#when-the-app-never-becomes-idle)） |
+| `ASSERTION_FAILED` | `data.expected`、`data.actual`と、見つかった要素 |
+| `ACTION_NOT_SUPPORTED` | 例：iOSでの`pressBack`、ネイティブモジュールなしでの`native`モード（ヒント付き） |
+| `BACKDOOR_NOT_REGISTERED` / `BACKDOOR_FAILED` / `NOT_SERIALIZABLE` | バックドアの問題。最初のものは登録済みの名前を、最後のものは問題のある値のパスを示します |
+| `APP_ERROR` | アプリ内のキャッチされないエラーで現在のステップが失敗した（既知のエラーを無視するには`appErrors`を参照） |
+| `RESET_FAILED` | ソフトリセットのどの手順が失敗したか（`storage:<name>`、`onReset#<n>`、`remount`） |
+| `PROTOCOL_MISMATCH` / `SESSION_MISMATCH` | エージェントとホストのバージョンが異なる / 別の実行のアプリが接続してきた |
+| `CONNECT_TIMEOUT` | 起動後にアプリが接続しなかった（メッセージにチェックリストがあります） |
+| `AGENT_TIMEOUT` | アプリが応答しなくなった。たいていはJSスレッドがブロックされています |
+| `AGENT_DISCONNECTED`、`DEVICE_ERROR`、`CONFIG_ERROR` | 接続の切断、デバイス用ツールの失敗（adb / simctl / Playwright）、不正な設定 |
+| `APP_NOT_RUNNING` / `APP_IN_BACKGROUND` | テストがアプリを終了させた / バックグラウンドに送った（`this.app.device`）。先に再起動する / 前面に戻す必要があります |
+| `DIALOG_OPEN` | Web：ページがJavaScriptダイアログを表示している（`data.message`）。先に`app.device.system.tap({ text: 'OK' })` / `{ text: 'Cancel' }`で応答してください |
+
+## 成果物 {#artifacts}
+
+シナリオごとに`artifacts/<date-time>-<platform>/<nnn>-<scenario>/`の下に保存され、レポートに添付されます。
+
+| 成果物 | 条件 | 内容 |
+|---|---|---|
+| 失敗時の証跡 | シナリオが失敗したとき | `failure.png`：失敗した呼び出しに関わる要素（アサーションの要素、遮られたターゲット、複数のマッチ）を赤枠で囲んだ画面。`element-tree.json`。`idle-state.json`（何がビジーだったか） |
+| 保存したスクリーンショット | `screenshot(…, { name })` | `<name>.png` |
+| `video` | ポリシーによる | iOSは`simctl io recordVideo`（MP4）、Androidは`screenrecord`（MP4、3分ごとに新しいセグメント）、WebはPlaywrightのスクリーンキャスト（WebM）。ファイルパスとして添付されます |
+| `logs` | ポリシーによる | `device.log`：iOSはアプリプロセスの統合ログ（`log stream`、info以上）、Androidはアプリのuidのlogcat、Webはページのコンソールとキャッチされないエラー。最後の300行はインラインで添付されます |
+| `timeline` | ポリシーによる | アプリに対するすべての呼び出しと、その所要時間およびそのうちアイドル待ちに費やした時間、失敗した呼び出しとそのエラー：`timeline.html`（インライン）と`timeline.trace.json`（Chromeのトレース形式：`chrome://tracing`、ui.perfetto.dev） |
+
+```ts
+export default defineConfig({
+  artifacts: { dir: 'artifacts', video: 'failing', logs: 'failing', timeline: 'failing' },
+});
+```
+
+ポリシー：`none`、`failing`（すべてのシナリオで記録し、失敗したときに残す）、または`all`。デフォルト：videoは`none`（録画はどのシナリオでも少しコストがかかります。CIではオンにしてください）、logsとtimelineは`failing`。`QUIESCO_ARTIFACTS=all`（または`failing`、`none`）で、1回の実行に限り3つすべてを設定できます。他のランナーもセッションを通じて同じ仕組みを使います：`beforeScenario`の前に`session.startScenario({ name })`を呼び、`session.afterScenario({ failed })`が添付とファイルを返します。
+
+## CucumberなしでQuiescoを使う {#using-quiesco-without-cucumber}
+
+**JestとVitest**にはアダプター`@quiesco/jest`と`@quiesco/vitest`があります（サンプルは[README](./runners)と[examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e)にあります）。動作はCucumber用のものと同じです。
+
+| | Vitest（`@quiesco/vitest`） | Jest（`@quiesco/jest`） |
+|---|---|---|
+| セットアップ | `@quiesco/vitest/config`の`test: { ...quiesco() }` | `preset: '@quiesco/jest'`、`maxWorkers`、`testTimeout` |
+| Driver | `test('…', async ({ app, session }) => …)` | グローバルの`quiesco.app` / `quiesco.session` |
+| セッション | ワーカーごとに1つ：ワーカーフィクスチャー | ワーカープロセスごとに1つ：テスト環境が保持し、Jestがワーカーを終了するときに閉じます（in bandの場合はプリセットの`globalTeardown`で） |
+| プラットフォームタグ | `describe` / テストのタイトルと`{ tags }`（`quiesco()`が宣言） | `describe` / テストのタイトル |
+| 各テストの前 | 別のプラットフォーム向けのタグがあればスキップ、なければリセット | 同じ（Jestの`test_start` / `test_started`イベント） |
+| 失敗の後 | 証跡を成果物ディレクトリに書き出し、そのファイルを失敗メッセージに列挙 | 同じ |
+| 並列実行 | `quiesco({ workers: N })`：各ワーカーがそれぞれ専用のデバイスで実行（[parallel.md](./parallel)） | `maxWorkers: N`、同じ |
+
+Gherkinと同じく、プラットフォームタグの付いた最も内側の階層が判定に使われます：`describe('… @native')`の中で`@android`タグの付いたテストはAndroidでだけ実行されます。セッションの開始に失敗すると、テストごとに開始し直すのではなく、残りのテストを直ちに失敗させます。Jestでは、設定に独自の`globalTeardown`があるとプリセットのものを置き換えるので、そこから`@quiesco/jest/teardown`を呼び出してください（サンプルを参照）。Vitestの実行の最初のテストはセッションの開始も待つため（デバイスの起動には数分かかることがあります）、`quiesco()`は`testTimeout`を300秒に設定しています。
+
+**その他のランナー**（Mocha、単純なスクリプト）は`@quiesco/core`を直接使います。`Lifecycle`は1回の実行を4つの呼び出しに対応付けます。上記のアダプターは、これを薄くラップしたものです。
+
+```ts
+import { Lifecycle, titleTags } from '@quiesco/core';
+
+const lifecycle = new Lifecycle();                                 // 設定はquiesco.config.*とQUIESCO_PLATFORMから
+await lifecycle.beforeAll();                                        // サーバー、デバイス、インストール、起動、接続
+if ((await lifecycle.before([titleTags(name)], name)) !== 'skipped') {   // 階層ごとのタグ。リセット
+  await lifecycle.current.driver.tap('login-button');               // Driver
+}
+const { attachments, files } = await lifecycle.after({ tags, failed });  // 証跡 + ポリシーに沿った成果物
+await lifecycle.afterAll();
+```
+
+あるいはセッションそのものを使います：`createSession`の後、各テストの前に`startScenario` + `beforeScenario`、後に`afterScenario`（失敗時：枠付きのスクリーンショット、要素ツリー、アイドル状態に加え、[成果物のポリシー](#artifacts)に沿ったvideo / logs / timeline）、最後に`dispose`を呼びます（これはアプリを閉じます。`devices.*.shutdown`を指定しない限り、デバイスは動き続けます）。`collectEvidence()`は引き続き、失敗時の証跡だけを返します。
+
+実行は直列です。1つのセッションが1台のデバイスを操作します。`quiesco test --runner cucumber|jest|vitest`は`QUIESCO_PLATFORM`を設定してランナーを起動します。他のランナーでは、`QUIESCO_PLATFORM`を設定し（またはプラットフォームを`resolvePlatform`に渡し）、ランナーを自分で起動してください。

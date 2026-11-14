@@ -1,0 +1,53 @@
+---
+title: "同步"
+description: "空闲意味着什么，背后有哪些跟踪器，以及 App 始终无法空闲时该怎么办。"
+---
+
+Quiesco 会在每次查询和断言之前、每次操作之后，等待 App 进入**空闲**状态，因此步骤里无需 sleep 或轮询。“空闲”由 App 内部若干相互独立的跟踪器判定；当所有跟踪器连续两次（间隔一个宏任务）都处于空闲时，App 即为空闲（这样，一个在同一个 tick 内触发并发起请求的定时器就不会被漏掉）。
+
+## 跟踪器 {#trackers}
+
+| 跟踪器 | 何时忙碌 | 说明 |
+|---|---|---|
+| `network` | 有 `fetch` / `XMLHttpRequest` 正在进行、正在读取响应体，或 `WebSocket` / `EventSource` 正在连接 | `fetch` 在响应到达之前计入；紧接着开始的响应体读取（`json()`、`text()`……）会让它保持忙碌，直到响应体读完，之后再次读取会重新计入。直接导入的 `expo/fetch` 也会被跟踪（在 e2e 构建中，`withQuiesco()` 会替换为一个带跟踪的再导出）。`WebSocket` / `EventSource` 只在打开、失败或关闭之前计入；已打开的连接从不计入（agent 自己的连接也不计入）。`sync.ignoreUrls` 可排除长轮询、SSE、统计分析请求。基于 XHR 实现的 `fetch`（React Native）只计一次。|
+| `timer` | 有延迟 ≤ `sync.timerThresholdMs`（1.5 s）的 `setTimeout` 尚未触发 | 更长的定时器（会话过期、每 30 s 一次的轮询）不会阻塞。`setInterval` 仅在 `sync.countIntervals: true` 时计入。|
+| `react` | React 有未提交的工作：某个 root 有待处理的 lane 或已调度的回调，或 React 调度器中有待处理的任务（渲染工作、passive effect） | 通过 DevTools hook 读取 React 自身的记录—— App 无需任何改动。|
+| `idle-callback` | 有尚未执行的 `requestIdleCallback`（以及仍提供 `InteractionManager` 的 React Native 版本中的相应任务） | |
+| `native`（iOS） | 正在进行 view controller 转场（导航、模态展示），或键盘正在移动 / 刚被使用过 | 由 `@quiesco/native` 上报；覆盖 JavaScript 看不到的 UIKit 工作。|
+| `frame-stable` | 元素树（每个元素的类型、testID、文本，以及取整后的位置和尺寸）在最近 `sync.stableFrames`（2）帧内发生了变化 | 用于兜底 UI 线程上的动画（Reanimated、native driver 的 `Animated`）。只在有调用等待时采样。|
+
+用 `sync: { trackers: { 'frame-stable': false } }` 关闭某个跟踪器。
+
+React 跟踪器的工作原理，以及为什么 agent 必须在 React Native 的渲染器之前加载，见[docs/spikes/02-react-idle.md](https://github.com/h2nology/quiesco/blob/main/docs/spikes/02-react-idle.md)。`metro.config.js` 中的 `withQuiesco()` 会处理好加载顺序（React Native 0.88 会在 App 的入口文件之前加载渲染器）。
+
+## App 始终无法空闲时 {#when-the-app-never-becomes-idle}
+
+等待时间超过 `sync.timeoutMs`（10 s）的调用会以 `SYNC_TIMEOUT` 失败，并列出忙碌的内容：
+
+```
+App did not become idle within the 10000ms timeout. Busy:
+  - network: GET https://api.example.com/todos (10012ms)
+  - timer: setTimeout(poll, 1000ms), fires in 420ms
+  - frame-stable: element tree changing: stable for 1/2 frames (580 frames sampled in 9960ms)
+    last change: first difference at node 12: Text "Loading 41%" … → Text "Loading 42%" …
+```
+
+处理方式取决于跟踪器：
+
+- **network**——一个永不结束的请求（长轮询、卡住的后端）：把它加入 `sync.ignoreUrls`，或修复后端 / mock。可以在 mock 服务器中加入类似 `MOCK_STALL` 的开关，有意复现这种情况。
+- **timer**——一个被反复重新设置的短定时器（用 `setTimeout` 实现的轮询循环、会重新调度自身的 toast）。只有当循环间隔长于阈值时才调高 `sync.timerThresholdMs`；否则对该步骤跳过同步（`{ sync: false }`），或在 e2e 构建中停止该循环。
+- **frame-stable**——有东西一直在动：无限循环的动画（spinner、shimmer、跑马灯、缓慢的装饰性光晕）或计数器。报告会指出第一个发生变化的元素。如果该元素只是装饰，给它一个 testID 并列入 `sync.ignoreElements`——它及其子树会被排除在这项检查之外，其余部分照常检查。否则用 `{ sync: false }` 调用该步骤，之后再断言需要的内容，或在 e2e 构建中禁用该动画。如果相对于等待时间，`frames sampled` 非常少，说明 UI 线程被饿死了（模拟器过载），而不是在播放动画。
+- **react**——渲染循环（effect 中没有加条件判断的状态更新）永远无法稳定：这是一个真实的 bug。
+
+`AGENT_TIMEOUT` 则不同：agent 完全没有响应，通常是因为 JS 线程被一个长时间的同步任务阻塞。
+
+## 对单次调用跳过同步 {#skipping-sync-for-one-call}
+
+```ts
+await this.app.tap('start-spinner', { sync: false });        // 前后都不等待
+await this.app.expectVisible('spinner', { sync: false });    // 在它转动时断言
+```
+
+## 平台说明 {#platform-notes}
+
+三个平台运行的是同一套跟踪器。在 web 上，整页加载后 agent 会重新连接，host 端会透明地等待它；使用Expo Router 的静态输出时，hydration 完成后即认为 App 已就绪。`native` 跟踪器只存在于 iOS。见[平台差异](./platforms)。

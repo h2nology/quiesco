@@ -1,0 +1,64 @@
+---
+title: "Quiesco"
+description: "面向 Expo App 的灰盒端到端测试，覆盖 iOS、Android 和 Web，可由 Cucumber、Jest、Vitest 或任何 Node.js 测试运行器驱动。"
+---
+
+App 的 e2e 构建里有一个小小的 agent，它会在 App 空闲时通知测试运行器——没有待处理的网络请求、定时器、React 渲染或动画——因此测试既不用 sleep，也不用轮询。同一套测试无需修改，即可在 iOS 模拟器、Android 模拟器和 Chromium 上运行。Cucumber 有现成的适配器（`@quiesco/cucumber`），Jest 和 Vitest 也有（`@quiesco/jest`、`@quiesco/vitest`、[其他测试运行器](./runners)）。
+
+```gherkin
+Scenario: A new todo appears at the top of the list
+  Given the user "a@example.com" is logged in
+  When they add a todo "Buy milk"
+  Then the first todo is "Buy milk"
+```
+
+```ts
+When('they add a todo {string}', async function (this: QuiescoWorld, title: string) {
+  await this.app.tap('add-todo');                 // 等到 App 空闲后再点击
+  await this.app.type('todo-title', title);
+  await this.app.tap({ role: 'button', text: 'Save' });
+});
+```
+
+## 特性 {#features}
+
+- **自动同步**——网络、定时器、React 调度器、idle 回调、原生转场动画，以及基于帧稳定性的兜底机制（[工作原理](./sync)）。同步超时时会指出仍在忙碌的是什么。
+- **真实输入**——通过 `@quiesco/native`（iOS / Android）或 Playwright（Web）注入触摸和文本；回调模式（`js`）无需原生代码即可工作。
+- **快速重置**——每个场景开始前执行软重置（存储、你的重置钩子、重新挂载），通常约 200 ms；`@hard-reset` 会重新启动 App。
+- **后门**——在步骤中直接设置状态，无需操作 UI（`this.app.backdoor('loginAs', …)`）。
+- **生产环境零残留**——没有 `EXPO_PUBLIC_QUIESCO=1` 时，agent 会被替换为空实现的桩，原生模块也会从构建中排除（由 CI 检查，见[基准测试](./benchmarks)）。
+
+## 入门 {#get-started}
+
+<CardGroup cols={2}>
+  <Card title="快速上手（Web）" icon="rocket" href="./quickstart">
+    从新建 Expo App 到在 Chromium 中跑通一个 feature，大约 10 分钟。
+  </Card>
+  <Card title="iOS 和 Android" icon="mobile" href="./native">
+    构建 e2e App，在 iOS 模拟器和 Android 模拟器上运行同样的 feature。
+  </Card>
+  <Card title="Jest 和 Vitest" icon="flask" href="./runners">
+    不用 Cucumber 也能使用 Quiesco。
+  </Card>
+  <Card title="API 参考" icon="book" href="./api">
+    `this.app`、匹配器、App 内 API、配置和错误。
+  </Card>
+</CardGroup>
+
+## 包 {#packages}
+
+| 包 | 说明 |
+|---|---|
+| `quiesco` | CLI：`init`、`test`、`doctor`、`tree`、`devices`（[CLI](./cli)） |
+| `@quiesco/agent` | App 内的 agent：元素查询、同步跟踪器、操作、重置、后门；用于 Metro 的 `withQuiesco()` |
+| `@quiesco/native` | 在 iOS / Android 上注入真实触摸和文本输入的 Expo 模块（仅限 e2e 构建） |
+| `@quiesco/expo-plugin` | Config plugin：从生产构建中排除原生模块，在 e2e 构建中允许本地连接 |
+| `@quiesco/core` | host 端：WebSocket 服务器、`Driver`（`this.app`）、会话、iOS / Android 设备提供者。与运行器无关 |
+| `@quiesco/cucumber` | cucumber-js World（`this.app`）和生命周期钩子 |
+| `@quiesco/vitest` | Vitest：带 `app` fixture 的 `test`、`quiesco()` 配置 |
+| `@quiesco/jest` | Jest：带 Quiesco 测试环境的 preset、全局 `quiesco` |
+| `@quiesco/web` | Web 设备提供者（Playwright 库） |
+| `@quiesco/steps` | 可选的中文、日文和英文通用步骤——仅用于原型验证（[步骤](./steps)） |
+| `@quiesco/protocol` | agent 与 host 端共用的类型和常量 |
+
+源码以 MIT 许可证发布在 [GitHub](https://github.com/h2nology/quiesco) 上。
