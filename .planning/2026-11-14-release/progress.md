@@ -45,3 +45,9 @@
 - 4 个子代理并行：zh A / B、ja A / B，各自检查通过
 - 收尾：软换行接上 298 处；中文统一 App / 深层链接 / 空实现的桩；docs.json 加 zh / ja 导航（分组名翻译）
 - 对照检查 ok；mint validate、broken-links --check-anchors 通过；mint dev 48 页 200、无 `{#` / `&lt;` 漏出；zh / ja 锚点 #driver-thisapp、#configuration 可用；截图看过
+
+## 2026-11-14 R.D.4 docs:check
+- 提交 R.D.3（0e630fd）
+- scripts/check-docs.mjs：导航（文件存在、页面都在导航里、各语言页面和顺序一致）、译文结构（标题 id、链接、组件、行内代码、去注释的代码）、`pnpm --silent dlx mint@4.3.34` validate + broken-links --check-anchors；`--no-mint` 跳过 mint
+- 根 `docs:check`；.github/workflows/docs.yml（docs/** 变更时跑）
+- 实跑通过（不含 mint 0.04s，含 mint 约 5s）；反向验证报 6 个问题；pnpm lint 通过

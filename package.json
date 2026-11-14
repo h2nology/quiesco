@@ -15,7 +15,8 @@
     "check": "pnpm build && pnpm lint && pnpm depcruise && pnpm test && pnpm typecheck:examples",
     "typecheck:examples": "pnpm --filter @quiesco/example-todo-app exec tsc --noEmit",
     "check:prod-strip": "node scripts/check-prod-strip.mjs",
-    "release:check": "pnpm check && node scripts/check-release.mjs"
+    "release:check": "pnpm check && node scripts/check-release.mjs",
+    "docs:check": "node scripts/check-docs.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
