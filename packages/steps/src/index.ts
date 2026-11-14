@@ -6,7 +6,7 @@
  *   registerQuiescoSteps({ languages: ['zh'] });
  *
  * Only for prototyping and exploration: these steps script taps and texts instead of stating what the
- * user wants. Real projects write their own business-language steps (see docs/driver-pattern.md).
+ * user wants. Real projects write their own business-language steps (see docs/driver-pattern.mdx).
  */
 import { defineStep } from '@cucumber/cucumber';
 import type { QuiescoWorld } from '@quiesco/cucumber';

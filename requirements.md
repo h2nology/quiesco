@@ -552,7 +552,7 @@ Then('列表第一条是 {string}', async function (title: string) {
 
 - 第 9 节场景在 `native` 档位下通过。
 - 连续运行 20 次无随机失败。
-- 性能基准结果记录在 `docs/benchmarks.md`。
+- 性能基准结果记录在 `docs/benchmarks.mdx`。
 
 ### 第 3 阶段：Web
 

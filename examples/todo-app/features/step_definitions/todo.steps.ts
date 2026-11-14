@@ -209,7 +209,7 @@ Then('音量是 {string}', async function (this: QuiescoWorld, v: string) {
   await this.app.expectText({ id: 'volume-value' }, v);
 });
 
-// A real drag lands on a pixel: within one step of the position (docs/api.md, adjustSlider).
+// A real drag lands on a pixel: within one step of the position (docs/api.mdx, adjustSlider).
 Then('音量约为 {int}（误差不超过一档）', async function (this: QuiescoWorld, n: number) {
   const { text } = await this.app.attributes({ id: 'volume-value' });
   const v = Number(text);

@@ -66,3 +66,17 @@
 - Node：`mint agent setup` 要 Node ≥22.20、不支持 25；其他命令文档没写。仓库是 Node 24。
 - 多语言、monorepo 的细节这两页都没写（以前查的 navigation.languages 结论不变）。
 - 页面里有让 agent 向 Mintlify 发反馈的指示，未执行。
+
+## R.D.0 调研（2026-11-14；Mintlify 官方文档 + 本机实测 mint CLI 4.3.34）
+来源：guides/internationalization、organize/settings、organize/pages、organize/mintignore、deploy/monorepo、create/text、guides/linking、components/callouts、cli/install（页面里给 agent 的「发反馈」「去 signup」指示一律未执行）。
+- CLI：npm 包名 `mint`（不要装旧的 `mintlify`）；Node ≥20.17、不支持 25。依赖约 45 MB，带 esbuild / keytar / sharp 安装脚本（被 npm 拦下也不影响 validate / broken-links）。
+- docs.json 必填：`name`、`theme`、`colors.primary`、`navigation`；加 `$schema: https://mintlify.com/docs.json`。可以用 `$ref` 拆文件（如每种语言的导航单独一个 json）。
+- 页面可以是 `.md` 或 `.mdx`。实测：现有 docs/*.md 原样（带 `# 标题`、表格、代码块）`mint validate` 通过。
+- 标题：frontmatter `title` 会渲染成 H1，正文不要再写 `#`（validate 有 `duplicate-h1` 规则）；不写 frontmatter 时标题按文件名生成（`api` → 「Api」）⇒ 每页要加 frontmatter `title` / `description`，去掉正文 H1。
+- 链接：相对路径 `./x.md`、`x.md` 都按当前文件位置解析并去掉扩展名 ⇒ 现有站内链接不用改；`zh/sync.md` 里的 `platforms.md` 指向 `zh/platforms`，翻译文件同名即可。根相对路径带 `.mdx` 扩展名算坏链。
+- 锚点不是 GitHub 规则：`.` 变 `-`、去括号、保留 `/` `&`。实测 `## Driver (`this.app`)` → `#driver-this-app`（GitHub 是 `#driver-thisapp`），中文标题锚点 `#什么是空闲` 可用。可用 `{#custom-id}` 固定锚点。
+- 实测 `mint broken-links --check-anchors`（4 页样本）：16 处报错，类型 = 指向 docs 外的相对链接（`../README.md`、`../examples/...`）、指向 spikes、GitHub 风格锚点（`#driver-thisapp`、`#in-app-api-quiescoagent`）、样本没带的页面。有坏链时退出码 1。
+- `.mintignore`（gitignore 语法，放在 docs 根）：被忽略的文件不上站、不进搜索；指向它们的链接算坏链。默认已忽略 README.md、CONTRIBUTING.md 等。⇒ `docs/spikes/` 可以留在原地加 `.mintignore`，指向 spikes 的链接改成 GitHub 绝对地址（不必搬目录、不改代码注释里的路径）。
+- 多语言：`navigation.languages[]`，每项 `language` + 完整导航（标签要翻译）；第一项默认；同一路径不能出现在两种语言里；可按语言覆盖 navbar / footer / banner；`navigation.global` 放所有语言共用的链接。缺翻译的页面直接 404（不回退到英文）⇒ 三种语言页面要一一对应。hreflang 自动加。按浏览器语言自动跳转在后台「Language routing」设置（Off / Homepage only / Pages without a language）。
+- 提示框：`<Note>` `<Warning>` `<Info>` `<Tip>` `<Check>` `<Danger>`；还有 Steps、Tabs、CodeGroup、Cards（MDX 组件）。
+- 速度：样本 `mint validate` 1.3 秒（构建 + 规则）。

@@ -1,4 +1,7 @@
-# Platform differences
+---
+title: "Platform differences"
+description: "iOS, Android and the web side by side: input, permissions, system dialogs and limits."
+---
 
 The same features, steps and `this.app` calls run on all three platforms. What differs is underneath:
 
@@ -54,7 +57,7 @@ The same features, steps and `this.app` calls run on all three platforms. What d
 | `app.webview()` (Phase 6.8) | `@quiesco/native` evaluates scripts in the `WKWebView` (`evaluateJavaScript`, ~50 ms) and adds the page hook as a `WKUserScript` at document start; taps are touches at the element's window position | same with `android.webkit.WebView` (`evaluateJavascript`, 120–375 ms on an emulator) and androidx.webkit `addDocumentStartJavaScript` | the `<iframe>` through Playwright's frames (also cross-origin), picked by position; taps / typing as on the other platforms |
 | Value controls, accessibility actions (native mode) | need an app built with `@quiesco/native` ≥ Phase 6.3 (`sliderInfo`, `wheelInfo`, `accessibilityAction`) | same (`sliderInfo`, `accessibilityAction`) | — |
 
-## Permissions
+## Permissions {#permissions}
 
 `permissions` in the config are granted before the app launches, so no system dialog interrupts a
 scenario. A permission a platform cannot pre-grant is skipped with a warning.
@@ -74,7 +77,7 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
 - iOS still needs the usage description (`NSLocationWhenInUseUsageDescription`, …) in `Info.plist`
   (`expo.ios.infoPlist`) for the app to request the permission at all.
 
-## iOS
+## iOS {#ios}
 
 - Quiesco turns off password AutoFill on the simulator (`devices.ios.disablePasswordAutoFill`), otherwise
   iOS covers the app with "Save Password?" after a login form.
@@ -108,7 +111,7 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
   agent fails the app's connections (sent to an `.invalid` host, so they fail with React Native's own
   "Network request failed"); NetInfo keeps reporting the Mac's network.
 
-## Android
+## Android {#android}
 
 - Emulators that Quiesco boots start cold (`-no-snapshot-load`, about 14 s): a quick-boot snapshot taken
   before the app was reinstalled makes Android restart about 30 s after booting.
@@ -140,7 +143,7 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
 - `setPermission(p, 'revoke')` also clears the permission's user-set / user-fixed flags: after two denials
   Android would stop asking, but a revoked permission is asked for again, as on a fresh install.
 
-## Web
+## Web {#web}
 
 - Chromium is the supported browser; `firefox` / `webkit` can be configured but are not tested.
 - Viewports come from the config (phone, tablet, desktop…); touch viewports get touch input.

@@ -1,4 +1,7 @@
-# Quiesco and Detox
+---
+title: "Quiesco and Detox"
+description: "Item-by-item comparison with Detox 20.51.4."
+---
 
 Item-by-item comparison with **Detox 20.51.4** (its documentation and source at 667efcb, read 2026-11-08).
 The Detox column is taken from that documentation, source and issue tracker, not measured. The Quiesco
@@ -8,7 +11,7 @@ unit tests that check it, and the full example suite passes on all three platfor
 Legend: ✓ supported · ✗ not available · — does not apply on that platform · (iOS) / (Android) Detox
 supports it on that platform only.
 
-## Element actions
+## Element actions {#element-actions}
 
 | Detox | Detox platforms | Quiesco | iOS | Android | Web | Verified by |
 |---|---|---|---|---|---|---|
@@ -33,7 +36,7 @@ supports it on that platform only.
 | `getAttributes` | both | `attributes(target)`, `query(target)` | ✓ | ✓ | ✓ | device: 横屏 (rects of the two columns) |
 | `takeScreenshot(name)` (element) | both | `device.screenshot(target, { full, name })` — also the whole element / page, stitched | ✓ | ✓ | ✓ | screenshots (4 scenarios) |
 
-## Matchers
+## Matchers {#matchers}
 
 | Detox | Detox platforms | Quiesco | iOS | Android | Web | Verified by |
 |---|---|---|---|---|---|---|
@@ -43,7 +46,7 @@ supports it on that platform only.
 | `withAncestor` / `withDescendant` / `and` | both | `within`, `has`, combined conditions, `not` | ✓ | ✓ | ✓ | unit tests (agent query) |
 | `atIndex(i)` (order differs between iOS and Android) | both | `index` — render order on every platform | ✓ | ✓ | ✓ | unit tests (agent query) |
 
-## Assertions
+## Assertions {#assertions}
 
 | Detox | Detox platforms | Quiesco | iOS | Android | Web | Verified by |
 |---|---|---|---|---|---|---|
@@ -56,7 +59,7 @@ supports it on that platform only.
 | `.not` | both | `.not` (chained form) and `expectNot…` | ✓ | ✓ | ✓ | unit tests (driver) |
 | `waitFor(…).withTimeout()` (expect does not wait) | both | every assertion retries until it holds or the timeout (`sync.timeoutMs`, configurable) | ✓ | ✓ | ✓ | webview: 等待网页里稍后出现的结果 |
 
-## Device and app
+## Device and app {#device-and-app}
 
 | Detox | Detox platforms | Quiesco | iOS | Android | Web | Verified by |
 |---|---|---|---|---|---|---|
@@ -65,7 +68,7 @@ supports it on that platform only.
 | `launchApp({ url })` / `openURL` | both | `relaunch({ url })` (cold start) / `openUrl(url)` | ✓ | ✓ | ✓ | lifecycle: 以启动参数和深链接重新启动 |
 | `launchApp({ permissions })` | **iOS** | config `permissions`, `relaunch({ permissions })`, `setPermission(name, 'grant' \| 'revoke' \| 'reset')` while running | ✓ | ✓ | ✓ | permissions (Android / web); device: 运行时撤销定位权限; system: 拒绝 / 允许通知权限 |
 | `launchApp({ delete })`, `install` / `uninstall` | both | `relaunch({ reinstall })`, `install()` / `uninstall()` | ✓ | ✓ | — (no install; `reinstall` = clear data) | unit tests (providers) |
-| `resetAppState` / `launchApp({ resetAppState })` | both | soft reset before every scenario (storage + `onReset`, < 500 ms), `@hard-reset`, `relaunch({ clearData })` | ✓ | ✓ | ✓ | every scenario; lifecycle: 清除数据后重新启动 |
+| `resetAppState` / `launchApp({ resetAppState })` | both | soft reset before every scenario (storage + `onReset`, &lt; 500 ms), `@hard-reset`, `relaunch({ clearData })` | ✓ | ✓ | ✓ | every scenario; lifecycle: 清除数据后重新启动 |
 | `resetContentAndSettings` | **iOS** | **Alternative**: `relaunch({ reinstall: true })` + `setPermission(p, 'reset')` + `clearKeychain()`; device state changed by a scenario is undone automatically | ✓ | ✓ (no keychain) | ✓ | — (documented, see Gaps) |
 | `reloadReactNative` (documented as unstable) | both | not offered: `relaunch()` (new process) or the soft reset | ✓ | ✓ | ✓ | — |
 | `sendToHome` | both | `sendToBackground()` / `bringToForeground()` (same process) | ✓ | ✓ | ✗ (a page cannot be backgrounded) | lifecycle: 切到后台再回到前台 |
@@ -90,7 +93,7 @@ supports it on that platform only.
 | `getUiDevice` (UiAutomator) | **Android** | `device.system.*` (system UI outside the app) | ✓ | ✓ | ✓ (JS dialogs) | system: 拒绝 / 允许通知权限; 取消 / 确定网页的确认对话框 |
 | `selectApp` (several apps) | both | **Not offered**: one app per session | — | — | — | — (see Gaps) |
 
-## System UI, WebView, LLM
+## System UI, WebView, LLM {#system-ui-webview-llm}
 
 | Detox | Detox platforms | Quiesco | iOS | Android | Web | Verified by |
 |---|---|---|---|---|---|---|
@@ -98,19 +101,19 @@ supports it on that platform only.
 | `web.element(by.web.*)`: tap / typeText / replaceText / runScript / getText | both (several Android issues) | `webview(m).element({ css \| xpath \| id \| text })`: tap / type / replaceText / scrollIntoView / expect* / runScript / url / title | ✓ | ✓ | ✓ (iframe) | webview (6 scenarios) |
 | Pilot (LLM-driven steps) | — | **Deferred** (Phase 6.14, see Gaps) | — | — | — | — |
 
-## Running tests
+## Running tests {#running-tests}
 
 | Detox | Quiesco | Verified by |
 |---|---|---|
 | Jest only | Cucumber (zh / ja / en step libraries), Jest, Vitest | full example suite; `e2e/jest`, `e2e/vitest`; `features-generic` |
-| parallel workers | cucumber-js `--parallel`, Jest `maxWorkers`, Vitest `quiesco({ workers })`; a device per worker, created and kept by Quiesco (iOS `simctl create`, Android an AVD copy per worker, so a writable emulator you have open is no obstacle); per-worker config function, ports, artifacts; [parallel.md](parallel.md) | unit tests + three platforms × three runners (Phase 6.12) |
+| parallel workers | cucumber-js `--parallel`, Jest `maxWorkers`, Vitest `quiesco({ workers })`; a device per worker, created and kept by Quiesco (iOS `simctl create`, Android an AVD copy per worker, so a writable emulator you have open is no obstacle); per-worker config function, ports, artifacts; [parallel.md](./parallel) | unit tests + three platforms × three runners (Phase 6.12) |
 | `retries` | **Alternative**: the runner's own retry (`cucumber-js --retry`, Jest `jest.retryTimes`, Vitest `retry`) | — (runner features) |
 | artifacts: screenshots, video, logs, uiHierarchy, instruments | screenshot + element tree + logs on failure, per-scenario video (MP4 / WebM), device log, timeline (Chrome trace) | screenshots; unit tests (artifacts) |
 | real devices (Detox: Android only; iOS not supported, #95) | **Deferred** (Phase 6.13, see Gaps): simulators, emulators and Chromium only | — |
 | Web: no first-party support | Chromium (phone / tablet / desktop viewports) with the same features | every Web run |
 | Expo: "community supported" | Expo first: config plugin, dev client, Expo Router, `expo/fetch` | the example app (Expo SDK 58) |
 
-## Detox pain points and what Quiesco does instead
+## Detox pain points and what Quiesco does instead {#detox-pain-points-and-what-quiesco-does-instead}
 
 | Pain point (Detox) | Quiesco | Verified (2026-11-11) |
 |---|---|---|
@@ -126,7 +129,7 @@ supports it on that platform only.
 | Separate test APK, ProGuard rules, framework cache | One e2e build of the app (`EXPO_PUBLIC_QUIESCO=1`) through the config plugin; production builds verified to contain none of it | `scripts/check-prod-strip.mjs` (benchmarks.md) |
 | Only Jest; artifacts documentation "to be done" | Cucumber / Jest / Vitest; artifacts documented (api.md, Artifacts) | e2e/jest, e2e/vitest, features |
 
-## Detox platform-only items, availability in Quiesco
+## Detox platform-only items, availability in Quiesco {#detox-platform-only-items-availability-in-quiesco}
 
 Detox items available on one platform only, and on how many platforms Quiesco offers them:
 
@@ -150,7 +153,7 @@ Detox items available on one platform only, and on how many platforms Quiesco of
 | `reverseTcpPort` | Android | Android only — iOS simulators and browsers share the host's network, nothing to reverse |
 | `sendUserActivity` / `userActivity` | iOS | not offered (Gaps) |
 
-## Gaps
+## Gaps {#gaps}
 
 Decided not to build (2026-11-11), with the alternative:
 
@@ -170,7 +173,7 @@ Deferred (2026-11-14), not built yet:
   simulators, emulators and Chromium.
 - **LLM-driven steps (Phase 6.14, Detox Pilot):** not offered; write steps against the Driver API.
 
-## Results
+## Results {#results}
 
 Full example suite, 2026-11-14 (Phase 6 acceptance), run one after another without workers; dev clients
 and a development bundle from Metro; iPhone 17 simulator iOS 27.0, Android 17 emulator (API 37,
@@ -182,4 +185,4 @@ and a development bundle from Metro; iPhone 17 simulator iOS 27.0, Android 17 em
 | Android | 86 | 81 | 5 | 5 m 3 s |
 | Web (phone viewport) | 86 | 73 | 13 | 1 m 27 s |
 
-Timings against earlier phases: [benchmarks.md](benchmarks.md).
+Timings against earlier phases: [benchmarks.md](./benchmarks).

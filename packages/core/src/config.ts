@@ -190,7 +190,7 @@ export interface QuiescoConfig {
  * Framework reports that are not real failures. Expo Router's lazy routes on the web first try a
  * synchronous require of a not-yet-loaded route chunk; Metro reports that attempt to
  * ErrorUtils.reportFatalError before the chunk is loaded and the navigation completes. It happens
- * for real users too (silently in production), see docs/known-issues.md.
+ * for real users too (silently in production), see docs/known-issues.mdx.
  */
 export const DEFAULT_IGNORED_APP_ERRORS: readonly RegExp[] = [/^Requiring unknown module "\d+"\.?/];
 

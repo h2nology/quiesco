@@ -1,10 +1,13 @@
-# CLI (`quiesco`)
+---
+title: "CLI"
+description: "The quiesco command: init, test, doctor, tree and devices, with every option."
+---
 
 ```sh
 npx quiesco <command> [options]
 ```
 
-## `quiesco init`
+## `quiesco init` {#quiesco-init}
 
 Sets Quiesco up in an Expo project. Every step reports what it did; existing files are never
 overwritten — when a file needs a change Quiesco cannot make safely, it prints what to add.
@@ -29,7 +32,7 @@ overwritten — when a file needs a change Quiesco cannot make safely, it prints
 What `init` leaves to you: wrapping the root in `<QuiescoRoot>`, test ids, and building the iOS / Android
 e2e apps.
 
-## `quiesco test`
+## `quiesco test` {#quiesco-test}
 
 ```sh
 npx quiesco test --platform web
@@ -40,11 +43,11 @@ npx quiesco test --platform web --runner jest e2e/todo.test.js
 
 Sets `QUIESCO_PLATFORM` and runs the project's test runner — `cucumber-js` (default), `jest` or
 `vitest run` (`--runner`); all other arguments are passed to it unchanged. `--workers N` runs N workers,
-each on a device of its own ([parallel.md](parallel.md)): it becomes `--parallel N` for cucumber-js,
+each on a device of its own ([parallel.md](./parallel)): it becomes `--parallel N` for cucumber-js,
 `--maxWorkers N` for Jest and `--fileParallelism --maxWorkers N` for Vitest (the runners' own flags work as
 well).
 
-## `quiesco devices`
+## `quiesco devices` {#quiesco-devices}
 
 ```sh
 npx quiesco devices            # the simulators / AVDs Quiesco created for parallel workers
@@ -54,7 +57,7 @@ npx quiesco devices --prune    # shut them down and delete them
 Lists `"<name> (Quiesco N)"` simulators and `<avd>_quiesco_N` AVDs (with `[running]` when they are);
 `--prune` deletes them. The next parallel run creates them again; your own devices are never touched.
 
-## `quiesco doctor`
+## `quiesco doctor` {#quiesco-doctor}
 
 ```sh
 npx quiesco doctor                 # every platform configured in quiesco.config.mts
@@ -66,7 +69,7 @@ entry's first import, `<QuiescoRoot>`, the config file), the platform tools (sim
 Playwright's Chromium), the app builds and the port. Each problem comes with the fix. Exits with 1 when a
 required check fails; warnings do not fail.
 
-## `quiesco tree`
+## `quiesco tree` {#quiesco-tree}
 
 ```sh
 npx quiesco tree                   # attach to the running app

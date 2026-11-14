@@ -25,3 +25,16 @@
 - 提交 R.B 修复（774a02b）
 - `npm view quiesco` / `@quiesco/core` 均 404（名字未被占用）
 - docs/releasing.md；README「Using unreleased changes」；check-release 加 AGENT_VERSION 一致性检查（反向验证报错）；`pnpm release:check` 通过
+
+## 2026-11-14 R.D.0 调研
+- 提交 R.C（2343100）
+- 读 Mintlify 官方文档（i18n、settings、pages、mintignore、monorepo、链接、锚点、组件、CLI 安装）；scratchpad 装 mint 4.3.34，用现有 4 页 + zh 样本实测 validate（1.3s 通过）、broken-links --check-anchors（16 处，类型见 findings；退出码 1）、中文锚点
+- HU 决定：全部 .mdx、docs:check 单独脚本 + CI job、外观占位 ⇒ R.D.1–R.D.6 细化写进 task_plan，待 HU 确认
+
+
+## 2026-11-14 R.D.1 + R.D.2
+- docs.json（en 导航 4 组 16 页、navbar npm / GitHub）、.mintignore（spikes/、releasing.md）
+- git mv 10 页 → .mdx；迁移脚本：frontmatter title / description、去 H1、站内链接 `./page#id`、docs 外链接改 GitHub 绝对地址、正文 `<` → `&lt;`；所有 `##` 加固定 id
+- 新页：index（CardGroup）、quickstart（Steps）、native、runners、steps（来自 steps README，Warning）、example-app（来自示例 README）
+- 仓库 20 个文件里的 docs/*.md 路径改 .mdx（代码注释、README、requirements.md）
+- mint validate、broken-links --check-anchors 通过；mint dev：16 页 200，releasing / spikes 404；Playwright 截图检查首页卡片、Steps、Warning、锚点 #driver-thisapp；pnpm check 676 通过

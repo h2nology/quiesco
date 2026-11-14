@@ -45,7 +45,7 @@ QUIESCO_PLATFORM=web pnpm test:vitest:parallel
 Every worker gets a device of its own, the same model as the base one: worker 1 uses `"<simulator>
 (Quiesco 1)"` on iOS and the AVD `<QUIESCO_AVD>_quiesco_1` on Android, both created on first use and kept
 (`npx quiesco devices --prune` deletes them), and a mock backend of its own on 3001 + worker index (the app
-picks it from `quiesco.workerIndex()`, `src/e2e.ts`). See [docs/parallel.md](../../docs/parallel.md).
+picks it from `quiesco.workerIndex()`, `src/e2e.ts`). See [docs/parallel.mdx](../../docs/parallel.mdx).
 
 Emulators that Quiesco boots itself start writable and cold (`-no-snapshot-load`, about 14 s): a
 quick-boot snapshot goes stale once the app is reinstalled and makes Android restart after boot.
@@ -95,7 +95,7 @@ is why `--allow-clean` is required when `android/` / `ios/` exist. CI runs it in
 pnpm bench:android        # 20 iterations: soft reset, tap incl. sync, full suite (native and js)
 ```
 
-The output is a Markdown section for `docs/benchmarks.md`.
+The output is a Markdown section for `docs/benchmarks.mdx`.
 
 ## How the app integrates Quiesco
 

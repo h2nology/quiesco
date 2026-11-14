@@ -1,0 +1,72 @@
+---
+title: "Quiesco"
+description: "Gray-box end-to-end testing for Expo apps on iOS, Android and the web, driven by Cucumber, Jest, Vitest or any other Node.js test runner."
+---
+
+A small agent inside the e2e build of your app tells the test runner when the app is idle — no pending
+network requests, timers, React renders or animations — so tests never sleep and never poll. The same
+tests run unchanged on an iOS simulator, an Android emulator and Chromium. Cucumber gets a ready-made
+adapter (`@quiesco/cucumber`), and so do Jest and Vitest (`@quiesco/jest`, `@quiesco/vitest`,
+[other test runners](./runners)).
+
+```gherkin
+Scenario: A new todo appears at the top of the list
+  Given the user "a@example.com" is logged in
+  When they add a todo "Buy milk"
+  Then the first todo is "Buy milk"
+```
+
+```ts
+When('they add a todo {string}', async function (this: QuiescoWorld, title: string) {
+  await this.app.tap('add-todo');                 // waits until the app is idle, then taps
+  await this.app.type('todo-title', title);
+  await this.app.tap({ role: 'button', text: 'Save' });
+});
+```
+
+## Features {#features}
+
+- **Automatic synchronization** — network, timers, React scheduler, idle callbacks, native transitions
+  and a frame-stability fallback ([how it works](./sync)). A sync timeout names what was still busy.
+- **Real input** — touches and text through `@quiesco/native` (iOS / Android) or Playwright (web); a
+  callback mode (`js`) works without native code.
+- **Fast resets** — a soft reset (storage, your reset hooks, remount) before every scenario, typically
+  ~200 ms; `@hard-reset` relaunches the app.
+- **Backdoors** — set up state from steps without driving the UI (`this.app.backdoor('loginAs', …)`).
+- **Nothing in production** — without `EXPO_PUBLIC_QUIESCO=1` the agent is replaced by a no-op stub and
+  the native module is excluded from the build (checked in CI, see [benchmarks](./benchmarks)).
+
+## Get started {#get-started}
+
+<CardGroup cols={2}>
+  <Card title="Quick start (web)" icon="rocket" href="./quickstart">
+    From a new Expo app to a passing feature in Chromium, in about 10 minutes.
+  </Card>
+  <Card title="iOS and Android" icon="mobile" href="./native">
+    Build the e2e app and run the same features on a simulator and an emulator.
+  </Card>
+  <Card title="Jest and Vitest" icon="flask" href="./runners">
+    Use Quiesco without Cucumber.
+  </Card>
+  <Card title="API reference" icon="book" href="./api">
+    `this.app`, matchers, the in-app API, configuration and errors.
+  </Card>
+</CardGroup>
+
+## Packages {#packages}
+
+| Package | What it is |
+|---|---|
+| `quiesco` | CLI: `init`, `test`, `doctor`, `tree`, `devices` ([CLI](./cli)) |
+| `@quiesco/agent` | In-app agent: element queries, sync trackers, actions, reset, backdoors; `withQuiesco()` for Metro |
+| `@quiesco/native` | Expo module for real touches and text input on iOS / Android (e2e builds only) |
+| `@quiesco/expo-plugin` | Config plugin: excludes the native module from production builds, allows the local connection in e2e builds |
+| `@quiesco/core` | Host side: WebSocket server, `Driver` (`this.app`), sessions, iOS / Android device providers. Runner-independent |
+| `@quiesco/cucumber` | cucumber-js World (`this.app`) and lifecycle hooks |
+| `@quiesco/vitest` | Vitest: `test` with the `app` fixture, `quiesco()` config |
+| `@quiesco/jest` | Jest: preset with the Quiesco test environment, global `quiesco` |
+| `@quiesco/web` | Web device provider (Playwright library) |
+| `@quiesco/steps` | Optional generic steps in Chinese, Japanese and English — for prototyping only ([steps](./steps)) |
+| `@quiesco/protocol` | Types and constants shared by agent and host |
+
+The source is on [GitHub](https://github.com/h2nology/quiesco) under the MIT license.

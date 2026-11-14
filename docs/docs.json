@@ -1,0 +1,29 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Quiesco",
+  "description": "Gray-box end-to-end testing for Expo apps on iOS, Android and the web.",
+  "colors": {
+    "primary": "#2563eb"
+  },
+  "navbar": {
+    "links": [{ "label": "npm", "href": "https://www.npmjs.com/package/quiesco" }],
+    "primary": { "type": "github", "href": "https://github.com/h2nology/quiesco" }
+  },
+  "footer": {
+    "socials": { "github": "https://github.com/h2nology/quiesco" }
+  },
+  "navigation": {
+    "languages": [
+      {
+        "language": "en",
+        "groups": [
+          { "group": "Get started", "pages": ["index", "quickstart", "native", "runners"] },
+          { "group": "Guides", "pages": ["sync", "platforms", "driver-pattern", "parallel", "troubleshooting", "known-issues"] },
+          { "group": "Reference", "pages": ["api", "cli", "steps", "example-app"] },
+          { "group": "More", "pages": ["benchmarks", "detox-comparison"] }
+        ]
+      }
+    ]
+  }
+}

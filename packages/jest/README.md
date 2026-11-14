@@ -18,7 +18,7 @@ test('a new todo appears at the top @ios', async () => {
 ```
 
 Platform tags go in test or `describe` titles. Run with `npx quiesco test --platform ios --runner jest`.
-Details: [using Quiesco without Cucumber](https://github.com/h2nology/quiesco/blob/main/docs/api.md#using-quiesco-without-cucumber).
+Details: [using Quiesco without Cucumber](https://github.com/h2nology/quiesco/blob/main/docs/api.mdx#using-quiesco-without-cucumber).
 
 Part of [Quiesco](https://github.com/h2nology/quiesco): gray-box end-to-end testing for Expo apps on iOS, Android and the web. Setup: `npx quiesco init` ([quick start](https://github.com/h2nology/quiesco#quick-start-web-about-10-minutes)).
 

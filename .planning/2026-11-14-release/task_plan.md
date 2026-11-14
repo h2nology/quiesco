@@ -4,7 +4,7 @@
 把 monorepo 的 11 个包（CLI `quiesco` + `@quiesco/{agent,core,cucumber,expo-plugin,jest,native,protocol,steps,vitest,web}`）整理成可发布状态：用 tarball 装进全新 Expo 项目，按 README 快速开始能在 Web / Android / iOS 跑通第一个场景。真正的 `npm login`、创建 `quiesco` org、`pnpm -r publish` 由 HU 自己做。
 
 ## Next Step
-R.A 完成并提交（2026-11-14，`pnpm release:check` 通过）；R.D 计划 HU 已答决定项。R.B tarball 冒烟三端通过（2026-11-14）。两处易用性问题已修并复测，已提交（774a02b）。R.C 完成（2026-11-14，未提交）。下一步 R.D。
+R.A 完成并提交（2026-11-14，`pnpm release:check` 通过）；R.D 计划 HU 已答决定项。R.B tarball 冒烟三端通过（2026-11-14）。两处易用性问题已修并复测，已提交（774a02b）。R.C 完成并提交（2343100）。R.D.0 调研完成；R.D.1 + R.D.2 完成（未提交，validate / broken-links --check-anchors 通过，mint dev 16 页 200）。下一步 R.D.3 翻译。
 
 ## 背景
 - 前置：Quiesco Phase 6 完成（`.planning/2026-11-07-quiesco/`，2026-11-14 验收）；6.13 真机、6.14 LLM 驱动暂缓。
@@ -50,14 +50,23 @@ R.A 完成并提交（2026-11-14，`pnpm release:check` 通过）；R.D 计划 H
 **做法**：`docs/` 直接改成 Mintlify 项目（`docs/docs.json`；英文页在 `docs/` 根，`docs/zh/`、`docs/ja/` 同名文件；Mintlify 后台开「docs.json is in a subdirectory」填 `/docs`）。只有一份源；`docs/spikes/` 移出 `docs/`（如 `research/spikes/`）以免被当成站点页面。API 页手写（Quiesco 是 TS 库，Mintlify 的自动 API 页面基于 OpenAPI，不适用）。
 
 范围：根 README 的介绍和快速开始、`docs/` 下 api / sync / platforms / driver-pattern / parallel / cli / troubleshooting / known-issues / benchmarks / detox-comparison、steps 的步骤表、示例 App 说明（英文约 2,000 行）。requirements.md、`.planning/` 不上站。
-- [ ] R.D.0 调研：Mintlify 当前文档细节（MDX 组件、`mint dev` 本地预览、`mint broken-links`、GitHub App 部署、语言自动跳转），结论写进 findings
-- [ ] R.D.1 站点骨架：`docs/docs.json`（名称、配色、logo 占位、GitHub / npm 链接、`navigation.languages` en / zh / ja）；结构 = 入门（介绍、快速开始 Web、iOS / Android、其他运行器）/ 指南（同步、平台差异、Driver 模式、并行、故障排查、已知问题）/ 参考（API、CLI、通用 steps、配置）/ 其他（基准、与 Detox 对比）
-- [ ] R.D.2 英文迁移：`docs/*.md` → `.mdx`（frontmatter 标题、代码块标语言、提示框用 Mintlify 组件、站内链接改站点路径）；内容不改写；spikes 移走；仓库内引用 docs/*.md 的链接（README、代码注释、各包 README）一并更新
-- [ ] R.D.3 翻译 zh / ja：代码、API 名、配置键、错误码不翻；Gherkin 示例用对应 `# language:`；术语表放 findings，全站一致
-- [ ] R.D.4 `docs:check`：`mint validate`（导航 / 配置 / 内容规则 + 严格构建）+ `mint broken-links --check-anchors` + 自写检查三种语言页面集合一致；加进 `pnpm check`（或单独的 CI job，视 mint 安装耗时）
-- [ ] R.D.5 维护规则：英文是源；改英文的提交同时更新 zh / ja（或标记待翻译），写进 CONTRIBUTING
-- [ ] R.D.6 上线（HU 做，二选一）：a) Mintlify 后台建项目、装 GitHub App、设子目录 `/docs`；b) `mint deploy --github --subdomain <name> --directory docs` 生成 `.github/workflows/mintlify.yml`（Actions 推送，不装 App），再 `mint claim` 移进自己的组织（未认领 24 小时后删除）；域名用 `mint add-domain`；之后根 README / 各包 README 的文档链接改指站点
-- **验收：** `mint dev` 本地预览三种语言所有页面；`docs:check` 通过；HU 抽查译文
+- [x] R.D.0 调研（2026-11-14）：结论见 findings「R.D.0 调研」（.md / .mdx 都可、相对链接、Mintlify 锚点规则、.mintignore、缺翻译 404、mint CLI 4.3.34 实测）
+**HU 决定（2026-11-14，R.D.0 之后）**：全部改成 `.mdx`；`docs:check` 单独脚本 + 单独 CI job（不进 `pnpm check`）；外观先用占位（theme `mint`、主色 `#2563eb`、文字 logo）。
+
+**页面（每种语言 16 页，英文在 `docs/` 根，`docs/zh/`、`docs/ja/` 同名）：**
+- 入门：`index`（介绍，来自 README）、`quickstart`（Web，Steps 组件）、`native`（iOS / Android）、`runners`（Jest / Vitest）
+- 指南：`sync`、`platforms`、`driver-pattern`、`parallel`、`troubleshooting`、`known-issues`
+- 参考：`api`、`cli`、`steps`（来自 packages/steps/README）、`example-app`（来自 examples/todo-app/README）
+- 其他：`benchmarks`、`detox-comparison`
+- 不上站（`docs/.mintignore`）：`spikes/`、`releasing.md`（维护者文档，保持 .md、不翻译）
+
+- [x] R.D.1 骨架（2026-11-14；zh / ja 的导航在 R.D.3 加，文件没有时 validate 会报错）：`docs/docs.json`（`$schema`、name、theme mint、colors.primary #2563eb、文字 logo、navbar GitHub / npm 链接、`navigation.languages` en / zh / ja，分组标签各自翻译）；`docs/.mintignore`
+- [x] R.D.2 英文迁移（2026-11-14；没有现成的「Note:」段落，只有 steps 页的引用块改成 `<Warning>`；所有 `##` 标题都加了固定 id，被链接的 `###` 也加，id 沿用 GitHub 的写法以免旧链接失效）：`git mv docs/*.md → .mdx`（releasing 除外）；frontmatter `title` / `description`，去掉正文 H1；正文的 `{` `<` 转义；明显的「Note:」段落改用 `<Note>` / `<Warning>`；内容不改写。链接：站内用不带扩展名的相对路径（`./api#…`，翻译文件不用改）；被链接的标题加固定 `{#英文-id}`，三种语言一致（中日文标题会生成不同的锚点）；指向 docs 外（README、examples、packages、spikes）的改成 GitHub 绝对地址。新写 index / quickstart / native / runners / steps / example-app（内容取自现有 README）。仓库里所有指向 `docs/*.md` 的路径（代码注释、各包 README、根 README）改成 `.mdx`，重新 build
+- [ ] R.D.3 翻译 zh / ja：代码、API 名、配置键、错误码、命令输出不翻；代码里的注释翻；Gherkin 示例用 steps 包已有的中文 / 日文步骤（`# language: zh-CN` / `ja`）；术语表写进 findings，全站一致
+- [ ] R.D.4 `scripts/check-docs.mjs` + 根 `docs:check`：`pnpm dlx mint@4.3.34 validate`、`broken-links --check-anchors`；自写检查：三种语言页面集合一致、docs.json 里的页面都存在、每个 .mdx 都在导航里；`.github/workflows/docs.yml`（docs/** 变更时跑）
+- [ ] R.D.5 维护规则：根 `CONTRIBUTING.md`：英文是源，改英文页的同一个 PR 同时改 zh / ja；README 与 index / quickstart 内容重叠，改一处要同步
+- [ ] R.D.6 上线（HU 做，二选一）：a) Mintlify 后台建项目、装 GitHub App、设子目录 `/docs`；b) `mint deploy --github --subdomain <name> --directory docs` 生成 `.github/workflows/mintlify.yml`，再 `mint claim`（未认领 24 小时后删除）；域名用 `mint add-domain`；后台「Language routing」选是否按浏览器语言跳转；之后根 README / 各包 README 的文档链接改指站点
+- **验收：** `mint dev` 本地预览，三种语言 48 页逐一请求都正常渲染（并截几页给 HU 看）；`docs:check` 通过；`pnpm check` 通过（改了代码注释路径）；HU 抽查译文
 - **Status:** 计划已出，HU 已答决定项（2026-11-14），待开始（顺序：R.B → R.C → R.D → HU 发布）
 
 ## 待 HU 决定

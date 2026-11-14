@@ -109,7 +109,7 @@ export function hostPerformer(ctx: HostContext): ActionPerformer {
     /**
      * Real browser input where the DOM has it: `<select>` → selectOption, date / time inputs → fill,
      * a switch / checkbox → click (when it must change), a segment → click. Sliders, and components
-     * that are not DOM form controls, are set through their callbacks (docs/api.md, value controls).
+     * that are not DOM form controls, are set through their callbacks (docs/api.mdx, value controls).
      */
     async setValue(control, v) {
       const node = control.node;

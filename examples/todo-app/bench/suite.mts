@@ -1,6 +1,6 @@
 /**
  * Suite timing (requirements.md §8 稳定性 / task 4.8): runs the whole example suite N times in a row and
- * prints a Markdown section for docs/benchmarks.md (pass count and wall time per run).
+ * prints a Markdown section for docs/benchmarks.mdx (pass count and wall time per run).
  *
  *   node bench/suite.mts --platform ios --runs 20
  *   node bench/suite.mts --platform android --runs 5

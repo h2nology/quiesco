@@ -1,11 +1,14 @@
-# Synchronization
+---
+title: "Synchronization"
+description: "What idle means, the trackers behind it, and what to do when an app never becomes idle."
+---
 
 Quiesco waits for the app to be **idle** before every query and assertion and after every action, so
 steps never sleep or poll. "Idle" is decided inside the app by independent trackers; the app is idle
 when all of them are idle twice in a row, one macrotask apart (a timer that fires and starts a request
 in the same tick does not slip through).
 
-## Trackers
+## Trackers {#trackers}
 
 | Tracker | Busy while | Notes |
 |---|---|---|
@@ -19,10 +22,10 @@ in the same tick does not slip through).
 Turn a tracker off with `sync: { trackers: { 'frame-stable': false } }`.
 
 How the React tracker works, and why the agent must load before React Native's renderer, is described in
-[docs/spikes/02-react-idle.md](spikes/02-react-idle.md). `withQuiesco()` in `metro.config.js` takes care
+[docs/spikes/02-react-idle.md](https://github.com/h2nology/quiesco/blob/main/docs/spikes/02-react-idle.md). `withQuiesco()` in `metro.config.js` takes care
 of the loading order (React Native 0.88 loads its renderer before the app's entry file).
 
-## When the app never becomes idle
+## When the app never becomes idle {#when-the-app-never-becomes-idle}
 
 A call that waits longer than `sync.timeoutMs` (10 s) fails with `SYNC_TIMEOUT`, listing what was busy:
 
@@ -52,15 +55,15 @@ What to do depends on the tracker:
 `AGENT_TIMEOUT` is different: the agent did not answer at all, usually because the JS thread is blocked
 by a long synchronous task.
 
-## Skipping sync for one call
+## Skipping sync for one call {#skipping-sync-for-one-call}
 
 ```ts
 await this.app.tap('start-spinner', { sync: false });        // do not wait before / after
 await this.app.expectVisible('spinner', { sync: false });    // assert while it spins
 ```
 
-## Platform notes
+## Platform notes {#platform-notes}
 
 The same trackers run on all three platforms. On the web the agent reconnects after a full page load and
 the host waits for it transparently; with Expo Router's static output the app is considered ready after
-hydration. The `native` tracker exists only on iOS. See [platform differences](platforms.md).
+hydration. The `native` tracker exists only on iOS. See [platform differences](./platforms).

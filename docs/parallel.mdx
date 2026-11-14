@@ -1,4 +1,7 @@
-# Parallel runs
+---
+title: "Parallel runs"
+description: "A device, port and artifacts directory per worker, with cucumber-js, Jest and Vitest."
+---
 
 Quiesco runs tests on several devices at once: every **worker** of the test runner gets a device (or a
 browser), a Quiesco server port and an artifacts directory of its own. The same features run unchanged.
@@ -12,7 +15,7 @@ npx quiesco test --platform web --runner vitest --workers 3    # vitest --filePa
 The runners' own flags work too: `cucumber-js --parallel 2`, `jest --maxWorkers 2`, or
 `quiesco({ workers: 2 })` / `vitest --fileParallelism --maxWorkers 2` for Vitest.
 
-## Which device each worker uses
+## Which device each worker uses {#which-device-each-worker-uses}
 
 Parallel workers split one suite between devices to finish sooner, so every worker gets **the same model
 and OS version**: worker 0 uses the device your config picks, and the others get copies of it.
@@ -38,7 +41,7 @@ and OS version**: worker 0 uses the device your config picks, and the others get
 - `npx quiesco devices` lists the simulators and AVDs Quiesco created; `npx quiesco devices --prune` shuts
   them down and deletes them (the next parallel run creates them again). Your own devices are never touched.
 
-## Per-worker resources in your config
+## Per-worker resources in your config {#per-worker-resources-in-your-config}
 
 The config can be a function of the worker:
 
@@ -63,17 +66,17 @@ its "Refreshing..." window); with another `artifacts.dir`, pass it as `withQuies
 Scenarios must not depend on each other: each worker runs its own share of them in its own order. A
 scenario that needs a state (a granted permission, a signed-in user) sets it up in its `Given` steps.
 
-## How many workers
+## How many workers {#how-many-workers}
 
 Each worker is a full device. On a 15-core Mac, two iOS simulators or two Android emulators run well (an
 Android emulator must render on the GPU: Quiesco boots them with `-gpu host` on macOS; one rendering on the
-CPU takes about four cores by itself, see [troubleshooting](troubleshooting.md#android)); with
-more devices than the machine can carry, Android starts showing "<app> isn't responding" dialogs (often for
+CPU takes about four cores by itself, see [troubleshooting](./troubleshooting#android)); with
+more devices than the machine can carry, Android starts showing "&lt;app> isn't responding" dialogs (often for
 System UI). Quiesco answers another app's dialog with **Wait** before each scenario and when an action finds
 its element covered, and warns with the load average; when you see that warning, run fewer workers. A
 dialog for the app under test is left alone: the app itself hung, and the test fails.
 
-## Runners
+## Runners {#runners}
 
 - **cucumber-js**: `--parallel N` runs N worker threads; each has its own session.
 - **Jest**: `maxWorkers: N` (the example reads `QUIESCO_WORKERS`). Every worker process has its own session.
@@ -84,4 +87,4 @@ dialog for the app under test is left alone: the app itself hung, and the test f
 - **Vitest**: `quiesco({ workers: N })` from `@quiesco/vitest/config` (`fileParallelism`, `maxWorkers`,
   `isolate: false`): every worker keeps its session across the files it runs.
 
-Measurements: [benchmarks.md](benchmarks.md#phase-612-parallel-runs).
+Measurements: [benchmarks.md](./benchmarks#phase-612-parallel-runs).

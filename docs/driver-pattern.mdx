@@ -1,4 +1,7 @@
-# Driver pattern
+---
+title: "Driver pattern"
+description: "Business-language steps on top of this.app, so features survive UI changes."
+---
 
 Feature files should state what the user wants, not which buttons they press. Steps in business language
 call a **driver** of your own, and only the driver knows about test ids and taps. When the UI changes,
@@ -11,7 +14,7 @@ Scenario: A new todo appears at the top of the list
   Then the first todo is "Buy milk"
 ```
 
-## A business driver on top of `this.app`
+## A business driver on top of `this.app` {#a-business-driver-on-top-of-thisapp}
 
 ```ts
 // features/support/todo-driver.ts
@@ -87,7 +90,7 @@ Prefer Quiesco's assertions where they fit (`this.app.expectText('todo-item', �
 app shows the expected state. A plain `assert` on a query result checks once — fine after an action,
 because the action already waited for the app to be idle.
 
-## Ports & adapters: the same features against the API
+## Ports & adapters: the same features against the API {#ports-adapters-the-same-features-against-the-api}
 
 Because the steps only see `TodoDriver`, a second implementation can run the same features without any
 UI — against the backend API, in seconds, for example on every commit:
@@ -117,9 +120,9 @@ Select the driver with an environment variable or a cucumber profile. The API ru
 Quiesco at all: give it its own World (a plain cucumber `World` with an `ApiTodoDriver`) and leave out
 the Quiesco registration in that profile.
 
-## Generic steps
+## Generic steps {#generic-steps}
 
 `@quiesco/steps` offers ready-made steps such as `点击 "add-todo"` / `"add-todo" をタップする` /
 `I tap "add-todo"`. They are operation scripts — useful to explore an app or sketch a prototype, but they
 tie features to the UI. Move to business-language steps as soon as the features describe real
-requirements. See [packages/steps](../packages/steps/README.md).
+requirements. See [packages/steps](./steps).

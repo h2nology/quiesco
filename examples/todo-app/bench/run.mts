@@ -1,6 +1,6 @@
 /**
  * Performance benchmark (requirements.md §8 性能): soft reset, one tap including sync, full suite.
- * Prints a Markdown section for docs/benchmarks.md.
+ * Prints a Markdown section for docs/benchmarks.mdx.
  *
  *   QUIESCO_PLATFORM=android node bench/run.mts [iterations=20] [-- cucumber-js args]
  *

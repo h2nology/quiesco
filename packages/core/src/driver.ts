@@ -294,7 +294,7 @@ export class Driver {
    * label), a segmented control (a segment's value or index), a date / time picker or a date input
    * (Date). Real input where the control has it — a tap on a switch or segment, iOS wheels turned by a
    * finger, a browser `<select>` / date input — otherwise the component's callbacks, with the events
-   * the native component sends (docs/api.md, "Value controls"). A component that renders no view of its
+   * the native component sends (docs/api.mdx, "Value controls"). A component that renders no view of its
    * own (Android's DateTimePicker, which opens a system dialog) is found by its testID or name.
    */
   setValue(target: MatcherInput, value: number | boolean | string | Date, opts?: ActionOptions): Promise<ElementSummary | undefined> {

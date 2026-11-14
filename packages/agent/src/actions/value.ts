@@ -15,7 +15,7 @@
  *
  * This module is the `js` mode: it calls the component's callbacks with the events the native
  * component would send. Real-input modes (actions/native.ts, actions/host.ts) use it to read the
- * control and fall back to it where no real input exists (documented per control in docs/api.md).
+ * control and fall back to it where no real input exists (documented per control in docs/api.mdx).
  */
 import type { ControlValue, DateValue } from '@quiesco/protocol';
 

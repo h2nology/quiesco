@@ -1,4 +1,7 @@
-# Benchmarks
+---
+title: "Benchmarks"
+description: "Reset, action and suite timings, stability runs and the production-strip check, as measured."
+---
 
 Measured with `examples/todo-app/bench/run.mts` (`pnpm bench:android` in the example app); see
 requirements.md §8 (性能 / 稳定性). Numbers are from a dev client loading a development JS bundle from
@@ -7,7 +10,7 @@ Metro, so they include dev-mode overhead; release builds will be faster.
 What is measured:
 
 - **soft reset (agent)**: duration reported by the agent for `reset` (clear storage → onReset hooks →
-  remount → wait for idle). Target from requirements.md §6.5: < 500 ms.
+  remount → wait for idle). Target from requirements.md §6.5: &lt; 500 ms.
 - **soft reset (host round trip)**: the same, measured on the host around the WebSocket call.
 - **tap incl. sync**: `app.tap('login-button')` on the login screen with an empty email (shows a hint, no
   network), measured on the host: target resolution + sync before, the touch, and the wait for idle after.
@@ -41,7 +44,7 @@ Notes:
 - The ~260 ms floor of a js tap is mostly synchronization: the two-macrotask idle confirmation and the
   frame-stable tracker (two identical frames) before and after the action. Not optimized yet.
 
-## Stability (requirements.md §8: 20 consecutive runs without random failures)
+## Stability (requirements.md §8: 20 consecutive runs without random failures) {#stability}
 
 2026-11-07, same device and setup, `native` mode, 6 scenarios / 34 steps per run:
 
@@ -52,7 +55,7 @@ Notes:
 Per run (s): 19.8, 18.4, 16.9, 17.1, 17.3, 17.4, 17.7, 17.6, 18.6, 18.7, 17.9, 18.6, 18.0, 17.0, 17.1, 18.6,
 17.4, 18.1, 18.1, 17.5.
 
-## Phase 4 acceptance (2026-11-08)
+## Phase 4 acceptance (2026-11-08) {#phase-4-acceptance-2026-11-08}
 
 Serial runs only (`cucumber-js --parallel` is not supported; see requirements.md §6.9). Measured with
 `examples/todo-app/bench/suite.mts` (`pnpm bench:suite --platform <p> --runs <n>`): wall time around
@@ -97,7 +100,7 @@ production / e2e (control group) artifacts:
 | `QSTouchInjector` (iOS touch injector) | — | — | 0 / 38 |
 | `IOHIDEventCreateDigitizerEvent` (private IOKit) | — | — | 0 / 4 |
 
-## Phase 6.11 regression check (2026-11-11)
+## Phase 6.11 regression check (2026-11-11) {#phase-611-regression-check-2026-11-11}
 
 Same workload as Phase 4 (the 6 scenarios / 34 steps of login, new-todo and clear-todos, selected with
 `--name`; the suite has 86 scenarios now), measured with `bench/suite.mts … -- --name '<those six>'`.
@@ -153,7 +156,7 @@ running:
 |---|---|---|
 | `cucumber-js` | 20.5 | 18.4 |
 
-## Phase 6.12: parallel runs
+## Phase 6.12: parallel runs {#phase-612-parallel-runs}
 
 The whole example suite (86 scenarios; 80 run on iOS, 81 on Android, 73 on the web, the rest are tagged for
 other platforms) with `cucumber-js --parallel 2` (`pnpm test:e2e:<platform>:parallel`) against the same

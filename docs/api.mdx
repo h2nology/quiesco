@@ -1,4 +1,7 @@
-# API reference
+---
+title: "API reference"
+description: "this.app (the Driver), matchers, the in-app API, configuration, scenario tags, errors and artifacts."
+---
 
 - [Driver (`this.app`)](#driver-thisapp): actions, assertions, queries, backdoors
 - [Matchers](#matchers)
@@ -8,10 +11,10 @@
 - [Errors](#errors)
 - [Using Quiesco without Cucumber](#using-quiesco-without-cucumber) — Jest, Vitest and other runners
 
-## Driver (`this.app`)
+## Driver (`this.app`) {#driver-thisapp}
 
 In step definitions `this.app` is the `Driver` of the current session (`@quiesco/core`). Every call is
-`async`, waits for the app to be idle first (see [synchronization](sync.md)) and, for actions, again
+`async`, waits for the app to be idle first (see [synchronization](./sync)) and, for actions, again
 after it. Nothing in a step needs to wait or sleep.
 
 All calls take an optional last argument:
@@ -46,7 +49,7 @@ All calls take an optional last argument:
 | `setValue(target, value)` | Set a value control: slider (number), switch / checkbox (boolean), picker (an item's value or label), segmented control (a segment's value or index), date / time picker or date input (`Date`). See [Value controls](#value-controls) |
 | `adjustSlider(target, position)` | Drag a slider's thumb to `position` (0 = minimum, 1 = maximum) with a real finger / mouse; lands within one step of it |
 | `accessibilityAction(target, name)` | Perform an action the element declares in `accessibilityActions`, as a screen reader does |
-| `pinch(target, scale, { angle, speed })` | Two fingers move apart (`scale` > 1) or together (< 1) on the element, on a line at `angle` radians (0 = horizontal). See [Multi-finger gestures](#multi-finger-gestures) |
+| `pinch(target, scale, { angle, speed })` | Two fingers move apart (`scale` > 1) or together (&lt; 1) on the element, on a line at `angle` radians (0 = horizontal). See [Multi-finger gestures](#multi-finger-gestures) |
 | `rotate(target, radians, { speed })` | Two fingers turn around the element's center (positive: clockwise on screen) |
 | `multiTouch(fingers, { within })` | Any fingers along timed paths: `fingers[i]` is finger i's `{ x, y, t }` points (t in ms, non-decreasing); element coordinates with `within`, else window coordinates |
 
@@ -58,7 +61,7 @@ tap on a switch without `onPress` toggles it through `onValueChange`, `pressKey`
 `onSubmitEditing` / `onKeyPress`, `scrollToEdge` sets the scroll offset, `from` is ignored, and `drag` is
 not supported (it needs real touches).
 
-### Value controls
+### Value controls {#value-controls}
 
 `setValue` finds the control by the props of the component around the target (the element and a few
 levels up; if there is none, the single control inside the element, e.g. a `View` carrying the testID
@@ -104,7 +107,7 @@ the view's custom actions (VoiceOver's Actions rotor). Android: `performAccessib
 React Native gave the action. Web (`accessibilityActions` do not reach the DOM) and `js`:
 `onAccessibilityAction({ nativeEvent: { actionName } })`.
 
-### Multi-finger gestures
+### Multi-finger gestures {#multi-finger-gestures}
 
 `pinch`, `rotate` and `multiTouch` inject several real touches at once: iOS synthesized `UITouch`es in one
 event, Android multi-pointer `MotionEvent`s, the web CDP `Input.dispatchTouchEvent` (touch viewports
@@ -296,7 +299,7 @@ soon as the dialog is up (without waiting for idle), and any other call on the a
 open when the scenario ends is dismissed before the next one, with a warning. `beforeunload` prompts are
 always accepted (leaving or reloading the page is never held up).
 
-### Screenshots
+### Screenshots {#screenshots}
 
 ```ts
 await this.app.device.screenshot();                                   // the screen
@@ -369,7 +372,7 @@ await this.app.sync.enable();
 survive relaunches and reconnects, and are undone before the next scenario. For a single call,
 `{ sync: false }` still works.
 
-## Matchers
+## Matchers {#matchers}
 
 A plain string is a **testID**: `tap('add-todo')`. An object combines conditions:
 
@@ -425,7 +428,7 @@ visible even if that position is inside the window. `visibleRatio` is the visibl
 Being covered by another element is not part of visibility; actions check it separately
 (`ELEMENT_OBSCURED`).
 
-## In-app API (`@quiesco/agent`)
+## In-app API (`@quiesco/agent`) {#in-app-api-quiescoagent}
 
 The app imports the agent on the first line of its entry file and wraps its root in `<QuiescoRoot>`
 (`npx quiesco init` sets both up). In builds without `EXPO_PUBLIC_QUIESCO=1`, `withQuiesco()` in
@@ -464,7 +467,7 @@ Register backdoors and hooks in a module that is only imported in e2e builds
 (`if (process.env.EXPO_PUBLIC_QUIESCO === '1') require('./e2e')`), so the test code is not even in
 production bundles. Each registration returns a function that removes it.
 
-## Configuration
+## Configuration {#configuration}
 
 `quiesco.config.ts` in the project root (`.mts`, `.js` and `.mjs` also work):
 
@@ -498,7 +501,7 @@ export default defineConfig({
 | `devices.android.gpu` | the AVD's mode; `auto` → `host` on macOS | `-gpu` of the emulators Quiesco boots. On macOS the emulator turns `auto` into `lavapipe`, a CPU renderer (~4 cores per idle emulator) |
 | `devices.*.shutdown` | `false` | Shut down a device Quiesco booted when the run ends |
 | `devices.web.browser` / `headless` / `viewport` | `chromium`, headless | Browser and screen size (nothing is built in) |
-| `permissions` | `[]` | Granted before launch: `camera`, `microphone`, `location`, `notifications`, `contacts`, `photos`, `calendar` ([per platform](platforms.md#permissions)) |
+| `permissions` | `[]` | Granted before launch: `camera`, `microphone`, `location`, `notifications`, `contacts`, `photos`, `calendar` ([per platform](./platforms#permissions)) |
 | `sync.timeoutMs` | `10000` | How long a call waits for idle |
 | `sync.timerThresholdMs` | `1500` | Timers up to this delay keep the app busy |
 | `sync.countIntervals` | `false` | Whether `setInterval` keeps the app busy |
@@ -518,7 +521,7 @@ export default defineConfig({
 The platform comes from `QUIESCO_PLATFORM` (`ios`, `android`, `web`) or `quiesco test --platform`.
 The config file is plain TypeScript, so values can come from the environment.
 
-## Scenario tags
+## Scenario tags {#scenario-tags}
 
 | Tag | Effect |
 |---|---|
@@ -532,7 +535,7 @@ Platform tags can sit on the feature, a `Rule`, the scenario or an `Examples` bl
 In a feature tagged `@native`, an untagged scenario runs on iOS and Android, and a scenario tagged `@android`
 runs on Android only. This differs from cucumber-js `--tags`, which matches inherited tags too.
 
-## Errors
+## Errors {#errors}
 
 Failures are `QuiescoError`s with `errorName`, a message that says what to do, and structured `data`.
 
@@ -541,7 +544,7 @@ Failures are `QuiescoError`s with `errorName`, a message that says what to do, a
 | `ELEMENT_NOT_FOUND` | No visible element matched within the timeout (missing, or present but hidden) |
 | `MULTIPLE_MATCHES` | The action's matcher matched several elements; `data.matches` lists them |
 | `ELEMENT_OBSCURED` | A real touch would land on something else; `data.obscuredBy` (and the native hit chain on iOS) |
-| `SYNC_TIMEOUT` | The app did not become idle; lists every busy tracker ([details](sync.md#when-the-app-never-becomes-idle)) |
+| `SYNC_TIMEOUT` | The app did not become idle; lists every busy tracker ([details](./sync#when-the-app-never-becomes-idle)) |
 | `ASSERTION_FAILED` | `data.expected`, `data.actual` and the elements seen |
 | `ACTION_NOT_SUPPORTED` | e.g. `pressBack` on iOS, or `native` mode without the native module (with a hint) |
 | `BACKDOOR_NOT_REGISTERED` / `BACKDOOR_FAILED` / `NOT_SERIALIZABLE` | Backdoor problems; the first lists the registered names, the last the path of the bad value |
@@ -554,7 +557,7 @@ Failures are `QuiescoError`s with `errorName`, a message that says what to do, a
 | `APP_NOT_RUNNING` / `APP_IN_BACKGROUND` | The test terminated the app / sent it to the background (`this.app.device`); relaunch it / bring it back first |
 | `DIALOG_OPEN` | Web: the page shows a JavaScript dialog (`data.message`); answer it with `app.device.system.tap({ text: 'OK' })` / `{ text: 'Cancel' }` first |
 
-## Artifacts
+## Artifacts {#artifacts}
 
 Per scenario, under `artifacts/<date-time>-<platform>/<nnn>-<scenario>/`, and attached to the report:
 
@@ -578,11 +581,11 @@ Policies: `none`, `failing` (recorded for every scenario, kept when it fails) or
 through the session: `session.startScenario({ name })` before `beforeScenario`, then
 `session.afterScenario({ failed })` returns the attachments and files.
 
-## Using Quiesco without Cucumber
+## Using Quiesco without Cucumber {#using-quiesco-without-cucumber}
 
 **Jest and Vitest** have adapters, `@quiesco/jest` and `@quiesco/vitest` (examples in the
-[README](../README.md#other-test-runners-jest-vitest) and
-[examples/todo-app/e2e](../examples/todo-app/e2e)). They behave like the Cucumber one:
+[README](./runners) and
+[examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e)). They behave like the Cucumber one:
 
 | | Vitest (`@quiesco/vitest`) | Jest (`@quiesco/jest`) |
 |---|---|---|
@@ -592,7 +595,7 @@ through the session: `session.startScenario({ name })` before `beforeScenario`, 
 | Platform tags | in `describe` / test titles and `{ tags }` (declared by `quiesco()`) | in `describe` / test titles |
 | Before each test | skipped if tagged for another platform, else reset | same (Jest's `test_start` / `test_started` events) |
 | After a failure | evidence written to the artifacts directory, its files listed in the failure message | same |
-| Parallel runs | `quiesco({ workers: N })`: each worker on a device of its own ([parallel.md](parallel.md)) | `maxWorkers: N`, same |
+| Parallel runs | `quiesco({ workers: N })`: each worker on a device of its own ([parallel.md](./parallel)) | `maxWorkers: N`, same |
 
 The innermost level with a platform tag decides, as in Gherkin: a test tagged `@android` in a
 `describe('… @native')` runs on Android only. A session that fails to start fails the remaining tests at

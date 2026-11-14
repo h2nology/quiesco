@@ -25,14 +25,14 @@ When('they add a todo {string}', async function (this: QuiescoWorld, title: stri
 ```
 
 - **Automatic synchronization** — network, timers, React scheduler, idle callbacks, native transitions
-  and a frame-stability fallback ([how it works](docs/sync.md)). A sync timeout names what was still busy.
+  and a frame-stability fallback ([how it works](docs/sync.mdx)). A sync timeout names what was still busy.
 - **Real input** — touches and text through `@quiesco/native` (iOS / Android) or Playwright (web); a
   callback mode (`js`) works without native code.
 - **Fast resets** — a soft reset (storage, your reset hooks, remount) before every scenario, typically
   ~200 ms; `@hard-reset` relaunches the app.
 - **Backdoors** — set up state from steps without driving the UI (`this.app.backdoor('loginAs', …)`).
 - **Nothing in production** — without `EXPO_PUBLIC_QUIESCO=1` the agent is replaced by a no-op stub and
-  the native module is excluded from the build (checked in CI, see [benchmarks](docs/benchmarks.md)).
+  the native module is excluded from the build (checked in CI, see [benchmarks](docs/benchmarks.mdx)).
 
 ## Quick start (web, about 10 minutes)
 
@@ -100,7 +100,7 @@ npm run e2e:android       # or: npm run e2e:ios
 ```
 
 Point `binaryPath` in `quiesco.config.mts` at the build (the generated config has the usual paths) and
-set the emulator / simulator in `devices` (see [configuration](docs/api.md#configuration)). For CI, an
+set the emulator / simulator in `devices` (see [configuration](docs/api.mdx#configuration)). For CI, an
 EAS build profile with `EXPO_PUBLIC_QUIESCO=1` produces the same e2e build; see
 [examples/todo-app](examples/todo-app/README.md) for a complete, tested setup on all three platforms.
 
@@ -149,13 +149,13 @@ test('a new todo appears at the top @ios', async () => {
 Platform tags go in test or `describe` titles (Jest has no test options). Run either with
 `npx quiesco test --platform ios --runner vitest|jest`. Both are in
 [examples/todo-app/e2e](examples/todo-app/e2e); details in
-[using Quiesco without Cucumber](docs/api.md#using-quiesco-without-cucumber).
+[using Quiesco without Cucumber](docs/api.mdx#using-quiesco-without-cucumber).
 
 ## Packages
 
 | Package | What it is |
 |---|---|
-| [`quiesco`](packages/cli) | CLI: `init`, `test`, `doctor`, `tree`, `devices` ([docs](docs/cli.md)) |
+| [`quiesco`](packages/cli) | CLI: `init`, `test`, `doctor`, `tree`, `devices` ([docs](docs/cli.mdx)) |
 | [`@quiesco/agent`](packages/agent) | In-app agent: element queries, sync trackers, actions, reset, backdoors; `withQuiesco()` for Metro |
 | [`@quiesco/native`](packages/native) | Expo module for real touches and text input on iOS / Android (e2e builds only) |
 | [`@quiesco/expo-plugin`](packages/expo-plugin) | Config plugin: excludes the native module from production builds, allows the local connection in e2e builds |
@@ -169,15 +169,15 @@ Platform tags go in test or `describe` titles (Jest has no test options). Run ei
 
 ## Documentation
 
-- [API reference](docs/api.md) — `this.app` (Driver), matchers, the in-app API, configuration, errors
-- [Synchronization](docs/sync.md) — what "idle" means and how to deal with busy apps
-- [Platform differences](docs/platforms.md) — iOS, Android and web side by side, permissions
-- [Driver pattern](docs/driver-pattern.md) — business-language steps on top of `this.app`
-- [Parallel runs](docs/parallel.md) — a device per worker, cucumber-js / Jest / Vitest
-- [CLI](docs/cli.md)
-- [Troubleshooting](docs/troubleshooting.md) and [known issues](docs/known-issues.md)
-- [Benchmarks](docs/benchmarks.md)
-- [Quiesco and Detox](docs/detox-comparison.md) — item-by-item comparison with Detox 20.51.4
+- [API reference](docs/api.mdx) — `this.app` (Driver), matchers, the in-app API, configuration, errors
+- [Synchronization](docs/sync.mdx) — what "idle" means and how to deal with busy apps
+- [Platform differences](docs/platforms.mdx) — iOS, Android and web side by side, permissions
+- [Driver pattern](docs/driver-pattern.mdx) — business-language steps on top of `this.app`
+- [Parallel runs](docs/parallel.mdx) — a device per worker, cucumber-js / Jest / Vitest
+- [CLI](docs/cli.mdx)
+- [Troubleshooting](docs/troubleshooting.mdx) and [known issues](docs/known-issues.mdx)
+- [Benchmarks](docs/benchmarks.mdx)
+- [Quiesco and Detox](docs/detox-comparison.mdx) — item-by-item comparison with Detox 20.51.4
 
 ## Using unreleased changes
 

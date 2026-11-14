@@ -1,0 +1,28 @@
+---
+title: "iOS and Android"
+description: "Build the e2e app and run the same features on an iOS simulator and an Android emulator."
+---
+
+Native runs need an e2e build of the app (made with `EXPO_PUBLIC_QUIESCO=1`, so it contains the agent
+and `@quiesco/native`):
+
+```sh
+npx expo install expo-dev-client
+EXPO_PUBLIC_QUIESCO=1 npx expo prebuild --clean
+# Android: debug APK (dev client)
+(cd android && ./gradlew assembleDebug)
+# iOS: simulator build (dev client)
+xcodebuild -workspace ios/<App>.xcworkspace -scheme <App> -configuration Debug \
+  -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath ios/build build
+
+EXPO_PUBLIC_QUIESCO=1 npx expo start --dev-client   # Metro, in another terminal
+npm run e2e:android       # or: npm run e2e:ios
+```
+
+Point `binaryPath` in `quiesco.config.mts` at the build (the generated config has the usual paths) and
+set the emulator / simulator in `devices` (see [configuration](./api#configuration)). For CI, an
+EAS build profile with `EXPO_PUBLIC_QUIESCO=1` produces the same e2e build; see the
+[example app](./example-app) for a complete, tested setup on all three platforms.
+
+What differs between the platforms (input, permissions, system dialogs) is in
+[platform differences](./platforms).
