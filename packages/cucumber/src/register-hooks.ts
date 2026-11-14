@@ -29,7 +29,8 @@ export function registerQuiesco(options: RegisterOptions = {}): Lifecycle {
   Before({ name: 'quiesco: reset app', timeout: options.resetTimeoutMs ?? 180_000 }, ({ pickle, gherkinDocument }) => lifecycle.before(tagLevels(pickle.tags, gherkinDocument), pickle.name));
   After({ name: 'quiesco: evidence' }, async function (this: QuiescoWorld, { pickle, result }) {
     const failed = result !== undefined && result.status !== Status.PASSED && result.status !== Status.SKIPPED;
-    for (const a of (await lifecycle.after({ tags: pickle.tags.map((t) => t.name), failed })).attachments) {
+    const error = failed ? (result.exception ?? result.message) : undefined;
+    for (const a of (await lifecycle.after({ tags: pickle.tags.map((t) => t.name), failed, error })).attachments) {
       const opts = a.fileName !== undefined ? { mediaType: a.mediaType, fileName: a.fileName } : { mediaType: a.mediaType };
       if (typeof a.data === 'string') this.attach(a.data, opts);
       else this.attach(a.data, opts);

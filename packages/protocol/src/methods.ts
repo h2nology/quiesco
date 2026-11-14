@@ -37,7 +37,10 @@ export interface AgentMethods {
   assert: { params: { assertion: AssertionSpec } & SyncOption; result: { elements: ElementSummary[] } & SyncTiming };
   waitForIdle: { params: { timeoutMs?: number }; result: { waitedMs: number } };
   getTree: { params: Record<string, never>; result: { root: TreeNode | null } };
-  reset: { params: Record<string, never>; result: { durationMs: number } };
+  /** `route`: the focused route the reset ended on (Expo Router apps; issue #1). */
+  reset: { params: Record<string, never>; result: { durationMs: number; route?: string } };
+  /** The focused route (`/students/new`), null without Expo Router (issues #2, #9). */
+  route: { params: Record<string, never>; result: { route: string | null } };
   backdoor: { params: { name: string; args: JsonValue[] }; result: { value: JsonValue } };
   getIdleState: { params: Record<string, never>; result: { trackers: TrackerState[] } };
   /** Replace the agent config at runtime (Phase 6.5 `app.sync.*`); the next `hello` carries it too. */

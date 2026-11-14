@@ -159,7 +159,21 @@ export interface QuiescoConfig {
      */
     gestureSlop?: Partial<GestureSlop>;
   };
-  reset?: { default?: 'soft' | 'hard' };
+  reset?: {
+    default?: 'soft' | 'hard';
+    /**
+     * An element that must be visible after every reset, e.g. `{ id: 'home' }`: the app is back in its
+     * initial state. When it is not, the reset fails with a clear message instead of the scenario's first
+     * step. Expo Router apps already have the route checked (issue #1); this is for any app.
+     */
+    expectVisible?: MatcherInput;
+  };
+  /**
+   * Stop after this many scenarios in a row failed the same way (same error at the same step, issue #9): the
+   * app is most likely stuck in a state every scenario inherits. The rest are skipped. Default 3; `false`
+   * runs every scenario.
+   */
+  bailOnRepeatedFailure?: number | false;
   server?: {
     /** Port of the Quiesco WebSocket server. Default 7357. */
     port?: number;

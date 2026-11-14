@@ -214,10 +214,26 @@ export class Session {
       this.appState = 'terminated';
       await this.launch();
       this.appState = 'running';
-      return;
+    } else {
+      if (this.appState === 'background') await this.device.bringToForeground();
+      await this.driver.reset();
     }
-    if (this.appState === 'background') await this.device.bringToForeground();
-    await this.driver.reset();
+    await this.expectInitialState();
+  }
+
+  /** `reset.expectVisible`: the reset must leave that element visible (issue #9). */
+  private async expectInitialState(): Promise<void> {
+    const target = this.config.reset?.expectVisible;
+    if (target === undefined) return;
+    try {
+      await this.driver.expectVisible(target);
+    } catch (e) {
+      // A lost connection is not about the app's state: beforeScenario starts the app again for that.
+      if (!(e instanceof QuiescoError) || RESTART_ON.has(e.errorName)) throw e;
+      const route = await this.driver.currentRoute();
+      const message = `the app is not back in its initial state${route !== null ? ` (current route: ${route})` : ''}: ${e.message} (reset.expectVisible in quiesco.config)`;
+      throw new QuiescoError('RESET_FAILED', `Reset failed at expectVisible: ${message}`, { step: 'expectVisible', message });
+    }
   }
 
   /**

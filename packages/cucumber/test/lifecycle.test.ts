@@ -24,6 +24,7 @@ function fakeSession(opts: { lateError?: Error } = {}) {
     }),
     dispose: vi.fn(async () => void calls.push('dispose')),
     driver: {
+      currentRoute: async () => '/students/new',
       takeAppError: () => {
         const e = late;
         late = null;
@@ -72,6 +73,43 @@ describe('Lifecycle', () => {
       ['startScenario', { name: 'scenario' }],
       ['beforeScenario', { tags: ['@native', '@hard-reset'], name: 'scenario' }],
     ]);
+  });
+
+  it('skips the rest after 3 identical failures in a row by default, and says so (issue #9)', async () => {
+    const { session, calls } = fakeSession();
+    const warnings: string[] = [];
+    const logger = { debug() {}, info() {}, warn: (m: string) => void warnings.push(m), error() {} };
+    const l = new Lifecycle({ config, platform: 'android', createSession: async () => session, logger });
+    await l.beforeAll();
+    const reset = (ms: number) => `QuiescoError: Soft reset failed at navigation: the app is on /x after ${ms}ms\n    at y`;
+    for (const ms of [1, 2]) {
+      expect(await l.before([])).toBeUndefined();
+      await l.after({ tags: [], failed: true, error: reset(ms) });
+    }
+    expect(warnings).toEqual([]);
+    expect(await l.before([])).toBeUndefined();
+    await l.after({ tags: [], failed: true, error: reset(3) });
+    expect(warnings[0]).toMatch(/^the last 3 scenarios failed the same way: Error: QuiescoError: Soft reset failed at navigation/);
+    expect(warnings[0]).toContain('(current route: /students/new)');
+    expect(l.bailedOut).toMatch(/^skipped:/);
+    calls.length = 0;
+    expect(await l.before([])).toBe('skipped');
+    expect(await l.before([])).toBe('skipped');
+    await l.after({ tags: [], failed: false });
+    expect(calls).toEqual([]); // no reset, no artifacts for the skipped ones
+    await l.afterAll();
+    expect(warnings[1]).toBe('2 scenarios were skipped after repeated identical failures (bailOnRepeatedFailure)');
+  });
+
+  it('bailOnRepeatedFailure: false runs every scenario', async () => {
+    const { session } = fakeSession();
+    const l = new Lifecycle({ config: { ...config, bailOnRepeatedFailure: false }, platform: 'android', createSession: async () => session, logger: { debug() {}, info() {}, warn() {}, error() {} } });
+    await l.beforeAll();
+    for (let i = 0; i < 5; i++) {
+      expect(await l.before([])).toBeUndefined();
+      await l.after({ tags: [], failed: true, error: new Error('same') });
+    }
+    expect(l.bailedOut).toBeNull();
   });
 
   it('lets the innermost platform tag decide and passes the flat tags on', async () => {

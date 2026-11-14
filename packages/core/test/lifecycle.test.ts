@@ -152,7 +152,7 @@ const config = (extra: Partial<QuiescoConfig> = {}): QuiescoConfig => ({
 
 /** Agents answering like the app would; `appState` is what deviceInfo reports. */
 function setup(opts: { nativeModule?: boolean } = {}) {
-  const state = { appState: 'active' as string, unansweredResets: 0 };
+  const state = { appState: 'active' as string, unansweredResets: 0, boxVisible: true, route: null as string | null };
   const agents: FakeAgent[] = [];
   const provider = new LifecycleProvider((p) =>
     agents.push(
@@ -172,8 +172,14 @@ function setup(opts: { nativeModule?: boolean } = {}) {
                 return NO_REPLY;
               }
               return { durationMs: 1 };
-            case 'query':
+            case 'route':
+              return { route: state.route };
             case 'assert':
+              if (!state.boxVisible) {
+                throw { code: 1004, message: 'expect visible failed after 10ms for { id: "box" }: expected "visible", actual "not visible"', data: { name: 'ASSERTION_FAILED', expected: 'visible', actual: 'not visible', elements: [] } };
+              }
+              return { elements: [{ type: 'RCTView', testID: 'box', text: '', rect: { x: 5, y: 2, width: 4, height: 3 }, visible: true, visibleRatio: 1, focused: false, enabled: true }] };
+            case 'query':
               return { elements: [{ type: 'RCTView', testID: 'box', text: '', rect: { x: 5, y: 2, width: 4, height: 3 }, visible: true, visibleRatio: 1, focused: false, enabled: true }] };
             default:
               return {};
@@ -286,6 +292,24 @@ describe('app.device', () => {
     expect(provider.calls.at(-1)).toBe('foreground');
     expect(methods(agents[0]).slice(-2)).toEqual(['configure', 'waitForIdle']);
     await expect(session.driver.query('box')).resolves.toHaveLength(1);
+  });
+
+  it('reset.expectVisible: the reset fails with RESET_FAILED, naming the route, when the element is not visible (issue #9)', async () => {
+    const { provider, agents, state } = setup();
+    session = await Session.create({ config: config({ reset: { expectVisible: 'box' } }), platform: 'android', provider, logger: silentLogger });
+    await session.beforeScenario({});
+    expect(methods(agents[0]).slice(-2)).toEqual(['reset', 'assert']);
+    state.boxVisible = false;
+    state.route = '/students/new';
+    await expect(session.beforeScenario({})).rejects.toMatchObject({
+      errorName: 'RESET_FAILED',
+      data: { step: 'expectVisible' },
+      message: expect.stringMatching(/^Reset failed at expectVisible: the app is not back in its initial state \(current route: \/students\/new\): expect visible failed .* \(reset\.expectVisible in quiesco\.config\)$/),
+    });
+    // after a hard reset (a new launch) too
+    provider.calls.length = 0;
+    await expect(session.beforeScenario({ tags: ['@hard-reset'] })).rejects.toMatchObject({ data: { step: 'expectVisible' } });
+    expect(provider.calls.slice(-2)).toEqual(['terminate', 'launch']);
   });
 
   it('a scenario left in the background is brought back before the next one', async () => {

@@ -467,6 +467,14 @@ Register backdoors and hooks in a module that is only imported in e2e builds
 (`if (process.env.EXPO_PUBLIC_QUIESCO === '1') require('./e2e')`), so the test code is not even in
 production bundles. Each registration returns a function that removes it.
 
+**Navigation on soft reset.** With Expo Router, the soft reset also puts the navigation state back to
+the one the app started in (after the `onReset` hooks, before the remount): a scenario that ends on a
+pushed screen, in a tab or in a nested stack no longer hands that screen to the next one. Nothing to set
+up. The reset then checks that the app is on the route the first reset of the run ended on; when it is
+not (the app navigated away on mount from state the reset did not clear), the reset fails with
+`RESET_FAILED` naming both routes. Clear that state in `onReset`, or tag the scenario `@hard-reset`. For
+apps without Expo Router, `reset.expectVisible` in the config does the same check with an element.
+
 ## Configuration {#configuration}
 
 `quiesco.config.ts` in the project root (`.mts`, `.js` and `.mjs` also work):
@@ -512,6 +520,8 @@ export default defineConfig({
 | `actions.mode` | `native` if the app has `@quiesco/native`, else `js` | Real input or callbacks |
 | `actions.gestureSlop` | per platform (see [Multi-finger gestures](#multi-finger-gestures)) | `{ pinch, rotation }`: how far fingers move before the app's recognizers activate |
 | `reset.default` | `soft` | `hard` relaunches the app before every scenario |
+| `reset.expectVisible` | — | A matcher that must be visible after every reset, e.g. `{ id: 'home' }`; otherwise the reset fails with `RESET_FAILED` instead of the scenario's first step |
+| `bailOnRepeatedFailure` | `3` | After this many scenarios in a row fail the same way (same error), print a hint with the current route and skip the rest; `false` runs every scenario (the hint is still printed after 3) |
 | `server.port` / `server.host` | `7357` / all interfaces | The host's WebSocket server |
 | `connectTimeoutMs` | `30000` | How long to wait for the app after launch |
 | `logLevel` | `warn` | App console messages forwarded to the test output (`off` to disable) |
@@ -549,7 +559,7 @@ Failures are `QuiescoError`s with `errorName`, a message that says what to do, a
 | `ACTION_NOT_SUPPORTED` | e.g. `pressBack` on iOS, or `native` mode without the native module (with a hint) |
 | `BACKDOOR_NOT_REGISTERED` / `BACKDOOR_FAILED` / `NOT_SERIALIZABLE` | Backdoor problems; the first lists the registered names, the last the path of the bad value |
 | `APP_ERROR` | An uncaught error in the app failed the current step (see `appErrors` to ignore known ones) |
-| `RESET_FAILED` | Which soft-reset step failed (`storage:<name>`, `onReset#<n>`, `remount`) |
+| `RESET_FAILED` | Which reset step failed (`storage:<name>`, `onReset#<n>`, `navigation`, `remount`, `expectVisible`) |
 | `PROTOCOL_MISMATCH` / `SESSION_MISMATCH` | Agent and host versions differ / an app from another run connected |
 | `CONNECT_TIMEOUT` | The app did not connect after launch (the message has a checklist) |
 | `AGENT_TIMEOUT` | The app stopped answering — usually its JS thread is blocked |

@@ -2,8 +2,9 @@
  * Soft reset (requirements.md §6.5):
  * 1. clear persistent storage (built-in adapters for the platform + adapters registered by the app),
  * 2. run the app's onReset hooks (in registration order),
- * 3. remount the whole app by changing QuiescoRoot's key,
- * 4. (the runtime then waits for idle).
+ * 3. put the navigation state back to the one the app started in (Expo Router; issue #1),
+ * 4. remount the whole app by changing QuiescoRoot's key,
+ * 5. (the runtime then waits for idle and checks the route).
  * A failing step aborts the reset with RESET_FAILED naming the step.
  */
 import type { StorageAdapter } from '../api-types';
@@ -33,8 +34,8 @@ export class ResetManager {
     };
   }
 
-  /** Steps 1–3. `remount` is null when QuiescoRoot is not mounted. */
-  async run(remount: (() => void) | null): Promise<void> {
+  /** Steps 1–4. `remount` is null when QuiescoRoot is not mounted; `navigation` is omitted without a navigator. */
+  async run(remount: (() => void) | null, navigation?: () => void): Promise<void> {
     for (const s of [...this.builtInStorage(), ...this.storages]) {
       await step(`storage:${s.name}`, () => s.clear());
     }
@@ -42,6 +43,7 @@ export class ResetManager {
     for (const hook of [...this.hooks]) {
       await step(`onReset#${i++}`, hook);
     }
+    if (navigation !== undefined) await step('navigation', navigation);
     if (remount === null) {
       throw new QuiescoError('RESET_FAILED', 'Soft reset failed at remount: QuiescoRoot is not mounted', { step: 'remount', message: 'QuiescoRoot is not mounted' });
     }

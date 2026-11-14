@@ -82,6 +82,9 @@ describe('ResetManager', () => {
     off();
     await m.run(() => order.push('remount'));
     expect(order).toEqual(['async', 'mmkv', 'hook1', 'hook2', 'remount']);
+    order.length = 0;
+    await m.run(() => order.push('remount'), () => void order.push('navigation'));
+    expect(order).toEqual(['async', 'mmkv', 'hook1', 'hook2', 'navigation', 'remount']);
   });
 
   it('fails with RESET_FAILED naming the step', async () => {

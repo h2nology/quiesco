@@ -16,9 +16,10 @@ function testIn(name: string, ...describes: string[]): TestLike {
   return { name, parent, errors: [] };
 }
 
-function fakeLifecycle(opts: { runs?: boolean; files?: string[]; afterError?: Error } = {}) {
+function fakeLifecycle(opts: { runs?: boolean; files?: string[]; afterError?: Error; bailedOut?: string } = {}) {
   return {
     running: true,
+    bailedOut: opts.bailedOut ?? null,
     runsHere: vi.fn(() => opts.runs ?? true),
     before: vi.fn(async () => undefined),
     after: vi.fn(async () => {
@@ -46,6 +47,13 @@ describe('handleEvent', () => {
     expect(l.before).not.toHaveBeenCalled();
   });
 
+  it('skips the rest after repeated identical failures (bailOnRepeatedFailure, issue #9)', async () => {
+    const l = fakeLifecycle({ bailedOut: 'skipped: the 3 scenarios before it failed the same way' });
+    const t = testIn('adds a todo');
+    await handleEvent(l as unknown as Lifecycle, { name: 'test_start', test: t });
+    expect(t.mode).toBe('skip');
+  });
+
   it('resets at test_started and ends the test at test_done', async () => {
     const l = fakeLifecycle();
     const t = testIn('adds a todo', 'todos @smoke');
@@ -54,7 +62,7 @@ describe('handleEvent', () => {
     await handleEvent(l as unknown as Lifecycle, { name: 'test_started', test: t });
     expect(l.before).toHaveBeenCalledWith([['@smoke'], []], 'todos @smoke > adds a todo');
     await handleEvent(l as unknown as Lifecycle, { name: 'test_done', test: t });
-    expect(l.after).toHaveBeenCalledWith({ tags: ['@smoke'], failed: false });
+    expect(l.after).toHaveBeenCalledWith({ tags: ['@smoke'], failed: false, error: undefined });
     expect(t.errors).toEqual([]);
   });
 
@@ -64,7 +72,7 @@ describe('handleEvent', () => {
     const err = new Error('expected 1');
     t.errors.push([err, new Error('async')]);
     await handleEvent(l as unknown as Lifecycle, { name: 'test_done', test: t });
-    expect(l.after).toHaveBeenCalledWith({ tags: [], failed: true });
+    expect(l.after).toHaveBeenCalledWith({ tags: [], failed: true, error: [err, expect.any(Error)] });
     expect(err.message).toBe('expected 1\n\nQuiesco evidence:\n  /art/t/failure.png');
     expect(err.stack).toContain('Quiesco evidence:\n  /art/t/failure.png');
   });
