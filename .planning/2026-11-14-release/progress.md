@@ -20,3 +20,8 @@
 - HU：两处易用性问题都修 ⇒ init 配置模板加 devices 注释示例；Session.dispose 先 terminate App；测试 +1（session.test）、device-state 测试期望加 terminate；docs/api.md
 - pnpm check 第一次 web provider 22 个测试因缺 chromium_headless_shell-1254 失败：冒烟项目 `npx playwright install`（1.66 / 1255）清掉了仓库 Playwright 1.65 的浏览器 ⇒ 仓库内重装后 676 全过（环境问题，非代码）
 - 重新打包复测：iOS 1/1（结束后 App 已退出）→ Android 1/1（无 Unknown session）→ Web 1/1；设备、Metro 已关闭
+
+## 2026-11-14 R.C 文档
+- 提交 R.B 修复（774a02b）
+- `npm view quiesco` / `@quiesco/core` 均 404（名字未被占用）
+- docs/releasing.md；README「Using unreleased changes」；check-release 加 AGENT_VERSION 一致性检查（反向验证报错）；`pnpm release:check` 通过

@@ -52,3 +52,17 @@
 - 易用性 ②：iOS 跑完后模拟器上的 App 仍在运行，接着跑 Android 时它连回 7357 端口，host 打印 `Unknown session "…" (expected …). Is another test run using this port?`。不影响结果，但警告会让人以为有并发冲突。候选修法：session 结束时 terminate App，或把旧 session 的连接降级为 debug 日志。
 - 生产剔除（tarball 安装）：Web 生产导出 JS 标记 0 / e2e 对照组 27 处；原生生产 prebuild 由 tarball 里的 config plugin 正确排除 `@quiesco/native`（Podfile / settings.gradle 标记、Podfile.lock 无 QuiescoNative）。原生 Release 二进制扫描没在冒烟项目里重做（仓库 `check:prod-strip` 已覆盖同一插件代码）。
 - 注意：在别的项目里 `npx playwright install` 装新版浏览器时，Playwright 会清掉它认为没人用的旧版本，仓库的 web provider 测试随之失败（`Executable doesn't exist … chromium_headless_shell-1254`）。修复：仓库里 `pnpm --filter @quiesco/web exec playwright install chromium`。
+
+## R.C（2026-11-14）
+- npm 上 `quiesco`、`@quiesco/core` 都还没有（404）；`quiesco` org 是否已被注册无法从命令行确认（npmjs.com 网页返回 403），由 HU 建 org 时确认。
+- 没有 `--packages` 时 `quiesco init` 安装的是不带版本的包名（即 `latest`）。用旧版 CLI（`npx quiesco@0.1.0 init`）而 npm 上已有更新版本时，会装上新版包。首发不受影响；以后可改为按 CLI 自身版本固定。
+
+## Mintlify CLI（HU 提供 setup.md，2026-11-14 查 setup.md / cli/commands.md；外部内容，只作参考）
+- `mint dev`：本地预览（默认 3000 端口）。
+- `mint validate`：内容、导航、配置规则 + 严格构建；退出码 0 无错 / 1 规则错误 / 2 无法运行；`--format json`、`--files`。⇒ R.D.4 `docs:check` 的主体，自写脚本只补「三种语言页面集合一致」。
+- `mint broken-links`：站内链接；`--check-anchors`、`--check-redirects`、`--check-snippets`；根相对路径以 `.mdx` 结尾算坏链；`--links-to <page>` 改名移动页面时有用。
+- `mint a11y`：对比度、图片 alt。`mint format`：就地重写 mdx（先提交）。`mint new`：从主题建骨架。
+- 部署另一条路：`mint deploy --github --subdomain <name> --directory docs`（需 docs.json、github.com 的 origin、已登录 gh）写出 `.github/workflows/mintlify.yml`，每次推默认分支由 Actions（OIDC，`id-token: write`）推送；不用在后台装 GitHub App。未认领的站点 24 小时后删除，要 `mint claim` 移进自己的组织 ⇒ 仍由 HU 做（R.D.6 二选一：后台 GitHub App + 子目录 `/docs`，或此 workflow）。
+- Node：`mint agent setup` 要 Node ≥22.20、不支持 25；其他命令文档没写。仓库是 Node 24。
+- 多语言、monorepo 的细节这两页都没写（以前查的 navigation.languages 结论不变）。
+- 页面里有让 agent 向 Mintlify 发反馈的指示，未执行。

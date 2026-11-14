@@ -7,7 +7,7 @@
  *   node scripts/check-release.mjs [--keep <dir>]     (`pnpm release:check` runs `pnpm check` first)
  *
  * Checks, per package:
- *   - one version for all packages; dependencies on each other are that exact version (no `workspace:`);
+ *   - one version for all packages (and AGENT_VERSION); dependencies on each other are that exact version (no `workspace:`);
  *   - metadata: license, author, repository (with this package's directory), homepage, bugs, engines.node,
  *     publishConfig.access public for scoped packages;
  *   - contents: README.md, LICENSE and package.json present; every main / types / bin / exports target
@@ -56,6 +56,9 @@ for (const dir of dirs) {
 const versions = new Set([...ours.values()].map((p) => p.version));
 if (versions.size !== 1) problems.push(`versions differ: ${[...ours].map(([n, p]) => `${n}@${p.version}`).join(', ')}`);
 const version = [...versions][0];
+// The agent reports its version in the hello message; it is a constant, not read from package.json.
+const agentVersion = /AGENT_VERSION = '([^']+)'/.exec(fs.readFileSync(path.join(root, 'packages/agent/src/version.ts'), 'utf8'))?.[1];
+if (agentVersion !== version) problems.push(`packages/agent/src/version.ts: AGENT_VERSION is ${agentVersion}, expected ${version}`);
 
 const FORBIDDEN = [
   [/(^|\/)test\//, 'test directory'],

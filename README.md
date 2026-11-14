@@ -179,12 +179,13 @@ Platform tags go in test or `describe` titles (Jest has no test options). Run ei
 - [Benchmarks](docs/benchmarks.md)
 - [Quiesco and Detox](docs/detox-comparison.md) — item-by-item comparison with Detox 20.51.4
 
-## Using Quiesco from source
+## Using unreleased changes
 
-Until the packages are on npm, build tarballs from this repository and let `quiesco init` install them:
+`npx quiesco init` installs the packages from npm. To try changes that are not released yet, build
+tarballs from this repository and let `quiesco init` install them instead:
 
 ```sh
-git clone <this repository> quiesco && cd quiesco
+git clone https://github.com/h2nology/quiesco.git && cd quiesco
 pnpm install && pnpm build
 mkdir -p /tmp/quiesco-packs && pnpm -r --filter "./packages/*" pack --pack-destination /tmp/quiesco-packs
 cd /path/to/my-app
@@ -195,7 +196,8 @@ node /path/to/quiesco/packages/cli/dist/bin.js init --packages /tmp/quiesco-pack
 other to them (`overrides` / `pnpm.overrides` / `resolutions`).
 
 Developing Quiesco itself: `pnpm run check` runs the build, lint, architecture rules, unit tests and the
-example's type check. Requirements and design notes: [requirements.md](requirements.md) (in Chinese).
+example's type check. Publishing: [releasing](docs/releasing.md). Requirements and design notes:
+[requirements.md](requirements.md) (in Chinese).
 
 ## License
 
