@@ -1,8 +1,32 @@
 {
   "name": "@quiesco/jest",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Quiesco for Jest: a preset whose test environment runs one session for the run and gives tests `quiesco.app`",
   "license": "MIT",
+  "author": "h2nology",
+  "keywords": [
+    "quiesco",
+    "e2e",
+    "testing",
+    "expo",
+    "react-native",
+    "jest"
+  ],
+  "homepage": "https://github.com/h2nology/quiesco/tree/main/packages/jest#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/h2nology/quiesco.git",
+    "directory": "packages/jest"
+  },
+  "bugs": {
+    "url": "https://github.com/h2nology/quiesco/issues"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -23,6 +47,7 @@
   },
   "files": [
     "dist",
+    "src",
     "jest-preset.cjs"
   ],
   "scripts": {

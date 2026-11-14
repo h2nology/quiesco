@@ -1,8 +1,32 @@
 {
   "name": "@quiesco/vitest",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Quiesco for Vitest: one session for the run, `app` as a test fixture, a reset before every test",
   "license": "MIT",
+  "author": "h2nology",
+  "keywords": [
+    "quiesco",
+    "e2e",
+    "testing",
+    "expo",
+    "react-native",
+    "vitest"
+  ],
+  "homepage": "https://github.com/h2nology/quiesco/tree/main/packages/vitest#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/h2nology/quiesco.git",
+    "directory": "packages/vitest"
+  },
+  "bugs": {
+    "url": "https://github.com/h2nology/quiesco/issues"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "exports": {
@@ -16,7 +40,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "src"
   ],
   "scripts": {
     "build": "tsc -b",

@@ -92,4 +92,4 @@ Some steps take a word instead of a quoted value (any of the languages' words wo
 An unknown word fails the step with the list of accepted ones. Device and system steps (`background`,
 `orientation`, `offline`, `grantPermission`, `allowDialog`, `shake`, …) call `this.app.device`; where a
 platform cannot do something Quiesco reports `ACTION_NOT_SUPPORTED` with the reason
-([platform differences](../../docs/platforms.md)).
+([platform differences](https://github.com/h2nology/quiesco/blob/main/docs/platforms.md)).

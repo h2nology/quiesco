@@ -1,8 +1,33 @@
 {
   "name": "@quiesco/protocol",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Shared protocol types and constants between the Quiesco host and agent",
   "license": "MIT",
+  "author": "h2nology",
+  "keywords": [
+    "quiesco",
+    "e2e",
+    "testing",
+    "expo",
+    "react-native",
+    "protocol",
+    "json-rpc"
+  ],
+  "homepage": "https://github.com/h2nology/quiesco/tree/main/packages/protocol#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/h2nology/quiesco.git",
+    "directory": "packages/protocol"
+  },
+  "bugs": {
+    "url": "https://github.com/h2nology/quiesco/issues"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

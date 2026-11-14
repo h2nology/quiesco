@@ -1,8 +1,32 @@
 {
   "name": "quiesco",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Quiesco command line: init, test, doctor, tree",
   "license": "MIT",
+  "author": "h2nology",
+  "keywords": [
+    "quiesco",
+    "e2e",
+    "testing",
+    "expo",
+    "react-native",
+    "cli"
+  ],
+  "homepage": "https://github.com/h2nology/quiesco/tree/main/packages/cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/h2nology/quiesco.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/h2nology/quiesco/issues"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "bin": {
     "quiesco": "./dist/bin.js"

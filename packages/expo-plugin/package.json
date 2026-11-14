@@ -1,8 +1,32 @@
 {
   "name": "@quiesco/expo-plugin",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Quiesco Expo config plugin: links @quiesco/native into e2e builds only.",
   "license": "MIT",
+  "author": "h2nology",
+  "keywords": [
+    "quiesco",
+    "e2e",
+    "testing",
+    "expo",
+    "react-native",
+    "expo-config-plugin"
+  ],
+  "homepage": "https://github.com/h2nology/quiesco/tree/main/packages/expo-plugin#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/h2nology/quiesco.git",
+    "directory": "packages/expo-plugin"
+  },
+  "bugs": {
+    "url": "https://github.com/h2nology/quiesco/issues"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./app.plugin.js",
   "exports": {
     ".": "./app.plugin.js",

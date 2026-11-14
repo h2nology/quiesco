@@ -14,7 +14,8 @@
     "depcruise": "depcruise packages --config .dependency-cruiser.cjs",
     "check": "pnpm build && pnpm lint && pnpm depcruise && pnpm test && pnpm typecheck:examples",
     "typecheck:examples": "pnpm --filter @quiesco/example-todo-app exec tsc --noEmit",
-    "check:prod-strip": "node scripts/check-prod-strip.mjs"
+    "check:prod-strip": "node scripts/check-prod-strip.mjs",
+    "release:check": "pnpm check && node scripts/check-release.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
