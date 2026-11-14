@@ -59,3 +59,10 @@
 ## 2026-11-14 R.D.6
 - HU 上线站点 https://shift-14cc7601.mintlify.site（en / zh / ja 200，releasing 404，锚点在）
 - README / 包 README / 示例 README / CONTRIBUTING 文档链接改指站点；逐个 curl 200 + 锚点检查；check-release、docs:check --no-mint 通过
+
+## 2026-11-14 首发验证（HU 已 publish、打 tag）
+- 提交并 push R.D.5 + R.D.6（ee8746e）
+- npm：11 个包 version / latest 都是 0.1.0；tag v0.1.0 → ee8746e；包内依赖为确切版本 0.1.0、无 workspace:、README 链到站点
+- 全新 create-expo-app（expo ~58.0.25）+ `npx -y quiesco@0.1.0 init`（从 npm 安装，无 404）+ README 快速开始 2–4 步 ⇒ doctor 必需检查全过；`npm run e2e:web` 1/1 通过，agent 0.1.0
+- 原生端没用 npm 包重跑（R.B 已用同内容的 tarball 三端通过）
+- 冒烟项目装 Playwright 浏览器后仓库浏览器仍在，@quiesco/web 测试 30 通过
