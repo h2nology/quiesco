@@ -28,6 +28,21 @@ export interface CliContext {
   nodeVersion: string;
   /** Whether a person is at the terminal (stdout is a TTY), not a CI job. */
   interactive: boolean;
+  /** Start a long-running process (Metro) in its own process group, its output appended to `logFile`. */
+  spawnBackground(command: string, args: readonly string[], options: { cwd: string; env: NodeJS.ProcessEnv; logFile: string }): BackgroundProcess;
+  /** GET `url`; null when nothing answers (connection refused, timeout). */
+  httpGet(url: string, timeoutMs: number): Promise<{ status: number; body: string } | null>;
+  /** Run `cleanup` on Ctrl-C / SIGTERM before exiting; returns a function that removes it. */
+  onInterrupt(cleanup: () => Promise<void>): () => void;
+  /** Wait (polling a dev server). */
+  sleep(ms: number): Promise<void>;
+}
+
+export interface BackgroundProcess {
+  /** Resolves with the exit code when the process ends. */
+  readonly exited: Promise<number>;
+  /** Stop it and everything it started (SIGTERM to the group, SIGKILL after `graceMs`). */
+  stop(graceMs?: number): Promise<void>;
 }
 
 const isWindows = process.platform === 'win32';
@@ -69,6 +84,55 @@ export function defaultContext(): CliContext {
     platform: process.platform,
     nodeVersion: process.versions.node,
     interactive: process.stdout.isTTY === true,
+    spawnBackground: (command, args, options) => {
+      fs.mkdirSync(path.dirname(options.logFile), { recursive: true });
+      const log = fs.openSync(options.logFile, 'a');
+      // Its own process group (detached): `expo start` starts children; stopping the group stops them all.
+      const child = nodeSpawn(command, [...args], { cwd: options.cwd, env: options.env, stdio: ['ignore', log, log], detached: !isWindows, shell: isWindows });
+      fs.closeSync(log);
+      const exited = new Promise<number>((resolve) => {
+        child.on('error', () => resolve(127));
+        child.on('exit', (code, signal) => resolve(code ?? (signal !== null ? 128 : 1)));
+      });
+      const signal = (s: NodeJS.Signals) => {
+        try {
+          if (!isWindows && child.pid !== undefined) process.kill(-child.pid, s);
+          else child.kill(s);
+        } catch {
+          // already gone
+        }
+      };
+      return {
+        exited,
+        stop: async (graceMs = 5000) => {
+          if (child.exitCode !== null || child.signalCode !== null) return;
+          signal('SIGTERM');
+          const timer = setTimeout(() => signal('SIGKILL'), graceMs);
+          await exited;
+          clearTimeout(timer);
+        },
+      };
+    },
+    httpGet: async (url, timeoutMs) => {
+      try {
+        const r = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+        return { status: r.status, body: await r.text() };
+      } catch {
+        return null;
+      }
+    },
+    onInterrupt: (cleanup) => {
+      const handler = (s: NodeJS.Signals) => {
+        void cleanup().finally(() => process.exit(s === 'SIGINT' ? 130 : 143));
+      };
+      process.once('SIGINT', handler);
+      process.once('SIGTERM', handler);
+      return () => {
+        process.off('SIGINT', handler);
+        process.off('SIGTERM', handler);
+      };
+    },
+    sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
   };
 }
 

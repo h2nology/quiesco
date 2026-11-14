@@ -29,8 +29,21 @@ overwritten — when a file needs a change Quiesco cannot make safely, it prints
 | `--packages <dir>` | Install Quiesco from the `.tgz` files in `<dir>` (`pnpm pack` output) and pin their dependencies on each other to them |
 | `--skip-install` | Only print the install commands |
 
-What `init` leaves to you: wrapping the root in `<QuiescoRoot>`, test ids, and building the iOS / Android
-e2e apps.
+What `init` leaves to you: wrapping the root in `<QuiescoRoot>` and test ids.
+
+## `quiesco build` {#quiesco-build}
+
+```sh
+npx quiesco build ios
+npx quiesco build android --force
+```
+
+Builds the e2e app (`expo prebuild` with `EXPO_PUBLIC_QUIESCO=1`, then `xcodebuild` for the simulator or
+`gradlew assembleDebug` / `assembleRelease`) and writes it to `apps.<platform>.binaryPath`. On iOS the
+derived data path, configuration and scheme come from that path
+(`<dir>/Build/Products/<Configuration>-iphonesimulator/<Name>.app`). A Debug build is skipped when the app
+config and the dependencies (with their installed versions) did not change since the last one and the build
+is still there; `--force` builds anyway. Release builds embed the JS bundle and are always built.
 
 ## `quiesco test` {#quiesco-test}
 
@@ -46,6 +59,12 @@ Sets `QUIESCO_PLATFORM` and runs the project's test runner — `cucumber-js` (de
 each on a device of its own ([parallel.md](./parallel)): it becomes `--parallel N` for cucumber-js,
 `--maxWorkers N` for Jest and `--fileParallelism --maxWorkers N` for Vitest (the runners' own flags work as
 well).
+
+When the app loads its JS from Metro (`devClient.metroUrl`, or `apps.web.url`) and nothing answers there,
+`quiesco test` starts Metro with `EXPO_PUBLIC_QUIESCO=1` (`npx expo start --port <port>`, its output in
+`artifacts/metro.log`), waits until it is ready, and stops it when the runner ends, also on Ctrl-C. A Metro
+that is already running is used as it is. `devServer` in the config changes the command and the timeout,
+or turns this off (`autoStart: false`). Running the runner directly (`npx cucumber-js`) does not start Metro.
 
 ## `quiesco devices` {#quiesco-devices}
 

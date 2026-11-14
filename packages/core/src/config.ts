@@ -169,6 +169,19 @@ export interface QuiescoConfig {
     expectVisible?: MatcherInput;
   };
   /**
+   * The Metro dev server the app loads its JS from (issue #5): `quiesco test` starts one with
+   * `EXPO_PUBLIC_QUIESCO=1` when the app needs it (`devClient.metroUrl`, or `apps.web.url`) and nothing
+   * answers there, waits until it is ready, and stops it afterwards. A running one is reused.
+   */
+  devServer?: {
+    /** Start Metro when it is not running. Default true. */
+    autoStart?: boolean;
+    /** The command, with `{port}` replaced. Default `npx expo start --port {port}`. */
+    command?: string[];
+    /** How long to wait for it to be ready. Default 120 s. */
+    timeoutMs?: number;
+  };
+  /**
    * Stop after this many scenarios in a row failed the same way (same error at the same step, issue #9): the
    * app is most likely stuck in a state every scenario inherits. The rest are skipped. Default 3; `false`
    * runs every scenario.

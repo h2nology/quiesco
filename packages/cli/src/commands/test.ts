@@ -4,8 +4,27 @@
  * remaining arguments unchanged. Default runner: cucumber-js. `--workers N` (Phase 6.12) runs N workers,
  * each on its own device, with the runner's own flags; those flags can also be passed directly.
  */
+import type { QuiescoConfig } from '@quiesco/core';
+import { loadConfig } from '@quiesco/core';
+
 import type { CliContext } from '../context.js';
 import { parsePlatform, takeOption } from '../context.js';
+import { ensureDevServer } from '../dev-server.js';
+
+export interface TestDeps {
+  /** The project's quiesco.config (null when there is none: the runner reports that itself). */
+  loadConfig: (cwd: string, env: NodeJS.ProcessEnv) => Promise<QuiescoConfig | null>;
+}
+
+const defaultTestDeps: TestDeps = {
+  loadConfig: async (cwd, env) => {
+    try {
+      return (await loadConfig({ cwd, ...(env['QUIESCO_CONFIG'] !== undefined ? { file: env['QUIESCO_CONFIG'] } : {}), worker: { workerIndex: 0, workerCount: 1 } })).config;
+    } catch {
+      return null;
+    }
+  },
+};
 
 const RUNNERS = {
   cucumber: { command: ['cucumber-js'], workers: (n: number) => (n > 1 ? ['--parallel', String(n)] : []) },
@@ -19,7 +38,7 @@ function isRunner(v: string | undefined): v is Runner {
   return v !== undefined && Object.hasOwn(RUNNERS, v);
 }
 
-export async function testCommand(args: readonly string[], ctx: CliContext): Promise<number> {
+export async function testCommand(args: readonly string[], ctx: CliContext, deps: TestDeps = defaultTestDeps): Promise<number> {
   const p = takeOption(args, '--platform');
   const r = takeOption(p.rest, '--runner');
   const w = takeOption(r.rest, '--workers');
@@ -44,6 +63,19 @@ export async function testCommand(args: readonly string[], ctx: CliContext): Pro
     }
     workerArgs = [...spec.workers(n)];
   }
-  // npx runs the project's own runner (node_modules/.bin), the one the tests import.
-  return ctx.run('npx', [...spec.command, ...workerArgs, ...rest], { cwd: ctx.cwd, env: { ...ctx.env, QUIESCO_PLATFORM: platform } });
+  // The Metro dev server the app loads its JS from, started when nothing answers there (issue #5).
+  const config = await deps.loadConfig(ctx.cwd, ctx.env);
+  let devServer;
+  try {
+    devServer = config === null ? null : await ensureDevServer(ctx, config, platform);
+  } catch (e) {
+    ctx.err(`quiesco test: ${(e as Error).message}`);
+    return 1;
+  }
+  try {
+    // npx runs the project's own runner (node_modules/.bin), the one the tests import.
+    return await ctx.run('npx', [...spec.command, ...workerArgs, ...rest], { cwd: ctx.cwd, env: { ...ctx.env, QUIESCO_PLATFORM: platform } });
+  } finally {
+    await devServer?.stop();
+  }
 }

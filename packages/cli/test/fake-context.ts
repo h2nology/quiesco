@@ -40,6 +40,13 @@ export function fakeContext(answer: (command: string, args: readonly string[]) =
     platform: 'darwin',
     nodeVersion: '24.22.1',
     interactive: false,
+    // No dev server answers and none can be started unless a test overrides these.
+    spawnBackground: () => {
+      throw new Error('spawnBackground not expected in this test');
+    },
+    httpGet: async () => null,
+    onInterrupt: () => () => {},
+    sleep: async () => {},
     lines,
     errors,
     calls,

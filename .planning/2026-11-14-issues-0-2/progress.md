@@ -49,3 +49,13 @@
 - 实测：示例 App 新增 `features/go-back.feature`（REQ-DEMO-011，新建待办页返回、gestureEnabled:false 的能力演示页返回）web / iOS / Android 均 2/2（iOS runner 因源码变化自动重建）；smoke App `headerShown:false` 页 iOS 左边缘滑动返回 1/1。
 - 文档 en/ja/zh：api.mdx、platforms.mdx、steps.mdx、steps README。
 - #6：protocol `JsonCompatible` / `Backdoors` / `BackdoorName` / `BackdoorParams` / `BackdoorResult` / `BackdoorImpl`；先在 scratchpad 用 tsc 验证「对再导出的 interface 做 module augmentation 会合并到原声明、两个再导出模块共用」；Driver.backdoor 两个重载（注册表 / JSON 兼容）；agent `quiesco.backdoor<K extends BackdoorName>(name, fn: BackdoorImpl<K>)`；示例 App 声明全部后门、generic 步骤的动态名称改为 `as keyof Backdoors`；core 启用 typecheck；文档改为独立 `### 类型化后门` 小节。pnpm check 718 通过。
+
+### I.E（#5）进行中（2026-11-15）
+- 分支 `feat/metro-and-build`，叠在 I.D 上。
+- 设计：Metro 管理放在 `quiesco test`（CLI 主进程，一次运行只一个；并行 worker 不会各自启停）；直接跑 cucumber-js 不启动（文档写明）。
+- cli：`dev-server.ts`（devServerUrl：devClient.metroUrl 默认 :8081 / apps.web.url；`/status` 判断运行；未运行且是本机 ⇒ `npx expo start --port {port}` + EXPO_PUBLIC_QUIESCO=1，日志 `artifacts/metro.log`，500ms 轮询，超时 / 提前退出报错带日志尾；结束或 Ctrl-C 停进程组）；context 新增 spawnBackground / httpGet / onInterrupt / sleep；core config `devServer { autoStart, command, timeoutMs }`。
+- cli：`commands/build.ts`：prebuild（EXPO_PUBLIC_QUIESCO=1）+ iOS xcodebuild（derivedData / configuration / scheme 从 binaryPath 解析，-quiet）/ Android gradlew assemble<Variant>（必要时复制到 binaryPath）；原生输入指纹（app 配置 + 依赖及已安装版本）存 `.expo/quiesco/build-<platform>.json`，Debug 未变且产物在 ⇒ 跳过；Release 总是构建；`--force`。项目里没有 @expo/fingerprint，所以自己算。init 的配置注释、脚本（e2e:build:ios / e2e:build:android）、下一步说明改为 quiesco build。
+- 单元测试：cli 34 通过。
+- 实测：示例 App Metro 未运行时 `quiesco test --platform ios` ⇒ 自动启动、1 场景通过、结束后 8082 无监听；进程组 SIGINT ⇒ exit 130、Metro 停止；smoke `quiesco build ios` 成功（产物 08:41 更新），再次运行 0.1s 跳过；用新构建 + 自动 Metro 跑 iOS 1/1。Android build 进行中。
+- 文档：en/ja/zh native.mdx、cli.mdx（quiesco build 小节、Metro 说明）、api.mdx 配置表 devServer；README 原生部分。
+- Android：`quiesco build android` 成功（2m47s）、重跑跳过；新 APK + 自动 Metro 跑 Android 1/1。pnpm check 728 通过（第一次 lint 失败：build.test.ts 的 let ⇒ const）。
