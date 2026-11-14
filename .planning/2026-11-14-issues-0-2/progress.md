@@ -42,3 +42,10 @@
 - 验证（I.B 分支）：3 个场景 iOS 通过；示例 App 全套 iOS 82 passed / 6 skipped、Android 83 / 5、web 75 / 13，无 RESET 警告；复现 App web / iOS / Android 均 4/4。pnpm check 699 通过。
 - 未重跑：#9 的「模块状态导致跳走」实测（verify 逻辑未改，单元测试覆盖）。
 - I.C（续）：示例 App 全套（I.C 代码）iOS 82 passed / 6 skipped、Android 83 / 5；`pnpm check` 709 通过；docs:check 通过。iOS 上发现被覆盖页面的元素被判为可见 ⇒ 新增 `screenNotOnTop`（RNSScreenStack 子顺序 + activityState 0）并纳入 visibleRatio。
+
+### I.D（#4 #6）进行中（2026-11-15）
+- 分支 `feat/go-back-typed-backdoors`，叠在 `fix/failure-diagnostics`（I.C）上。
+- #4：protocol `goBack` action + host input；agent 先关键盘再交给 host（Android 首次返回只关键盘：示例 new-todo 自动聚焦，第一次实测失败于此）；Android = KEYCODE_BACK，web = page.goBack；iOS 经 XCUITest runner：新端点 `/navigationBar?bundleId=`（app 的导航栏与按钮）、`/edgeSwipeBack`；`backButton()` 选 `BackButton` id，否则左三分之一的可点按钮，内层（靠下）导航栏优先；无按钮则左边缘滑动。Driver.goBack：Expo Router 下路由未变 ⇒ ASSERTION_FAILED。steps 包新增 `goBack`（返回上一页 / 前の画面に戻る / I go back）；iOS pressBack 的提示改为指向 goBack。
+- 实测：示例 App 新增 `features/go-back.feature`（REQ-DEMO-011，新建待办页返回、gestureEnabled:false 的能力演示页返回）web / iOS / Android 均 2/2（iOS runner 因源码变化自动重建）；smoke App `headerShown:false` 页 iOS 左边缘滑动返回 1/1。
+- 文档 en/ja/zh：api.mdx、platforms.mdx、steps.mdx、steps README。
+- #6：protocol `JsonCompatible` / `Backdoors` / `BackdoorName` / `BackdoorParams` / `BackdoorResult` / `BackdoorImpl`；先在 scratchpad 用 tsc 验证「对再导出的 interface 做 module augmentation 会合并到原声明、两个再导出模块共用」；Driver.backdoor 两个重载（注册表 / JSON 兼容）；agent `quiesco.backdoor<K extends BackdoorName>(name, fn: BackdoorImpl<K>)`；示例 App 声明全部后门、generic 步骤的动态名称改为 `as keyof Backdoors`；core 启用 typecheck；文档改为独立 `### 类型化后门` 小节。pnpm check 718 通过。

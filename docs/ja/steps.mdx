@@ -34,6 +34,7 @@ registerQuiescoSteps(); // すべての言語。または { languages: ['ja'] }�
 | `scrollTo` | `在 "todo-list" 中滚动到 "todo-item-30"` | `"todo-list" を "todo-item-30" までスクロールする` | `I scroll "todo-list" to "todo-item-30"` |
 | `dismissKeyboard` | `收起键盘` | `キーボードを閉じる` | `I dismiss the keyboard` |
 | `pressBack` | `按返回键` | `戻るボタンを押す` | `I press back` |
+| `goBack` | `返回上一页` | `前の画面に戻る` | `I go back` |
 | `openUrl` | `打开链接 "myapp://todos"` | `リンク "myapp://todos" を開く` | `I open the link "myapp://todos"` |
 | `seeText` | `看到文本 "买牛奶"` | `テキスト "牛乳を買う" が表示されている` | `I see the text "Buy milk"` |
 | `notSeeText` | `看不到文本 "买牛奶"` | `テキスト "牛乳を買う" が表示されていない` | `I do not see the text "Buy milk"` |
@@ -75,7 +76,7 @@ registerQuiescoSteps(); // すべての言語。または { languages: ['ja'] }�
 | `shake` | `摇动设备` | `端末を振る` | `I shake the device` |
 | `screenshot` | `截图并保存为 "列表"` | `スクリーンショットを "一覧" として保存する` | `I take a screenshot named "list"` |
 
-`pressBack`はiOSでは使えません（戻るボタンがないため）。iOSではQuiescoが`ACTION_NOT_SUPPORTED`を報告します。
+`pressBack`はiOSでは使えません（戻るボタンがないため）。iOSではQuiescoが`ACTION_NOT_SUPPORTED`を報告します。`goBack`はすべてのプラットフォームで使えます。iOSではナビゲーションバーの戻るボタンをタップするか、左端からスワイプします。
 
 一部のステップは、引用符付きの値の代わりに単語を取ります（どの言語の単語も、すべての言語で使えます）。
 

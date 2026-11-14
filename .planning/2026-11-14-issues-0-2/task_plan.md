@@ -4,7 +4,7 @@
 逐个解决 h2nology/quiesco 的 9 个 open issue（均来自同一位用户在 Expo SDK 58 + expo-router + cucumber 项目上的实测反馈），每个修复附测试与文档，用实跑验收后关闭 issue，最后发一个新版本。
 
 ## Next Step
-PR #10（I.A）、#11（I.B）、I.C 的 PR 等 HU review / merge（I.C 叠在 #11 上，#11 合并后 base 改为 main）。下一步 I.D（#4 goBack、#6 typed backdoors）。
+PR #10、#11、#12、I.D 的 PR 等 HU review / merge（I.C、I.D 依次叠在 #11 上）。下一步 I.E（#5 自动启动 Metro + `quiesco build`）。
 
 ## 背景
 - 前置：npm 0.1.1 已发布（tag v0.1.1，`.planning/2026-11-14-release/`）。
@@ -64,11 +64,15 @@ PR #10（I.A）、#11（I.B）、I.C 的 PR 等 HU review / merge（I.C 叠在 #
 - **Status:** complete（2026-11-15；PR 待 merge，叠在 #11 上）
 
 ### I.D API 补充（#4、#6）
-- [ ] #4 `app.goBack()`：Android 系统返回；iOS 点导航栏返回按钮，没有则边缘右滑；Web `history.back()`
-- [ ] #4 文档说明 iOS 原生 header 返回按钮怎么定位（若支持）；steps 包是否加对应 step
-- [ ] #6 `backdoor()` 参数改为 `Jsonify<T>` 式检查，接受无索引签名的 interface
-- [ ] #6 按 D3 决定是否做声明合并的类型注册表（`interface Backdoors`），名称 / 参数 / 返回值都受检；类型测试（tsd / expectTypeOf）
-- **Status:** pending
+- [x] #4 `app.goBack()`：Android 返回键（先关键盘）；Web 浏览器后退；iOS 经 XCUITest runner 点导航栏返回按钮（`BackButton` / 左三分之一），没有则左边缘右滑；Expo Router 下路由未变 ⇒ ASSERTION_FAILED
+- [x] #4 iOS 原生 header 返回按钮由 goBack 处理（runner 新端点 `/navigationBar`、`/edgeSwipeBack`）；steps 包新增 `goBack` 步骤；iOS `pressBack` 提示指向 goBack
+- [x] #6 未声明时参数用 `JsonCompatible<T>`（接受 interface；Date / 函数 / Map / undefined 报类型错误）；结果 `T`（默认 JsonValue，不再限制为 JsonValue）
+- [x] #6（D3）`Backdoors` 声明合并注册表（在 protocol 声明，agent / core 再导出；`declare module '@quiesco/agent'` 即可，两边共用）：名称、参数、结果 / 注册函数都受检；未声明的名称报错，动态名称用 `as keyof Backdoors`
+- [x] 测试：core 新增 typecheck（`backdoor-types.test-d.ts`）；示例 App 用 `src/backdoors.ts` 声明全部后门 + `src/backdoors.type-test.ts`（@ts-expect-error）；ios-runner / driver / runtime 单元测试
+- [x] 实测：示例 App `go-back.feature`（REQ-DEMO-011）web / iOS / Android 2/2；smoke App 无 header 页 iOS 边缘滑动 1/1
+- [x] 文档 en/ja/zh：api.mdx（goBack、类型化后门）、platforms.mdx、steps.mdx、steps README
+- [x] `pnpm check` 718 通过；docs:check 通过
+- **Status:** complete（2026-11-15；PR 待 merge，叠在 I.C 上）
 
 ### I.E 工作流自动化（#5）
 - [ ] 类似 Playwright `webServer`：`devClient.metroUrl` / `apps.web.url` 不可达时以 `EXPO_PUBLIC_QUIESCO=1` 启动 `expo start`，等就绪，结束后停止；已在运行则复用；配置可关闭
@@ -107,4 +111,7 @@ PR #10（I.A）、#11（I.B）、I.C 的 PR 等 HU review / merge（I.C 叠在 #
 | Error | Attempt | Resolution |
 |-------|---------|------------|
 | I.B：示例 App iOS 3 个场景回归（RESET 未处理的 dev toast 遮挡） | 1 partial 快照 ⇒ 仍未处理；2 target 到下层 navigator ⇒ 仍未处理；3 完整 state payload ⇒ 仍未处理 | 4 dispatch 后等 state 变化再 remount ⇒ 通过（原因见 findings「I.B 回归」） |
+| I.D：Android goBack 在新建待办页失败（路由未变） | 1 | 自动聚焦输入框弹出键盘，第一次返回只关键盘 ⇒ agent 先关键盘 |
+| I.D：core 类型测试全部「Unused @ts-expect-error」 | 1 | nodenext 下 `../src/driver` 缺扩展名 ⇒ Driver 成 any；改 `.js` |
+| I.D：docs:check 失败（MDX 解析） | 1 | 段落里的 `{#typed-backdoors}` 被当成 JS 表达式 ⇒ 改为 `###` 标题 |
 | I.C：iOS / Android 上被覆盖页面的元素被判为可见 | 1 activityState 判断（原生栈里下层仍是 2）⇒ 无效 | 2 按 RNSScreenStack 子顺序判断 ⇒ 正确 |

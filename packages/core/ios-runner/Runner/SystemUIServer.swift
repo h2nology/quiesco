@@ -5,6 +5,8 @@
 //   GET  /screen                 → { alerts: [{ label, id, frame, texts, buttons }], others: [{ label, id, frame }] }
 //   POST /tap?x=…&y=…            → tap at a point of the screen (points)
 //   POST /notificationCenter     → swipe the Notification Center down from the top edge
+//   GET  /navigationBar?bundleId=… → the app's navigation bars: { bars: [{ frame, buttons: [{ label, id, frame, hittable }] }] }
+//   POST /edgeSwipeBack          → drag from the left edge of the screen (the interactive pop gesture)
 //   POST /quit                   → end the test
 import Network
 import XCTest
@@ -57,6 +59,21 @@ final class SystemUIServer: XCTestCase {
     case "/notificationCenter":
       let top = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.0))
       top.press(forDuration: 0.05, thenDragTo: springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.7)))
+      return ("200 OK", ["ok": true])
+    case "/navigationBar":
+      guard let id = q["bundleId"], !id.isEmpty else { return ("400 Bad Request", ["error": "bundleId"]) }
+      let app = XCUIApplication(bundleIdentifier: id)
+      var bars: [[String: Any]] = []
+      for bar in app.navigationBars.allElementsBoundByIndex where bar.exists && bar.isHittable {
+        let buttons = bar.buttons.allElementsBoundByIndex.map { b -> [String: Any] in
+          ["label": b.label, "id": b.identifier, "frame": frame(b), "hittable": b.isHittable]
+        }
+        bars.append(["frame": frame(bar), "buttons": buttons])
+      }
+      return ("200 OK", ["bars": bars])
+    case "/edgeSwipeBack":
+      let start = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.0, dy: 0.5))
+      start.press(forDuration: 0.05, thenDragTo: springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
       return ("200 OK", ["ok": true])
     case "/quit":
       done = true

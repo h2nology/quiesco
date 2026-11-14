@@ -42,6 +42,7 @@ description: "this.app（Driver）、匹配器、App 内 API、配置、场景�
 | `drag(target, to, { holdMs, speed })` | 按住元素（默认 800 ms），移动到 `to`（一个元素）的中心或 `{ point }`（窗口坐标），然后松开 |
 | `tapAt({ x, y })` / `longPressAt({ x, y }, { durationMs })` | 触摸屏幕上的一个点（窗口坐标），不管那里是什么 |
 | `pressBack()` | Android 返回键；web 上是浏览器后退；iOS 上不可用 |
+| `goBack()` | 像用户一样返回上一页，所有平台通用：Android 按返回键（先关闭键盘），web 浏览器后退，iOS 点导航栏的返回按钮，没有时从左边缘右滑（通过系统 UI runner）。使用 Expo Router 的 App，路由没有变化时会失败 |
 | `openUrl(url)` | 打开一个深层链接（iOS 上在 App 内打开，Android 上用 `am start`，web 上通过地址栏） |
 | `dismissKeyboard()` | 隐藏软键盘 |
 | `setValue(target, value)` | 设置值控件：滑块（数字）、开关 / 复选框（布尔值）、选择器（某一项的值或标签）、分段控件（某一段的值或索引）、日期 / 时间选择器或日期输入框（`Date`）。见 [值控件](#value-controls) |
@@ -140,7 +141,7 @@ await this.app.expect({ id: 'title' }).not.toHaveValue('');
 | `getTree()` | JSON 格式的元素树，带语义类型（失败的场景也会附上它） |
 | `waitForIdle({ timeoutMs })` | 等待直到空闲；resolve 的值为所用时间 |
 | `getIdleState()` | 每个跟踪器的状态——当前有什么在忙碌 |
-| `backdoor(name, ...args)` | 调用 App 中注册的后门；参数和结果均为 JSON |
+| `backdoor(name, ...args)` | 调用 App 中注册的后门；参数和结果均为 JSON（interface 也可以）。声明 `Backdoors` 后按名称带类型（[类型化后门](#typed-backdoors)） |
 | `reset()` | 软重置（Quiesco 在每个场景之前都会执行） |
 
 元素摘要包含 `type`（host 组件）、`semanticType`、`testID`、`text`、`label`、`role`、`value`、`checked`、`enabled`、`focused`、`rect`、`visible`、`visibleRatio` 以及可序列化的 `props`。
@@ -381,6 +382,22 @@ const { user } = quiesco.launchArgs() as { user?: string };
 在只会被 e2e 构建导入的模块中注册后门和 hook（`if (process.env.EXPO_PUBLIC_QUIESCO === '1') require('./e2e')`），这样测试代码根本不会进入生产包。每次注册都会返回一个用于移除该注册的函数。
 
 **软重置与导航。** 使用 Expo Router 的 App，软重置还会把导航状态恢复为 App 启动时的状态（在 `onReset` hook 之后、重新挂载之前）：某个场景停在推入的页面、某个标签页或嵌套的栈里结束，下一个场景也不会从那里开始。无需任何设置。重置之后会检查 App 是否在本次运行第一次重置后所在的路由上；如果不在（App 在挂载时根据重置没有清掉的状态跳到了别的页面），重置会以 `RESET_FAILED` 失败，并给出两个路由。请在 `onReset` 中清掉那份状态，或给场景加上 `@hard-reset` 标签。不使用 Expo Router 的 App，可以用配置中的 `reset.expectVisible` 以元素做同样的检查。
+
+### 类型化后门 {#typed-backdoors}
+
+在一个 App 和测试都会编译的文件里声明一次后门，两边都会按它检查：`quiesco.backdoor(name, fn)` 只接受声明过的名称以及与之匹配的函数（async 也可以），`this.app.backdoor(name, ...args)` 会检查名称、参数和结果（不返回值的后门为 `null`）。没有声明时，任何名称都可以用，参数只要能转成 JSON 即可。
+
+```ts
+// src/backdoors.ts: App 和测试都会编译
+declare module '@quiesco/agent' {
+  interface Backdoors {
+    'students.set': (list: Student[]) => void;
+    'students.get': (id: string) => Student | null;
+  }
+}
+```
+
+只有运行时才知道的名称（例如取自 feature 文本）用 `name as keyof Backdoors` 收窄（`import type { Backdoors } from '@quiesco/core'`）。
 
 ## 配置 {#configuration}
 

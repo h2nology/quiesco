@@ -42,6 +42,7 @@ description: "this.app（Driver）、マッチャー、アプリ内API、設定�
 | `drag(target, to, { holdMs, speed })` | 要素を長押しし（デフォルト800 ms）、`to`の中心（要素）または`{ point }`（ウィンドウ座標）まで動かして離す |
 | `tapAt({ x, y })` / `longPressAt({ x, y }, { durationMs })` | 画面上の一点をタッチする（ウィンドウ座標）。そこに何があっても構いません |
 | `pressBack()` | Androidの戻るボタン。WebではブラウザーのBack。iOSでは使えません |
+| `goBack()` | ユーザーと同じ方法で前の画面に戻る（全プラットフォーム）。Androidは戻るボタン（キーボードは先に閉じる）、Webはブラウザーの戻る、iOSはナビゲーションバーの戻るボタン、なければ左端からのスワイプ（システムUIランナー経由）。Expo Routerを使うアプリでは、ルートが変わらなければ失敗する |
 | `openUrl(url)` | ディープリンクを開く（iOSではアプリ内で、Androidでは`am start`で、Webではアドレスバーで） |
 | `dismissKeyboard()` | ソフトウェアキーボードを閉じる |
 | `setValue(target, value)` | 値コントロールに値を設定する：スライダー（数値）、スイッチ / チェックボックス（真偽値）、ピッカー（項目の値またはラベル）、セグメンテッドコントロール（セグメントの値またはインデックス）、日付 / 時刻ピッカーや日付入力（`Date`）。[値コントロール](#value-controls)を参照 |
@@ -141,7 +142,7 @@ await this.app.expect({ id: 'title' }).not.toHaveValue('');
 | `getTree()` | セマンティックな型付きの要素ツリー（JSON）。失敗したシナリオにも添付されます |
 | `waitForIdle({ timeoutMs })` | アイドルになるまで待ち、かかった時間で解決します |
 | `getIdleState()` | 各トラッカーの状態。今何がビジーかがわかります |
-| `backdoor(name, ...args)` | アプリに登録されたバックドアを呼び出します。引数と結果はJSON |
+| `backdoor(name, ...args)` | アプリに登録されたバックドアを呼び出します。引数と結果はJSON（interfaceも可）。`Backdoors`を宣言すると名前ごとに型が付きます（[型付きバックドア](#typed-backdoors)） |
 | `reset()` | ソフトリセット（Quiescoは各シナリオの前にこれを行います） |
 
 要素の概要には、`type`（ホストコンポーネント）、`semanticType`、`testID`、`text`、`label`、`role`、`value`、`checked`、`enabled`、`focused`、`rect`、`visible`、`visibleRatio`と、シリアライズ可能な`props`が含まれます。
@@ -382,6 +383,22 @@ const { user } = quiesco.launchArgs() as { user?: string };
 バックドアとフックは、e2eビルドでだけimportされるモジュールに登録してください（`if (process.env.EXPO_PUBLIC_QUIESCO === '1') require('./e2e')`）。そうすれば、テスト用のコードは本番のバンドルに一切入りません。どの登録も、登録を解除する関数を返します。
 
 **ソフトリセットとナビゲーション。** Expo Routerを使うアプリでは、ソフトリセットはナビゲーションの状態もアプリ起動時の状態に戻します（`onReset`フックの後、再マウントの前）。プッシュした画面、タブ、ネストしたスタックで終わったシナリオがあっても、次のシナリオはその画面から始まりません。設定は不要です。リセットの後、アプリが実行中の最初のリセット後と同じルートにいるかを確認します。違う場合（リセットでクリアされなかった状態をもとに、アプリがマウント時に別の画面へ移動した場合）は、両方のルートを示して`RESET_FAILED`で失敗します。その状態を`onReset`でクリアするか、シナリオに`@hard-reset`タグを付けてください。Expo Routerを使わないアプリでは、設定の`reset.expectVisible`で要素を使って同じ確認ができます。
+
+### 型付きバックドア {#typed-backdoors}
+
+アプリとテストの両方がコンパイルするファイルでバックドアを一度宣言すると、両側がそれに照らしてチェックされます。`quiesco.backdoor(name, fn)`は宣言した名前と、それに合う関数（asyncでもよい）だけを受け付け、`this.app.backdoor(name, ...args)`は名前、引数、結果（何も返さないバックドアは`null`）をチェックします。宣言がなければ、どの名前でも使え、引数はJSONにできる値であればよいだけです。
+
+```ts
+// src/backdoors.ts: アプリとテストの両方がコンパイルする
+declare module '@quiesco/agent' {
+  interface Backdoors {
+    'students.set': (list: Student[]) => void;
+    'students.get': (id: string) => Student | null;
+  }
+}
+```
+
+実行時にしか分からない名前（featureの文から取った名前など）は、`name as keyof Backdoors`で絞り込みます（`import type { Backdoors } from '@quiesco/core'`）。
 
 ## 設定 {#configuration}
 

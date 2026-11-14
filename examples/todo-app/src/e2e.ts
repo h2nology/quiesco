@@ -7,6 +7,7 @@ import { router } from 'expo-router';
 import { PermissionsAndroid, Platform } from 'react-native';
 
 import { DEFAULT_API_BASE, api, setApiBase } from './api';
+import type {} from './backdoors';
 import { store } from './store';
 
 // Parallel test workers each run their own mock backend on its port + worker index (Phase 6.12;

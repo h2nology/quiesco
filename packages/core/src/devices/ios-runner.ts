@@ -26,6 +26,29 @@ export interface RunnerScreen {
   others: { label: string; id: string; frame: number[] }[];
 }
 
+/** The app's navigation bars and their buttons (Runner/SystemUIServer.swift `/navigationBar`). */
+export interface RunnerNavigationBar {
+  bars: { frame: number[]; buttons: { label: string; id: string; frame: number[]; hittable: boolean }[] }[];
+}
+
+/**
+ * The back button of the app's top navigation bar, or null (issue #4): UIKit names it `BackButton`; else
+ * the first hittable button in the left third of a hittable bar (a custom `headerLeft`). With nested
+ * navigators only the visible bars count; the lowest one on screen is the innermost stack.
+ */
+export function backButton(nav: RunnerNavigationBar): { frame: number[] } | null {
+  const bars = [...nav.bars].sort((a, b) => (b.frame[1] ?? 0) - (a.frame[1] ?? 0));
+  for (const bar of bars) {
+    const named = bar.buttons.find((b) => b.hittable && b.id === 'BackButton');
+    if (named !== undefined) return named;
+  }
+  for (const bar of bars) {
+    const left = bar.buttons.find((b) => b.hittable && (b.frame[0] ?? 0) < (bar.frame[0] ?? 0) + (bar.frame[2] ?? 0) / 3);
+    if (left !== undefined) return left;
+  }
+  return null;
+}
+
 /** Synthetic ids of a permission alert's buttons (they have no identifiers and follow the device language). */
 export const PERMISSION_ALLOW = 'quiesco.permission.allow';
 export const PERMISSION_DENY = 'quiesco.permission.deny';
@@ -129,6 +152,16 @@ export class IosSystemRunner {
 
   async tap(x: number, y: number): Promise<void> {
     await this.call(() => this.request('POST', `/tap?x=${x.toFixed(1)}&y=${y.toFixed(1)}`));
+  }
+
+  /** The navigation bars of the app `bundleId` (issue #4). */
+  async navigationBar(bundleId: string): Promise<RunnerNavigationBar> {
+    return this.call(() => this.request<RunnerNavigationBar>('GET', `/navigationBar?bundleId=${encodeURIComponent(bundleId)}`));
+  }
+
+  /** The interactive-pop gesture: a drag from the left edge of the screen (issue #4). */
+  async edgeSwipeBack(): Promise<void> {
+    await this.call(() => this.request('POST', '/edgeSwipeBack'));
   }
 
   async openNotificationCenter(): Promise<void> {

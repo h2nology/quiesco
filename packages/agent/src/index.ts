@@ -4,4 +4,5 @@ import './install';
 export { QuiescoRoot } from './root/QuiescoRoot';
 export type { QuiescoRootProps } from './root/QuiescoRoot';
 export { quiesco } from './api';
-export type { Backdoor, QuiescoApi, StorageAdapter } from './api-types';
+export type { Backdoor, Backdoors, QuiescoApi, StorageAdapter } from './api-types';
+export type { JsonCompatible } from '@quiesco/protocol';

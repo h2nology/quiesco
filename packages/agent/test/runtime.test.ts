@@ -428,6 +428,16 @@ describe('AgentRuntime', () => {
     await expect(drive(call('reset', {}))).rejects.toMatchObject({ errorName: 'RESET_FAILED', data: { step: 'navigation', message: expect.stringMatching(/on \/students\/new after the soft reset, not on its initial route \//) } });
   });
 
+  it('goBack closes the keyboard first, then hands the back to the host (issue #4)', async () => {
+    let keyboard: { x: number; y: number; width: number; height: number } | null = { x: 0, y: 500, width: 400, height: 300 };
+    const { deps, call } = setup({ keyboard: () => keyboard });
+    vi.mocked(deps.dismissKeyboard).mockImplementation(() => void (keyboard = null));
+    await expect(drive(call('action', { action: { type: 'goBack' }, mode: 'native' }))).resolves.toMatchObject({ hostInput: { kind: 'goBack' } });
+    expect(deps.dismissKeyboard).toHaveBeenCalledTimes(1);
+    await expect(drive(call('action', { action: { type: 'goBack' }, mode: 'native' }))).resolves.toMatchObject({ hostInput: { kind: 'goBack' } });
+    expect(deps.dismissKeyboard).toHaveBeenCalledTimes(1);
+  });
+
   it('route is null and reset has no navigation step without Expo Router', async () => {
     const { rt, call } = setup();
     rt.setRemount(() => {});

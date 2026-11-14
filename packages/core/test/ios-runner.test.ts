@@ -7,7 +7,7 @@ import type { Exec } from '../src/devices/exec';
 import { silentLogger } from '../src/logger';
 import { IosProvider } from '../src/devices/ios';
 import type { SystemRunnerLike } from '../src/devices/ios';
-import { IosSystemRunner, PERMISSION_ALLOW, isConnectionRefused, PERMISSION_ALLOW_ONCE, PERMISSION_DENY, dismissButton, runnerCacheKey, screenNodes } from '../src/devices/ios-runner';
+import { IosSystemRunner, backButton, PERMISSION_ALLOW, isConnectionRefused, PERMISSION_ALLOW_ONCE, PERMISSION_DENY, dismissButton, runnerCacheKey, screenNodes } from '../src/devices/ios-runner';
 import type { RunnerScreen } from '../src/devices/ios-runner';
 
 const f = (y: number) => [57, y, 140, 48];
@@ -210,5 +210,46 @@ describe('IosSystemRunner restart (Phase 6.12)', () => {
     const twice = stubbed([refused, refused]);
     await expect(twice.runner.tap(1, 2)).rejects.toBe(refused);
     expect(twice.counts).toEqual({ start: 2, stop: 1, requests: 2 });
+  });
+});
+
+describe('goBack on iOS (issue #4)', () => {
+  const make = (r: SystemRunnerLike) => new IosProvider({ app: { bundleId: 'com.example.todo' }, systemRunner: r, exec: async () => ({ stdout: Buffer.from(''), stderr: '' }) });
+  const bar = (y: number, buttons: { label: string; id: string; frame: number[]; hittable: boolean }[]) => ({ frame: [0, y, 400, 44], buttons });
+
+  it('picks UIKit\'s BackButton, else a hittable button in the left third, innermost bar first', () => {
+    expect(backButton({ bars: [] })).toBeNull();
+    expect(backButton({ bars: [bar(60, [{ label: 'Todos', id: 'BackButton', frame: [8, 64, 80, 36], hittable: true }])] })?.frame).toEqual([8, 64, 80, 36]);
+    // a custom headerLeft without the UIKit id; a right-side button does not count
+    expect(backButton({ bars: [bar(60, [{ label: 'Save', id: '', frame: [320, 64, 70, 36], hittable: true }, { label: 'Close', id: '', frame: [8, 64, 60, 36], hittable: true }])] })?.frame).toEqual([8, 64, 60, 36]);
+    expect(backButton({ bars: [bar(60, [{ label: 'Save', id: '', frame: [320, 64, 70, 36], hittable: true }])] })).toBeNull();
+    expect(backButton({ bars: [bar(60, [{ label: 'x', id: 'BackButton', frame: [8, 64, 80, 36], hittable: false }])] })).toBeNull();
+    // nested stacks: the lower bar is the inner stack
+    const outer = bar(60, [{ label: 'Home', id: 'BackButton', frame: [8, 64, 80, 36], hittable: true }]);
+    const inner = bar(120, [{ label: 'List', id: 'BackButton', frame: [8, 124, 80, 36], hittable: true }]);
+    expect(backButton({ bars: [outer, inner] })?.frame).toEqual([8, 124, 80, 36]);
+  });
+
+  it('taps the back button when there is one, else swipes from the left edge', async () => {
+    const calls: string[] = [];
+    let bars: ReturnType<typeof bar>[] = [bar(60, [{ label: 'Todos', id: 'BackButton', frame: [8, 64, 80, 36], hittable: true }])];
+    const runner: SystemRunnerLike = {
+      running: true,
+      screen: async () => ({ alerts: [], others: [] }),
+      tap: async (x, y) => void calls.push(`tap ${x},${y}`),
+      openNotificationCenter: async () => {},
+      stop: async () => {},
+      navigationBar: async (id) => (calls.push(`bars ${id}`), { bars }),
+      edgeSwipeBack: async () => void calls.push('swipe'),
+    };
+    const p = make(runner);
+    await p.injectInput({ kind: 'goBack' });
+    expect(calls).toEqual(['bars com.example.todo', 'tap 48,82']);
+    bars = [];
+    calls.length = 0;
+    await p.injectInput({ kind: 'goBack' });
+    expect(calls).toEqual(['bars com.example.todo', 'swipe']);
+    // pressBack stays what it was: iOS has no system back button
+    await expect(p.injectInput({ kind: 'back' })).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED' });
   });
 });
