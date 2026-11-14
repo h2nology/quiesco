@@ -73,3 +73,4 @@
 - 与 Expo sanitizedName 对照 11 个名字：ASCII 全一致，Ø / ß 这类转写不同（会带 TODO）
 - 测试 +1（iosAppName）、init 用例断言 myapp.app；pnpm check 677 通过；用构建后的 CLI 对冒烟项目的 app.json 跑 init ⇒ app.app，与 xcodebuild 产物一致
 - 未发布（下个版本带上）
+- 0.1.1（HU 要求发布）：提交修正（7ed2791）；11 个包 + AGENT_VERSION 改 0.1.1；pnpm release:check 通过（677 测试 + 11 包检查）

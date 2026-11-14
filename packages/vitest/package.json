@@ -1,6 +1,6 @@
 {
   "name": "@quiesco/vitest",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Quiesco for Vitest: one session for the run, `app` as a test fixture, a reset before every test",
   "license": "MIT",
   "author": "h2nology",
