@@ -425,8 +425,14 @@ An element is visible when neither it nor an ancestor is hidden by style (`displ
 `opacity: 0`) and part of it is on screen: inside the window **and** inside every ancestor that clips its
 content (scroll views, `overflow` other than `visible`). An element scrolled out of a scroll view is not
 visible even if that position is inside the window. `visibleRatio` is the visible fraction of its area.
-Being covered by another element is not part of visibility; actions check it separately
-(`ELEMENT_OBSCURED`).
+An element on a screen that is not on top is not visible either: on iOS / Android a native stack keeps
+the screens below in place, covered by the later one (unless it is presented as a transparent modal), and
+inactive tab screens are detached. Being covered by another element is not part of visibility; actions
+check it separately (`ELEMENT_OBSCURED`).
+
+When an element is found but not visible, the failure says why (on a screen that is not on top, hidden by
+an ancestor's style, outside the window, clipped by a scroll view, no size), and failures in Expo Router
+apps end with the current route: `(current route: /students/new)`.
 
 ## In-app API (`@quiesco/agent`) {#in-app-api-quiescoagent}
 
@@ -573,7 +579,7 @@ Per scenario, under `artifacts/<date-time>-<platform>/<nnn>-<scenario>/`, and at
 
 | Artifact | When | What |
 |---|---|---|
-| Failure evidence | the scenario failed | `failure.png` — the screen with the elements of the failed call framed in red (an assertion's elements, an obscured target, several matches); `element-tree.json`; `idle-state.json` (what was busy) |
+| Failure evidence | the scenario failed | `failure.png` — the screen with the elements of the failed call framed in red (an assertion's elements, an obscured target, several matches); `elements.json` — the current route and every element with a testID, label or text of its own, with whether it is visible and why not; `element-tree.json`; `idle-state.json` (what was busy) |
 | Saved screenshots | `screenshot(…, { name })` | `<name>.png` |
 | `video` | per policy | iOS `simctl io recordVideo` (MP4); Android `screenrecord` (MP4, a new segment every 3 minutes); web Playwright's screencast (WebM). Attached as a file path |
 | `logs` | per policy | `device.log`: iOS the app process's unified log (`log stream`, info and above), Android logcat of the app's uid, web the page console and uncaught errors. The last 300 lines inline |

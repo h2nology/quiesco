@@ -2,11 +2,11 @@
  * Serialization of HostNodes: element summaries (query / assert results), the compact diagnostic
  * tree (`getTree`), and the structure hash used by the frame-stable tracker.
  */
-import type { ElementSummary, JsonValue, Rect, TreeNode } from '@quiesco/protocol';
+import type { ElementBrief, ElementSummary, JsonValue, Rect, TreeNode } from '@quiesco/protocol';
 
 import type { HostNode, Viewport } from '../fiber-adapter';
 import { checkedState, elementValue, isEnabled, isFocusedWidget, semanticType, widgetLabel } from './semantic';
-import { visibleRatio } from './visibility';
+import { invisibleReason, visibleRatio } from './visibility';
 
 /** Props never worth sending: structural, or huge and useless for assertions. */
 // `ref`: React 19 passes it as a prop; a DOM ref holds the element and its fiber (huge, circular).
@@ -94,6 +94,38 @@ export function getTree(roots: readonly HostNode[]): TreeNode | null {
   if (roots.length === 0) return null;
   if (roots.length === 1) return toTreeNode(roots[0] as HostNode);
   return { type: 'root', children: roots.map(toTreeNode) };
+}
+
+/** At most this many entries in the condensed element list. */
+export const MAX_ELEMENT_BRIEFS = 500;
+
+const round = (r: Rect): Rect => ({ x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) });
+
+/**
+ * The condensed element list for failure evidence (issue #2): elements with a testID, a label or text of
+ * their own, in tree order, each with its visibility and, when hidden, why. The full tree on the web is
+ * mostly anonymous `div`s.
+ */
+export function listElements(roots: readonly HostNode[], viewport: Viewport | null): { elements: ElementBrief[]; truncated: boolean } {
+  const elements: ElementBrief[] = [];
+  const stack = [...roots].reverse();
+  while (stack.length > 0) {
+    const n = stack.pop() as HostNode;
+    for (let i = n.children.length - 1; i >= 0; i--) stack.push(n.children[i] as HostNode);
+    if (n.testID === undefined && n.label === undefined && n.ownText === '') continue;
+    if (elements.length >= MAX_ELEMENT_BRIEFS) return { elements, truncated: true };
+    const rect = n.measure();
+    const hidden = invisibleReason(n, viewport, rect);
+    const b: ElementBrief = { type: n.type, visible: hidden === null };
+    if (n.testID !== undefined) b.testID = n.testID;
+    if (n.label !== undefined) b.label = n.label;
+    if (n.ownText !== '') b.text = n.ownText;
+    if (n.role !== undefined) b.role = n.role;
+    if (hidden !== null) b.hidden = hidden;
+    if (rect !== null) b.rect = round(rect);
+    elements.push(b);
+  }
+  return { elements, truncated: false };
 }
 
 /**

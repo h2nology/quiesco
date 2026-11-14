@@ -4,7 +4,7 @@
 逐个解决 h2nology/quiesco 的 9 个 open issue（均来自同一位用户在 Expo SDK 58 + expo-router + cucumber 项目上的实测反馈），每个修复附测试与文档，用实跑验收后关闭 issue，最后发一个新版本。
 
 ## Next Step
-I.A（PR #10）、I.B 的 PR 等 HU review / merge（两个分支都改了 `.planning/2026-11-14-issues-0-2/`，后合并的那个需要 rebase 解决计划文件冲突）。下一步 I.C（#2 #3），从 main 开分支。
+PR #10（I.A）、#11（I.B）、I.C 的 PR 等 HU review / merge（I.C 叠在 #11 上，#11 合并后 base 改为 main）。下一步 I.D（#4 goBack、#6 typed backdoors）。
 
 ## 背景
 - 前置：npm 0.1.1 已发布（tag v0.1.1，`.planning/2026-11-14-release/`）。
@@ -51,13 +51,17 @@ I.A（PR #10）、I.B 的 PR 等 HU review / merge（两个分支都改了 `.pla
 - **Status:** complete（2026-11-15；PR 待 merge）
 
 ### I.C 失败诊断（#2、#3）
-- [ ] #2 失败信息带当前路由 / 最上层页面（expo-router 可取）
-- [ ] #2 「exists but is not visible」尽量给出原因：被其他页面/视图遮挡、在屏幕外、尺寸为 0
-- [ ] #2 「still busy」只在 tracker 真的忙了有意义的时长时附加（4ms 不算）；与 idle-state.json 不矛盾
-- [ ] #2 artifact 增加精简元素树：只含有 testID / 文本 / label 的节点及其可见性
-- [ ] #3 agent 连接时上报 bundle 身份（构建时间或 hash），写进 `[quiesco] agent connected: …`
-- [ ] #3 host 侧：项目源码比 bundle 新、或 Metro 不监听文件（如 `CI` 已设置）时警告；`quiesco doctor` 在交互环境检测到 `CI` 时警告
-- **Status:** pending
+- [x] #2 失败信息带当前路由（Expo Router）
+- [x] #2 「exists but is not visible」给出原因：不在最上层的页面 / 祖先样式隐藏 / 窗口外 / 被裁剪 / 无尺寸 / 未布局
+- [x] #2 可见性规则修正：react-native-screens 原生栈中被后续页面覆盖（透明模态除外）或 activityState 0 的页面上的元素 ⇒ 不可见（iOS / Android 之前误判为可见，点击报 "no native view in a window"）
+- [x] #2 「still busy」只在同步预算 ≥ min(250ms, timeout/4) 时附加
+- [x] #2 证据 `elements.json`（route + 有 testID / label / 自身文本的元素，含可见性与原因）
+- [x] #3 bundle 身份（builtAt / watching / reason）经 hello 上报；不监听时源码更新 ⇒ 警告；CI 启动的 Metro ⇒ 警告（host 非 CI 时）；连接日志写 bundle 描述
+- [x] #3 doctor：交互终端 CI 为真 ⇒ warn
+- [x] 文档 en/ja/zh：api.mdx（可见性、artifacts）、troubleshooting.mdx（旧代码）
+- [x] 实测：复现 App web / iOS / Android 两条消息正确；web export 后改文件 ⇒ 警告；CI=1 Metro ⇒ 警告；示例 App 全套 iOS 82 passed / 6 skipped、Android 83 / 5
+- [x] `pnpm check` 709 通过；`docs:check` 通过
+- **Status:** complete（2026-11-15；PR 待 merge，叠在 #11 上）
 
 ### I.D API 补充（#4、#6）
 - [ ] #4 `app.goBack()`：Android 系统返回；iOS 点导航栏返回按钮，没有则边缘右滑；Web `history.back()`
@@ -96,8 +100,11 @@ I.A（PR #10）、I.B 的 PR 等 HU review / merge（两个分支都改了 `.pla
 | D5：版本 `0.2.0`（HU 2026-11-14） | 含新 API（goBack、build 命令） |
 | D6：每个阶段一个 PR（I.A–I.E 各一个）（HU 2026-11-14） | |
 | D2：重置后初始状态默认看初始路由（expo-router）；`quiesco.config` 可选配置一个必须可见的元素（HU 2026-11-14） | 零配置；非 expo-router 项目也能用 |
+| I.C 分支从 I.B 分支开、PR 叠在 #11 上（2026-11-15） | #2 复用 I.B 的 `route` |
 | D4：`quiesco.config` 的 `bailOnRepeatedFailure: N`，**默认开启，N=3**；提示信息总是打印（HU 2026-11-14） | 坏状态下不再每步等满超时 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
+| I.B：示例 App iOS 3 个场景回归（RESET 未处理的 dev toast 遮挡） | 1 partial 快照 ⇒ 仍未处理；2 target 到下层 navigator ⇒ 仍未处理；3 完整 state payload ⇒ 仍未处理 | 4 dispatch 后等 state 变化再 remount ⇒ 通过（原因见 findings「I.B 回归」） |
+| I.C：iOS / Android 上被覆盖页面的元素被判为可见 | 1 activityState 判断（原生栈里下层仍是 2）⇒ 无效 | 2 按 RNSScreenStack 子顺序判断 ⇒ 正确 |

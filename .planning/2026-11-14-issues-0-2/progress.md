@@ -28,8 +28,17 @@
 - 实测 web（复现 App 加「模块状态未清 ⇒ 挂载时跳到 /details」）：B/C/D 在 reset 即失败（路由信息清楚），第 3 次后打印提示（current route: /details）并跳过 E/F，总计 1.6s。
 - 坑：npm 对同名同版本的 file: tarball 用缓存，重装不更新 ⇒ 直接把 tarball 解到 node_modules（注意保留包内嵌套 node_modules，如 core 的 ws）。
 
+### I.C（#2 #3）进行中（2026-11-15）
+- 分支 `fix/failure-diagnostics`，从 `fix/reset-navigation-state` 开（#2 复用 I.B 的 `route`）；PR base 设为 I.B 分支。
+- #2 agent：`query/visibility.ts` 新增 `invisibleReason`（RNSScreen activityState<2 ⇒ 不在最上层的页面；自身 / 祖先 display:none 或 opacity:0；无法测量；0 尺寸；在窗口外；被 scroll / overflow 裁剪）；ELEMENT_NOT_FOUND 与 expect visible 的 ASSERTION_FAILED 消息带原因 + `(current route: …)`；「still busy」只在该次同步预算 ≥ min(250ms, timeout/4) 时附加（issue 里是 4ms）。
+- #2 证据：protocol `listElements` + `ElementBrief`；agent `listElements`（有 testID / label / 自身文本的节点，含可见性、隐藏原因、rect，上限 500）；core 失败证据新增 `elements.json`（含 route）；旧 agent（-32601）不记为证据错误。
+- #3：metro.cjs `watchMode`（export / export:embed / bundle ⇒ export；CI 为真 ⇒ CI）+ build-config 写 `bundle: { builtAt, watching, reason }`；agent 在 hello 里带 `bundle`；core `bundle-check.ts`（newestSource 跳过 node_modules / ios / android / dist / .expo 等，≤5000 文件；不监听且有更新的源文件 ⇒ 警告；CI 启动的 Metro 在 host 非 CI 时总是警告）；Session.adopt 每个 bundle 检查一次，debug 日志写 bundle 描述。doctor：交互终端里 CI 为真 ⇒ warn。
+- 单元测试：agent 314、core 254、cli 24 通过；tsc -b 通过。
+- 待做：smoke App 上实测（#2 三端消息、#3 CI=1 Metro + 改文件、web export 后改文件）；文档；pnpm check。
+
 ### I.B 回归修复（2026-11-15，在 I.B 分支上）
 - I.C 实测示例 App iOS 全套时发现 I.B 让 3 个场景失败（main 上通过）：RESET 未被处理的 dev toast 盖住元素。原因与修法见 findings「I.B 回归」。
 - 改 `packages/agent/src/navigation/index.ts`：快照存 partial；状态相同不 dispatch；越过 Expo Router 根包装层、以目标 navigator 当前完整 state + 初始 routes 作为 RESET payload，`target` 指定；restore 改 async，等 state 变化（≤1s）再 remount。runtime 传 sleep。
 - 验证（I.B 分支）：3 个场景 iOS 通过；示例 App 全套 iOS 82 passed / 6 skipped、Android 83 / 5、web 75 / 13，无 RESET 警告；复现 App web / iOS / Android 均 4/4。pnpm check 699 通过。
 - 未重跑：#9 的「模块状态导致跳走」实测（verify 逻辑未改，单元测试覆盖）。
+- I.C（续）：示例 App 全套（I.C 代码）iOS 82 passed / 6 skipped、Android 83 / 5；`pnpm check` 709 通过；docs:check 通过。iOS 上发现被覆盖页面的元素被判为可见 ⇒ 新增 `screenNotOnTop`（RNSScreenStack 子顺序 + activityState 0）并纳入 visibleRatio。

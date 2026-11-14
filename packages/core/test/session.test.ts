@@ -59,13 +59,27 @@ describe('Session', () => {
   it('collects evidence best effort', async () => {
     const { provider } = agentOnLaunch((m) => {
       if (m === 'getTree') return { root: null };
+      if (m === 'listElements') return { route: '/students/new', elements: [{ type: 'RCTView', testID: 'search', visible: false, hidden: 'it is on a screen that is not on top (another screen covers it)' }], truncated: false };
       throw { code: -32603, message: 'boom' };
     });
     session = await Session.create({ config: config(), platform: 'android', provider, logger: silentLogger });
     const ev = await session.collectEvidence();
     expect(ev.screenshot?.toString()).toBe('png');
     expect(ev.tree).toBeNull();
+    expect(ev.elements?.route).toBe('/students/new');
     expect(ev.errors).toEqual(['idle state: boom']);
+  });
+
+  it('an agent without listElements (older than the host) is not an evidence error', async () => {
+    const { provider } = agentOnLaunch((m) => {
+      if (m === 'listElements') throw { code: -32601, message: 'unknown method listElements' };
+      if (m === 'getTree') return { root: null };
+      return { trackers: [] };
+    });
+    session = await Session.create({ config: config(), platform: 'android', provider, logger: silentLogger });
+    const ev = await session.collectEvidence();
+    expect(ev.elements).toBeUndefined();
+    expect(ev.errors).toEqual([]);
   });
 
   it('explains a connection timeout with checks, provider diagnostics and refused connections', async () => {

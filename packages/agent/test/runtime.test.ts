@@ -200,6 +200,21 @@ describe('AgentRuntime', () => {
     await a;
   });
 
+  it('action: a sync cut to a few ms by the deadline is not reported as busy; the reason and the route are (issue #2)', async () => {
+    let busy = false;
+    const { rt, target, call } = setup({ busy: () => busy });
+    rt.navigation.setRef({ isReady: () => true, getRootState: () => ({ routes: [{ name: 'students/new' }] }) });
+    sameRoot(target)(host('RCTView', { testID: 'cover', style: { display: 'none' }, ...R(0) }, host('RCTView', { testID: 'search', ...R(0) })));
+    const p = call('action', { action: { type: 'tap', matcher: { id: 'search' } }, mode: 'js', timeoutMs: 2000 });
+    const a = expect(p).rejects.toMatchObject({ errorName: 'ELEMENT_NOT_FOUND' });
+    await vi.advanceTimersByTimeAsync(1990);
+    busy = true;
+    await vi.advanceTimersByTimeAsync(100);
+    await a;
+    const message = ((await p.catch((e: Error) => e)) as Error).message;
+    expect(message).toBe('The element exists but is not visible: { id: "search" }: an ancestor <RCTView testID="cover"> is hidden (display: none or opacity: 0), e.g. a screen that is not on top (current route: /students/new)');
+  });
+
   it('action: a present target in a never-idle app is still SYNC_TIMEOUT', async () => {
     const { target, call } = setup({ busy: () => true });
     sameRoot(target)(host('RCTView', { testID: 'go', onPress: () => {}, ...R(0) }));

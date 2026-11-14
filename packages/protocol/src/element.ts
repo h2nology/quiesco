@@ -39,6 +39,24 @@ export interface ElementSummary {
 }
 
 /** Compact element tree for diagnostics (`getTree`). */
+/**
+ * One entry of the condensed element list in failure evidence (issue #2): only elements with a testID, a
+ * label or text of their own, in tree order.
+ */
+export interface ElementBrief {
+  type: string;
+  testID?: string;
+  label?: string;
+  /** Text of the element itself (not its descendants). */
+  text?: string;
+  role?: string;
+  visible: boolean;
+  /** Why it is not visible (see the failure messages). */
+  hidden?: string;
+  /** Rounded rect. */
+  rect?: Rect;
+}
+
 export interface TreeNode {
   type: string;
   testID?: string;

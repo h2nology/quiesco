@@ -423,6 +423,11 @@ export class Driver {
     return (await this.call('reset', {})).durationMs;
   }
 
+  /** The condensed element list for failure evidence: elements with a testID, label or text (issue #2). */
+  async listElements(): Promise<ResultOf<AgentMethods['listElements']>> {
+    return this.call('listElements', {});
+  }
+
   /**
    * The app's focused route (`/students/new`), or null when it has none (no Expo Router), when the agent is
    * older than this host, or when it does not answer. For failure messages: never throws.

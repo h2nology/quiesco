@@ -39,6 +39,7 @@ export function fakeContext(answer: (command: string, args: readonly string[]) =
     exists: (p) => fs.existsSync(p),
     platform: 'darwin',
     nodeVersion: '24.22.1',
+    interactive: false,
     lines,
     errors,
     calls,

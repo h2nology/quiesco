@@ -1,7 +1,7 @@
 import type { ActionMode, ActionSpec, HostInput } from './actions.js';
 import type { AssertionSpec } from './assertions.js';
 import type { AgentConfig } from './config.js';
-import type { ElementSummary, Rect, TreeNode } from './element.js';
+import type { ElementBrief, ElementSummary, Rect, TreeNode } from './element.js';
 import type { JsonValue } from './json.js';
 import type { Matcher } from './matcher.js';
 
@@ -37,6 +37,8 @@ export interface AgentMethods {
   assert: { params: { assertion: AssertionSpec } & SyncOption; result: { elements: ElementSummary[] } & SyncTiming };
   waitForIdle: { params: { timeoutMs?: number }; result: { waitedMs: number } };
   getTree: { params: Record<string, never>; result: { root: TreeNode | null } };
+  /** The condensed element list for failure evidence, with the route (issue #2). */
+  listElements: { params: Record<string, never>; result: { route: string | null; elements: ElementBrief[]; truncated: boolean } };
   /** `route`: the focused route the reset ended on (Expo Router apps; issue #1). */
   reset: { params: Record<string, never>; result: { durationMs: number; route?: string } };
   /** The focused route (`/students/new`), null without Expo Router (issues #2, #9). */
@@ -122,6 +124,17 @@ export interface DeviceInfo {
   locale?: string;
 }
 
+/**
+ * Where the app's JS bundle comes from (issue #3), written by `withQuiesco()` when Metro loads its config.
+ * `builtAt` (ms since epoch): the dev server's start, or the export. `watching`: whether source changes
+ * reach the app; `reason` when not: `CI` (Metro started with CI set) or `export` (a one-off bundle).
+ */
+export interface BundleInfo {
+  builtAt: number;
+  watching: boolean;
+  reason?: 'CI' | 'export';
+}
+
 /** Methods the AGENT calls on the HOST. */
 export interface HostMethods {
   hello: {
@@ -132,6 +145,8 @@ export interface HostMethods {
       agentVersion: string;
       /** Whether @quiesco/native is linked (enables the `native` action mode). */
       nativeModule: boolean;
+      /** The JS bundle (issue #3); missing without `withQuiesco()` in the Metro config. */
+      bundle?: BundleInfo;
     };
     result: { accepted: true; sessionId: string; config: AgentConfig };
   };

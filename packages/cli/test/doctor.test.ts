@@ -25,6 +25,19 @@ describe('quiesco doctor', () => {
     expect(firstImport('export {};')).toBeNull();
   });
 
+  it('warns about CI set in an interactive terminal, not in a CI job (issue #3)', async () => {
+    const names = async (env: NodeJS.ProcessEnv, interactive: boolean) => {
+      const { ctx } = setUpProject();
+      ctx.env = env;
+      ctx.interactive = interactive;
+      return (await runChecks(ctx, 'web', deps())).find((r) => r.name === 'CI');
+    };
+    expect(await names({ CI: '1' }, true)).toMatchObject({ status: 'warn', detail: 'CI=1 is set in this terminal', fix: expect.stringMatching(/does not watch files/) });
+    expect(await names({ CI: '1' }, false)).toBeUndefined();
+    expect(await names({ CI: 'false' }, true)).toBeUndefined();
+    expect(await names({}, true)).toBeUndefined();
+  });
+
   it('flags a fresh Expo app that is not set up yet, with fixes', async () => {
     const { ctx } = setUpProject();
     const results = await runChecks(ctx, 'web', deps({ loadConfig: async () => Promise.reject(new Error('No Quiesco config found in /x')) }));

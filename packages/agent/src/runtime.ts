@@ -44,13 +44,18 @@ import { defaultAppDeps } from './platform';
 import { NavigationReset } from './navigation';
 import { ResetManager } from './reset';
 import { defaultStorageAdapters } from './reset/storage-defaults';
-import { describeMatcher, findAll, getTree, isVisible, structureLines, summarize, toRegExp } from './query';
+import { describeMatcher, findAll, getTree, invisibleReason, isVisible, listElements, structureLines, summarize, toRegExp } from './query';
 import type { Clock, FetchFn, IdleTracker, TimerGlobals } from './sync';
 import { FrameStableTracker, IdleCallbackTracker, NetworkTracker, OfflineGate, ReactTracker, SyncEngine, TimerTracker, ownConnection, realClock } from './sync';
 import { AGENT_VERSION } from './version';
 
 /** drag: hold before moving (long enough to start long-press-activated drags), and move duration. */
 const DRAG_HOLD_MS = 800;
+/**
+ * A sync wait shorter than this (or a quarter of the call's timeout, if less) says nothing about the app:
+ * frame-stable has not sampled its frames yet.
+ */
+const MIN_BUSY_REPORT_MS = 250;
 const DRAG_MS: Record<Speed, number> = { slow: 1200, normal: 600, fast: 250 };
 const LONG_PRESS_AT_MS = 800;
 /** scrollToEdge: at most this many steps; each waits for idle (up to the call timeout), so virtualized lists can grow. */
@@ -173,7 +178,7 @@ export class AgentRuntime {
       this.network?.setExempt(ownConnection(params.port));
       this.client = new AgentClient({
         params,
-        hello: { platform: this.deps.platform(), agentVersion: AGENT_VERSION, nativeModule: native !== null },
+        hello: { platform: this.deps.platform(), agentVersion: AGENT_VERSION, nativeModule: native !== null, ...(buildConfig.bundle !== undefined ? { bundle: buildConfig.bundle } : {}) },
         createSocket: (url) => this.deps.createSocket(url),
         handle: (method, p) => this.handle(method, p),
         onReady: (config) => this.configure(config),
@@ -292,6 +297,7 @@ export class AgentRuntime {
     waitForIdle: async (p) => this.engine.waitForIdle({ timeoutMs: p.timeoutMs ?? this.config.sync.timeoutMs }),
     getIdleState: async () => ({ trackers: this.engine.getIdleState() }),
     getTree: async () => ({ root: getTree(this.adapter.getHostRoots()) }),
+    listElements: async () => ({ route: this.navigation.current(), ...listElements(this.adapter.getHostRoots(), this.adapter.viewport()) }),
     action: async (p) => this.action(p.action, p.mode, p),
     assert: async (p) => this.assert(p.assertion, p),
     backdoor: async (p) => {
@@ -414,8 +420,9 @@ export class AgentRuntime {
   ): Promise<HostNode | CompositeNode> {
     for (;;) {
       let busy: QuiescoError | null = null;
+      const budget = Math.max(1, deadline - this.clock.now());
       try {
-        await this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now()));
+        await this.syncIfNeeded(opts, budget);
       } catch (e) {
         // Out of time while waiting for idle. If the target is not there either, that is the real
         // problem: report it (with what was busy) rather than a sync timeout on the last few ms.
@@ -445,9 +452,15 @@ export class AgentRuntime {
       if (busy !== null && visible) throw busy;
       if (visible) return node;
       if (busy !== null || this.clock.now() >= deadline) {
-        const why = node === undefined ? 'No element matches' : 'The element exists but is not visible:';
-        const alsoBusy = busy === null ? '' : ` (the app was also still busy: ${busy.message})`;
-        throw new QuiescoError('ELEMENT_NOT_FOUND', `${why} ${describeMatcher(matcher)}${alsoBusy}`, { matcher });
+        const target = describeMatcher(matcher);
+        let message = node === undefined ? `No element matches ${target}` : `The element exists but is not visible: ${target}`;
+        const reason = node === undefined ? null : invisibleReason(node, this.adapter.viewport());
+        if (reason !== null) message += `: ${reason}`;
+        message += this.whereSuffix();
+        // Only a wait that had time to settle says something about the app: the last retry often has a few
+        // ms left, less than frame-stable needs to sample a frame (issue #2: "waited 4ms").
+        if (busy !== null && budget >= Math.min(MIN_BUSY_REPORT_MS, this.timeout(opts) / 4)) message += ` (the app was also still busy: ${busy.message})`;
+        throw new QuiescoError('ELEMENT_NOT_FOUND', message, { matcher });
       }
       await this.sleep(SyncDefaults.retryIntervalMs);
     }
@@ -928,7 +941,14 @@ export class AgentRuntime {
       const ev = evaluate(this.adapter.getHostRoots(), spec, this.adapter.viewport());
       if (ev.pass) return { elements: ev.elements };
       if (this.clock.now() >= deadline) {
-        throw new QuiescoError('ASSERTION_FAILED', assertionMessage(spec, ev, timeoutMs, describeMatcher(spec.matcher)), {
+        let message = assertionMessage(spec, ev, timeoutMs, describeMatcher(spec.matcher));
+        if (spec.type === 'visible' && ev.actual === 'not visible') {
+          const node = findAll(this.adapter.getHostRoots(), spec.matcher)[0];
+          const reason = node === undefined ? null : invisibleReason(node, this.adapter.viewport());
+          if (reason !== null) message += `: ${reason}`;
+        }
+        message += this.whereSuffix();
+        throw new QuiescoError('ASSERTION_FAILED', message, {
           expected: ev.expected,
           actual: ev.actual,
           elements: ev.elements,
@@ -936,6 +956,12 @@ export class AgentRuntime {
       }
       await this.sleep(SyncDefaults.retryIntervalMs);
     }
+  }
+
+  /** ` (current route: /students/new)` for failure messages (issue #2), empty without Expo Router. */
+  private whereSuffix(): string {
+    const route = this.navigation.current();
+    return route === null ? '' : ` (current route: ${route})`;
   }
 
   private defaultTrackers(): IdleTracker[] {
