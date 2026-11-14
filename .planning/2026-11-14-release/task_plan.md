@@ -4,7 +4,7 @@
 把 monorepo 的 11 个包（CLI `quiesco` + `@quiesco/{agent,core,cucumber,expo-plugin,jest,native,protocol,steps,vitest,web}`）整理成可发布状态：用 tarball 装进全新 Expo 项目，按 README 快速开始能在 Web / Android / iOS 跑通第一个场景。真正的 `npm login`、创建 `quiesco` org、`pnpm -r publish` 由 HU 自己做。
 
 ## Next Step
-R.A 完成并提交（2026-11-14，`pnpm release:check` 通过）；R.D 计划 HU 已答决定项。R.B tarball 冒烟三端通过（2026-11-14）。两处易用性问题已修并复测，已提交（774a02b）。R.C 完成并提交（2343100）。R.D.0 调研完成；R.D.1 + R.D.2 已提交（c2f93ee）。R.D.3 已提交（0e630fd）。R.D.4 完成（未提交）。下一步 R.D.5。
+R.A 完成并提交（2026-11-14，`pnpm release:check` 通过）；R.D 计划 HU 已答决定项。R.B tarball 冒烟三端通过（2026-11-14）。两处易用性问题已修并复测，已提交（774a02b）。R.C 完成并提交（2343100）。R.D.0 调研完成；R.D.1 + R.D.2 已提交（c2f93ee）。R.D.3 已提交（0e630fd）。R.D.4 已提交（a6a1f25）。R.D.5 完成（未提交）。R.D.6：HU 已上线站点，README 链接改指站点（未提交）。下一步：HU npm 首发（docs/releasing.md）。
 
 ## 背景
 - 前置：Quiesco Phase 6 完成（`.planning/2026-11-07-quiesco/`，2026-11-14 验收）；6.13 真机、6.14 LLM 驱动暂缓。
@@ -64,10 +64,10 @@ R.A 完成并提交（2026-11-14，`pnpm release:check` 通过）；R.D 计划 H
 - [x] R.D.2 英文迁移（2026-11-14；没有现成的「Note:」段落，只有 steps 页的引用块改成 `<Warning>`；所有 `##` 标题都加了固定 id，被链接的 `###` 也加，id 沿用 GitHub 的写法以免旧链接失效）：`git mv docs/*.md → .mdx`（releasing 除外）；frontmatter `title` / `description`，去掉正文 H1；正文的 `{` `<` 转义；明显的「Note:」段落改用 `<Note>` / `<Warning>`；内容不改写。链接：站内用不带扩展名的相对路径（`./api#…`，翻译文件不用改）；被链接的标题加固定 `{#英文-id}`，三种语言一致（中日文标题会生成不同的锚点）；指向 docs 外（README、examples、packages、spikes）的改成 GitHub 绝对地址。新写 index / quickstart / native / runners / steps / example-app（内容取自现有 README）。仓库里所有指向 `docs/*.md` 的路径（代码注释、各包 README、根 README）改成 `.mdx`，重新 build
 - [x] R.D.3 翻译 zh / ja（2026-11-14，4 个子代理并行，统一术语和软换行后复查；未提交）：代码、API 名、配置键、错误码、命令输出不翻；代码里的注释翻；Gherkin 示例不翻（和旁边的 step 定义是成对的代码；steps 页的步骤表本来就有中日文列）；术语表写进 findings，全站一致
 - [x] R.D.4（2026-11-14，未提交；反向验证：删一页译文、改一个标题 id、改一个链接 ⇒ 报 6 个问题）`scripts/check-docs.mjs` + 根 `docs:check`：`pnpm dlx mint@4.3.34 validate`、`broken-links --check-anchors`；自写检查：三种语言页面集合一致、docs.json 里的页面都存在、每个 .mdx 都在导航里；`.github/workflows/docs.yml`（docs/** 变更时跑）
-- [ ] R.D.5 维护规则：根 `CONTRIBUTING.md`：英文是源，改英文页的同一个 PR 同时改 zh / ja；README 与 index / quickstart 内容重叠，改一处要同步
-- [ ] R.D.6 上线（HU 做，二选一）：a) Mintlify 后台建项目、装 GitHub App、设子目录 `/docs`；b) `mint deploy --github --subdomain <name> --directory docs` 生成 `.github/workflows/mintlify.yml`，再 `mint claim`（未认领 24 小时后删除）；域名用 `mint add-domain`；后台「Language routing」选是否按浏览器语言跳转；之后根 README / 各包 README 的文档链接改指站点
+- [x] R.D.5（2026-11-14，未提交；README 的开发说明链到 CONTRIBUTING）维护规则：根 `CONTRIBUTING.md`：英文是源，改英文页的同一个 PR 同时改 zh / ja；README 与 index / quickstart 内容重叠，改一处要同步
+- [x] R.D.6（2026-11-14）HU 已上线 https://shift-14cc7601.mintlify.site（从 main 部署）；根 README（文档段改指站点 + 中日文入口）、9 个包 README、示例 README、CONTRIBUTING 的文档链接改指站点，逐个请求 200、锚点都在。原计划：上线（HU 做，二选一）：a) Mintlify 后台建项目、装 GitHub App、设子目录 `/docs`；b) `mint deploy --github --subdomain <name> --directory docs` 生成 `.github/workflows/mintlify.yml`，再 `mint claim`（未认领 24 小时后删除）；域名用 `mint add-domain`；后台「Language routing」选是否按浏览器语言跳转；之后根 README / 各包 README 的文档链接改指站点
 - **验收：** `mint dev` 本地预览，三种语言 48 页逐一请求都正常渲染（并截几页给 HU 看）；`docs:check` 通过；`pnpm check` 通过（改了代码注释路径）；HU 抽查译文
-- **Status:** 计划已出，HU 已答决定项（2026-11-14），待开始（顺序：R.B → R.C → R.D → HU 发布）
+- **Status:** complete（2026-11-14；HU 抽查译文待进行）
 
 ## 待 HU 决定
 

@@ -13,7 +13,7 @@ npm i @quiesco/agent @quiesco/native
 - Import `@quiesco/agent` first in the entry file and wrap the root in `<QuiescoRoot>`.
 
 `npx quiesco init` sets up Metro and the entry file. In-app API (`quiesco.backdoor`, `quiesco.onReset`, …):
-[API reference](https://github.com/h2nology/quiesco/blob/main/docs/api.mdx).
+[API reference](https://shift-14cc7601.mintlify.site/api).
 
 Peer dependencies: `react` >= 19.2, `react-native` >= 0.83 (New Architecture). Supported: Expo SDK 58.
 

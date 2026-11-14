@@ -5,7 +5,7 @@ Optional generic cucumber steps for Quiesco, in Chinese, Japanese and English.
 > **Operation scripts, not requirements.** These steps describe taps and texts ("tap `login-button`"),
 > not what the user wants to achieve. Use them while prototyping or exploring an app. A real project
 > writes its own steps in the language of the business ("When the user logs in as …") on top of
-> `this.app` — or a driver of its own (see the Driver pattern in the Quiesco docs) — so the features
+> `this.app` — or a driver of its own (see the [driver pattern](https://shift-14cc7601.mintlify.site/driver-pattern)) — so the features
 > keep describing requirements when the UI changes.
 
 ## Use
@@ -92,4 +92,4 @@ Some steps take a word instead of a quoted value (any of the languages' words wo
 An unknown word fails the step with the list of accepted ones. Device and system steps (`background`,
 `orientation`, `offline`, `grantPermission`, `allowDialog`, `shake`, …) call `this.app.device`; where a
 platform cannot do something Quiesco reports `ACTION_NOT_SUPPORTED` with the reason
-([platform differences](https://github.com/h2nology/quiesco/blob/main/docs/platforms.mdx)).
+([platform differences](https://shift-14cc7601.mintlify.site/platforms)).

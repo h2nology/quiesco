@@ -51,3 +51,11 @@
 - scripts/check-docs.mjs：导航（文件存在、页面都在导航里、各语言页面和顺序一致）、译文结构（标题 id、链接、组件、行内代码、去注释的代码）、`pnpm --silent dlx mint@4.3.34` validate + broken-links --check-anchors；`--no-mint` 跳过 mint
 - 根 `docs:check`；.github/workflows/docs.yml（docs/** 变更时跑）
 - 实跑通过（不含 mint 0.04s，含 mint 约 5s）；反向验证报 6 个问题；pnpm lint 通过
+
+## 2026-11-14 R.D.5
+- 提交 R.D.4（a6a1f25）
+- 根 CONTRIBUTING.md：setup / check、禁止 sleep、文档结构与规则（英文是源、同 PR 改 zh / ja、新页三语 + docs.json、固定标题 id、链接写法、翻译规则、README 与站点重叠页同步）、docs:check 用法、mint dev 预览；README 链到 CONTRIBUTING
+
+## 2026-11-14 R.D.6
+- HU 上线站点 https://shift-14cc7601.mintlify.site（en / zh / ja 200，releasing 404，锚点在）
+- README / 包 README / 示例 README / CONTRIBUTING 文档链接改指站点；逐个 curl 200 + 锚点检查；check-release、docs:check --no-mint 通过

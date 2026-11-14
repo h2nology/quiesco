@@ -22,8 +22,8 @@ When('they add a todo {string}', async function (this: QuiescoWorld, title: stri
 });
 ```
 
-Run with `npx quiesco test --platform ios|android|web`. [API reference](https://github.com/h2nology/quiesco/blob/main/docs/api.mdx),
-[driver pattern](https://github.com/h2nology/quiesco/blob/main/docs/driver-pattern.mdx), [parallel runs](https://github.com/h2nology/quiesco/blob/main/docs/parallel.mdx).
+Run with `npx quiesco test --platform ios|android|web`. [API reference](https://shift-14cc7601.mintlify.site/api),
+[driver pattern](https://shift-14cc7601.mintlify.site/driver-pattern), [parallel runs](https://shift-14cc7601.mintlify.site/parallel).
 
 Part of [Quiesco](https://github.com/h2nology/quiesco): gray-box end-to-end testing for Expo apps on iOS, Android and the web. Setup: `npx quiesco init` ([quick start](https://github.com/h2nology/quiesco#quick-start-web-about-10-minutes)).
 
