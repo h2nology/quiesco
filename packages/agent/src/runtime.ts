@@ -340,7 +340,7 @@ export class AgentRuntime {
     route: async () => ({ route: this.navigation.current() }),
     reset: async () => {
       const start = this.clock.now();
-      await this.resets.run(this.remount, this.navigation.active ? () => this.navigation.restore() : undefined);
+      await this.resets.run(this.remount, this.navigation.active ? () => this.navigation.restore((ms) => this.sleep(ms)) : undefined);
       await this.engine.waitForIdle({ timeoutMs: this.config.sync.timeoutMs });
       const { route, problem } = this.navigation.verify();
       if (problem !== null) throw new QuiescoError('RESET_FAILED', `Soft reset failed at navigation: ${problem}`, { step: 'navigation', message: problem });

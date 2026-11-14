@@ -27,3 +27,9 @@
 - 单元测试：core 249+、cucumber 16、jest 10、vitest 7 通过。
 - 实测 web（复现 App 加「模块状态未清 ⇒ 挂载时跳到 /details」）：B/C/D 在 reset 即失败（路由信息清楚），第 3 次后打印提示（current route: /details）并跳过 E/F，总计 1.6s。
 - 坑：npm 对同名同版本的 file: tarball 用缓存，重装不更新 ⇒ 直接把 tarball 解到 node_modules（注意保留包内嵌套 node_modules，如 core 的 ws）。
+
+### I.B 回归修复（2026-11-15，在 I.B 分支上）
+- I.C 实测示例 App iOS 全套时发现 I.B 让 3 个场景失败（main 上通过）：RESET 未被处理的 dev toast 盖住元素。原因与修法见 findings「I.B 回归」。
+- 改 `packages/agent/src/navigation/index.ts`：快照存 partial；状态相同不 dispatch；越过 Expo Router 根包装层、以目标 navigator 当前完整 state + 初始 routes 作为 RESET payload，`target` 指定；restore 改 async，等 state 变化（≤1s）再 remount。runtime 传 sleep。
+- 验证（I.B 分支）：3 个场景 iOS 通过；示例 App 全套 iOS 82 passed / 6 skipped、Android 83 / 5、web 75 / 13，无 RESET 警告；复现 App web / iOS / Android 均 4/4。pnpm check 699 通过。
+- 未重跑：#9 的「模块状态导致跳走」实测（verify 逻辑未改，单元测试覆盖）。

@@ -24,3 +24,13 @@
 - **expo-router 58 的容器没有 `resetRoot`**：`build/react-navigation/core/BaseNavigationContainer.js` 的 imperative handle 只有 CommonActions（navigate / reset / goBack …）、dispatch、getRootState、isReady（固定 true）等；`createNavigationContainerRef` 的包装也一样 ⇒ 用 `ref.reset(rootState)`（CommonActions.reset 发给根 navigator）。保留 `resetRoot` 优先（React Navigation 原版）。
   - 修后：web 4/4 通过（1.5s）。
 - 「Requiring unknown module "8xx"」redbox 在修前修后都有（被忽略的 app error），与本修改无关。
+
+### I.B 回归（2026-11-15，I.C 实测时发现）
+- 示例 App iOS 全套：main 上 3 个场景通过（actions「长列表滚动…」、new-todo 两个），I.B 上失败：React Navigation dev toast「The action 'RESET' … was not handled by any navigator」盖住了底部的保存按钮 / 滚动区域。
+- 原因（expo-router 58，全部查源码确认）：
+  1. 根 navigator `navigator:root`（持有 `__root`）不处理 RESET ⇒ 要越过只有单一相同路由的层级，`dispatch({ type:'RESET', payload, target: <下层 navigator key> })`。
+  2. `react-navigation/routers/BaseRouter.js` 的 RESET 只接受**完整** state（key、routeNames、routeKeySeq、stale:false，且 routeNames 与当前 navigator 一致）；partial 只 console.warn「Partial states can no longer be completed during render」后 Unhandled。⇒ payload = 目标 navigator 当前 state + 初始 routes（只有 name / params，key 由 router 生成，嵌套 state 丢掉，子 navigator 回到各自初始页面）。
+  3. dispatch 进 routingQueue，在下一次渲染才 reduce（`RoutingQueueDrainer` 的 useEffect；dispatchSync 也是在渲染时）⇒ 若立刻 remount，示例 App 的加载闸门把 Stack 卸掉，目标 navigator 不在了 ⇒ unhandled。⇒ restore 改为 async：dispatch 后等 root state 变化（16ms 轮询，最多 1s，超时报错）再 remount。
+  4. 快照在示例 App 里是 Stack 挂载前拍的（expo-router 预生成的 state），key 与之后挂载的 navigator 不同 ⇒ 快照只存 partial（名字、params、index、嵌套），状态相同时不 dispatch。
+- smoke 复现 App 之前能过，是因为快照与 navigator 一致、根 reset 也恰好被接受。
+- 教训：只在复现 App 上验证不够，要跑示例 App 全套（尤其 iOS）。
