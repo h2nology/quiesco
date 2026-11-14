@@ -28,6 +28,7 @@ interface PackageJson {
 
 interface AppJson {
   expo?: {
+    name?: string;
     scheme?: string | string[];
     plugins?: unknown[];
     ios?: { bundleIdentifier?: string };
@@ -96,15 +97,32 @@ const { withQuiesco } = require('@quiesco/agent/metro');
 module.exports = withQuiesco(getDefaultConfig(__dirname));
 `;
 
+/**
+ * The `.app` that `expo prebuild` + xcodebuild produce: the Xcode project is named after `expo.name`,
+ * reduced to ASCII letters and digits (as @expo/config-plugins' `sanitizedName` does; "my-app" ⇒ "myapp").
+ * `exact` is false when the name has other characters: Expo transliterates some of them (ø ⇒ o), which
+ * this does not attempt.
+ */
+export function iosAppName(name: string | undefined): { name: string; exact: boolean } {
+  if (name === undefined) return { name: 'app', exact: false };
+  const ascii = name
+    .replace(/[^\p{L}\p{N}]+/gu, '')
+    .normalize('NFKD')
+    .replace(/\p{M}+/gu, '')
+    .replace(/[\W_]+/g, '');
+  return { name: ascii || 'app', exact: /^[\x20-\x7e]*$/.test(name) };
+}
+
 function quiescoConfig(app: AppJson, platforms: readonly CliPlatform[]): string {
   const scheme = Array.isArray(app.expo?.scheme) ? app.expo?.scheme[0] : app.expo?.scheme;
+  const ios = iosAppName(app.expo?.name);
   const lines = [`import { defineConfig } from '@quiesco/core';`, '', 'export default defineConfig({', '  apps: {'];
   if (platforms.includes('ios')) {
     lines.push(
       '    ios: {',
       `      bundleId: '${app.expo?.ios?.bundleIdentifier ?? 'com.example.app'}',${app.expo?.ios?.bundleIdentifier === undefined ? ' // TODO: expo.ios.bundleIdentifier' : ''}`,
       '      // Simulator build made with EXPO_PUBLIC_QUIESCO=1 (expo prebuild + xcodebuild, or an EAS e2e build).',
-      "      binaryPath: 'ios/build/Build/Products/Debug-iphonesimulator/App.app', // TODO: your .app",
+      `      binaryPath: 'ios/build/Build/Products/Debug-iphonesimulator/${ios.name}.app',${ios.exact ? '' : ' // TODO: check the .app name'}`,
       "      // A dev client loading JS from Metro (EXPO_PUBLIC_QUIESCO=1 npx expo start). Remove for a bundled build.",
       "      devClient: { metroUrl: 'http://localhost:8081' },",
       '    },',
@@ -355,7 +373,7 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
   ctx.out("  1. Wrap the root layout in <QuiescoRoot> (import { QuiescoRoot } from '@quiesco/agent').");
   ctx.out('  2. Give the home screen testID="home" (features/step_definitions/app.steps.ts looks for it).');
   if (platforms.includes('web')) ctx.out('  3. npx playwright install chromium, then npm run e2e:web');
-  if (platforms.some((p) => p !== 'web')) ctx.out('  •  iOS / Android: build the app with EXPO_PUBLIC_QUIESCO=1, fix binaryPath in quiesco.config.mts, run `npx quiesco doctor`.');
+  if (platforms.some((p) => p !== 'web')) ctx.out('  •  iOS / Android: build the app with EXPO_PUBLIC_QUIESCO=1, check binaryPath in quiesco.config.mts, run `npx quiesco doctor`.');
   ctx.out('  •  A SYNC_TIMEOUT that names a decorative animation (the default template spins a glow): give it a testID and add it to sync.ignoreElements.');
   return 0;
 }

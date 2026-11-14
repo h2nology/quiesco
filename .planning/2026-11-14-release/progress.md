@@ -64,5 +64,12 @@
 - 提交并 push R.D.5 + R.D.6（ee8746e）
 - npm：11 个包 version / latest 都是 0.1.0；tag v0.1.0 → ee8746e；包内依赖为确切版本 0.1.0、无 workspace:、README 链到站点
 - 全新 create-expo-app（expo ~58.0.25）+ `npx -y quiesco@0.1.0 init`（从 npm 安装，无 404）+ README 快速开始 2–4 步 ⇒ doctor 必需检查全过；`npm run e2e:web` 1/1 通过，agent 0.1.0
-- 原生端没用 npm 包重跑（R.B 已用同内容的 tarball 三端通过）
+- 原生端（HU 要求补跑）：同一项目 app.json 补 bundleIdentifier / package、启用 devices 示例 ⇒ expo-dev-client + `EXPO_PUBLIC_QUIESCO=1 expo prebuild --clean` + gradlew assembleDebug + xcodebuild（caffeinate）；Metro 8081；`npm run e2e:ios` 1/1（38s 含启动，native module true，agent 0.1.0）、`npm run e2e:android` 1/1（45s 含启动，native module true）；iOS 跑完 App 已退出，Android 无 Unknown session；Metro、模拟器、emulator 已关闭
 - 冒烟项目装 Playwright 浏览器后仓库浏览器仍在，@quiesco/web 测试 30 通过
+
+## 2026-11-14 首发后修正：init 的 iOS binaryPath
+- npm 原生冒烟时 init 生成 `…/App.app`，实际产物 `app.app`（项目名 app）⇒ HU：修
+- init：`iosAppName(expo.name)` 按 @expo/config-plugins `sanitizedName` 的规则取 ASCII 字母数字（"my-app" ⇒ myapp.app）；名字含非 ASCII 字符或没有 name 时加 `// TODO: check the .app name`；「Next」提示 fix → check binaryPath
+- 与 Expo sanitizedName 对照 11 个名字：ASCII 全一致，Ø / ß 这类转写不同（会带 TODO）
+- 测试 +1（iosAppName）、init 用例断言 myapp.app；pnpm check 677 通过；用构建后的 CLI 对冒烟项目的 app.json 跑 init ⇒ app.app，与 xcodebuild 产物一致
+- 未发布（下个版本带上）

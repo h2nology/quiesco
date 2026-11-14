@@ -4,7 +4,7 @@
 把 monorepo 的 11 个包（CLI `quiesco` + `@quiesco/{agent,core,cucumber,expo-plugin,jest,native,protocol,steps,vitest,web}`）整理成可发布状态：用 tarball 装进全新 Expo 项目，按 README 快速开始能在 Web / Android / iOS 跑通第一个场景。真正的 `npm login`、创建 `quiesco` org、`pnpm -r publish` 由 HU 自己做。
 
 ## Next Step
-npm 首发完成（2026-11-14）：HU 发布 11 个包 0.1.0，tag v0.1.0（ee8746e）；从 npm 验证通过（见 progress「首发验证」）。剩余：HU 抽查译文。
+npm 首发完成（2026-11-14）：HU 发布 11 个包 0.1.0，tag v0.1.0（ee8746e）；从 npm 验证通过（见 progress「首发验证」）。剩余：HU 抽查译文。首发后修正：init 按 expo.name 生成 iOS binaryPath（未提交、未发布，下个版本带上）。
 
 ## 背景
 - 前置：Quiesco Phase 6 完成（`.planning/2026-11-07-quiesco/`，2026-11-14 验收）；6.13 真机、6.14 LLM 驱动暂缓。

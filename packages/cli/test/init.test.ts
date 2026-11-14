@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { findTarballs } from '../src/commands/init';
+import { findTarballs, iosAppName } from '../src/commands/init';
 import { main } from '../src/cli';
 import { fakeContext, freshExpoApp } from './fake-context';
 
@@ -29,6 +29,8 @@ describe('quiesco init', () => {
     expect(config).toContain("// sync: { ignoreElements: ['logo-glow'] },");
     expect(config).toContain("devClient: { scheme: 'myapp'");
     expect(config).toContain("package: 'com.example.app', // TODO: expo.android.package");
+    // expo prebuild names the Xcode project after expo.name ("my-app" ⇒ myapp.app)
+    expect(config).toContain("binaryPath: 'ios/build/Build/Products/Debug-iphonesimulator/myapp.app',\n");
     expect(ctx.file('features/support/quiesco.ts')).toContain("import '@quiesco/cucumber/register'");
     expect(ctx.file('features/step_definitions/app.steps.ts')).toContain("expectVisible({ id: 'home' })");
     expect(ctx.lines.join('\n')).toMatch(/Wrap the root layout in <QuiescoRoot>/);
@@ -115,5 +117,16 @@ describe('quiesco init', () => {
     expect(await main(['init'], failing)).toBe(1);
     expect(failing.errors.join('\n')).toMatch(/E404[\s\S]*failed \(exit 1\)/);
     expect(failing.file('quiesco.config.mts')).toBeNull();
+  });
+
+  it('names the iOS .app the way expo prebuild names the Xcode project', () => {
+    expect(iosAppName('app')).toEqual({ name: 'app', exact: true });
+    expect(iosAppName('My App')).toEqual({ name: 'MyApp', exact: true });
+    expect(iosAppName('Todo_App 2')).toEqual({ name: 'TodoApp2', exact: true });
+    expect(iosAppName('x-y.z')).toEqual({ name: 'xyz', exact: true });
+    // Not ASCII: Expo transliterates some letters (Ø ⇒ O) that this does not, so the config says to check.
+    expect(iosAppName('Café')).toEqual({ name: 'Cafe', exact: false });
+    expect(iosAppName('日本アプリ')).toEqual({ name: 'app', exact: false });
+    expect(iosAppName(undefined)).toEqual({ name: 'app', exact: false });
   });
 });
