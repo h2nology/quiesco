@@ -122,8 +122,19 @@ function quiescoConfig(app: AppJson, platforms: readonly CliPlatform[]): string 
   if (platforms.includes('web')) {
     lines.push("    // Static export made with EXPO_PUBLIC_QUIESCO=1 npx expo export --platform web.", "    web: { distDir: 'dist' },");
   }
+  lines.push('  },');
+  const native = platforms.filter((p) => p !== 'web');
+  if (native.length > 0) {
+    lines.push(
+      '  // Which simulator / emulator to use. Default: the booted one. To let Quiesco boot one, name it',
+      '  // (`xcrun simctl list devices`, `emulator -list-avds`); `os` picks the runtime when several have it.',
+      '  // devices: {',
+      ...(native.includes('ios') ? ["  //   ios: { device: 'iPhone 17', os: '27.0' },"] : []),
+      ...(native.includes('android') ? ["  //   android: { avd: 'Medium_Phone_API_37.0' },"] : []),
+      '  // },',
+    );
+  }
   lines.push(
-    '  },',
     '  // A decorative animation that runs for minutes (the default Expo template spins a glow on the home',
     "  // screen) never lets the screen settle: give it a testID and list it here.",
     "  // sync: { ignoreElements: ['logo-glow'] },",

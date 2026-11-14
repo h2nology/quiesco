@@ -283,6 +283,12 @@ export class Session {
     await this.device.resetDeviceState(this.config.permissions ?? [], { relaunch: false }).catch((e: unknown) =>
       this.logger.warn(`restoring the device state failed: ${(e as Error).message}`),
     );
+    // Close the app under test: an e2e build keeps reconnecting to the host port, and on iOS (the
+    // simulator shares the Mac's network) it would reach the next run's server as an unknown session.
+    if (this.appState !== 'terminated') {
+      await this.provider.terminate().catch((e: unknown) => this.logger.debug(`closing the app failed: ${(e as Error).message}`));
+      this.appState = 'terminated';
+    }
     await this.server.stop();
     await this.provider.shutdown().catch((e: unknown) => this.logger.warn(`device shutdown failed: ${(e as Error).message}`));
   }

@@ -44,3 +44,11 @@
 - 语言代码：简中 `zh` / `zh-Hans` / `zh-CN`，日文 `ja` / `ja-JP`。
 - 自动加 hreflang 和 sitemap；可开按浏览器语言跳转。没有内置翻译引擎（靠 agent 自动化或外部翻译）。
 - 自动 API 页面基于 OpenAPI，Quiesco（TS 库）不适用，API 页手写。
+
+## R.B 结果（2026-11-14）
+- 发布前 `npx <quiesco tarball> init` 失败（E404 `@quiesco/core`：npx 装 tarball 时其依赖要从 registry 取）。发布后不存在此问题；发布前按 README「Using Quiesco from source」用仓库 CLI。
+- TS 源码入口没问题：Metro（SDK 58）编译 node_modules 里的 `@quiesco/agent` / `@quiesco/native` 的 .ts 正常；用户 `tsc --noEmit`（expo/tsconfig.base + strict）不新增错误。
+- 易用性 ①：没有已启动的模拟器时，iOS 报 `No simulator is booted; set devices.ios.device (available: …)`，信息清楚；但 init 生成的 `quiesco.config.mts` 没有 `devices` 段（连注释示例都没有），用户得去查文档。Android 不设 avd 时同理。
+- 易用性 ②：iOS 跑完后模拟器上的 App 仍在运行，接着跑 Android 时它连回 7357 端口，host 打印 `Unknown session "…" (expected …). Is another test run using this port?`。不影响结果，但警告会让人以为有并发冲突。候选修法：session 结束时 terminate App，或把旧 session 的连接降级为 debug 日志。
+- 生产剔除（tarball 安装）：Web 生产导出 JS 标记 0 / e2e 对照组 27 处；原生生产 prebuild 由 tarball 里的 config plugin 正确排除 `@quiesco/native`（Podfile / settings.gradle 标记、Podfile.lock 无 QuiescoNative）。原生 Release 二进制扫描没在冒烟项目里重做（仓库 `check:prod-strip` 已覆盖同一插件代码）。
+- 注意：在别的项目里 `npx playwright install` 装新版浏览器时，Playwright 会清掉它认为没人用的旧版本，仓库的 web provider 测试随之失败（`Executable doesn't exist … chromium_headless_shell-1254`）。修复：仓库里 `pnpm --filter @quiesco/web exec playwright install chromium`。

@@ -271,12 +271,12 @@ describe('app.device state (Phase 6.6)', () => {
     await session!.beforeScenario({});
     expect(provider.calls).toEqual(['reset']);
 
-    // The end of the session leaves the device as it was, without starting the app again.
+    // The end of the session leaves the device as it was, without starting the app again, and closes the app.
     await device.setLocale('ja-JP');
     provider.calls.length = 0;
     await session!.dispose();
     session = null;
-    expect(provider.calls).toEqual(['reset', 'shutdown']);
+    expect(provider.calls).toEqual(['reset', 'terminate', 'shutdown']);
   });
 
   it('setNetwork: the agent blocks first going offline, the device network comes back first going online; the next hello carries it', async () => {

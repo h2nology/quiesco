@@ -4,7 +4,7 @@
 把 monorepo 的 11 个包（CLI `quiesco` + `@quiesco/{agent,core,cucumber,expo-plugin,jest,native,protocol,steps,vitest,web}`）整理成可发布状态：用 tarball 装进全新 Expo 项目，按 README 快速开始能在 Web / Android / iOS 跑通第一个场景。真正的 `npm login`、创建 `quiesco` org、`pnpm -r publish` 由 HU 自己做。
 
 ## Next Step
-R.A 完成并提交（2026-11-14，`pnpm release:check` 通过）；R.D 计划 HU 已答决定项。进行中：R.B tarball 冒烟。
+R.A 完成并提交（2026-11-14，`pnpm release:check` 通过）；R.D 计划 HU 已答决定项。R.B tarball 冒烟三端通过（2026-11-14）。两处易用性问题已修并复测（未提交）。下一步 R.C。
 
 ## 背景
 - 前置：Quiesco Phase 6 完成（`.planning/2026-11-07-quiesco/`，2026-11-14 验收）；6.13 真机、6.14 LLM 驱动暂缓。
@@ -28,13 +28,14 @@ R.A 完成并提交（2026-11-14，`pnpm release:check` 通过）；R.D 计划 H
 - **Status:** complete（2026-11-14）
 
 ### R.B tarball 冒烟（验收）
-- [ ] 11 个 tarball 装进全新 create-expo-app（SDK 58，放在 scratchpad）
-- [ ] 按 README 快速开始执行 `quiesco init` / `quiesco doctor`
-- [ ] 第一个场景在 Web / Android / iOS 三端通过（iOS 需 `pod install` + dev client 构建，Android 需 dev client 构建）
-- [ ] 用户项目 `tsc --noEmit` 通过
-- [ ] 生产构建剔除检查（agent / 原生模块不进生产包）
-- [ ] 若 agent / native 的 TS 源码入口出问题 ⇒ 改为发布 dist，**改入口前先问 HU**
-- **Status:** pending
+- [x] 11 个 tarball 装进全新 create-expo-app（expo 58.0.25 / RN 0.88.1 / React 19.3.0，scratchpad `rb/smoke`）
+- [x] 按 README 快速开始执行 `quiesco init --packages`（发布前 npx 无法从 registry 解析依赖，用仓库 CLI 跑 init，之后都用项目内从 tarball 装的 `quiesco`）/ `quiesco doctor`（Quiesco 检查全过）
+- [x] 第一个场景三端通过：Web 1/1（4.2s）、iOS 1/1（iPhone 17 / iOS 27.0，native module true，48s 含启动）、Android 1/1（API 37，native module true，40s 含启动）；agent 报告 0.1.0
+- [x] 用户项目 `tsc --noEmit`：3 个错误，未装 Quiesco 的纯模板同样 3 个（模板自身的 CSS 模块声明、app-tabs.web ref 类型）⇒ Quiesco 不新增错误
+- [x] 生产剔除：Web 生产导出 agent 标记 0 处（e2e 导出对照组有）；原生生产 prebuild：Podfile `use_expo_modules!(exclude: ['@quiesco/native'])`、settings.gradle `expoAutolinking.exclude`、Podfile.lock 无 QuiescoNative（e2e 有）
+- [x] agent / native 的 TS 源码入口：Metro 编译和用户 tsc 都没问题 ⇒ 不改为发布 dist
+- [x] 易用性修复（HU 2026-11-14：两处都修）：① init 生成的配置加注释掉的 `devices` 示例（按所选平台）；② `Session.dispose` 先结束被测 App 再停 server（iOS App 不再连回下一轮）；单元测试 +1、docs/api.md 补一句；pnpm check 676 通过；重新打包后冒烟 iOS → Android → Web 全过，iOS 跑完模拟器上 App 已退出，无 `Unknown session` 警告
+- **Status:** complete（2026-11-14）
 
 ### R.C 文档
 - [ ] `docs/releasing.md`：前提、步骤、补救（72 小时内 `npm unpublish`，之后 `npm deprecate`）
@@ -59,7 +60,6 @@ R.A 完成并提交（2026-11-14，`pnpm release:check` 通过）；R.D 计划 H
 - **Status:** 计划已出，HU 已答决定项（2026-11-14），待开始（顺序：R.B → R.C → R.D → HU 发布）
 
 ## 待 HU 决定
-- （R.B 中如出现）agent / native 是否改为发布 dist。
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

@@ -618,7 +618,8 @@ await lifecycle.afterAll();
 
 Or the session itself: `createSession`, then `startScenario` + `beforeScenario` before each test,
 `afterScenario` after it (on failure: the framed screenshot, element tree and idle state, plus video /
-logs / timeline per [the artifacts policy](#artifacts)), `dispose` at the end. `collectEvidence()` still
+logs / timeline per [the artifacts policy](#artifacts)), `dispose` at the end (it closes the app; the device keeps
+running unless `devices.*.shutdown`). `collectEvidence()` still
 returns the failure evidence alone.
 
 Runs are serial: one session drives one device. `quiesco test --runner cucumber|jest|vitest` sets

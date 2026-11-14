@@ -36,6 +36,14 @@ describe('Session', () => {
     await expect(session.driver.getTree()).resolves.toEqual({ type: 'RCTView', children: [] });
   });
 
+  it('closes the app before it stops, so the app does not reconnect to a later run', async () => {
+    const { provider } = agentOnLaunch();
+    const s = await Session.create({ config: config(), platform: 'android', provider, logger: silentLogger });
+    provider.calls.length = 0;
+    await s.dispose();
+    expect(provider.calls.filter((c) => c === 'terminate' || c === 'shutdown')).toEqual(['terminate', 'shutdown']);
+  });
+
   it('soft-resets before a scenario, and relaunches for @hard-reset', async () => {
     const { provider, agents } = agentOnLaunch((m) => (m === 'reset' ? { durationMs: 5 } : {}));
     session = await Session.create({ config: config(), platform: 'android', provider, logger: silentLogger });
