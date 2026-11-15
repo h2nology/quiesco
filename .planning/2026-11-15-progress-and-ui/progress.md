@@ -24,3 +24,4 @@
 - P7 完成：三语文档（ui 新页面、cli、runners、api、index）、README 与包 README、docs:check / release:check 通过；iOS / Android 实跑进度条与 UI（含 iOS 真实失败证据截图）；修正用时起点；script 在 socket stdin 下失败 → 改用 Python pty。pnpm check 823 tests 绿。P0–P7 完成，发布待 HU。
 - HU：提交 P7 并推送开 PR → 76c9119，PR https://github.com/h2nology/quiesco/pull/15 。合并与 0.3.0 发布待 HU。
 - 合并 PR #15。发布 0.3.0：版本号 + releasing.md（12 个包，含 @quiesco/ui），release:check 绿，6001cd7。GitHub ci 失败 3 个测试（FORCE_COLOR 下 runner 输出带颜色；Jest 多 worker 下 list 顺序乱）→ PR #16 修复，CI 绿，合并 e544a7b。HU 用 OTP 发布 npm（09:40Z，早于 #16 合并，故 @quiesco/jest 0.3.0 不含排序修复）。标签 v0.3.0 打在 6001cd7，GitHub Release 已建并注明该问题。
+- HU：不发 0.3.1，#16 随下一个版本发布。本任务完成。
