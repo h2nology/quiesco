@@ -94,3 +94,7 @@
 - Expo `tsconfig.base` 自带 `noEmit: true` ⇒ 加 `allowImportingTsExtensions` 合法。blank 模板 tsconfig 是纯 JSON。
 - `registerQuiesco({ world: TodoWorld })` 在 strict 下 TS2419：`typeof QuiescoWorld` 带泛型构造签名 `new <P>(o: IWorldOptions<P>) => QuiescoWorld<P>`，子类不满足。
 - `cucumber-js --dry-run` 会 import 所有 support / step 文件：参数属性 ⇒ `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`；缺 `.ts` ⇒ `ERR_MODULE_NOT_FOUND`。
+
+## J.C 发现
+- pnpm 10+ 不再读取 package.json 的 `pnpm` 字段（pnpm 12 CHANGELOG #16278、Rust engine 警告条目）；overrides 必须在 `pnpm-workspace.yaml`。`init --packages` 原来写在 package.json ⇒ 间接依赖装成 npm 版本（app20 里出现 `@quiesco+core@0.3.0` 与 tarball 版两份）。
+- 复现 #19 的办法：metro 配置不含 withQuiesco 时以 `EXPO_PUBLIC_QUIESCO=1` 启动 Metro（agent 为真实实现但没有 build config ⇒ hello 无 bundle），之后再恢复配置（Metro 不重读配置）。
