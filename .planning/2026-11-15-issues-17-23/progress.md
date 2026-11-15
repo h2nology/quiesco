@@ -52,3 +52,4 @@
 - 本地 `check:prod-strip` 拒绝运行（exit 2）：需要 `expo prebuild --clean`，会删掉示例 App 的 ios/ android/ dev client 构建，要求 `--allow-clean`。未加；改用 CI 的 prod-strip workflow（PR 上的 android / ios / web 检查）：#24 全部通过；#27（含全部改动）运行中。
 - #27 CI 全部通过：prod-strip（web / android / ios）success，check ×2 pass。验收完成，等待 HU 确认合并与发布。
 - 合并 #24→#25→#26→#27（merge commit）。版本 0.4.0：release:check 通过（840 tests；12 packages at 0.4.0），提交 f63355b 并推送 main。
+- HU 执行 npm publish；12 个包 0.4.0 已在 npm（gitHead 1881aba）。tag v0.4.0、GitHub Release 已建。npm 验证：npx quiesco@0.4.0 init（不满 24h 仍装到 0.4.0）、doctor 通过、quick start web 1/1。

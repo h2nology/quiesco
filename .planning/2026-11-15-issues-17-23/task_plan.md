@@ -4,10 +4,10 @@
 解决 h2nology/quiesco 的 7 个 open issue（同一位用户在 Expo SDK 58 默认模板 + cucumber 项目上的实测反馈）。每个修复都附测试和三语文档，实跑验收后回复并关闭 issue，最后与 #16 的 Jest 列表排序修复一起发下一个版本。
 
 ## Current Phase
-J.E 验收完成，待 HU 确认合并与发布
+J.E：0.4.0 已发布，待回复 / 关闭 issue
 
 ## Next Step
-HU 确认后：依次合并 #24→#27、版本 0.4.0 + release:check、npm 发布（需 HU npm login / OTP）、tag v0.4.0 + GitHub Release、回复并关闭 #17–#23。
+HU 确认后在 #17–#23 逐个回复修复内容与 0.4.0 并关闭。
 
 ## 背景
 - 前置：0.3.0 已发布；#16（Jest 列表排序）已合并、未发布（`.planning/2026-11-15-progress-and-ui/`）。
@@ -102,7 +102,9 @@ HU 确认后：依次合并 #24→#27、版本 0.4.0 + release:check、npm 发�
 ### J.E 集成验收与发布
 - [x] 集成分支（`fix/date-picker` HEAD）示例 App 全套：web 79 passed / 13 skipped；iOS 86 / 6；Android 86 / 6；0 失败。默认模板冒烟（tarball，quick start web）1/1
 - [x] `pnpm check`（840）、`docs:check` 通过；prod-strip：本地需 --allow-clean 未跑，CI prod-strip workflow 在 #24、#27 上 web / android / ios 全部 success
-- [ ] PR 合并；按 docs/releasing.md 发 0.4.0（D7）；逐个回复并关闭 #17–#23
+- [x] PR #24→#27 依次合并（merge commit）；0.4.0：release:check 通过，`chore(release): 0.4.0`（f63355b），HU 执行 npm publish（gitHead 1881aba），12 个包已在 npm；tag v0.4.0（1881aba）；GitHub Release https://github.com/h2nology/quiesco/releases/tag/v0.4.0
+- [x] npm 验证：全新默认模板 `npx quiesco@0.4.0 init` ⇒ 发布不满 24h 仍装到 0.4.0（写入 minimumReleaseAgeExclude）；doctor 通过；quick start web 1/1
+- [ ] 逐个回复并关闭 #17–#23（待 HU 确认）
 - **Status:** pending
 
 ## Decisions Made
