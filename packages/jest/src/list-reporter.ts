@@ -28,7 +28,9 @@ export default class QuiescoListReporter {
 
   onRunComplete(): void {
     const out = process.env['QUIESCO_LIST_OUT'];
-    const json = JSON.stringify({ runner: 'jest', files: this.files.sort(), tests: this.tests, errors: this.errors });
+    // Files finish in any order with several workers: sort by file, keeping each file's own order.
+    const byFile = (a: { file?: string }, b: { file?: string }) => (a.file ?? '').localeCompare(b.file ?? '');
+    const json = JSON.stringify({ runner: 'jest', files: this.files.sort(), tests: this.tests.sort(byFile), errors: this.errors.sort(byFile) });
     if (out !== undefined && out !== '') fs.writeFileSync(out, json);
   }
 

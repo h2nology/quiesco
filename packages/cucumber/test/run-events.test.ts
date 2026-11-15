@@ -125,11 +125,14 @@ describe('@quiesco/cucumber/events through the cucumber-js command line', () => 
     const bin = path.join(path.dirname(require.resolve('@cucumber/cucumber/package.json')), 'bin', 'cucumber.js');
     const formatter = pathToFileURL(path.resolve(__dirname, '../dist/events-formatter.js')).href;
     const target = process.platform === 'win32' ? path.join(cwd, '.quiesco-events.out') : '/dev/null';
+    // Plain output to match on, also under FORCE_COLOR.
+    const childEnv: NodeJS.ProcessEnv = { ...process.env, ...server.env(), NO_COLOR: '1' };
+    delete childEnv['FORCE_COLOR'];
     let stdout = '';
     const code = await new Promise<number | null>((resolve) => {
       const p = spawn(process.execPath, [bin, 'features/todo.feature', '--import', 'features/support/**/*.mjs', '--format', 'progress', '--format', `"${formatter}":"${target}"`], {
         cwd,
-        env: { ...process.env, ...server.env() },
+        env: childEnv,
         stdio: ['ignore', 'pipe', 'inherit'],
       });
       p.stdout.on('data', (d: Buffer) => (stdout += d.toString()));

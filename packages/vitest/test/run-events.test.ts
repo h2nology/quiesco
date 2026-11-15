@@ -22,7 +22,10 @@ async function runVitest(args: readonly string[], env: NodeJS.ProcessEnv) {
   const bin = path.join(path.dirname(require.resolve('vitest/package.json')), 'vitest.mjs');
   let stdout = '';
   const code = await new Promise<number | null>((resolve) => {
-    const p = spawn(process.execPath, [bin, 'run', ...args], { cwd, env: { ...process.env, ...env, CI: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
+    // Plain output to match on: FORCE_COLOR (set in GitHub Actions' runs of Vitest) wins over NO_COLOR.
+    const childEnv: NodeJS.ProcessEnv = { ...process.env, ...env, CI: '1', NO_COLOR: '1' };
+    delete childEnv['FORCE_COLOR'];
+    const p = spawn(process.execPath, [bin, 'run', ...args], { cwd, env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
     p.stdout.on('data', (d: Buffer) => (stdout += d.toString()));
     p.stderr.on('data', (d: Buffer) => (stdout += d.toString()));
     p.on('exit', resolve);
