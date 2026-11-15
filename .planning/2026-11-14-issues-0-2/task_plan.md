@@ -7,7 +7,7 @@
 I.F
 
 ## Next Step
-I.F 验收已在本地集成分支 `integration/0.2.0` 上完成（三端全过）。验收修复已 cherry-pick 到 #14。等 HU：看 replies.md、merge #10–#14；然后 main 上提交 0.2.0、release:check、贴回复、publish + tag。
+I.F 验收已在本地集成分支 `integration/0.2.0` 上完成（三端全过）。#10–#14 已合并，main 上 0.2.0 已提交。等 HU：看 replies.md（之后 Claude 贴到各 issue）、npm publish + tag v0.2.0。
 
 ## 背景
 - 前置：npm 0.1.1 已发布（tag v0.1.1，`.planning/2026-11-14-release/`）。
@@ -91,8 +91,8 @@ I.F 验收已在本地集成分支 `integration/0.2.0` 上完成（三端全过�
 - [x] tarball 装进全新 create-expo-app（含 expo-router），三端按 issue 里的复现步骤逐个验证（详见 progress「I.F」）
 - [x] 验收中发现的问题已修（集成分支 2 个 commit）：#3 改 step 文件误报 stale；doctor 提示改为 quiesco build；文档补 `import type {}`
 - [x] 修复 commit cherry-pick 到 #14 分支（HU 2026-11-15）并 push，PR 说明已补
-- [ ] HU：看 replies.md；merge #10–#14（#10 后合并时 test.ts 冲突：help 补 Metro 自动启动一句，见集成分支 3280ee8）
-- [ ] merge 后 main 上：版本 0.2.0 commit、release:check
+- [x] merge #10–#14（HU 2026-11-15 让 Claude 合并；merge commit，依次改 base 为 main；冲突：#11 计划文件、#14 test.ts，按集成分支解决；每步 pnpm check）⇒ issue #1–#9 自动关闭
+- [x] merge 后 main 上：版本 0.2.0 commit、release:check
 - [ ] 每个 issue 贴回复（replies.md）
 - [ ] HU publish + tag v0.2.0
 - **Status:** in_progress（验收完成，等 HU）
