@@ -15,7 +15,7 @@ Commands:
   init     Set Quiesco up in this Expo project (dependencies, config plugin, Metro, entry, config, features)
              --platforms ios,android,web   --packages <dir> (install from tarballs)   --skip-install
   test     Run the tests with cucumber-js (or --runner jest|vitest); other arguments go to the runner unchanged
-             --platform ios|android|web   --workers N (N devices in parallel)
+             --platform ios|android|web   --workers N (N devices in parallel)   (quiesco test --help for more)
   doctor   Check the tools and the project setup
              --platform ios|android|web
   tree     Print the element tree of the running app (to find testIDs)

@@ -31,6 +31,9 @@ describe('quiesco init', () => {
     expect(config).toContain("package: 'com.example.app', // TODO: expo.android.package");
     // expo prebuild names the Xcode project after expo.name ("my-app" ⇒ myapp.app)
     expect(config).toContain("binaryPath: 'ios/build/Build/Products/Debug-iphonesimulator/myapp.app',\n");
+    // no `paths`: cucumber-js merges it with the paths given on the command line (issue #8)
+    expect(ctx.file('cucumber.mjs')).toContain("import: ['features/support/**/*.ts'");
+    expect(ctx.file('cucumber.mjs')).not.toContain('paths');
     expect(ctx.file('features/support/quiesco.ts')).toContain("import '@quiesco/cucumber/register'");
     expect(ctx.file('features/step_definitions/app.steps.ts')).toContain("expectVisible({ id: 'home' })");
     expect(ctx.lines.join('\n')).toMatch(/Wrap the root layout in <QuiescoRoot>/);

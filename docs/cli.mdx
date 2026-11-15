@@ -39,10 +39,14 @@ npx quiesco test --platform web
 npx quiesco test --platform android --tags @smoke features/login.feature
 npx quiesco test --platform ios --runner vitest --config vitest.e2e.config.mts
 npx quiesco test --platform web --runner jest e2e/todo.test.js
+npx quiesco test --platform web -- --tags @debug
+npx quiesco test --help
 ```
 
 Sets `QUIESCO_PLATFORM` and runs the project's test runner — `cucumber-js` (default), `jest` or
-`vitest run` (`--runner`); all other arguments are passed to it unchanged. `--workers N` runs N workers,
+`vitest run` (`--runner`); all other arguments are passed to it unchanged. Everything after `--` goes to
+the runner too, and the `--` itself is dropped, so Quiesco's own option names there belong to the runner
+(`quiesco test -- --help` shows the runner's help). `--workers N` runs N workers,
 each on a device of its own ([parallel.md](./parallel)): it becomes `--parallel N` for cucumber-js,
 `--maxWorkers N` for Jest and `--fileParallelism --maxWorkers N` for Vitest (the runners' own flags work as
 well).

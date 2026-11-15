@@ -59,6 +59,34 @@ describe('quiesco test', () => {
     expect(bad.errors[0]).toMatch(/--workers takes a whole number/);
   });
 
+  it('drops a leading -- and passes what follows to the runner untouched (issue #7)', async () => {
+    const tags = fakeContext();
+    expect(await main(['test', '--platform', 'web', '--', '--tags', '@debug'], tags)).toBe(0);
+    expect(tags.calls[0]?.args).toEqual(['cucumber-js', '--tags', '@debug']);
+    const name = fakeContext();
+    expect(await main(['test', '--platform', 'ios', '--workers', '2', 'features/a.feature', '--', '--name', 'Add a todo'], name)).toBe(0);
+    expect(name.calls[0]?.args).toEqual(['cucumber-js', '--parallel', '2', 'features/a.feature', '--name', 'Add a todo']);
+    // after --, Quiesco's own option names belong to the runner
+    const runnerOwn = fakeContext();
+    expect(await main(['test', '--platform', 'web', '--runner', 'vitest', '--', '--help', '--workers', '1'], runnerOwn)).toBe(0);
+    expect(runnerOwn.calls[0]?.args).toEqual(['vitest', 'run', '--help', '--workers', '1']);
+  });
+
+  it('prints its own help with --help or -h, without running anything (issue #7)', async () => {
+    for (const flag of ['--help', '-h']) {
+      const ctx = fakeContext();
+      expect(await main(['test', flag], ctx)).toBe(0);
+      expect(ctx.calls).toEqual([]);
+      const help = ctx.lines.join('\n');
+      expect(help).toMatch(/^Usage: quiesco test/);
+      for (const option of ['--platform', '--runner', '--workers']) expect(help).toContain(option);
+      expect(help).toContain('quiesco test --platform ios --tags @smoke');
+    }
+    const top = fakeContext();
+    await main(['--help'], top);
+    expect(top.lines.join('\n')).toContain('quiesco test --help');
+  });
+
   it('prints help and rejects unknown commands', async () => {
     const ctx = fakeContext();
     expect(await main([], ctx)).toBe(0);
