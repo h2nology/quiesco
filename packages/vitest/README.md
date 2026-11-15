@@ -9,9 +9,9 @@ npm i -D @quiesco/vitest @quiesco/core vitest
 
 ```ts
 // vitest.config.ts
-import { quiesco } from '@quiesco/vitest/config';
+import { quiesco, quiescoPlugin } from '@quiesco/vitest/config';
 import { defineConfig } from 'vitest/config';
-export default defineConfig({ test: { ...quiesco(), include: ['e2e/**/*.test.ts'] } });
+export default defineConfig({ plugins: [quiescoPlugin()], test: { ...quiesco(), include: ['e2e/**/*.test.ts'] } });
 
 // e2e/todo.test.ts
 import { test } from '@quiesco/vitest';
@@ -22,7 +22,8 @@ test('a new todo appears at the top', async ({ app }) => {
 });
 ```
 
-Run with `npx quiesco test --platform ios --runner vitest`. Details:
+`quiescoPlugin()` sends the run's progress to the progress bar of `quiesco test` and to `quiesco ui` (your
+own reporters stay). Run with `npx quiesco test --platform ios --runner vitest`. Details:
 [using Quiesco without Cucumber](https://shift-14cc7601.mintlify.site/api#using-quiesco-without-cucumber).
 
 Part of [Quiesco](https://github.com/h2nology/quiesco): gray-box end-to-end testing for Expo apps on iOS, Android and the web. Setup: `npx quiesco init` ([quick start](https://github.com/h2nology/quiesco#quick-start-web-about-10-minutes)).

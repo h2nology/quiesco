@@ -632,7 +632,7 @@ through the session: `session.startScenario({ name })` before `beforeScenario`, 
 
 | | Vitest (`@quiesco/vitest`) | Jest (`@quiesco/jest`) |
 |---|---|---|
-| Setup | `test: { ...quiesco() }` from `@quiesco/vitest/config` | `preset: '@quiesco/jest'`, `maxWorkers`, a `testTimeout` |
+| Setup | `plugins: [quiescoPlugin()]`, `test: { ...quiesco() }` from `@quiesco/vitest/config` | `preset: '@quiesco/jest'`, `maxWorkers`, a `testTimeout` |
 | The Driver | `test('…', async ({ app, session }) => …)` | the global `quiesco.app` / `quiesco.session` |
 | Session | one per worker: a worker fixture | one per worker process: kept by the test environment, closed when Jest ends the worker (in band: by the preset's `globalTeardown`) |
 | Platform tags | in `describe` / test titles and `{ tags }` (declared by `quiesco()`) | in `describe` / test titles |

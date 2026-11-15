@@ -44,6 +44,7 @@
               "platforms",
               "driver-pattern",
               "parallel",
+              "ui",
               "troubleshooting",
               "known-issues"
             ]
@@ -85,6 +86,7 @@
               "zh/platforms",
               "zh/driver-pattern",
               "zh/parallel",
+              "zh/ui",
               "zh/troubleshooting",
               "zh/known-issues"
             ]
@@ -126,6 +128,7 @@
               "ja/platforms",
               "ja/driver-pattern",
               "ja/parallel",
+              "ja/ui",
               "ja/troubleshooting",
               "ja/known-issues"
             ]

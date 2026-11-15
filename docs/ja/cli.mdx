@@ -1,6 +1,6 @@
 ---
 title: "CLI"
-description: "quiescoコマンド：init、test、doctor、tree、devicesと、そのすべてのオプション。"
+description: "quiescoコマンド：init、build、test、ui、list、devices、doctor、treeと、そのすべてのオプション。"
 ---
 
 ```sh
@@ -47,7 +47,29 @@ npx quiesco test --help
 
 `QUIESCO_PLATFORM`を設定し、プロジェクトのテストランナーを実行します。ランナーは`cucumber-js`（デフォルト）、`jest`、`vitest run`のいずれかで（`--runner`）、それ以外の引数はすべてそのままランナーに渡します。`--`より後ろの引数もランナーに渡し、`--`自体は取り除きます。そのため、その後ろに書いたQuiescoのオプション名はランナーのものとして扱われます（`quiesco test -- --help`はランナーのヘルプを表示します）。`--workers N`はN個のワーカーを、それぞれ専用のデバイスで実行します（[parallel.md](./parallel)）。cucumber-jsでは`--parallel N`、Jestでは`--maxWorkers N`、Vitestでは`--fileParallelism --maxWorkers N`に変換されます（ランナー自身のフラグも使えます）。
 
+ターミナルでは、ランナーの出力がその上に流れていく間、最終行に進捗バーを表示し続けます。完了数 / 総数、成功・失敗・スキップの件数、経過時間、実行中のテスト（ワーカーが複数あるときはデバイスごと）です。進捗はランナーが送ります。cucumber-jsには`quiesco test`が`@quiesco/cucumber`のフォーマッターを自動で追加し、Vitestには`quiescoPlugin()`が必要で、Jestではプリセットが用意します（[Jest と Vitest](./runners)）。送られてこない場合は、終了時に何を追加すればよいかを表示します。`--no-progress`または`QUIESCO_PROGRESS=0`で進捗バーを消せます。CIや、出力がターミナルでない場合も表示しません。終了コードはランナーのものです。
+
 アプリがMetroからJSを読み込み（`devClient.metroUrl`、または`apps.web.url`）、そこで何も応答しない場合、`quiesco test`は`EXPO_PUBLIC_QUIESCO=1`付きでMetroを起動し（`npx expo start --port <port>`、出力は`artifacts/metro.log`）、準備ができるまで待ち、ランナーが終わると停止します（Ctrl-Cのときも）。すでに動いているMetroはそのまま使います。設定の`devServer`でコマンドとタイムアウトを変えたり、この動作を止めたり（`autoStart: false`）できます。ランナーを直接実行した場合（`npx cucumber-js`）はMetroを起動しません。
+
+## `quiesco ui` {#quiesco-ui}
+
+```sh
+npx quiesco ui --platform web
+npx quiesco ui --platform ios --runner vitest --config vitest.e2e.config.mts --port 5173
+npx quiesco ui --help
+```
+
+[テスト UI](./ui)をブラウザで開きます。プロジェクトのテストを一覧し、クリックだけですべて / ファイル単位 / 1件のテストを実行でき、進捗と、失敗およびその証拠をリアルタイムで確認できます。プロジェクトに`@quiesco/ui`が必要です。`--platform`、`--runner`、`--workers`、ランナーの引数は`quiesco test`と同じです。`--port N`でポートを指定し、`--no-open`ではブラウザを開きません。起動中はMetroを動かしたままにします。Ctrl-Cで停止します。
+
+## `quiesco list` {#quiesco-list}
+
+```sh
+npx quiesco list
+npx quiesco list features/login.feature
+npx quiesco list --runner vitest --config vitest.e2e.config.mts --json
+```
+
+ランナーが実行するテストを、ファイルごとに行番号付きで一覧します。テストは実行せず、デバイスも起動しません。cucumber-jsはフォーマットを外したドライランを行い（レポートファイルはそのまま）、Vitestはテストファイルを解析し、JestはQuiescoのテスト環境とプロジェクトのglobal setupを使わずにテストを収集します（setup filesは実行されます）。`--json`は、進捗バーとテスト UIが使うテストIDを含む一覧を出力します。何も一覧できなかった場合の終了コードは1です。
 
 ## `quiesco devices` {#quiesco-devices}
 

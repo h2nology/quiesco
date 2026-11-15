@@ -21,3 +21,4 @@
 - P5 完成：@quiesco/ui 服务端（HTTP + WS、token/Host/Origin、证据/源码接口、运行队列、取消、文件监视重列）、core RunState 快照与 run-state 子路径、`quiesco ui` 命令；todo-app 实跑三 runner 通过；修了 exports 缺 default 条件（CLI require.resolve 找不到包）与范围外 skipped 覆盖结果两个问题。全量 817 tests 绿。
 - P6 完成：React 前端（A · 现代深色）实现并构建进 @quiesco/ui；Playwright 冒烟测试；ui-ux-pro-max 审查修正 3 个对比度不达标 token；todo-app web 实跑截图（空闲/运行中/通过/失败+证据/亮色/手机宽度）全部正常、无控制台错误。全量 818 tests 绿、lint/depcruise 绿。
 - HU 追加：UI 支持中日英。实现 i18n（类型化词典、语言检测与切换、CJK 字体回退、服务端 notice code），测试 + 实跑截图；修日语连接状态措辞。全量 822 tests 绿。
+- P7 完成：三语文档（ui 新页面、cli、runners、api、index）、README 与包 README、docs:check / release:check 通过；iOS / Android 实跑进度条与 UI（含 iOS 真实失败证据截图）；修正用时起点；script 在 socket stdin 下失败 → 改用 Python pty。pnpm check 823 tests 绿。P0–P7 完成，发布待 HU。

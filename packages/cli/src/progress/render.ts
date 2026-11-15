@@ -15,6 +15,12 @@ export interface RenderOptions {
   color: boolean;
   /** Bar cells (default 20). */
   barWidth?: number;
+  /**
+   * When the runner was started (epoch ms): the time shown counts from there, so it includes starting the
+   * device and the app. Default: from the first test.
+   */
+  since?: number;
+  now?: () => number;
 }
 
 // eslint-disable-next-line no-control-regex -- ANSI escape sequences start with ESC
@@ -93,7 +99,7 @@ export function renderBar(state: RunState, options: RenderOptions): string {
   const parts = [
     `${bar} ${done}/${totalText}`,
     [paint(color, '32', `✓${c.passed}`), ...(c.failed > 0 ? [paint(color, '31', `✗${c.failed}`)] : []), ...(skipped > 0 ? [paint(color, '33', `↷${skipped}`)] : [])].join(' '),
-    formatDuration(state.elapsedMs),
+    formatDuration(options.since !== undefined ? Math.max(0, (state.endedAt ?? (options.now ?? Date.now)()) - options.since) : state.elapsedMs),
   ];
   let line = parts.join('  ');
 

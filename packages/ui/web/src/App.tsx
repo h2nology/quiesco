@@ -218,9 +218,11 @@ function ProgressBand({ data, t }: { data: UiData; t: Translate }) {
   const k = arc(skipped, total, p.len + f.len);
   const running = [...s.running.values()].sort((a, b) => (a.worker ?? 0) - (b.worker ?? 0));
   const lanes = data.running !== null && running.length > 0 && (s.workers ?? 1) > 1;
-  const elapsed = s.phase === 'idle' ? '' : formatMs(s.elapsedMs);
+  // From when the run was asked for (starting the device and the app included), else from the first test.
+  const elapsedMs = data.lastRunStartedAt !== null ? Math.max(0, (data.running === null ? (s.endedAt ?? Date.now()) : Date.now()) - data.lastRunStartedAt) : s.elapsedMs;
+  const elapsed = s.phase === 'idle' && data.running === null ? '' : formatMs(elapsedMs);
   const caption = starting
-    ? t('starting')
+    ? `${t('starting')} · ${elapsed}`
     : s.phase === 'idle'
       ? data.listing
         ? t('listing')

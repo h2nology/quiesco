@@ -33,6 +33,11 @@ describe('renderBar', () => {
     expect(renderBar(running(), { width: 100, color: false, barWidth: 10 })).toBe('▕████░░░░░░▏ 12/30  ✓10 ✗1 ↷1  2m13s  ▶ adds a todo');
   });
 
+  it('counts the time from when the runner started (device and app included) when told', () => {
+    const s = running(); // the first test started at 0; "now" is 133 s
+    expect(renderBar(s, { width: 100, color: false, barWidth: 10, since: -20_000, now: () => 133_000 })).toContain('2m33s');
+  });
+
   it('marks an estimated total with ~ and numbers the workers when several run', () => {
     const s = new RunState(() => 0);
     s.apply({ type: 'run:start', total: 6, totalIsEstimate: true, files: [] });

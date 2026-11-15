@@ -31,6 +31,9 @@ When('they add a todo {string}', async function (this: QuiescoWorld, title: stri
 - **Fast resets** — a soft reset (storage, your reset hooks, remount) before every scenario, typically
   ~200 ms; `@hard-reset` relaunches the app.
 - **Backdoors** — set up state from steps without driving the UI (`this.app.backdoor('loginAs', …)`).
+- **Live progress** — `quiesco test` keeps a progress bar on the last line of the terminal; `quiesco ui`
+  runs tests from the browser with a click and shows failures with their screenshot and element tree
+  ([test UI](https://shift-14cc7601.mintlify.site/ui)).
 - **Nothing in production** — without `EXPO_PUBLIC_QUIESCO=1` the agent is replaced by a no-op stub and
   the native module is excluded from the build (checked in CI, see [benchmarks](https://shift-14cc7601.mintlify.site/benchmarks)).
 
@@ -109,9 +112,9 @@ failure's message lists the evidence files (screenshot, element tree, idle state
 
 ```ts
 // vitest.config.ts
-import { quiesco } from '@quiesco/vitest/config';
+import { quiesco, quiescoPlugin } from '@quiesco/vitest/config';
 import { defineConfig } from 'vitest/config';
-export default defineConfig({ test: { ...quiesco(), include: ['e2e/**/*.test.ts'] } });
+export default defineConfig({ plugins: [quiescoPlugin()], test: { ...quiesco(), include: ['e2e/**/*.test.ts'] } });
 
 // e2e/todo.test.ts
 import { test } from '@quiesco/vitest';
@@ -126,7 +129,8 @@ test('Android only', { tags: ['@android'] }, async ({ app }) => { /* … */ });
 ```
 
 `quiesco()` keeps the app across files (`isolate: false`), runs them one at a time (or on N devices with
-`quiesco({ workers: N })`) and declares the platform tags.
+`quiesco({ workers: N })`) and declares the platform tags; `quiescoPlugin()` sends the progress to
+`quiesco test` and `quiesco ui`.
 
 **Jest** — a preset; tests reach the app through the global `quiesco`:
 
@@ -140,8 +144,9 @@ test('a new todo appears at the top @ios', async () => {
 });
 ```
 
-Platform tags go in test or `describe` titles (Jest has no test options). Run either with
-`npx quiesco test --platform ios --runner vitest|jest`. Both are in
+Platform tags go in test or `describe` titles (Jest has no test options); a config with its own
+`reporters` adds `'@quiesco/jest/reporter'` for the progress. Run either with
+`npx quiesco test --platform ios --runner vitest|jest`, or from the browser with `quiesco ui`. Both are in
 [examples/todo-app/e2e](examples/todo-app/e2e); details in
 [using Quiesco without Cucumber](https://shift-14cc7601.mintlify.site/api#using-quiesco-without-cucumber).
 
@@ -149,15 +154,16 @@ Platform tags go in test or `describe` titles (Jest has no test options). Run ei
 
 | Package | What it is |
 |---|---|
-| [`quiesco`](packages/cli) | CLI: `init`, `test`, `doctor`, `tree`, `devices` ([docs](https://shift-14cc7601.mintlify.site/cli)) |
+| [`quiesco`](packages/cli) | CLI: `init`, `build`, `test` (with a progress bar), `ui`, `list`, `doctor`, `tree`, `devices` ([docs](https://shift-14cc7601.mintlify.site/cli)) |
 | [`@quiesco/agent`](packages/agent) | In-app agent: element queries, sync trackers, actions, reset, backdoors; `withQuiesco()` for Metro |
 | [`@quiesco/native`](packages/native) | Expo module for real touches and text input on iOS / Android (e2e builds only) |
 | [`@quiesco/expo-plugin`](packages/expo-plugin) | Config plugin: excludes the native module from production builds, allows the local connection in e2e builds |
 | [`@quiesco/core`](packages/core) | Host side: WebSocket server, `Driver` (`this.app`), sessions, iOS / Android device providers. Runner-independent |
 | [`@quiesco/cucumber`](packages/cucumber) | cucumber-js World (`this.app`) and lifecycle hooks |
-| [`@quiesco/vitest`](packages/vitest) | Vitest: `test` with the `app` fixture, `quiesco()` config |
+| [`@quiesco/vitest`](packages/vitest) | Vitest: `test` with the `app` fixture, `quiesco()` config, `quiescoPlugin()` |
 | [`@quiesco/jest`](packages/jest) | Jest: preset with the Quiesco test environment, global `quiesco` |
 | [`@quiesco/web`](packages/web) | Web device provider (Playwright library) |
+| [`@quiesco/ui`](packages/ui) | The test UI behind `quiesco ui` (React, served locally) |
 | [`@quiesco/steps`](packages/steps/README.md) | Optional generic steps in Chinese, Japanese and English — for prototyping only |
 | [`@quiesco/protocol`](packages/protocol) | Types and constants shared by agent and host |
 
@@ -170,6 +176,7 @@ Platform tags go in test or `describe` titles (Jest has no test options). Run ei
 - [Platform differences](https://shift-14cc7601.mintlify.site/platforms) — iOS, Android and web side by side, permissions
 - [Driver pattern](https://shift-14cc7601.mintlify.site/driver-pattern) — business-language steps on top of `this.app`
 - [Parallel runs](https://shift-14cc7601.mintlify.site/parallel) — a device per worker, cucumber-js / Jest / Vitest
+- [Test UI](https://shift-14cc7601.mintlify.site/ui) — run tests from the browser and watch them live
 - [CLI](https://shift-14cc7601.mintlify.site/cli)
 - [Troubleshooting](https://shift-14cc7601.mintlify.site/troubleshooting) and [known issues](https://shift-14cc7601.mintlify.site/known-issues)
 - [Benchmarks](https://shift-14cc7601.mintlify.site/benchmarks)

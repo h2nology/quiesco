@@ -517,7 +517,7 @@ export default defineConfig({
 
 | | Vitest（`@quiesco/vitest`） | Jest（`@quiesco/jest`） |
 |---|---|---|
-| 配置 | 来自 `@quiesco/vitest/config` 的 `test: { ...quiesco() }` | `preset: '@quiesco/jest'`、`maxWorkers`，以及一个 `testTimeout` |
+| 配置 | 来自 `@quiesco/vitest/config` 的 `plugins: [quiescoPlugin()]`、`test: { ...quiesco() }` | `preset: '@quiesco/jest'`、`maxWorkers`，以及一个 `testTimeout` |
 | Driver | `test('…', async ({ app, session }) => …)` | 全局的 `quiesco.app` / `quiesco.session` |
 | 会话 | 每个 worker 一个：一个 worker fixture | 每个 worker 进程一个：由测试环境持有，在 Jest 结束该 worker 时关闭（in band 模式下：由 preset 的 `globalTeardown` 关闭） |
 | 平台标签 | 写在 `describe` / 测试标题和 `{ tags }` 中（由 `quiesco()` 声明） | 写在 `describe` / 测试标题中 |

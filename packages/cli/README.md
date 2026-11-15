@@ -6,7 +6,9 @@ The Quiesco command line.
 npm i -D quiesco
 npx quiesco init      # set Quiesco up in an Expo project
 npx quiesco doctor    # check tools and project setup, with fixes
-npx quiesco test --platform ios|android|web [--runner cucumber|vitest|jest]
+npx quiesco test --platform ios|android|web [--runner cucumber|vitest|jest]   # with a progress bar
+npx quiesco ui --platform ios|android|web    # the test UI in the browser (needs @quiesco/ui)
+npx quiesco list      # the tests the runner would run, without running them
 npx quiesco tree      # print the element tree of the running app
 npx quiesco devices   # list / prune the worker devices of parallel runs
 ```

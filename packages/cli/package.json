@@ -1,7 +1,7 @@
 {
   "name": "quiesco",
   "version": "0.2.0",
-  "description": "Quiesco command line: init, test, doctor, tree",
+  "description": "Quiesco command line: init, test (with a progress bar), ui, list, doctor, tree",
   "license": "MIT",
   "author": "h2nology",
   "keywords": [

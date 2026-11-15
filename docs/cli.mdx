@@ -1,6 +1,6 @@
 ---
 title: "CLI"
-description: "The quiesco command: init, test, doctor, tree and devices, with every option."
+description: "The quiesco command: init, build, test, ui, list, devices, doctor and tree, with every option."
 ---
 
 ```sh
@@ -64,11 +64,46 @@ each on a device of its own ([parallel.md](./parallel)): it becomes `--parallel 
 `--maxWorkers N` for Jest and `--fileParallelism --maxWorkers N` for Vitest (the runners' own flags work as
 well).
 
+On a terminal, a progress bar stays on the last line while the runner's output scrolls above it: done /
+total, passed, failed and skipped, the time so far and the test running now (one per device with several
+workers). The runner sends it the progress: `quiesco test` adds `@quiesco/cucumber`'s formatter to
+cucumber-js by itself, Vitest needs `quiescoPlugin()` and Jest gets it from the preset
+([Jest and Vitest](./runners)); without it, a hint at the end says what to add. `--no-progress` or
+`QUIESCO_PROGRESS=0` turns the bar off; it is off in CI and when the output is not a terminal. The exit code
+is the runner's.
+
 When the app loads its JS from Metro (`devClient.metroUrl`, or `apps.web.url`) and nothing answers there,
 `quiesco test` starts Metro with `EXPO_PUBLIC_QUIESCO=1` (`npx expo start --port <port>`, its output in
 `artifacts/metro.log`), waits until it is ready, and stops it when the runner ends, also on Ctrl-C. A Metro
 that is already running is used as it is. `devServer` in the config changes the command and the timeout,
 or turns this off (`autoStart: false`). Running the runner directly (`npx cucumber-js`) does not start Metro.
+
+## `quiesco ui` {#quiesco-ui}
+
+```sh
+npx quiesco ui --platform web
+npx quiesco ui --platform ios --runner vitest --config vitest.e2e.config.mts --port 5173
+npx quiesco ui --help
+```
+
+Opens the [test UI](./ui) in the browser: the project's tests, run all / a file / a test with a click, live
+progress, failures with their evidence. Needs `@quiesco/ui` in the project. `--platform`, `--runner`,
+`--workers` and the runner's arguments work as for `quiesco test`; `--port N` chooses the port and
+`--no-open` does not open the browser. Metro stays up while it runs; Ctrl-C stops it.
+
+## `quiesco list` {#quiesco-list}
+
+```sh
+npx quiesco list
+npx quiesco list features/login.feature
+npx quiesco list --runner vitest --config vitest.e2e.config.mts --json
+```
+
+Lists the tests the runner would run, by file with their lines, without running them or starting a device.
+cucumber-js does a dry run with its formats left out (report files stay as they are), Vitest parses the
+files, and Jest collects the tests without Quiesco's test environment and the project's global setup (setup
+files still run). `--json` prints the list with the test ids the progress bar and the test UI use. The exit
+code is 1 when nothing could be listed.
 
 ## `quiesco devices` {#quiesco-devices}
 

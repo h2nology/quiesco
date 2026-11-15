@@ -60,8 +60,9 @@ export interface ProgressRun {
 export async function runWithProgress(ctx: CliContext & { terminal: Terminal }, run: ProgressRun): Promise<number> {
   const term = ctx.terminal;
   const state = new RunState();
+  const since = Date.now();
   const sticky = new StickyTerminal({ write: term.stdout, columns: term.columns });
-  const draw = () => sticky.setBar(renderBar(state, { width: term.columns(), color: term.color }));
+  const draw = () => sticky.setBar(renderBar(state, { width: term.columns(), color: term.color, since }));
   let frame: NodeJS.Timeout | null = null;
   const schedule = () => {
     frame ??= setTimeout(() => {
@@ -98,7 +99,7 @@ export async function runWithProgress(ctx: CliContext & { terminal: Terminal }, 
   }
   state.runnerExited(code);
   const received = server.hellos.length > 0;
-  sticky.stop(received ? renderBar(state, { width: term.columns(), color: term.color }) : undefined);
+  sticky.stop(received ? renderBar(state, { width: term.columns(), color: term.color, since }) : undefined);
   if (!received) ctx.err(HINTS[run.runner]);
   return code;
 }

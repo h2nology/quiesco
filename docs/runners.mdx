@@ -14,9 +14,9 @@ failure's message lists the evidence files (screenshot, element tree, idle state
 
 ```ts
 // vitest.config.ts
-import { quiesco } from '@quiesco/vitest/config';
+import { quiesco, quiescoPlugin } from '@quiesco/vitest/config';
 import { defineConfig } from 'vitest/config';
-export default defineConfig({ test: { ...quiesco(), include: ['e2e/**/*.test.ts'] } });
+export default defineConfig({ plugins: [quiescoPlugin()], test: { ...quiesco(), include: ['e2e/**/*.test.ts'] } });
 
 // e2e/todo.test.ts
 import { test } from '@quiesco/vitest';
@@ -31,7 +31,9 @@ test('Android only', { tags: ['@android'] }, async ({ app }) => { /* … */ });
 ```
 
 `quiesco()` keeps the app across files (`isolate: false`), runs them one at a time (or on N devices with
-`quiesco({ workers: N })`) and declares the platform tags.
+`quiesco({ workers: N })`) and declares the platform tags. `quiescoPlugin()` sends the run's progress to the
+progress bar of `quiesco test` and to `quiesco ui`; it adds its reporter only when they run Vitest, next to
+your own reporters.
 
 ## Jest {#jest}
 
@@ -47,11 +49,14 @@ test('a new todo appears at the top @ios', async () => {
 });
 ```
 
-Platform tags go in test or `describe` titles (Jest has no test options).
+Platform tags go in test or `describe` titles (Jest has no test options). The preset also adds the reporter
+that sends the run's progress to `quiesco test` and `quiesco ui`. A config with its own `reporters` replaces
+the preset's: add `'@quiesco/jest/reporter'` there (next to `'default'`).
 
 ## Running {#running}
 
-Run either with `npx quiesco test --platform ios --runner vitest|jest`. Both are in
+Run either with `npx quiesco test --platform ios --runner vitest|jest`, or from the browser with
+[`quiesco ui`](./ui). Both are in
 [examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e); details in
 [using Quiesco without Cucumber](./api#using-quiesco-without-cucumber), several devices at once in
 [parallel runs](./parallel).

@@ -28,6 +28,8 @@ export interface UiData {
   running: RunningInfo | null;
   /** Ids of tests that started or ended in the current / last run. */
   touched: ReadonlySet<string>;
+  /** When the current / last run was asked for (its time includes starting the device and the app). */
+  lastRunStartedAt: number | null;
   output: string;
   notices: Notice[];
   /** Bumped on every change (memo key). */
@@ -43,7 +45,7 @@ function socketUrl(): string {
 }
 
 export function useUiConnection(): UiData & { send(m: ClientMessage): void; run(target: RunTarget): void; dismiss(id: number): void } {
-  const store = useRef<Omit<UiData, 'version' | 'status'>>({ info: null, list: null, listing: false, state: new RunState(), running: null, touched: new Set(), output: '', notices: [] });
+  const store = useRef<Omit<UiData, 'version' | 'status'>>({ info: null, list: null, listing: false, state: new RunState(), running: null, touched: new Set(), lastRunStartedAt: null, output: '', notices: [] });
   const [version, setVersion] = useState(0);
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const ws = useRef<WebSocket | null>(null);
@@ -95,6 +97,7 @@ export function useUiConnection(): UiData & { send(m: ClientMessage): void; run(
             s.listing = m.listing;
             s.state = RunState.fromSnapshot(m.state);
             s.running = m.running;
+            s.lastRunStartedAt = m.running?.startedAt ?? null;
             s.output = m.output;
             s.touched = new Set([...m.state.running.map((r) => r.test.id)]);
             break;
@@ -112,6 +115,7 @@ export function useUiConnection(): UiData & { send(m: ClientMessage): void; run(
             if (m.running !== null) {
               s.output = '';
               s.touched = new Set();
+              s.lastRunStartedAt = m.running.startedAt;
             }
             if (m.state !== undefined) s.state = RunState.fromSnapshot(m.state);
             break;

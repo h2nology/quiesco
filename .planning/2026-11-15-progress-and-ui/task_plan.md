@@ -7,10 +7,10 @@
 3. cucumber / vitest / jest 三个 runner 全部支持；附测试、三语文档，在 examples/todo-app 上实跑验收。
 
 ## Current Phase
-P7
+P8（发布，待 HU）
 
 ## Next Step
-P7：三语文档（cli.mdx：进度条 / `--no-progress` / `quiesco list` / `quiesco ui`；新 UI 页面；runners.mdx：Vitest `quiescoPlugin()`、Jest 自定义 reporters 时加 `@quiesco/jest/reporter`；cucumber `paths` 限制）、README、packages/ui/README；iOS / Android 实跑（进度条 + UI）；`pnpm check`。
+P0–P7 全部完成（分支 feat/run-events）。下一步由 HU 决定：推送分支并开 PR，以及按 docs/releasing.md 发 0.3.0。
 
 ## 背景
 - 前置：0.2.0 已发布（`.planning/2026-11-14-issues-0-2/`）。
@@ -126,10 +126,14 @@ CLI (quiesco ui)    ── 事件 → WebSocket → 浏览器 (React)
 **Status:** complete
 
 ### P7 文档与验收
-- [ ] 三语文档：`cli.mdx`（`--no-progress`、`quiesco ui`），新增 UI 页面；README 提及
-- [ ] examples/todo-app：web 三个 runner 各跑一次进度条；UI 中点击运行单个测试 / 文件 / 全部；iOS、Android 至少各一次
-- [ ] `pnpm check` 全绿；`check:prod-strip` 不受影响
-**Status:** in_progress
+- [x] 三语文档：新页面 `ui.mdx`（启动 / 页面 / 运行测试 / 安全，含 cucumber `paths` 限制 Note），导航「指南」加入；`cli.mdx` 进度条段落 + `quiesco ui` / `quiesco list` 两节 + description；`runners.mdx` Vitest `quiescoPlugin()`、Jest 自定义 reporters 加 `@quiesco/jest/reporter`、链接 UI；`api.mdx` 对照表；`index.mdx` 包列表加 `@quiesco/ui`
+- [x] README（特性「Live progress」、Vitest/Jest 片段与说明、包列表、文档列表）；packages/cli、vitest、jest README；新 packages/ui/README；cli package description
+- [x] `pnpm docs:check`（结构 + mint validate + broken-links）通过；`pnpm release:check` 通过（12 个包，@quiesco/ui 299 kB）
+- [x] iOS / Android 实跑：进度条（pty 录制 + 虚拟终端回放）两端 3/3 通过；UI：Android 选一测试运行通过，iOS 临时失败用例证据页显示模拟器真实截图 + 红框（7 个证据文件），用后删除
+- [x] 实跑发现：用时从第一个测试起算、不含启动设备 / App（iOS 显示 11s vs cucumber 24.8s）→ 进度条与 UI 改为从 runner 启动起算（加单测）
+- [x] `pnpm check` 全绿（823 tests）
+- [ ] 发布 0.3.0（版本号、CHANGELOG / release notes、PR、npm publish）—— 待 HU 指示
+**Status:** complete
 
 ## 待用户确认
 （P0 后的问题已全部确认，见决定表）
@@ -140,5 +144,7 @@ CLI (quiesco ui)    ── 事件 → WebSocket → 浏览器 (React)
 | P3 实跑：伪终端报告 0 列 → 渲染宽度 0、进度条为空、半行按 1 列算行数（光标上移 40 行） | 1 | `columns()` 0 时按 80 |
 | P3 实跑：Jest 全部通过却显示 failed：`onRunComplete` 时 `results.success` 尚未计算 | 1 | 按 numFailedTests / numFailedTestSuites / numRuntimeErrorTestSuites 判断，加单测 |
 | P3 实跑：一次 `script` 录屏为空且退出码 1，无法复现 | 1 | 重跑正常；记录在案 |
+| P7 实跑：`script` 再次空录屏 + 退出码 1；报错 `tcgetattr/ioctl: Operation not supported on socket`（工具环境的 stdin 有时是 socket） | 3 | 改用 Python `pty.fork` 自建伪终端（100×40），不依赖 stdin；与 Quiesco 无关 |
+| P7 实跑：进度条 / UI 用时不含启动设备与 App | 1 | 从 runner 启动起算 |
 | P2 提交 e7cf712 含一个失败的 jest 测试（fixture 加 `/* global */` 后行号 +1，复跑时只看了输出尾部） | 1 | P3 中修正；以后看测试结果必须看到 passed/failed 计数 |
 | P1 子进程测试退出码 13（顶层 await 未完成）：client socket `unref()` 后 `close()` 等待期间事件循环为空 | 1 | `close()` 时 `socket.ref()`，冲刷完再放开 |

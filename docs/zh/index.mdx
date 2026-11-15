@@ -49,15 +49,16 @@ When('they add a todo {string}', async function (this: QuiescoWorld, title: stri
 
 | 包 | 说明 |
 |---|---|
-| `quiesco` | CLI：`init`、`test`、`doctor`、`tree`、`devices`（[CLI](./cli)） |
+| `quiesco` | CLI：`init`、`build`、`test`（带进度条）、`ui`、`list`、`doctor`、`tree`、`devices`（[CLI](./cli)） |
 | `@quiesco/agent` | App 内的 agent：元素查询、同步跟踪器、操作、重置、后门；用于 Metro 的 `withQuiesco()` |
 | `@quiesco/native` | 在 iOS / Android 上注入真实触摸和文本输入的 Expo 模块（仅限 e2e 构建） |
 | `@quiesco/expo-plugin` | Config plugin：从生产构建中排除原生模块，在 e2e 构建中允许本地连接 |
 | `@quiesco/core` | host 端：WebSocket 服务器、`Driver`（`this.app`）、会话、iOS / Android 设备提供者。与运行器无关 |
 | `@quiesco/cucumber` | cucumber-js World（`this.app`）和生命周期钩子 |
-| `@quiesco/vitest` | Vitest：带 `app` fixture 的 `test`、`quiesco()` 配置 |
+| `@quiesco/vitest` | Vitest：带 `app` fixture 的 `test`、`quiesco()` 配置、`quiescoPlugin()` |
 | `@quiesco/jest` | Jest：带 Quiesco 测试环境的 preset、全局 `quiesco` |
 | `@quiesco/web` | Web 设备提供者（Playwright 库） |
+| `@quiesco/ui` | `quiesco ui` 背后的[测试 UI](./ui) |
 | `@quiesco/steps` | 可选的中文、日文和英文通用步骤——仅用于原型验证（[步骤](./steps)） |
 | `@quiesco/protocol` | agent 与 host 端共用的类型和常量 |
 
