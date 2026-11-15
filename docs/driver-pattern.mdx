@@ -94,6 +94,28 @@ Prefer Quiesco's assertions where they fit (`this.app.expectText('todo-item', â€
 app shows the expected state. A plain `assert` on a query result checks once â€” fine after an action,
 because the action already waited for the app to be idle.
 
+## Per-platform steps {#per-platform-steps}
+
+A scenario for one platform only gets a tag (`@ios`, `@android`, `@web`). When a shared step is done
+differently per platform, for example a date picker that is inline on iOS and two system dialogs on
+Android, the driver branches on `this.app.platform` (`'ios' | 'android' | 'web'`):
+
+```ts
+async setDueDate(date: Date) {
+  if (this.app.platform === 'android') {
+    await this.app.tap('pick-date');
+    await this.app.setValue('due-date-picker', date);
+    await this.app.tap('pick-time');
+    await this.app.setValue('due-time-picker', date);
+  } else {
+    await this.app.setValue('due-picker', date);
+  }
+}
+```
+
+In a step, `this.platform` is the same. `quiesco test` passes the platform to the runner as the
+`QUIESCO_PLATFORM` environment variable; read it through these properties rather than directly.
+
 ## Step files are not compiled {#type-stripping}
 
 cucumber-js loads step and support files with Node's type stripping: Node removes the types and runs the

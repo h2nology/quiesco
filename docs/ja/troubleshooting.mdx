@@ -23,6 +23,8 @@ description: "症状別の失敗と、その直し方。"
 
 アプリのJSバンドルに最新の変更が入りえないとき、Quiescoは警告します。`CI`を設定したまま起動したMetro（Expoはファイルウォッチャーなしで起動します）や、プロジェクトのソースファイルより古い一回限りのバンドル（`expo export`）の場合です（`features/`、`e2e/`、`*.test.ts`などのテストコードと、プロジェクト直下のツール設定は対象外です）。`CI`を外してMetroを起動するか、バンドルを作り直してください。ターミナルで`CI`が設定されていると、`quiesco doctor`も警告します。
 
+`quiesco test`が自分で起動していないMetroを使い、バンドルがどうビルドされたかをエージェントが示せない場合は、そのMetroが不明な設定で動いていると警告します。Quiescoのアップグレードや`withQuiesco()`の追加より前に起動された、別のツールで起動された、または`EXPO_PUBLIC_QUIESCO=1`なしで起動された、のいずれかです。`EXPO_PUBLIC_QUIESCO=1 npx expo start`で再起動するか、停止して`quiesco test`に起動させてください。
+
 Watchmanのない環境では、Metroがファイルの変更（`git checkout`の後や、スクリプトが書き出したファイル）を見逃し、古いバンドルを配信し続けることがあります。`--clear`を付けてMetroを再起動するか、Watchmanをインストールしてください。Androidのリリースビルドでは、Gradleがワークスペースパッケージの変更に気づきません。ビルドの前に`android/app/build/generated/assets/react/release`を削除してください。
 
 ## `SYNC_TIMEOUT` {#sync-timeout}

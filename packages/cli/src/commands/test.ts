@@ -110,7 +110,7 @@ export async function testCommand(args: readonly string[], ctx: CliContext, deps
   }
   try {
     // npx runs the project's own runner (node_modules/.bin), the one the tests import.
-    const env = { ...ctx.env, QUIESCO_PLATFORM: platform };
+    const env = { ...ctx.env, QUIESCO_PLATFORM: platform, ...devServer?.env };
     if (progressWanted(ctx, np.present)) {
       const formatArgs = runner === 'cucumber' ? cucumberFormatArgs(ctx) : [];
       return await runWithProgress(ctx, { command: 'npx', args: [...spec.command, ...workerArgs, ...formatArgs, ...rest], env, runner });

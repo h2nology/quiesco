@@ -24,7 +24,6 @@ interface PackageJson {
   devDependencies?: Record<string, string>;
   overrides?: Record<string, string>;
   resolutions?: Record<string, string>;
-  pnpm?: { overrides?: Record<string, string> };
   [key: string]: unknown;
 }
 
@@ -64,6 +63,11 @@ export function findTarballs(dir: string, names: readonly string[], list: (d: st
     if (match !== undefined) found.set(name, path.join(dir, match));
   }
   return found;
+}
+
+/** An `overrides:` block for pnpm-workspace.yaml (names and paths quoted: `@` starts no plain YAML scalar). */
+function pnpmOverrides(pins: Record<string, string>): string {
+  return `overrides:\n${Object.entries(pins).map(([n, f]) => `  ${JSON.stringify(n)}: ${JSON.stringify(f)}\n`).join('')}`;
 }
 
 function addCommand(pm: PackageManager, dev: boolean, specs: string[]): { command: string; args: string[] } {
@@ -259,12 +263,24 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
     // yarn resolve every dependency on its own, so they need all of them pinned.
     const direct = new Set([...runtime, ...dev]);
     const pins = Object.fromEntries([...tarballs].filter(([n]) => pm !== 'npm' || !direct.has(n)).map(([n, f]) => [n, `file:${f}`]));
-    const current = readJson<PackageJson>(ctx, pkgFile) as PackageJson;
-    if (pm === 'pnpm') current.pnpm = { ...current.pnpm, overrides: { ...current.pnpm?.overrides, ...pins } };
-    else if (pm === 'yarn') current.resolutions = { ...current.resolutions, ...pins };
-    else current.overrides = { ...current.overrides, ...pins };
-    writeJson(ctx, pkgFile, current);
-    steps.push({ status: 'updated', what: 'package.json', note: `installing from the tarballs in ${packagesOpt.value} (${Object.keys(pins).length} indirect ${Object.keys(pins).length === 1 ? 'dependency' : 'dependencies'} pinned)` });
+    const pinned = `installing from the tarballs in ${packagesOpt.value} (${Object.keys(pins).length} indirect ${Object.keys(pins).length === 1 ? 'dependency' : 'dependencies'} pinned)`;
+    if (pm === 'pnpm') {
+      // pnpm 10+ reads overrides from pnpm-workspace.yaml only; the "pnpm" field of package.json is ignored.
+      const yamlFile = path.join(ctx.cwd, 'pnpm-workspace.yaml');
+      const yaml = ctx.readFile(yamlFile) ?? '';
+      if (/^overrides:/m.test(yaml)) {
+        ctx.err(`quiesco init: pnpm-workspace.yaml already has overrides; add these and run quiesco init again:\n${pnpmOverrides(pins)}`);
+        return 1;
+      }
+      ctx.writeFile(yamlFile, `${yaml}${yaml === '' || yaml.endsWith('\n') ? '' : '\n'}${pnpmOverrides(pins)}`);
+      steps.push({ status: 'updated', what: 'pnpm-workspace.yaml', note: pinned });
+    } else {
+      const current = readJson<PackageJson>(ctx, pkgFile) as PackageJson;
+      if (pm === 'yarn') current.resolutions = { ...current.resolutions, ...pins };
+      else current.overrides = { ...current.overrides, ...pins };
+      writeJson(ctx, pkgFile, current);
+      steps.push({ status: 'updated', what: 'package.json', note: pinned });
+    }
   }
   const installs = [addCommand(pm, false, runtime.map(spec)), addCommand(pm, true, dev.map(spec))];
   for (const cmd of installs) {

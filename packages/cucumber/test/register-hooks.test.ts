@@ -32,3 +32,12 @@ describe('registerQuiesco hook timeouts', () => {
     expect(hooks.find((h) => h.kind === 'Before')?.options.timeout).toBe(240_000);
   });
 });
+
+describe('QuiescoWorld', () => {
+  it('has the platform under test, from the session (issue #22)', async () => {
+    const { QuiescoWorld, bindLifecycle } = await import('../src/world');
+    bindLifecycle({ current: { platform: 'ios', driver: {} } } as unknown as Parameters<typeof bindLifecycle>[0]);
+    const world = new QuiescoWorld({ attach: vi.fn(), log: vi.fn(), link: vi.fn(), parameters: {} } as unknown as ConstructorParameters<typeof QuiescoWorld>[0]);
+    expect(world.platform).toBe('ios');
+  });
+});

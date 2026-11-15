@@ -143,6 +143,7 @@ await this.app.expect({ id: 'title' }).not.toHaveValue('');
 | `getIdleState()` | 每个跟踪器的状态——当前有什么在忙碌 |
 | `backdoor(name, ...args)` | 调用 App 中注册的后门；参数和结果均为 JSON（interface 也可以）。声明 `Backdoors` 后按名称带类型（[类型化后门](#typed-backdoors)） |
 | `reset()` | 软重置（Quiesco 在每个场景之前都会执行） |
+| `platform` | 被测平台：`'ios'`、`'android'` 或 `'web'`。在 `QuiescoWorld` 中也可以用 `this.platform`，以及 `session.platform`（[按平台区分的步骤](./driver-pattern#per-platform-steps)） |
 
 元素摘要包含 `type`（host 组件）、`semanticType`、`testID`、`text`、`label`、`role`、`value`、`checked`、`enabled`、`focused`、`rect`、`visible`、`visibleRatio` 以及可序列化的 `props`。
 

@@ -8,6 +8,7 @@
 import path from 'node:path';
 
 import type { QuiescoConfig } from '@quiesco/core';
+import { REUSED_DEV_SERVER_ENV } from '@quiesco/core';
 
 import type { BackgroundProcess, CliContext, CliPlatform } from './context.js';
 
@@ -31,9 +32,11 @@ export async function metroRunning(ctx: CliContext, url: string): Promise<boolea
 export interface DevServer {
   /** Stops Metro when this run started it; nothing otherwise. */
   stop(): Promise<void>;
+  /** For the runner: QUIESCO_DEV_SERVER_REUSED=<url> when a Metro Quiesco did not start is used (issue #19). */
+  env: Record<string, string>;
 }
 
-const NOTHING: DevServer = { stop: async () => {} };
+const NOTHING: DevServer = { stop: async () => {}, env: {} };
 
 /**
  * Make sure the dev server the app needs is running. Returns how to stop what was started. Throws when it
@@ -44,7 +47,7 @@ export async function ensureDevServer(ctx: CliContext, config: QuiescoConfig, pl
   if (url === null) return NOTHING;
   if (await metroRunning(ctx, url)) {
     ctx.out(`quiesco: using the Metro dev server at ${url}`);
-    return NOTHING;
+    return { ...NOTHING, env: { [REUSED_DEV_SERVER_ENV]: url } };
   }
   const opts = config.devServer ?? {};
   const where = new URL(url);
@@ -60,6 +63,7 @@ export async function ensureDevServer(ctx: CliContext, config: QuiescoConfig, pl
   const proc = ctx.spawnBackground(command, args, { cwd: ctx.cwd, env: { ...ctx.env, EXPO_PUBLIC_QUIESCO: '1' }, logFile });
   const offInterrupt = ctx.onInterrupt(() => proc.stop());
   const server: DevServer = {
+    env: {},
     stop: async () => {
       offInterrupt();
       await proc.stop();

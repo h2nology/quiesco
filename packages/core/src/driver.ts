@@ -20,6 +20,7 @@ import type {
   JsonValue,
   KeyName,
   ParamsOf,
+  Platform,
   Point,
   ResultOf,
   Speed,
@@ -93,6 +94,14 @@ export class Driver {
 
   constructor(private readonly options: DriverOptions) {
     this.logger = options.logger ?? silentLogger;
+  }
+
+  /**
+   * The platform under test (issue #22), for steps or drivers that do the same thing differently per
+   * platform. Scenarios for one platform only are better tagged (@ios, @android, @web).
+   */
+  get platform(): Platform {
+    return this.options.provider.platform;
   }
 
   /** `app.device.*`: relaunch, terminate, background / foreground, install, screenshots (Phase 6.5). */

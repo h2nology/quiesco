@@ -16,6 +16,7 @@ export { Session, createSession, createProvider } from './session.js';
 export { Lifecycle, titleTags } from './lifecycle.js';
 export type { AfterResult, LifecycleOptions, ScenarioResult } from './lifecycle.js';
 export { attachToRunningApp } from './attach.js';
+export { REUSED_DEV_SERVER_ENV } from './bundle-check.js';
 export type { AttachOptions, AttachedApp } from './attach.js';
 export { DEFAULT_TAGS, flattenTags, runsOnPlatform, tagNames } from './tags.js';
 export type { ScenarioTags, TagNames } from './tags.js';

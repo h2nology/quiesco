@@ -1,6 +1,6 @@
 import { World } from '@cucumber/cucumber';
 import type { IWorldOptions } from '@cucumber/cucumber';
-import type { Driver, Session } from '@quiesco/core';
+import type { Driver, Platform, Session } from '@quiesco/core';
 
 import type { Lifecycle } from './lifecycle.js';
 
@@ -24,6 +24,14 @@ export class QuiescoWorld<Parameters = unknown> extends World<Parameters> {
 
   get app(): Driver {
     return this.session.driver;
+  }
+
+  /**
+   * The platform under test, `'ios' | 'android' | 'web'` (issue #22): for a step or driver that does the
+   * same thing differently per platform. Scenarios for one platform only are better tagged (@ios …).
+   */
+  get platform(): Platform {
+    return this.session.platform;
   }
 
   get session(): Session {

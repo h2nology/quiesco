@@ -90,6 +90,25 @@ Then('the first todo is {string}', async function (this: TodoWorld, title: strin
 
 使える場面では、Quiescoのアサーション（`this.app.expectText('todo-item', …)`）を優先してください。アプリが期待した状態を表示するまでリトライします。クエリ結果に対する素の`assert`は1回しかチェックしませんが、アクションの後なら問題ありません。アクションの時点で、アプリがアイドルになるのを待っているからです。
 
+## プラットフォームごとに異なるステップ {#per-platform-steps}
+
+1つのプラットフォーム専用のシナリオにはタグ（`@ios`、`@android`、`@web`）を付けます。共通のステップでもプラットフォームによってやり方が違う場合、たとえば日付ピッカーがiOSではインライン、Androidでは2つのシステムダイアログになる場合は、driverが`this.app.platform`（`'ios' | 'android' | 'web'`）で分岐します。
+
+```ts
+async setDueDate(date: Date) {
+  if (this.app.platform === 'android') {
+    await this.app.tap('pick-date');
+    await this.app.setValue('due-date-picker', date);
+    await this.app.tap('pick-time');
+    await this.app.setValue('due-time-picker', date);
+  } else {
+    await this.app.setValue('due-picker', date);
+  }
+}
+```
+
+ステップの中では`this.platform`も同じ値です。`quiesco test`はプラットフォームを環境変数`QUIESCO_PLATFORM`でrunnerに渡しますが、直接ではなくこれらのプロパティで読んでください。
+
 ## stepファイルはコンパイルされない {#type-stripping}
 
 cucumber-jsは、stepファイルとsupportファイルをNodeのtype strippingで読み込みます。Nodeは型を取り除き、残りを`tsc`を通さずにJavaScriptとして実行します。そのため、次の2つのルールがあります。このページの例はどちらも守っています。

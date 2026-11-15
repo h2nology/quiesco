@@ -184,8 +184,14 @@ describe('quiesco init', () => {
     const pnpm = fakeContext();
     freshExpoApp(pnpm);
     pnpm.put('pnpm-lock.yaml', '');
+    pnpm.put('pnpm-workspace.yaml', 'minimumReleaseAgeExclude:\n  - foo@1.0.0');
     expect(await main(['init', '--packages', dir], pnpm)).toBe(0);
-    expect(Object.keys(JSON.parse(pnpm.file('package.json') as string).pnpm.overrides)).toHaveLength(8);
+    // in pnpm-workspace.yaml: pnpm 10+ ignores the "pnpm" field of package.json
+    const yaml = pnpm.file('pnpm-workspace.yaml') as string;
+    expect(yaml).toMatch(/^minimumReleaseAgeExclude:\n {2}- foo@1\.0\.0\noverrides:\n/);
+    expect(yaml.match(/^ {2}"(?:quiesco|@quiesco\/[\w-]+)": "file:.*\.tgz"$/gm)).toHaveLength(8);
+    expect(yaml).toContain(`  "@quiesco/protocol": ${JSON.stringify(`file:${path.join(dir, 'quiesco-protocol-0.0.0.tgz')}`)}`);
+    expect(JSON.parse(pnpm.file('package.json') as string).pnpm).toBeUndefined();
     fs.rmSync(path.join(dir, 'quiesco-web-0.0.0.tgz'));
     const missing = fakeContext();
     freshExpoApp(missing);

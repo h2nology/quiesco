@@ -90,6 +90,25 @@ Then('the first todo is {string}', async function (this: TodoWorld, title: strin
 
 在合适的地方优先使用 Quiesco 的断言（`this.app.expectText('todo-item', …)`）：它们会重试，直到 App 显示出预期的状态。对查询结果直接用 `assert` 只检查一次——在操作之后这样做没有问题，因为操作已经等到 App 空闲了。
 
+## 按平台区分的步骤 {#per-platform-steps}
+
+只针对一个平台的场景用标签标注（`@ios`、`@android`、`@web`）。当一个共用步骤在不同平台上的做法不同时，例如日期选择器在 iOS 上是内嵌的、在 Android 上是两个系统对话框，driver 根据 `this.app.platform`（`'ios' | 'android' | 'web'`）分支：
+
+```ts
+async setDueDate(date: Date) {
+  if (this.app.platform === 'android') {
+    await this.app.tap('pick-date');
+    await this.app.setValue('due-date-picker', date);
+    await this.app.tap('pick-time');
+    await this.app.setValue('due-time-picker', date);
+  } else {
+    await this.app.setValue('due-picker', date);
+  }
+}
+```
+
+在步骤中，`this.platform` 与之相同。`quiesco test` 通过环境变量 `QUIESCO_PLATFORM` 把平台传给 runner；请通过这些属性读取，而不是直接读环境变量。
+
 ## step 文件不会被编译 {#type-stripping}
 
 cucumber-js 用 Node 的 type stripping 加载 step 和 support 文件：Node 去掉类型，把剩下的部分当作 JavaScript 运行，不经过 `tsc`。由此有两条规则，本页的示例都遵守：

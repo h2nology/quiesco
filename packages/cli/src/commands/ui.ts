@@ -138,7 +138,7 @@ export async function uiCommand(args: readonly string[], ctx: CliContext, deps: 
       ...(port !== undefined ? { port } : {}),
       listTests: () => deps.listTests({ runner, cwd: ctx.cwd, args: rest, env: ctx.env }),
       // npx runs the project's own runner; the chosen tests go last (after the user's arguments).
-      startRun: (targetArgs, env, onOutput) => ui.module.spawnRun('npx', [...base, ...targetArgs], { cwd: ctx.cwd, env: { ...ctx.env, QUIESCO_PLATFORM: platform, ...env }, onOutput }),
+      startRun: (targetArgs, env, onOutput) => ui.module.spawnRun('npx', [...base, ...targetArgs], { cwd: ctx.cwd, env: { ...ctx.env, QUIESCO_PLATFORM: platform, ...devServer?.env, ...env }, onOutput }),
     });
     ctx.out(`quiesco ui: ${server.url}`);
     ctx.out('quiesco ui: Ctrl-C stops it.');

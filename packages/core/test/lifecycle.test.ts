@@ -198,6 +198,9 @@ describe('app.device', () => {
   it('relaunch: new process with typed args merged over the config, keeping data by default', async () => {
     const { provider, agents } = setup();
     session = await Session.create({ config: config({ launchArgs: { env: 'e2e', n: 1 } }), platform: 'android', provider, logger: silentLogger });
+    // the platform under test, for steps that branch on it (issue #22)
+    expect(session.platform).toBe('android');
+    expect(session.driver.platform).toBe('android');
     expect(provider.launches[0]?.argsObject).toEqual({ env: 'e2e', n: 1 });
     expect(JSON.parse(Buffer.from(provider.launches[0]?.args ?? '', 'base64').toString('latin1'))).toEqual({ env: 'e2e', n: 1 });
 

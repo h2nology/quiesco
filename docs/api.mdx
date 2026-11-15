@@ -180,6 +180,7 @@ with `.not`. A negated single-element assertion (`not.toHaveText`, ...) still ne
 | `getIdleState()` | Every tracker's state — what is busy right now |
 | `backdoor(name, ...args)` | Calls a backdoor registered in the app; arguments and result are JSON (interfaces are fine). Typed by name with a `Backdoors` declaration ([Typed backdoors](#typed-backdoors)) |
 | `reset()` | Soft reset (Quiesco does this before every scenario) |
+| `platform` | The platform under test: `'ios'`, `'android'` or `'web'`. Also `this.platform` in a `QuiescoWorld` and `session.platform` ([per-platform steps](./driver-pattern#per-platform-steps)) |
 
 An element summary has `type` (host component), `semanticType`, `testID`, `text`, `label`, `role`,
 `value`, `checked`, `enabled`, `focused`, `rect`, `visible`, `visibleRatio` and the serializable `props`.
