@@ -378,6 +378,8 @@ const { user } = quiesco.launchArgs() as { user?: string };
 
 在只会被 e2e 构建导入的模块中注册后门和 hook（`if (process.env.EXPO_PUBLIC_QUIESCO === '1') require('./e2e')`），这样测试代码根本不会进入生产包。每次注册都会返回一个用于移除该注册的函数。
 
+**软重置与导航。** 使用 Expo Router 的 App，软重置还会把导航状态恢复为 App 启动时的状态（在 `onReset` hook 之后、重新挂载之前）：某个场景停在推入的页面、某个标签页或嵌套的栈里结束，下一个场景也不会从那里开始。无需任何设置。重置之后会检查 App 是否在本次运行第一次重置后所在的路由上；如果不在（App 在挂载时根据重置没有清掉的状态跳到了别的页面），重置会以 `RESET_FAILED` 失败，并给出两个路由。请在 `onReset` 中清掉那份状态，或给场景加上 `@hard-reset` 标签。不使用 Expo Router 的 App，可以用配置中的 `reset.expectVisible` 以元素做同样的检查。
+
 ## 配置 {#configuration}
 
 项目根目录下的 `quiesco.config.ts`（`.mts`、`.js` 和 `.mjs` 也可以）：
@@ -423,6 +425,8 @@ export default defineConfig({
 | `actions.mode` | App 包含 `@quiesco/native` 时为 `native`，否则为 `js` | 真实输入或回调 |
 | `actions.gestureSlop` | 因平台而异（见 [多指手势](#multi-finger-gestures)） | `{ pinch, rotation }`：App 的识别器激活前手指需要移动的距离 |
 | `reset.default` | `soft` | `hard` 会在每个场景之前重新启动 App |
+| `reset.expectVisible` | — | 每次重置后必须可见的元素的匹配器，例如 `{ id: 'home' }`；不可见时，失败的是重置本身（`RESET_FAILED`），而不是场景的第一步 |
+| `bailOnRepeatedFailure` | `3` | 连续这么多个场景以同样的方式（同样的错误）失败后，打印带当前路由的提示并跳过其余场景；`false` 会运行所有场景（第 3 次时仍会打印提示） |
 | `server.port` / `server.host` | `7357` / 所有网络接口 | host 端的 WebSocket 服务器 |
 | `connectTimeoutMs` | `30000` | 启动后等待 App 连接的时长 |
 | `logLevel` | `warn` | 转发到测试输出的 App 控制台消息（`off` 为关闭） |
@@ -457,7 +461,7 @@ export default defineConfig({
 | `ACTION_NOT_SUPPORTED` | 例如 iOS 上的 `pressBack`，或没有原生模块时的 `native` 模式（附带提示） |
 | `BACKDOOR_NOT_REGISTERED` / `BACKDOOR_FAILED` / `NOT_SERIALIZABLE` | 后门相关问题；第一个会列出已注册的名称，最后一个会给出不合法值的路径 |
 | `APP_ERROR` | App 中未捕获的错误使当前步骤失败（忽略已知错误请见 `appErrors`） |
-| `RESET_FAILED` | 指出软重置的哪一步失败了（`storage:<name>`、`onReset#<n>`、`remount`） |
+| `RESET_FAILED` | 指出重置的哪一步失败了（`storage:<name>`、`onReset#<n>`、`navigation`、`remount`、`expectVisible`） |
 | `PROTOCOL_MISMATCH` / `SESSION_MISMATCH` | agent 与 host 端版本不一致 / 连接上的是另一次运行的 App |
 | `CONNECT_TIMEOUT` | App 启动后没有连接上（消息中附有检查清单） |
 | `AGENT_TIMEOUT` | App 不再响应——通常是其 JS 线程被阻塞 |

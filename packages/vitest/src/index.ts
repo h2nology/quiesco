@@ -85,12 +85,12 @@ export const test = base.extend<{
   ],
   session: async ({ quiesco, task, skip }, use) => {
     const t = task as unknown as FailedTask;
-    if ((await quiesco.before(tagLevelsOf(t), fullName(t))) === 'skipped') skip('tagged for another platform');
+    if ((await quiesco.before(tagLevelsOf(t), fullName(t))) === 'skipped') skip(quiesco.bailedOut ?? 'tagged for another platform');
     try {
       await use(quiesco.current);
     } finally {
       const failed = t.result?.state === 'fail';
-      const { files } = await quiesco.after({ tags: tagLevelsOf(t).flat(), failed });
+      const { files } = await quiesco.after({ tags: tagLevelsOf(t).flat(), failed, error: t.result?.errors?.[0] });
       if (failed) addEvidence(t, files);
     }
   },

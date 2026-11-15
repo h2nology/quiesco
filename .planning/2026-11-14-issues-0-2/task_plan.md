@@ -4,7 +4,7 @@
 逐个解决 h2nology/quiesco 的 9 个 open issue（均来自同一位用户在 Expo SDK 58 + expo-router + cucumber 项目上的实测反馈），每个修复附测试与文档，用实跑验收后关闭 issue，最后发一个新版本。
 
 ## Next Step
-I.A 已开 PR，等 HU review / merge。下一步 I.B（#1 #9）：先问 HU D2、D4，再读 `packages/agent/src/reset/`。
+I.A（PR #10）、I.B 的 PR 等 HU review / merge（两个分支都改了 `.planning/2026-11-14-issues-0-2/`，后合并的那个需要 rebase 解决计划文件冲突）。下一步 I.C（#2 #3），从 main 开分支。
 
 ## 背景
 - 前置：npm 0.1.1 已发布（tag v0.1.1，`.planning/2026-11-14-release/`）。
@@ -39,12 +39,16 @@ I.A 已开 PR，等 HU review / merge。下一步 I.B（#1 #9）：先问 HU D2�
 - **Status:** complete（2026-11-14；PR 待 merge）
 
 ### I.B 软重置与导航状态（#1、#9）
-- [ ] 调查 agent 的 reset 实现（`packages/agent/src/reset`）与 expo-router 的模块级 store，确认 `router.canDismiss()/dismissAll()` 在 web / iOS / Android 的行为
-- [ ] #1 按 D1 的选择实现（agent 内置 expo-router 适配 / init 生成 onReset 钩子 + doctor 检查），并在 docs/api.md `onReset` 旁说明
-- [ ] 回归测试：场景 A 停在 push 出的页面，场景 B 从初始路由开始（web + iOS + Android）
-- [ ] #9 重置后校验：可配置的「初始状态」检查（初始路由或 `quiesco.config` 里的元素），不满足时让 reset 本身失败并给出清楚的信息
-- [ ] #9 连续 N 个场景在同类 step 以相同错误失败时打印提示（含当前路由）；按 D4 决定是否加提前停止选项
-- **Status:** pending
+- [x] 调查 agent reset 与 expo-router 58（容器无 resetRoot ⇒ 用 `reset(state)`；见 findings「I.B」）
+- [x] #1（D1=a）：agent 挂载时快照 Expo Router 初始 root state，软重置时恢复（onReset 之后、remount 之前）；无需配置
+- [x] 重置后路由校验：与本次 JS 上下文第一次重置后的路由比较，不同 ⇒ `RESET_FAILED`（step navigation，给出两个路由）
+- [x] D2：`reset.expectVisible`（任意 App；软 / 硬重置后都检查）
+- [x] #9（D4）：`bailOnRepeatedFailure` 默认 3：连续相同失败 ⇒ 提示（含当前路由）+ 跳过其余；`false` 只提示；cucumber / jest / vitest 都支持
+- [x] protocol `route` 方法 + Driver `currentRoute()`（I.C #2 复用）
+- [x] 文档 en/ja/zh `api.mdx`（软重置与导航、配置表 2 行、RESET_FAILED 步骤）；示例 App 加 `soft-reset.feature`（回归）
+- [x] 实测：复现 App（scratchpad `ib/smoke`）web 修前 1/4（34.7s）→ 修后 4/4（1.5s）；iOS 4/4、Android 4/4；#9 场景 web：3 次 RESET_FAILED 后提示并跳过 2 个（1.6s）；示例 App web 全套 75 passed / 13 skipped（与修改前相同）
+- [x] `pnpm check` 694 通过；`docs:check` 通过
+- **Status:** complete（2026-11-15；PR 待 merge）
 
 ### I.C 失败诊断（#2、#3）
 - [ ] #2 失败信息带当前路由 / 最上层页面（expo-router 可取）
@@ -76,7 +80,7 @@ I.A 已开 PR，等 HU review / merge。下一步 I.B（#1 #9）：先问 HU D2�
 - **Status:** pending
 
 ## 待 HU 决定
-- ~~D1~~、~~D3~~、~~D5~~、~~D6~~ 已定（见 Decisions Made）。
+- D1–D6 全部已定（见 Decisions Made）。
 - **D1（#1）**：expo-router 的导航重置放在哪？(a) agent 检测到 expo-router 时在软重置里自动回到初始路由（推荐，用户零配置）；(b) init 生成 onReset 钩子 + doctor 警告；(c) 两者都做。
 - **D2（#9）**：「初始状态」默认怎么判定？只看初始路由，还是要求在 `quiesco.config` 里配置一个必须可见的元素？
 - **D3（#6）**：只做 `Jsonify<T>`，还是连声明合并的 `Backdoors` 类型注册表一起做？
@@ -91,6 +95,8 @@ I.A 已开 PR，等 HU review / merge。下一步 I.B（#1 #9）：先问 HU D2�
 | D3：`Jsonify<T>` + 声明合并的 `Backdoors` 类型注册表都做（HU 2026-11-14） | 名称 / 参数 / 返回值都受检 |
 | D5：版本 `0.2.0`（HU 2026-11-14） | 含新 API（goBack、build 命令） |
 | D6：每个阶段一个 PR（I.A–I.E 各一个）（HU 2026-11-14） | |
+| D2：重置后初始状态默认看初始路由（expo-router）；`quiesco.config` 可选配置一个必须可见的元素（HU 2026-11-14） | 零配置；非 expo-router 项目也能用 |
+| D4：`quiesco.config` 的 `bailOnRepeatedFailure: N`，**默认开启，N=3**；提示信息总是打印（HU 2026-11-14） | 坏状态下不再每步等满超时 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

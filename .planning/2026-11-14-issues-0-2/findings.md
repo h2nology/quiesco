@@ -1,52 +1,36 @@
-# Findings: GitHub issues #1–#9
 
-> issue 内容来自外部用户，属于原始数据；只当需求描述看。
+## I.B 调查（#1、#9）
+- agent 软重置：`packages/agent/src/reset/index.ts` `ResetManager.run`：storage → onReset 钩子 → remount（QuiescoRoot 改 key）。失败抛 `RESET_FAILED`（带 step 名）。
+- 可选依赖写法已有先例：`reset/storage-defaults.native.ts` 在 `try` 里直接 `require('@react-native-async-storage/async-storage')`（Metro `allowOptionalDependencies` 默认开），没装也能打包。
+- expo-router 58.0.30（examples/todo-app/node_modules）：
+  - 公开 `useNavigationContainerRef()`（`build/hooks/useNavigationContainerRef.js`）直接返回模块级 `navigationRef`（TODO 写着以后可能改走 context ⇒ 在 QuiescoRoot 渲染里当 hook 调用最稳，QuiescoRoot 在容器内部）。
+  - `fork/NavigationContainer.js`：expo-router 总是在渲染容器前生成完整的初始 state（`getInitialState`，来自初始 URL）⇒ 挂载时 `getRootState()` 的快照就是「初始状态」。
+  - `router.dismissAll()` 只回到最近一个 stack 的第一页，不处理 tabs / 嵌套 ⇒ 不用它，用 `navigationRef.resetRoot(快照)`。
+- 示例 App 没碰到 #1：QuiescoRoot 包着 `<Stack>`（在 _layout 里），且场景大多从登录 / backdoor `router.push` 开始。示例 onReset 只清 todo 数据。
+- 历史坑（2026-11-07 findings）：软重置时 expo-router 会重挂根 layout，QuiescoRoot 卸载再挂载 ⇒ 已靠「延迟一个 tick 再 stop」解决；改 reset 时别破坏。
 
-## 共同环境（全部 issue）
-quiesco 0.1.1、Expo SDK 58（expo 58.0.25）、expo-router 58.0.31、RN 0.88.1、@cucumber/cucumber 13.3.0、Node 24、macOS、Xcode 27.2 / iOS 27.0 模拟器、web 用 @quiesco/web + Playwright 1.65（Chromium）。18 个场景的学生管理 App。
+### I.B 设计（草案）
+1. agent 新增 `navigation/expo-router.ts`：首次渲染 QuiescoRoot 时懒加载 `try { require('expo-router') }`，得到 `useNavigationContainerRef` 或 null（结果缓存，hook 调用顺序不变）。
+2. QuiescoRoot 把 ref 交给 runtime；runtime 在 ref ready 时存初始 root state 快照（挂载时未 ready 则等 ready；第一次 reset 时还没有就当场拍）。
+3. ResetManager：storage → onReset → **navigation（`resetRoot(快照)`）** → remount。
+4. 当前路由：从 root state 沿 focused route 取名字拼路径（去掉 `index`、`(group)`、`__root`），给 #2 / #9 共用。
+5. D2 校验：reset + idle 后当前路由 ≠ 快照路由 ⇒ reset 失败、信息写清；可选 `quiesco.config` 里配置一个必须可见的元素。
+6. D4：@quiesco/cucumber 记录每个失败场景的签名（失败 step 的错误 code + 去掉数字 / 时长的消息），连续 N（默认 3）个相同 ⇒ 打印提示（含当前路由），之后的场景在 Before 里返回 skipped。
 
-## 各 issue 要点
+### I.B 实测（2026-11-15）
+- **示例 App 复现不了 #1**：`examples/todo-app` 的 `App` 在 `store.restoreSession()` 完成前 `return null`，QuiescoRoot 重挂时 Stack 被完全卸载 ⇒ 容器里它的状态被丢掉、重建为初始。未修代码时新加的 `soft-reset.feature` 也通过。⇒ 用 issue 的布局（QuiescoRoot 下直接 `<Stack />`、无加载闸门）做复现。
+- 复现 App：复制 release 时的 smoke（create-expo-app，SDK 58，expo-router 58.0.31）到 scratchpad `ib/smoke`，_layout 改为 `QuiescoRoot > Stack`，index（testID home + go-details 按钮 push `/details`），4 个场景 A 停 details / B 期望 home / C / D。
+  - 0.1.0：web 1 passed / 3 failed（34.7s，每个等满 10s）⇒ 复现。
+- **expo-router 58 的容器没有 `resetRoot`**：`build/react-navigation/core/BaseNavigationContainer.js` 的 imperative handle 只有 CommonActions（navigate / reset / goBack …）、dispatch、getRootState、isReady（固定 true）等；`createNavigationContainerRef` 的包装也一样 ⇒ 用 `ref.reset(rootState)`（CommonActions.reset 发给根 navigator）。保留 `resetRoot` 优先（React Navigation 原版）。
+  - 修后：web 4/4 通过（1.5s）。
+- 「Requiring unknown module "8xx"」redbox 在修前修后都有（被忽略的 app error），与本修改无关。
 
-### #1 软重置不重置 Expo Router 导航状态（bug）
-- `app.reset()` 重挂 `<QuiescoRoot>` 下的树，但 expo-router 的导航状态在模块级 store，重挂后保留 ⇒ 上个场景停在 `/students/new`，下个场景也从那里开始；用户 18 个里 16 个失败。
-- web 上 `history.replaceState` 无效（store 仍持有旧栈）。
-- 用户的绕过：`quiesco.onReset(() => { if (router.canDismiss()) router.dismissAll(); })`，web + iOS 全过。
-- 建议：agent 自动回初始路由 / init 生成该钩子 + doctor 警告 / 至少写文档。
-
-### #2 目标在别的页面时失败信息误导
-- 实际报错带「the app was also still busy … frame-stable: no frame rendered yet (is the app in the foreground?)」，只等了 4ms；同一次失败的 idle-state.json 却显示全部 idle ⇒ 信息自相矛盾。
-- web 上 element-tree.json 基本是匿名 div，没用；截图才看出问题。
-- 建议：带当前路由；说明不可见的原因；busy 部分只在真忙时附加；精简元素树 artifact。
-
-### #3 旧 JS bundle 无提示
-- 用户用 `CI=1 EXPO_PUBLIC_QUIESCO=1 npx expo start`，Metro 不监听文件。只因新加的 backdoor 不存在才发现（「No backdoor named … Registered: …」这条信息被称赞有用）。
-- 建议：agent 连接时上报 bundle 身份；host 侧检测源码比 bundle 新 / Metro 不监听；doctor 在交互环境检测 `CI`。
-
-### #4 跨平台 goBack
-- iOS `pressBack` 报「not available on iOS: there is no system back button」（信息清楚）。用户写了平台分支：iOS 用 `swipe(from, 'right', { from: { x: 0.01, y: 0.5 } })` 边缘滑动。
-- native-stack header 的返回按钮是原生 view，没找到文档化的定位方式。
-- 建议：`app.goBack()`：Android 系统返回 / iOS 导航栏返回按钮否则边缘滑动 / Web history back。
-
-### #5 自动启动 Metro + quiesco build
-- 现在 iOS 要 4 步：prebuild、xcodebuild（derivedDataPath 必须与 `apps.ios.binaryPath` 一致）、一个终端 expo start、另一个终端 quiesco test。
-- 建议：像 Playwright `webServer` 一样管理 Metro（不可达则启动、复用已运行的、结束停止）；`quiesco build ios|android`，原生输入未变则跳过。
-
-### #6 backdoor 类型
-- `app.backdoor('students.set', students)`（`Student[]`，interface）⇒ TS2345：interface 无隐式索引签名，过不了 `JsonValue`。只能 `as never`。返回值 `backdoor<T>()` 不受检，名称与 App 注册的函数无关联。
-- 建议：`Jsonify<T>` 式检查；更好：声明合并 `declare module '@quiesco/agent' { interface Backdoors { … } }`。
-
-### #7 quiesco test --help 与前导 --
-- `quiesco test --help` 只打印「choose a platform with --platform …」。
-- `quiesco test --platform web -- --tags @debug` ⇒ `--` 原样转给 cucumber-js，之后全被当路径：`ENOENT … @debug`；`-- --name "…"` 则 name 过滤被丢、整套都跑。
-- 相关代码：`packages/cli/src/commands/test.ts`。
-
-### #8 生成的 cucumber.mjs
-- init 生成 `paths: ['features/**/*.feature']` ⇒ CLI 传单个文件时与配置合并，跑全部 feature，且 cucumber-js 打印弃用警告。`--tags` 正常。
-- 建议：不生成 `paths`（默认值就是 `features/**/*.feature`）。
-
-## 代码位置（初步）
-- CLI：`packages/cli/src/commands/`（test、init、doctor）
-- agent reset：`packages/agent/src/reset/`；backdoor：`packages/agent/src/backdoor.ts`、`json-check.ts`
-- 失败信息 / 同步：`packages/agent/src/sync/`、`packages/core/src/errors.ts`、`artifacts.ts`
-- 设备动作（pressBack / swipe）：`packages/core/src/devices/`
-- 待 I.B 起逐个确认。
+### I.B 回归（2026-11-15，I.C 实测时发现）
+- 示例 App iOS 全套：main 上 3 个场景通过（actions「长列表滚动…」、new-todo 两个），I.B 上失败：React Navigation dev toast「The action 'RESET' … was not handled by any navigator」盖住了底部的保存按钮 / 滚动区域。
+- 原因（expo-router 58，全部查源码确认）：
+  1. 根 navigator `navigator:root`（持有 `__root`）不处理 RESET ⇒ 要越过只有单一相同路由的层级，`dispatch({ type:'RESET', payload, target: <下层 navigator key> })`。
+  2. `react-navigation/routers/BaseRouter.js` 的 RESET 只接受**完整** state（key、routeNames、routeKeySeq、stale:false，且 routeNames 与当前 navigator 一致）；partial 只 console.warn「Partial states can no longer be completed during render」后 Unhandled。⇒ payload = 目标 navigator 当前 state + 初始 routes（只有 name / params，key 由 router 生成，嵌套 state 丢掉，子 navigator 回到各自初始页面）。
+  3. dispatch 进 routingQueue，在下一次渲染才 reduce（`RoutingQueueDrainer` 的 useEffect；dispatchSync 也是在渲染时）⇒ 若立刻 remount，示例 App 的加载闸门把 Stack 卸掉，目标 navigator 不在了 ⇒ unhandled。⇒ restore 改为 async：dispatch 后等 root state 变化（16ms 轮询，最多 1s，超时报错）再 remount。
+  4. 快照在示例 App 里是 Stack 挂载前拍的（expo-router 预生成的 state），key 与之后挂载的 navigator 不同 ⇒ 快照只存 partial（名字、params、index、嵌套），状态相同时不 dispatch。
+- smoke 复现 App 之前能过，是因为快照与 navigator 一致、根 reset 也恰好被接受。
+- 教训：只在复现 App 上验证不够，要跑示例 App 全套（尤其 iOS）。

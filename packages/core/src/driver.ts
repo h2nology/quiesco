@@ -423,6 +423,18 @@ export class Driver {
     return (await this.call('reset', {})).durationMs;
   }
 
+  /**
+   * The app's focused route (`/students/new`), or null when it has none (no Expo Router), when the agent is
+   * older than this host, or when it does not answer. For failure messages: never throws.
+   */
+  async currentRoute(): Promise<string | null> {
+    try {
+      return (await this.call('route', {})).route;
+    } catch {
+      return null;
+    }
+  }
+
   /** Take an app error reported between calls (the runner may fail the scenario with it). */
   takeAppError(): QuiescoError | null {
     const e = this.appErrors.shift();

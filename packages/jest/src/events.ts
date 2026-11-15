@@ -60,7 +60,8 @@ export async function handleEvent(lifecycle: Lifecycle, event: EventLike): Promi
   const test = event.test;
   if (test === undefined || !lifecycle.running) return;
   if (event.name === 'test_start') {
-    if (!lifecycle.runsHere(tagLevelsOf(test))) test.mode = 'skip';
+    // Also after repeated identical failures (bailOnRepeatedFailure, issue #9).
+    if (!lifecycle.runsHere(tagLevelsOf(test)) || lifecycle.bailedOut !== null) test.mode = 'skip';
   } else if (event.name === 'test_started') {
     try {
       await lifecycle.before(tagLevelsOf(test), fullName(test));
@@ -70,7 +71,7 @@ export async function handleEvent(lifecycle: Lifecycle, event: EventLike): Promi
   } else if (event.name === 'test_done') {
     const failed = test.errors.length > 0;
     try {
-      const { files } = await lifecycle.after({ tags: tagLevelsOf(test).flat(), failed });
+      const { files } = await lifecycle.after({ tags: tagLevelsOf(test).flat(), failed, error: test.errors[0] });
       if (failed) addEvidence(test, files);
     } catch (e) {
       test.errors.push(e);

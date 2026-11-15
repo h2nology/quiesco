@@ -41,6 +41,7 @@ import { FiberAdapter } from './fiber-adapter';
 import type { CompositeNode, FiberAdapterOptions, HostNode } from './fiber-adapter';
 import type { AppDeps } from './platform';
 import { defaultAppDeps } from './platform';
+import { NavigationReset } from './navigation';
 import { ResetManager } from './reset';
 import { defaultStorageAdapters } from './reset/storage-defaults';
 import { describeMatcher, findAll, getTree, isVisible, structureLines, summarize, toRegExp } from './query';
@@ -84,6 +85,8 @@ export class AgentRuntime {
   readonly events: EventForwarder;
   readonly backdoors = new BackdoorRegistry();
   readonly resets: ResetManager;
+  /** Expo Router's navigation state across soft resets (issue #1). */
+  readonly navigation = new NavigationReset();
   client: AgentClient | null = null;
   config: AgentConfig = {
     sync: {
@@ -334,11 +337,14 @@ export class AgentRuntime {
     },
     webview: async (p) => this.webview(p.matcher, p.script, p),
     scrollView: async (p) => this.scrollView(p.matcher, p.to, p, p.indicators),
+    route: async () => ({ route: this.navigation.current() }),
     reset: async () => {
       const start = this.clock.now();
-      await this.resets.run(this.remount);
+      await this.resets.run(this.remount, this.navigation.active ? () => this.navigation.restore((ms) => this.sleep(ms)) : undefined);
       await this.engine.waitForIdle({ timeoutMs: this.config.sync.timeoutMs });
-      return { durationMs: this.clock.now() - start };
+      const { route, problem } = this.navigation.verify();
+      if (problem !== null) throw new QuiescoError('RESET_FAILED', `Soft reset failed at navigation: ${problem}`, { step: 'navigation', message: problem });
+      return { durationMs: this.clock.now() - start, ...(route !== null ? { route } : {}) };
     },
   };
 

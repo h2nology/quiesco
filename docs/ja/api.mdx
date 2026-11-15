@@ -379,6 +379,8 @@ const { user } = quiesco.launchArgs() as { user?: string };
 
 バックドアとフックは、e2eビルドでだけimportされるモジュールに登録してください（`if (process.env.EXPO_PUBLIC_QUIESCO === '1') require('./e2e')`）。そうすれば、テスト用のコードは本番のバンドルに一切入りません。どの登録も、登録を解除する関数を返します。
 
+**ソフトリセットとナビゲーション。** Expo Routerを使うアプリでは、ソフトリセットはナビゲーションの状態もアプリ起動時の状態に戻します（`onReset`フックの後、再マウントの前）。プッシュした画面、タブ、ネストしたスタックで終わったシナリオがあっても、次のシナリオはその画面から始まりません。設定は不要です。リセットの後、アプリが実行中の最初のリセット後と同じルートにいるかを確認します。違う場合（リセットでクリアされなかった状態をもとに、アプリがマウント時に別の画面へ移動した場合）は、両方のルートを示して`RESET_FAILED`で失敗します。その状態を`onReset`でクリアするか、シナリオに`@hard-reset`タグを付けてください。Expo Routerを使わないアプリでは、設定の`reset.expectVisible`で要素を使って同じ確認ができます。
+
 ## 設定 {#configuration}
 
 プロジェクトルートの`quiesco.config.ts`です（`.mts`、`.js`、`.mjs`も使えます）。
@@ -424,6 +426,8 @@ export default defineConfig({
 | `actions.mode` | アプリに`@quiesco/native`があれば`native`、なければ`js` | 実際の入力か、コールバックか |
 | `actions.gestureSlop` | プラットフォームごと（[マルチタッチジェスチャー](#multi-finger-gestures)を参照） | `{ pinch, rotation }`：アプリの認識器が有効になるまでに指が動く距離 |
 | `reset.default` | `soft` | `hard`にすると各シナリオの前にアプリを再起動する |
+| `reset.expectVisible` | — | 毎回のリセット後に表示されているべき要素のマッチャー。例：`{ id: 'home' }`。表示されていなければ、シナリオの最初のステップではなくリセット自体が`RESET_FAILED`で失敗する |
+| `bailOnRepeatedFailure` | `3` | この数のシナリオが続けて同じ失敗（同じエラー）をしたら、現在のルートを含むヒントを表示し、残りをスキップする。`false`ならすべてのシナリオを実行する（ヒントは3回目で表示する） |
 | `server.port` / `server.host` | `7357` / すべてのインターフェース | ホスト側のWebSocketサーバー |
 | `connectTimeoutMs` | `30000` | 起動後にアプリの接続を待つ時間 |
 | `logLevel` | `warn` | テスト出力に転送するアプリのコンソールメッセージ（`off`で無効） |
@@ -458,7 +462,7 @@ export default defineConfig({
 | `ACTION_NOT_SUPPORTED` | 例：iOSでの`pressBack`、ネイティブモジュールなしでの`native`モード（ヒント付き） |
 | `BACKDOOR_NOT_REGISTERED` / `BACKDOOR_FAILED` / `NOT_SERIALIZABLE` | バックドアの問題。最初のものは登録済みの名前を、最後のものは問題のある値のパスを示します |
 | `APP_ERROR` | アプリ内のキャッチされないエラーで現在のステップが失敗した（既知のエラーを無視するには`appErrors`を参照） |
-| `RESET_FAILED` | ソフトリセットのどの手順が失敗したか（`storage:<name>`、`onReset#<n>`、`remount`） |
+| `RESET_FAILED` | リセットのどの手順が失敗したか（`storage:<name>`、`onReset#<n>`、`navigation`、`remount`、`expectVisible`） |
 | `PROTOCOL_MISMATCH` / `SESSION_MISMATCH` | エージェントとホストのバージョンが異なる / 別の実行のアプリが接続してきた |
 | `CONNECT_TIMEOUT` | 起動後にアプリが接続しなかった（メッセージにチェックリストがあります） |
 | `AGENT_TIMEOUT` | アプリが応答しなくなった。たいていはJSスレッドがブロックされています |

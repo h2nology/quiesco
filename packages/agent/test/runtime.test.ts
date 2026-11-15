@@ -383,6 +383,43 @@ describe('AgentRuntime', () => {
     await expect(drive(call('reset', {}))).rejects.toMatchObject({ errorName: 'RESET_FAILED', data: { step: 'remount' } });
   });
 
+  it('reset puts the Expo Router state back before the remount, reports the route and fails when the app wanders off (issue #1)', async () => {
+    const { rt, call } = setup();
+    const order: string[] = [];
+    const initial = { index: 0, routes: [{ name: '__root', state: { index: 0, routes: [{ name: 'index' }] } }] };
+    const pushed = { index: 0, routes: [{ name: '__root', state: { index: 1, routes: [{ name: 'index' }, { name: 'students/new' }] } }] };
+    let state: object = initial;
+    let redirect: object | null = null;
+    rt.navigation.setRef({
+      isReady: () => true,
+      getRootState: () => state as never,
+      resetRoot: (s) => {
+        order.push('navigation');
+        state = s as object;
+      },
+    });
+    rt.resets.onReset(() => void order.push('hook'));
+    rt.setRemount(() => {
+      order.push('remount');
+      if (redirect !== null) state = redirect; // e.g. a screen that navigates on mount from uncleared state
+    });
+    await expect(call('route', {})).resolves.toEqual({ route: '/' });
+    state = pushed;
+    await expect(call('route', {})).resolves.toEqual({ route: '/students/new' });
+    await expect(drive(call('reset', {}))).resolves.toEqual({ durationMs: expect.any(Number), route: '/' });
+    expect(order).toEqual(['hook', 'navigation', 'remount']);
+    expect(state).toEqual(initial);
+    redirect = pushed;
+    await expect(drive(call('reset', {}))).rejects.toMatchObject({ errorName: 'RESET_FAILED', data: { step: 'navigation', message: expect.stringMatching(/on \/students\/new after the soft reset, not on its initial route \//) } });
+  });
+
+  it('route is null and reset has no navigation step without Expo Router', async () => {
+    const { rt, call } = setup();
+    rt.setRemount(() => {});
+    await expect(call('route', {})).resolves.toEqual({ route: null });
+    await expect(drive(call('reset', {}))).resolves.toEqual({ durationMs: expect.any(Number) });
+  });
+
   it('native mode taps through @quiesco/native using the native view tag', async () => {
     const native = {
       getLaunchParams: () => ({ port: null, session: null }),
