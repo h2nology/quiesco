@@ -7,10 +7,10 @@
 3. cucumber / vitest / jest 三个 runner 全部支持；附测试、三语文档，在 examples/todo-app 上实跑验收。
 
 ## Current Phase
-P4
+P5
 
 ## Next Step
-P4：统一的 `listTests(runner)`（cucumber 编程 API dry-run、`vitest list --json`、jest collect-only + `QUIESCO_LIST=1` 跳过设备），放在 `@quiesco/ui` 还是 CLI 待定（倾向新包 `@quiesco/ui` 的服务端）。
+P5 开始前先做 P6 的第一步「设计先行」（ui-ux-pro-max）给 HU 确认，因为 UI 服务的 WebSocket 消息形状取决于界面要显示什么；然后建 `@quiesco/ui` 包（服务端：HTTP + WebSocket + 运行队列 + 证据文件接口）。
 
 ## 背景
 - 前置：0.2.0 已发布（`.planning/2026-11-14-issues-0-2/`）。
@@ -84,9 +84,15 @@ CLI (quiesco ui)    ── 事件 → WebSocket → 浏览器 (React)
 **Status:** complete
 
 ### P4 测试发现（UI 用）
-- [ ] 统一的 `listTests(runner)` → 文件 / 分组 / 测试树（cucumber dry-run，vitest list，jest 方案按 P0 结论）
-- [ ] 文件变化后重新发现（watch features / 测试文件）
-**Status:** in_progress
+- [x] 协议 `TestList`；各适配器 `@quiesco/<runner>/list` 入口（子进程，在项目里用项目自己的 runner），id 与 run events 一致
+  - cucumber：编程 API dry-run，formats / plugins 清空（不覆盖报告文件，已在 todo-app 确认）
+  - vitest：`createVitest` + `parseSpecifications` 静态解析（`test.each` 一项）
+  - jest：collect-only（`-t '(?!)'`、list reporter、no-op globalSetup/Teardown、`QUIESCO_LIST=1` 环境不启动设备）
+- [x] core `listTests()`（解析项目里的 list 入口、起子进程、读回 JSON；未安装时返回错误而非抛出）
+- [x] 新命令 `quiesco list [--runner] [--json] [runner 参数]`
+- [x] 测试 24 个（含三 runner 真实列出）；实跑 todo-app：cucumber 90、vitest 7、jest 7
+- [→P5] 文件变化后重新发现（UI 服务里 watch）
+**Status:** complete
 
 ### P5 UI 服务 `quiesco ui`
 - [ ] 命令：`quiesco ui --platform … [--runner …] [--port] [--open]`；只监听 127.0.0.1
@@ -95,7 +101,9 @@ CLI (quiesco ui)    ── 事件 → WebSocket → 浏览器 (React)
 - [ ] 运行队列：同一时间只跑一次（一个 session / 设备），运行中点击给出提示或排队
 - [ ] 证据文件接口（限制在 artifacts 目录，防路径穿越）
 - [ ] 新包 `@quiesco/ui`：`quiesco ui` 动态加载，未安装时提示 `npm i -D @quiesco/ui`
-**Status:** pending
+- [ ] 测试树：启动时 `listTests()`，测试文件变化时重新列出；运行结果按 id 合并（Vitest `.each` 静态项在该文件跑过后由真实结果替换）
+- [ ] 运行选中项：cucumber `path:line`（配置有 `paths` 时的处理）、vitest `file:line`（`.each` 单例加 `-t`）、jest `--runTestsByPath file -t '^…$'`
+**Status:** in_progress
 
 ### P6 UI 前端（React + Vite）
 - [ ] **设计先行**：用 `ui-ux-pro-max` 插件（skill `ui-ux-pro-max:ui-ux-pro-max`，必要时配合 `ui-ux-pro-max:design-system` 定 token）

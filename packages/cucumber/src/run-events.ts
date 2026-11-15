@@ -91,7 +91,7 @@ function errorOf(r: { message?: string; exception?: Exception }): RunError | und
 }
 
 /** Where each scenario / Examples row is, and the titles above it: [feature, rule?]. */
-class DocumentIndex {
+export class DocumentIndex {
   private readonly nodes = new Map<string, { line: number; parents: string[] }>();
 
   add(doc: DocumentLike): void {

@@ -164,3 +164,15 @@ export function createRunEventDecoder(onEvent: (event: RunEvent) => void, onInva
 export function emptyCounts(): RunCounts {
   return { passed: 0, failed: 0, skipped: 0, todo: 0, pending: 0, undefined: 0, notRun: 0 };
 }
+
+/**
+ * The tests a runner would run, listed without running them (`quiesco list`, the UI's test tree). Ids
+ * match the run events' test ids. Vitest lists `test.each` once (its rows appear after a run).
+ */
+export interface TestList {
+  runner: RunnerName;
+  files: readonly string[];
+  tests: readonly TestRef[];
+  /** Files that could not be listed (syntax error, error while collecting). */
+  errors: readonly { file?: string; message: string }[];
+}

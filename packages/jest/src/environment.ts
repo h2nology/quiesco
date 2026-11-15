@@ -36,6 +36,21 @@ export default class QuiescoEnvironment extends TestEnvironment {
 
   override async setup(): Promise<void> {
     await super.setup();
+    // `quiesco list` collects the tests without running them: no device.
+    if (process.env['QUIESCO_LIST'] === '1') {
+      const unavailable = (): never => {
+        throw new Error('quiesco is not available while listing tests');
+      };
+      this.global['quiesco'] = {
+        get app() {
+          return unavailable();
+        },
+        get session() {
+          return unavailable();
+        },
+      };
+      return;
+    }
     const lifecycle = await startShared(this.worker);
     this.lifecycle = lifecycle;
     this.global['quiesco'] = {

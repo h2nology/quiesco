@@ -50,6 +50,8 @@ export { CPU_GPU_MODES, WORKER_AVD, emulatorGpu, workerAvdName } from './devices
 export { RunEventServer, connectRunEvents, runEventsAddress } from './run-events.js';
 export type { ConnectOptions, RunEventClient, RunEventServerOptions } from './run-events.js';
 export { RUN_EVENTS_ENV, RUN_EVENTS_PROTOCOL, createRunEventDecoder, emptyCounts, encodeRunEvent, isRunEvent } from '@quiesco/protocol';
-export type { RunCounts, RunError, RunEvent, RunEventOf, RunEventType, RunEvents, RunnerName, TestRef, TestStatus } from '@quiesco/protocol';
+export type { RunCounts, RunError, RunEvent, RunEventOf, RunEventType, RunEvents, RunnerName, TestList, TestRef, TestStatus } from '@quiesco/protocol';
 export { RunState } from './run-state.js';
 export type { RunPhase, RunningTest, TestState } from './run-state.js';
+export { listEntry, listTests } from './run-list.js';
+export type { ListTestsOptions } from './run-list.js';

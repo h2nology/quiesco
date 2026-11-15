@@ -142,3 +142,11 @@ describe('RunEventServer + connectRunEvents', () => {
     await client.close();
   });
 });
+
+describe('listTests', () => {
+  it('reports an adapter that is not installed instead of throwing', async () => {
+    const { listTests } = await import('../src/run-list');
+    const list = await listTests({ runner: 'jest', cwd: '/' });
+    expect(list).toMatchObject({ runner: 'jest', tests: [], errors: [{ message: expect.stringContaining('@quiesco/jest is not installed') }] });
+  });
+});
