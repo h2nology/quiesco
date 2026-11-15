@@ -35,6 +35,11 @@ Quiesco warns when the app's JS bundle cannot have your latest changes: Metro st
 in the project (test code such as `features/`, `e2e/` or `*.test.ts`, and tool configs at the project root, do not count). Start Metro without `CI`, or build the bundle again. `quiesco doctor` also warns when `CI`
 is set in your terminal.
 
+When `quiesco test` uses a Metro it did not start and the agent cannot say how the bundle was built,
+it warns that this Metro runs with an unknown config: it was started before you upgraded Quiesco or added
+`withQuiesco()`, by another tool, or without `EXPO_PUBLIC_QUIESCO=1`. Restart it with
+`EXPO_PUBLIC_QUIESCO=1 npx expo start`, or stop it so that `quiesco test` starts its own.
+
 Metro without Watchman can miss file changes (after `git checkout`, or files written by scripts) and
 keep serving the old bundle. Restart Metro with `--clear`, or install Watchman. For Android release
 builds, Gradle does not notice changes in workspace packages: delete

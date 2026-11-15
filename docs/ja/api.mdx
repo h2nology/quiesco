@@ -144,6 +144,7 @@ await this.app.expect({ id: 'title' }).not.toHaveValue('');
 | `getIdleState()` | 各トラッカーの状態。今何がビジーかがわかります |
 | `backdoor(name, ...args)` | アプリに登録されたバックドアを呼び出します。引数と結果はJSON（interfaceも可）。`Backdoors`を宣言すると名前ごとに型が付きます（[型付きバックドア](#typed-backdoors)） |
 | `reset()` | ソフトリセット（Quiescoは各シナリオの前にこれを行います） |
+| `platform` | テスト対象のプラットフォーム：`'ios'`、`'android'`、`'web'`のいずれか。`QuiescoWorld`では`this.platform`、`session.platform`でも取得できます（[プラットフォームごとに異なるステップ](./driver-pattern#per-platform-steps)） |
 
 要素の概要には、`type`（ホストコンポーネント）、`semanticType`、`testID`、`text`、`label`、`role`、`value`、`checked`、`enabled`、`focused`、`rect`、`visible`、`visibleRatio`と、シリアライズ可能な`props`が含まれます。
 

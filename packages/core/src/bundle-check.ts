@@ -51,9 +51,54 @@ export function newestSource(root: string): { file: string; mtimeMs: number } | 
 
 const time = (ms: number): string => new Date(ms).toTimeString().slice(0, 8);
 
+/** Env var `quiesco test` / `quiesco ui` set when they use a Metro they did not start (its URL; issue #19). */
+export const REUSED_DEV_SERVER_ENV = 'QUIESCO_DEV_SERVER_REUSED';
+
+/** What explains a bundle the agent did not describe (issue #19). */
+export interface BundleContext {
+  /** The Metro the CLI found running and used, not started by Quiesco. */
+  reusedDevServer?: string;
+  /** Whether the project's metro.config.* uses withQuiesco(); null without a Metro config. */
+  metroConfigUsesQuiesco?: boolean | null;
+}
+
+/** Whether `root`'s metro.config.* mentions withQuiesco; null when there is no Metro config. */
+export function metroConfigUsesQuiesco(root: string): boolean | null {
+  for (const name of ['metro.config.js', 'metro.config.cjs', 'metro.config.mjs', 'metro.config.ts']) {
+    let text: string;
+    try {
+      text = fs.readFileSync(path.join(root, name), 'utf8');
+    } catch {
+      continue;
+    }
+    return text.includes('withQuiesco');
+  }
+  return null;
+}
+
+/**
+ * Why the bundle is unknown. Only `withQuiesco()` records the bundle, so an unknown one means either the
+ * project's Metro config lacks it, or the bundle was not built with this project's config as it is now:
+ * a Metro started before an upgrade, by another tool, or without EXPO_PUBLIC_QUIESCO=1.
+ */
+function unknownBundleReason(ctx: BundleContext): string {
+  if (ctx.metroConfigUsesQuiesco === false || ctx.metroConfigUsesQuiesco === null) return 'no withQuiesco() in metro.config.js';
+  if (ctx.reusedDevServer !== undefined) return `the Metro at ${ctx.reusedDevServer} was not started by Quiesco and runs with an unknown config`;
+  return 'built without the withQuiesco() in metro.config.js, e.g. before it was added or with an older Quiesco';
+}
+
+/**
+ * A warning for an unknown bundle from a Metro Quiesco did not start, when the project's config is fine
+ * (issue #19): pointing at metro.config.js sent people to the wrong file. Else null.
+ */
+export function unknownBundleWarning(bundle: BundleInfo | undefined, ctx: BundleContext): string | null {
+  if (bundle !== undefined || ctx.reusedDevServer === undefined || ctx.metroConfigUsesQuiesco !== true) return null;
+  return `The app's JS comes from the Metro dev server at ${ctx.reusedDevServer}, which Quiesco did not start, and it does not run with this project's metro.config.js as it is now (started before you upgraded Quiesco or added withQuiesco(), by another tool, or without EXPO_PUBLIC_QUIESCO=1): the app may run old code or the agent may be set up wrong. Restart it with EXPO_PUBLIC_QUIESCO=1 npx expo start, or stop it so that quiesco test starts its own.`;
+}
+
 /** `bundle built 10:02:11, Metro watching files` for the connection log line. */
-export function describeBundle(bundle: BundleInfo | undefined): string {
-  if (bundle === undefined) return 'bundle unknown (no withQuiesco() in metro.config.js)';
+export function describeBundle(bundle: BundleInfo | undefined, ctx: BundleContext = {}): string {
+  if (bundle === undefined) return `bundle unknown (${unknownBundleReason(ctx)})`;
   if (bundle.watching) return `Metro started ${time(bundle.builtAt)}, watching files`;
   return `bundle built ${time(bundle.builtAt)}, ${bundle.reason === 'CI' ? 'Metro not watching files (CI is set)' : 'a one-off export'}`;
 }

@@ -25,3 +25,11 @@
 - #21 init 改 tsconfig、support 注释、driver-pattern 文档新节；实测中发现并修复 `registerQuiesco({ world })` 的 TS2419。
 - 实测：web 计数器 3/3；去掉包裹 ⇒ CONNECT_TIMEOUT；dry-run 能报两类错误。
 - `pnpm check` exit 0（834 tests）。下一步：HU 确认提交 / PR，然后 J.C。
+
+## 2026-11-15 会话 1（续）：J.B 提交、J.C
+- J.B 提交（081380d + 3dd235d），PR #25（base fix/install-versions）。
+- J.C 分支 `fix/diagnostics`（叠在 J.B 上）。
+- #19：复用 Metro 经 env 告知 runner；bundle 未知时按原因给文案 + warn。
+- #22：Driver / Session / QuiescoWorld 的 `platform`。
+- 实测中发现 `init --packages` 的 pnpm overrides 写错位置（pnpm 10+ 不读 package.json 的 pnpm 字段），已修。
+- 实测 A / B 场景与 platform 均符合预期。`pnpm check` exit 0（838 tests）。

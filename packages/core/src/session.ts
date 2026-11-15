@@ -16,7 +16,8 @@ import type { DeviceProvider, LaunchParams, LaunchUrlHandling, WorkerInfo } from
 import { DeviceApi } from './device.js';
 import type { AppRunState, DeviceHost } from './device.js';
 import { Artifacts } from './artifacts.js';
-import { describeBundle, staleBundleWarning } from './bundle-check.js';
+import { REUSED_DEV_SERVER_ENV, describeBundle, metroConfigUsesQuiesco, staleBundleWarning, unknownBundleWarning } from './bundle-check.js';
+import type { BundleContext } from './bundle-check.js';
 import type { Attachment, ScenarioArtifacts } from './artifacts.js';
 import { Driver } from './driver.js';
 import { failureRects, highlight } from './screenshots.js';
@@ -124,6 +125,11 @@ export class Session {
   /** `app.device.setNetwork('offline')`: merged into every agent config sent (Phase 6.6). */
   private offline = false;
   private readonly defaultArgs: LaunchArgs;
+
+  /** The platform under test (issue #22). */
+  get platform(): Platform {
+    return this.provider.platform;
+  }
 
   private constructor(
     readonly config: QuiescoConfig,
@@ -324,12 +330,24 @@ export class Session {
   private readonly projectRoot = process.cwd();
   /** Bundles already checked (by build time): a reconnect of the same bundle is not checked again. */
   private readonly checkedBundles = new Set<number>();
+  /** The unknown-bundle warning (issue #19) is given once per session, not on every reconnect. */
+  private unknownBundleWarned = false;
 
   /** Issue #3: say when the app's JS bundle cannot have the project's latest changes. Once per bundle. */
   private checkBundle(conn: AgentConnection): void {
     const bundle = conn.info.bundle;
-    this.logger.debug(`app JS: ${describeBundle(bundle)}`);
-    if (bundle === undefined || this.checkedBundles.has(bundle.builtAt)) return;
+    const reused = process.env[REUSED_DEV_SERVER_ENV];
+    const context: BundleContext = { metroConfigUsesQuiesco: metroConfigUsesQuiesco(this.projectRoot), ...(reused !== undefined && reused !== '' ? { reusedDevServer: reused } : {}) };
+    this.logger.debug(`app JS: ${describeBundle(bundle, context)}`);
+    if (bundle === undefined) {
+      const warning = this.unknownBundleWarned ? null : unknownBundleWarning(bundle, context);
+      if (warning !== null) {
+        this.unknownBundleWarned = true;
+        this.logger.warn(warning);
+      }
+      return;
+    }
+    if (this.checkedBundles.has(bundle.builtAt)) return;
     this.checkedBundles.add(bundle.builtAt);
     const warning = staleBundleWarning(bundle, this.projectRoot);
     if (warning !== null) this.logger.warn(warning);

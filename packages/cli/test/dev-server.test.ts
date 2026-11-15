@@ -50,11 +50,14 @@ describe('the Metro dev server (issue #5)', () => {
     await s.stop();
     expect(m.spawned).toEqual([]);
     expect(m.ctx.lines.join('\n')).toContain('using the Metro dev server at http://localhost:8082');
+    // the runner learns it, so an unknown bundle blames that Metro rather than metro.config.js (issue #19)
+    expect(s.env).toEqual({ QUIESCO_DEV_SERVER_REUSED: 'http://localhost:8082' });
   });
 
   it('starts Metro with EXPO_PUBLIC_QUIESCO=1 on the configured port, waits for it, and stops it', async () => {
     const m = metro({ readyAfter: 3 });
     const s = await ensureDevServer(m.ctx, ios(), 'ios');
+    expect(s.env).toEqual({});
     expect(m.spawned).toHaveLength(1);
     expect(m.spawned[0]).toMatchObject({ command: 'npx', args: ['expo', 'start', '--port', '8082'], env: { EXPO_PUBLIC_QUIESCO: '1' } });
     expect(m.spawned[0]?.logFile).toMatch(/artifacts\/metro\.log$/);
@@ -94,5 +97,15 @@ describe('the Metro dev server (issue #5)', () => {
     expect(await testCommand(['--platform', 'ios'], m.ctx, { loadConfig: async () => ios() })).toBe(1);
     expect(runs).toEqual(['npx cucumber-js']);
     expect(m.stops()).toBe(1);
+  });
+
+  it('quiesco test tells the runner about a reused Metro, and only then (issue #19)', async () => {
+    for (const running of [true, false]) {
+      const m = metro(running ? { running: true } : { readyAfter: 1 });
+      const envs: (NodeJS.ProcessEnv | undefined)[] = [];
+      m.ctx.run = async (_command, _args, options) => (envs.push(options?.env), 0);
+      expect(await testCommand(['--platform', 'ios'], m.ctx, { loadConfig: async () => ios() })).toBe(0);
+      expect(envs[0]?.['QUIESCO_DEV_SERVER_REUSED']).toBe(running ? 'http://localhost:8082' : undefined);
+    }
   });
 });

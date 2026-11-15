@@ -196,7 +196,7 @@ node /path/to/quiesco/packages/cli/dist/bin.js init --packages /tmp/quiesco-pack
 ```
 
 `--packages` installs every Quiesco package from those tarballs and pins their dependencies on each
-other to them (`overrides` / `pnpm.overrides` / `resolutions`).
+other to them (npm `overrides`, yarn `resolutions`, pnpm `overrides` in `pnpm-workspace.yaml`).
 
 Developing Quiesco itself, including the documentation site and its translations:
 [CONTRIBUTING](CONTRIBUTING.md). Publishing: [releasing](docs/releasing.md). Requirements and design notes:

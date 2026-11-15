@@ -4,10 +4,10 @@
 解决 h2nology/quiesco 的 7 个 open issue（同一位用户在 Expo SDK 58 默认模板 + cucumber 项目上的实测反馈）。每个修复都附测试和三语文档，实跑验收后回复并关闭 issue，最后与 #16 的 Jest 列表排序修复一起发下一个版本。
 
 ## Current Phase
-J.B 完成，待提交 / PR
+J.C 完成，待提交 / PR
 
 ## Next Step
-HU 确认后提交 J.B 并开 PR（叠在 #24 上），然后开始 J.C（#19 复用 Metro 的提示、#22 `platform`）。
+HU 确认后提交 J.C 并开 PR（叠在 #25 上），然后开始 J.D（#18 date/time picker）。
 
 ## 背景
 - 前置：0.3.0 已发布；#16（Jest 列表排序）已合并、未发布（`.planning/2026-11-15-progress-and-ui/`）。
@@ -76,11 +76,15 @@ HU 确认后提交 J.B 并开 PR（叠在 #24 上），然后开始 J.C（#19 �
 - **Status:** complete（2026-11-15；分支 `fix/scaffold` 叠在 `fix/install-versions` 上，未提交）
 
 ### J.C 诊断与 API（#19、#22）
-- [ ] #19 `ensureDevServer` 返回是否复用；session 拿到这个信息；bundle 身份未知时：复用外部 Metro ⇒「<url> 的 Metro 不是 Quiesco 启动的，配置未知，请重启或停掉它」；否则保留原 metro.config.js 提示（可再用 init 的 `withQuiesco` 检测区分）
-- [ ] #22 `Session.platform`（公开只读）；`QuiescoWorld.platform`；`Driver.platform`；Vitest / Jest 通过 `app.platform` / `session.platform` 自然可用；类型 `'ios' | 'android' | 'web'`
-- [ ] #22 文档：driver-pattern（分平台分支示例）、api.mdx；`QUIESCO_PLATFORM` 写明是 CLI 设置的环境变量
-- [ ] 测试：bundle-check.test、dev-server.test、lifecycle / world 测试
-- **Status:** pending
+- [x] #19 `ensureDevServer` 复用外部 Metro 时返回 `env: { QUIESCO_DEV_SERVER_REUSED: <url> }`，test / ui 传给 runner
+- [x] #19 core：`describeBundle(bundle, context)` + `metroConfigUsesQuiesco(root)` + `unknownBundleWarning`；bundle 未知时按原因区分：项目没有 withQuiesco ⇒ 原文案；复用外部 Metro 且配置正确 ⇒「Metro … not started by Quiesco … unknown config」+ 每个 session 一次 warn（重启或停掉）；其他 ⇒「built without the withQuiesco() …」
+- [x] #22 `Driver.platform`、`Session.platform`、`QuiescoWorld.platform`（`'ios' | 'android' | 'web'`）；Vitest / Jest 通过 `app.platform` 可用
+- [x] 文档三语：api.mdx（查询表加 `platform`）、driver-pattern 新节 `#per-platform-steps`（含 `QUIESCO_PLATFORM` 说明）、troubleshooting「旧代码」节加复用 Metro 的说明
+- [x] 额外（实测发现）：`init --packages` 在 pnpm 下把 overrides 写进 package.json 的 `pnpm` 字段，pnpm 10+ 不再读取 ⇒ 间接依赖（core、protocol）装成 npm 上的版本。改为写入 `pnpm-workspace.yaml` 的 `overrides:`（已有 overrides 时报错并给出要加的内容）；README 同步。J.A / J.B 的验证不受影响（改动的包都是直接依赖 tarball，被间接装成 npm 版的 core 在那两阶段没有改动）
+- [x] 测试：bundle-check（#19 三种情况、metroConfigUsesQuiesco）、dev-server（env、test 传给 runner）、lifecycle（session / driver platform）、register-hooks（world.platform）、init（pnpm-workspace.yaml overrides）
+- [x] 实测（新 blank 项目 app19，修复后的 `init --packages` ⇒ core / protocol 只有 tarball 版）：A 先用无 withQuiesco 的配置以 EXPO_PUBLIC_QUIESCO=1 启动 Metro、再恢复配置 ⇒ 新文案 + warn，场景 2/2 通过；B 无 Metro ⇒ Quiesco 自行启动，「Metro started …, watching files」无警告，结束后停止；#22 step 中 `this.platform` / `this.app.platform` / `this.session.platform` 均为 `web`
+- [x] `pnpm check` exit 0（838 tests）；docs:check 通过
+- **Status:** complete（2026-11-15；分支 `fix/diagnostics` 叠在 `fix/scaffold` 上，未提交）
 
 ### J.D 日期时间 picker（#18）
 - [ ] agent `case 'date'` 读 `mode`：按 D3 合并到当前 `value`；`datetime` / `countdown` 不变；min/max 检查用合并后的值
@@ -107,6 +111,7 @@ HU 确认后提交 J.B 并开 PR（叠在 #24 上），然后开始 J.C（#19 �
 | D7 版本 | 0.4.0，全部完成并三端验收后发布 | HU 选择 |
 | D2 修正 | 缺 QuiescoRoot ⇒ doctor 一律 fail（不再按重置方式区分） | J.B 实测：没有 QuiescoRoot 时 agent 不连接，硬重置也跑不起来；HU 已知悉并同意提交（2026-11-15） |
 | J.A PR | #24（`fix/install-versions`） | 2026-11-15 |
+| J.B PR | #25（`fix/scaffold`，base `fix/install-versions`） | 2026-11-15 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
