@@ -28,7 +28,10 @@ describe('@quiesco/jest/reporter in a real Jest run', () => {
     const bin = path.join(path.dirname(require.resolve('jest/package.json')), 'bin', 'jest.js');
     let output = '';
     const code = await new Promise<number | null>((resolve) => {
-      const p = spawn(process.execPath, [bin, '--config', 'jest.config.cjs', '--runInBand', '--testLocationInResults'], { cwd, env: { ...process.env, ...server?.env(), CI: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
+      // Plain output to match on, also under FORCE_COLOR.
+      const childEnv: NodeJS.ProcessEnv = { ...process.env, ...server?.env(), CI: '1', NO_COLOR: '1' };
+      delete childEnv['FORCE_COLOR'];
+      const p = spawn(process.execPath, [bin, '--config', 'jest.config.cjs', '--runInBand', '--testLocationInResults'], { cwd, env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
       p.stdout.on('data', (d: Buffer) => (output += d.toString()));
       p.stderr.on('data', (d: Buffer) => (output += d.toString()));
       p.on('exit', resolve);
