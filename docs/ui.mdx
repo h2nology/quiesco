@@ -1,0 +1,68 @@
+---
+title: "Test UI"
+description: "Run tests from the browser with quiesco ui and watch them live: progress, failures and Quiesco's evidence."
+---
+
+`quiesco ui` opens a page in the browser with every test of the project. Click to run all tests, a file or
+a single test, and watch the run live: what is running on which device, what passed and failed, the error,
+and the evidence Quiesco saved at a failure (screenshot, element tree, idle state, logs).
+
+## Starting {#starting}
+
+```sh
+npm i -D @quiesco/ui
+npx quiesco ui --platform web
+npx quiesco ui --platform ios --runner vitest --config vitest.e2e.config.mts
+```
+
+It prints the page's address and opens it (`--no-open` does not). `--platform`, `--runner`, `--workers` and
+the runner's own arguments mean what they mean for [`quiesco test`](./cli#quiesco-test); the runner's
+arguments are used for every run and for listing the tests. `--port N` chooses the port (default: a free
+one). Ctrl-C stops it.
+
+While it runs, the Metro dev server stays up, so a run started from the page does not wait for it. The
+runner must send its progress, as for the [progress bar](./cli#quiesco-test): cucumber-js needs nothing,
+Vitest needs `quiescoPlugin()` and Jest the preset's reporter ([Jest and Vitest](./runners)).
+
+## The page {#the-page}
+
+- **Progress** — done / total, passed, failed and skipped, the time so far, and with several workers one
+  lane per device with the test it is running.
+- **Tests** — files and their tests as listed by the runner without running them (the same list as
+  [`quiesco list`](./cli#quiesco-list)), with each test's last result. Search by name, file or tag, filter by
+  status, sort by failures or duration. The list follows changes to the test files.
+- **Details** of the selected test — **Report**: the error, the expected / actual difference and the stack.
+  **Evidence**: the failure screenshot with the asserted element outlined, the element tree, the idle state
+  and the logs. **Console**: the test's own output (Vitest keeps console output per test, cucumber-js keeps
+  `this.log()`) and the runner's output. **Source**: the test file, read-only, with the test's line and the
+  failing line marked.
+
+Keyboard: `/` search, ↑ ↓ ← → in the tree, `r` runs the focused file or test, Ctrl/⌘ + Enter runs all,
+Ctrl/⌘ + . stops. The page is in English, 简体中文 or 日本語 (the browser's language, or the one chosen in
+the header), in a dark or a light theme.
+
+## Running tests {#running-tests}
+
+One run at a time: there is one device (or one per worker), so the run buttons wait until the current run
+ends. A run starts the runner the way `quiesco test` does, with the chosen tests added:
+
+| Runner | One file | Chosen tests |
+|---|---|---|
+| cucumber-js | `features/a.feature` | `features/a.feature:12:30` (Scenario or Examples row lines) |
+| Vitest | `e2e/a.test.ts` | `e2e/a.test.ts:5` per test |
+| Jest | `--runTestsByPath e2e/a.test.js` | the files and `-t '^(full name\|…)$'` |
+
+Stop ends the runner and its workers. Tests outside the chosen ones keep their last result (Vitest and Jest
+report them as skipped; the page ignores that).
+
+<Note>
+cucumber-js adds paths given on the command line to the `paths` of its config instead of replacing them, so
+with `paths` in `cucumber.mjs` a run of one test runs those paths too. Leave `paths` out of the config (as
+`quiesco init` does) and pass paths on the command line.
+</Note>
+
+## Security {#security}
+
+The page is served on `127.0.0.1` only. Its address carries a random token (kept in a cookie after the first
+visit); requests with another host or origin are refused. It serves files only from the artifacts directory
+(evidence) and the listed test files (source), never other files of the project.

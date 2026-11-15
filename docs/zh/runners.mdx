@@ -11,9 +11,9 @@ description: "在 Jest 或 Vitest 中使用 Quiesco，替代 Cucumber。"
 
 ```ts
 // vitest.config.ts
-import { quiesco } from '@quiesco/vitest/config';
+import { quiesco, quiescoPlugin } from '@quiesco/vitest/config';
 import { defineConfig } from 'vitest/config';
-export default defineConfig({ test: { ...quiesco(), include: ['e2e/**/*.test.ts'] } });
+export default defineConfig({ plugins: [quiescoPlugin()], test: { ...quiesco(), include: ['e2e/**/*.test.ts'] } });
 
 // e2e/todo.test.ts
 import { test } from '@quiesco/vitest';
@@ -27,7 +27,7 @@ test('a new todo appears at the top', async ({ app }) => {
 test('Android only', { tags: ['@android'] }, async ({ app }) => { /* … */ });
 ```
 
-`quiesco()` 让 App 在多个文件之间保持运行（`isolate: false`），逐个运行文件（或通过`quiesco({ workers: N })` 在 N 台设备上运行），并声明平台标签。
+`quiesco()` 让 App 在多个文件之间保持运行（`isolate: false`），逐个运行文件（或通过`quiesco({ workers: N })` 在 N 台设备上运行），并声明平台标签。`quiescoPlugin()` 把运行进度发给 `quiesco test` 的进度条和 `quiesco ui`；它只在由二者运行 Vitest 时才加上自己的 reporter，并保留你自己的 reporters。
 
 ## Jest {#jest}
 
@@ -43,8 +43,8 @@ test('a new todo appears at the top @ios', async () => {
 });
 ```
 
-平台标签写在测试或 `describe` 的标题中（Jest 没有测试选项）。
+平台标签写在测试或 `describe` 的标题中（Jest 没有测试选项）。preset 还会加上把运行进度发给 `quiesco test` 和 `quiesco ui` 的 reporter。如果配置里有自己的 `reporters`，会替换 preset 的：请在其中加上 `'@quiesco/jest/reporter'`（与 `'default'` 并列）。
 
 ## 运行 {#running}
 
-两者都用 `npx quiesco test --platform ios --runner vitest|jest` 运行。示例都在[examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e) 中；详情见[不使用 Cucumber 时如何使用 Quiesco](./api#using-quiesco-without-cucumber)，多台设备同时运行见[并行运行](./parallel)。
+两者都用 `npx quiesco test --platform ios --runner vitest|jest` 运行，也可以用 [`quiesco ui`](./ui) 在浏览器中运行。示例都在[examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e) 中；详情见[不使用 Cucumber 时如何使用 Quiesco](./api#using-quiesco-without-cucumber)，多台设备同时运行见[并行运行](./parallel)。

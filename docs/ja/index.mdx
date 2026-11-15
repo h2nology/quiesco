@@ -49,15 +49,16 @@ When('they add a todo {string}', async function (this: QuiescoWorld, title: stri
 
 | パッケージ | 内容 |
 |---|---|
-| `quiesco` | CLI：`init`、`test`、`doctor`、`tree`、`devices`（[CLI](./cli)） |
+| `quiesco` | CLI：`init`、`build`、`test`（進捗バー付き）、`ui`、`list`、`doctor`、`tree`、`devices`（[CLI](./cli)） |
 | `@quiesco/agent` | アプリ内エージェント：要素の検索、同期トラッカー、アクション、リセット、バックドア。Metro用の`withQuiesco()` |
 | `@quiesco/native` | iOS / Androidで実際のタッチとテキスト入力を行うExpoモジュール（e2eビルドのみ） |
 | `@quiesco/expo-plugin` | Config plugin：本番ビルドからネイティブモジュールを除外し、e2eビルドではローカル接続を許可する |
 | `@quiesco/core` | ホスト側：WebSocketサーバー、`Driver`（`this.app`）、セッション、iOS / Androidのデバイスプロバイダー。ランナーに依存しない |
 | `@quiesco/cucumber` | cucumber-jsのWorld（`this.app`）とライフサイクルフック |
-| `@quiesco/vitest` | Vitest：`app`フィクスチャー付きの`test`、`quiesco()`設定 |
+| `@quiesco/vitest` | Vitest：`app`フィクスチャー付きの`test`、`quiesco()`設定、`quiescoPlugin()` |
 | `@quiesco/jest` | Jest：Quiescoのテスト環境を含むプリセット、グローバルの`quiesco` |
 | `@quiesco/web` | Webのデバイスプロバイダー（Playwrightライブラリ） |
+| `@quiesco/ui` | `quiesco ui`の[テスト UI](./ui) |
 | `@quiesco/steps` | 中国語・日本語・英語の汎用ステップ（任意）。プロトタイピング専用（[ステップ](./steps)） |
 | `@quiesco/protocol` | エージェントとホストで共有する型と定数 |
 

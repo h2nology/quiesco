@@ -22,6 +22,11 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.jest, quiesco: 'readonly' } },
   },
   {
+    // The test UI's web app runs in the browser.
+    files: ['packages/ui/web/src/**/*.{ts,tsx}'],
+    languageOptions: { globals: { ...globals.browser } },
+  },
+  {
     files: ['**/*.cjs', '**/metro.config.js', '**/app.plugin.js'],
     languageOptions: { sourceType: 'commonjs' },
     rules: { '@typescript-eslint/no-require-imports': 'off' },

@@ -21,7 +21,7 @@ registerQuiesco({
     beforeScenario: async ({ tags }) => log.push(`reset ${tags.includes('@hard-reset') ? 'hard' : 'soft'}`),
     startScenario: async () => undefined,
     afterScenario: async ({ failed }) => ({
-      files: [],
+      files: failed ? ['/artifacts/fails-with-evidence/failure.png'] : [],
       attachments: failed
         ? [
             { data: Buffer.from('PNG'), mediaType: 'image/png', fileName: 'failure.png' },

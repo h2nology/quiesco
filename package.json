@@ -7,7 +7,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && pnpm --filter @quiesco/ui run build:web",
     "typecheck": "tsc -b --noEmit false && echo typecheck ok",
     "lint": "eslint .",
     "test": "vitest run",

@@ -518,7 +518,7 @@ export default defineConfig({
 
 | | Vitest（`@quiesco/vitest`） | Jest（`@quiesco/jest`） |
 |---|---|---|
-| セットアップ | `@quiesco/vitest/config`の`test: { ...quiesco() }` | `preset: '@quiesco/jest'`、`maxWorkers`、`testTimeout` |
+| セットアップ | `@quiesco/vitest/config`の`plugins: [quiescoPlugin()]`、`test: { ...quiesco() }` | `preset: '@quiesco/jest'`、`maxWorkers`、`testTimeout` |
 | Driver | `test('…', async ({ app, session }) => …)` | グローバルの`quiesco.app` / `quiesco.session` |
 | セッション | ワーカーごとに1つ：ワーカーフィクスチャー | ワーカープロセスごとに1つ：テスト環境が保持し、Jestがワーカーを終了するときに閉じます（in bandの場合はプリセットの`globalTeardown`で） |
 | プラットフォームタグ | `describe` / テストのタイトルと`{ tags }`（`quiesco()`が宣言） | `describe` / テストのタイトル |

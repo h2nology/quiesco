@@ -1,6 +1,6 @@
 ---
 title: "CLI"
-description: "quiesco 命令：init、test、doctor、tree 和 devices，以及全部选项。"
+description: "quiesco 命令：init、build、test、ui、list、devices、doctor 和 tree，以及全部选项。"
 ---
 
 ```sh
@@ -47,7 +47,29 @@ npx quiesco test --help
 
 设置 `QUIESCO_PLATFORM` 并运行项目的测试运行器——`cucumber-js`（默认）、`jest` 或 `vitest run`（`--runner`）；其余参数原样传给它。`--` 之后的参数也传给运行器，`--` 本身会被去掉，因此写在它之后的 Quiesco 选项名归运行器所有（`quiesco test -- --help` 显示运行器的帮助）。`--workers N` 运行 N 个 worker，每个使用自己的设备（[parallel.md](./parallel)）：对 cucumber-js 会变成 `--parallel N`，对 Jest 是 `--maxWorkers N`，对 Vitest 是 `--fileParallelism --maxWorkers N`（运行器自身的参数同样有效）。
 
+在终端中，运行器的输出照常向上滚动，最后一行始终显示进度条：已完成 / 总数、通过、失败与跳过的数量、已用时间，以及当前正在运行的测试（有多个 worker 时每台设备一个）。进度由运行器发送：`quiesco test` 会自动为 cucumber-js 加上 `@quiesco/cucumber` 的 formatter，Vitest 需要 `quiescoPlugin()`，Jest 由 preset 提供（[Jest 与 Vitest](./runners)）；没有接入时，运行结束会提示需要添加什么。`--no-progress` 或 `QUIESCO_PROGRESS=0` 可以关闭进度条；在 CI 中以及输出不是终端时它也会关闭。退出码就是运行器的退出码。
+
 当 App 从 Metro 加载 JS（`devClient.metroUrl`，或 `apps.web.url`）而那里没有响应时，`quiesco test` 会以 `EXPO_PUBLIC_QUIESCO=1` 启动 Metro（`npx expo start --port <port>`，输出写到 `artifacts/metro.log`），等待它就绪，并在运行器结束时（包括 Ctrl-C）停止它。已经在运行的 Metro 会直接使用。配置中的 `devServer` 可以修改命令和超时时间，或关闭这一行为（`autoStart: false`）。直接运行运行器（`npx cucumber-js`）时不会启动 Metro。
+
+## `quiesco ui` {#quiesco-ui}
+
+```sh
+npx quiesco ui --platform web
+npx quiesco ui --platform ios --runner vitest --config vitest.e2e.config.mts --port 5173
+npx quiesco ui --help
+```
+
+在浏览器中打开[测试 UI](./ui)：项目里的测试、点一下即可运行全部 / 某个文件 / 单个测试、实时进度，以及失败和对应的证据。需要在项目中安装 `@quiesco/ui`。`--platform`、`--runner`、`--workers` 和运行器的参数与 `quiesco test` 相同；`--port N` 指定端口，`--no-open` 不自动打开浏览器。运行期间 Metro 保持启动；按 Ctrl-C 停止。
+
+## `quiesco list` {#quiesco-list}
+
+```sh
+npx quiesco list
+npx quiesco list features/login.feature
+npx quiesco list --runner vitest --config vitest.e2e.config.mts --json
+```
+
+按文件列出运行器将会运行的测试及其行号，既不运行测试，也不启动设备。cucumber-js 会做一次去掉报告格式的 dry run（报告文件保持不变），Vitest 会解析测试文件，Jest 会在不使用 Quiesco 测试环境和项目 global setup 的情况下收集测试（setup files 仍会运行）。`--json` 输出列表，其中的测试 id 与进度条和测试 UI 使用的一致。什么都无法列出时，退出码为 1。
 
 ## `quiesco devices` {#quiesco-devices}
 

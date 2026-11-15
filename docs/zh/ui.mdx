@@ -1,0 +1,46 @@
+---
+title: "测试 UI"
+description: "用 quiesco ui 在浏览器里运行测试并实时查看：进度、失败以及 Quiesco 的证据。"
+---
+
+`quiesco ui` 会在浏览器里打开一个页面，列出项目里的所有测试。点一下就能运行全部测试、某个文件或单个测试，并实时查看运行情况：哪台设备正在跑什么、哪些通过哪些失败、错误信息，以及失败时 Quiesco 保存的证据（截图、元素树、空闲状态、日志）。
+
+## 启动 {#starting}
+
+```sh
+npm i -D @quiesco/ui
+npx quiesco ui --platform web
+npx quiesco ui --platform ios --runner vitest --config vitest.e2e.config.mts
+```
+
+它会打印页面地址并自动打开（`--no-open` 则不打开）。`--platform`、`--runner`、`--workers` 以及运行器自己的参数，含义和 [`quiesco test`](./cli#quiesco-test) 相同；运行器的参数用于每次运行，也用于列出测试。`--port N` 指定端口（默认使用空闲端口）。按 Ctrl-C 停止。
+
+运行期间 Metro 开发服务器一直保持启动，所以从页面发起的运行不必等待它。运行器需要发送运行进度，这一点和[进度条](./cli#quiesco-test)相同：cucumber-js 无需任何设置，Vitest 需要 `quiescoPlugin()`，Jest 需要 preset 自带的 reporter（[Jest 与 Vitest](./runners)）。
+
+## 页面 {#the-page}
+
+- **进度** —— 已完成 / 总数、通过、失败与跳过的数量、已用时间；有多个 worker 时，每台设备一条泳道，显示它正在跑的测试。
+- **测试** —— 运行器在不执行测试的情况下列出的文件和测试（与 [`quiesco list`](./cli#quiesco-list) 相同），附带每个测试最近一次的结果。可以按名称、文件或标签搜索，按状态过滤，按失败或耗时排序。测试文件有改动时列表会自动更新。
+- 所选测试的**详情** —— **报告**：错误信息、期望值与实际值的差异、堆栈。**证据**：标出断言元素的失败截图、元素树、空闲状态和日志。**控制台**：测试自己的输出（Vitest 按测试保留控制台输出，cucumber-js 保留 `this.log()`）以及运行器的输出。**源码**：只读的测试文件，标出测试所在行和失败行。
+
+键盘：`/` 搜索，测试树中用 ↑ ↓ ← → 移动，`r` 运行焦点所在的文件或测试，Ctrl/⌘ + Enter 运行全部，Ctrl/⌘ + . 停止。页面支持 English、简体中文和日本語（跟随浏览器语言，也可以在顶栏切换），以及暗色和亮色两种主题。
+
+## 运行测试 {#running-tests}
+
+同一时间只运行一次：设备只有一台（或每个 worker 一台），所以当前运行结束之前，运行按钮不可用。每次运行都和 `quiesco test` 一样启动运行器，再加上所选的测试：
+
+| 运行器 | 一个文件 | 所选测试 |
+|---|---|---|
+| cucumber-js | `features/a.feature` | `features/a.feature:12:30`（Scenario 或 Examples 行的行号） |
+| Vitest | `e2e/a.test.ts` | 每个测试一个 `e2e/a.test.ts:5` |
+| Jest | `--runTestsByPath e2e/a.test.js` | 这些文件加上 `-t '^(full name\|…)$'` |
+
+停止会结束运行器及其 worker。所选范围之外的测试保留各自最近一次的结果（Vitest 和 Jest 会把它们报告为跳过，页面会忽略这些报告）。
+
+<Note>
+cucumber-js 会把命令行给出的路径追加到配置的 `paths` 上，而不是替换它们。所以如果 `cucumber.mjs` 里写了 `paths`，运行单个测试时也会把这些路径一起跑。请不要在配置里写 `paths`（`quiesco init` 也不会写），改为在命令行上传入路径。
+</Note>
+
+## 安全 {#security}
+
+页面只在 `127.0.0.1` 上提供。页面地址带有一个随机 token（首次访问后保存在 cookie 中）；Host 或 Origin 不符的请求会被拒绝。它只提供 artifacts 目录里的文件（证据）和已列出的测试文件（源码），不会提供项目里的其他文件。

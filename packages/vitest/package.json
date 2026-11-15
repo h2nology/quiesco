@@ -37,6 +37,14 @@
     "./config": {
       "types": "./dist/config.d.ts",
       "import": "./dist/config.js"
+    },
+    "./reporter": {
+      "types": "./dist/reporter.d.ts",
+      "import": "./dist/reporter.js"
+    },
+    "./list": {
+      "types": "./dist/list-main.d.ts",
+      "default": "./dist/list-main.js"
     }
   },
   "files": [

@@ -11,9 +11,9 @@ description: "Cucumberの代わりにJestやVitestからQuiescoを使います�
 
 ```ts
 // vitest.config.ts
-import { quiesco } from '@quiesco/vitest/config';
+import { quiesco, quiescoPlugin } from '@quiesco/vitest/config';
 import { defineConfig } from 'vitest/config';
-export default defineConfig({ test: { ...quiesco(), include: ['e2e/**/*.test.ts'] } });
+export default defineConfig({ plugins: [quiescoPlugin()], test: { ...quiesco(), include: ['e2e/**/*.test.ts'] } });
 
 // e2e/todo.test.ts
 import { test } from '@quiesco/vitest';
@@ -27,7 +27,7 @@ test('a new todo appears at the top', async ({ app }) => {
 test('Android only', { tags: ['@android'] }, async ({ app }) => { /* … */ });
 ```
 
-`quiesco()`はファイルをまたいでアプリを保持し（`isolate: false`）、ファイルを1つずつ実行し（`quiesco({ workers: N })`ならN台のデバイスで実行）、プラットフォームタグを宣言します。
+`quiesco()`はファイルをまたいでアプリを保持し（`isolate: false`）、ファイルを1つずつ実行し（`quiesco({ workers: N })`ならN台のデバイスで実行）、プラットフォームタグを宣言します。`quiescoPlugin()`は実行の進捗を`quiesco test`の進捗バーと`quiesco ui`に送ります。レポーターを追加するのはこの2つがVitestを実行するときだけで、自分で設定したレポーターもそのまま残ります。
 
 ## Jest {#jest}
 
@@ -43,8 +43,8 @@ test('a new todo appears at the top @ios', async () => {
 });
 ```
 
-プラットフォームタグはテストまたは`describe`のタイトルに書きます（Jestにはテストオプションがないため）。
+プラットフォームタグはテストまたは`describe`のタイトルに書きます（Jestにはテストオプションがないため）。プリセットは、実行の進捗を`quiesco test`と`quiesco ui`に送るレポーターも追加します。設定に独自の`reporters`があるとプリセットのものを置き換えるので、そこに`'@quiesco/jest/reporter'`を追加してください（`'default'`と並べて）。
 
 ## 実行 {#running}
 
-どちらも`npx quiesco test --platform ios --runner vitest|jest`で実行します。両方のサンプルが[examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e)にあります。詳しくは[CucumberなしでQuiescoを使う](./api#using-quiesco-without-cucumber)を、複数のデバイスで同時に実行する方法は[並列実行](./parallel)を参照してください。
+どちらも`npx quiesco test --platform ios --runner vitest|jest`で実行するか、[`quiesco ui`](./ui)を使ってブラウザから実行します。両方のサンプルが[examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e)にあります。詳しくは[CucumberなしでQuiescoを使う](./api#using-quiesco-without-cucumber)を、複数のデバイスで同時に実行する方法は[並列実行](./parallel)を参照してください。

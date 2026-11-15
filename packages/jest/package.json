@@ -43,6 +43,14 @@
       "types": "./dist/teardown.d.ts",
       "import": "./dist/teardown.js"
     },
+    "./reporter": {
+      "types": "./dist/reporter.d.ts",
+      "default": "./dist/reporter.js"
+    },
+    "./list": {
+      "types": "./dist/list-main.d.ts",
+      "default": "./dist/list-main.js"
+    },
     "./jest-preset": "./jest-preset.cjs"
   },
   "files": [
