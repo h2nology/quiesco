@@ -32,9 +32,11 @@ npx quiesco test --platform web
 npx quiesco test --platform android --tags @smoke features/login.feature
 npx quiesco test --platform ios --runner vitest --config vitest.e2e.config.mts
 npx quiesco test --platform web --runner jest e2e/todo.test.js
+npx quiesco test --platform web -- --tags @debug
+npx quiesco test --help
 ```
 
-设置 `QUIESCO_PLATFORM` 并运行项目的测试运行器——`cucumber-js`（默认）、`jest` 或 `vitest run`（`--runner`）；其余参数原样传给它。`--workers N` 运行 N 个 worker，每个使用自己的设备（[parallel.md](./parallel)）：对 cucumber-js 会变成 `--parallel N`，对 Jest 是 `--maxWorkers N`，对 Vitest 是 `--fileParallelism --maxWorkers N`（运行器自身的参数同样有效）。
+设置 `QUIESCO_PLATFORM` 并运行项目的测试运行器——`cucumber-js`（默认）、`jest` 或 `vitest run`（`--runner`）；其余参数原样传给它。`--` 之后的参数也传给运行器，`--` 本身会被去掉，因此写在它之后的 Quiesco 选项名归运行器所有（`quiesco test -- --help` 显示运行器的帮助）。`--workers N` 运行 N 个 worker，每个使用自己的设备（[parallel.md](./parallel)）：对 cucumber-js 会变成 `--parallel N`，对 Jest 是 `--maxWorkers N`，对 Vitest 是 `--fileParallelism --maxWorkers N`（运行器自身的参数同样有效）。
 
 ## `quiesco devices` {#quiesco-devices}
 
