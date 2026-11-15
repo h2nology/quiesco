@@ -400,6 +400,8 @@ declare module '@quiesco/agent' {
 
 実行時にしか分からない名前（featureの文から取った名前など）は、`name as keyof Backdoors`で絞り込みます（`import type { Backdoors } from '@quiesco/core'`）。
 
+テストのtsconfigにそのファイルが含まれないときは、`import type {} from '../../src/backdoors'`で取り込みます。通常の`import '../../src/backdoors'`は、cucumber-jsがステップを実行するときに失敗します。Nodeにはファイル拡張子が必要で、しかもそのファイルには型しかないためです。
+
 ## 設定 {#configuration}
 
 プロジェクトルートの`quiesco.config.ts`です（`.mts`、`.js`、`.mjs`も使えます）。

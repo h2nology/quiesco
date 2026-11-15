@@ -399,6 +399,8 @@ declare module '@quiesco/agent' {
 
 只有运行时才知道的名称（例如取自 feature 文本）用 `name as keyof Backdoors` 收窄（`import type { Backdoors } from '@quiesco/core'`）。
 
+测试的 tsconfig 不包含该文件时，用 `import type {} from '../../src/backdoors'` 引入。普通的 `import '../../src/backdoors'` 在 cucumber-js 运行步骤时会失败：Node 需要文件扩展名，而该文件里只有类型。
+
 ## 配置 {#configuration}
 
 项目根目录下的 `quiesco.config.ts`（`.mts`、`.js` 和 `.mjs` 也可以）：

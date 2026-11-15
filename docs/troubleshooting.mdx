@@ -30,7 +30,7 @@ the first import of the entry file.
 
 Quiesco warns when the app's JS bundle cannot have your latest changes: Metro started with `CI` set
 (Expo then starts it without a file watcher), or a one-off bundle (`expo export`) older than a source file
-in the project. Start Metro without `CI`, or build the bundle again. `quiesco doctor` also warns when `CI`
+in the project (test code such as `features/`, `e2e/` or `*.test.ts`, and tool configs at the project root, do not count). Start Metro without `CI`, or build the bundle again. `quiesco doctor` also warns when `CI`
 is set in your terminal.
 
 Metro without Watchman can miss file changes (after `git checkout`, or files written by scripts) and
