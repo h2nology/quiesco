@@ -4,10 +4,10 @@
 解决 h2nology/quiesco 的 7 个 open issue（同一位用户在 Expo SDK 58 默认模板 + cucumber 项目上的实测反馈）。每个修复都附测试和三语文档，实跑验收后回复并关闭 issue，最后与 #16 的 Jest 列表排序修复一起发下一个版本。
 
 ## Current Phase
-J.C 完成，待提交 / PR
+J.D 完成，待提交 / PR
 
 ## Next Step
-HU 确认后提交 J.C 并开 PR（叠在 #25 上），然后开始 J.D（#18 date/time picker）。
+HU 确认后提交 J.D 并开 PR（叠在 #26 上），然后开始 J.E（集成分支三端全套验收、发布 0.4.0、回复并关闭 issue）。
 
 ## 背景
 - 前置：0.3.0 已发布；#16（Jest 列表排序）已合并、未发布（`.planning/2026-11-15-progress-and-ui/`）。
@@ -87,13 +87,17 @@ HU 确认后提交 J.C 并开 PR（叠在 #25 上），然后开始 J.D（#18 da
 - **Status:** complete（2026-11-15；分支 `fix/diagnostics` 叠在 `fix/scaffold` 上，未提交）
 
 ### J.D 日期时间 picker（#18）
-- [ ] agent `case 'date'` 读 `mode`：按 D3 合并到当前 `value`；`datetime` / `countdown` 不变；min/max 检查用合并后的值
-- [ ] protocol / driver：接受 time / date 字符串（按 D3）；类型更新
-- [ ] `expectValue` 对 date picker：semantic 层给出 Date 值，按 mode 比较；文档写明返回 / 比较规则（本地时间）
-- [ ] 示例 App：加一个 date + time 两步选择的场景（Android 两个对话框，iOS inline）作为回归
-- [ ] 测试：values.test；三语 api.mdx
-- [ ] 实测：示例场景 web / iOS / Android 全过
-- **Status:** pending
+- [x] 查证原生行为（datetimepicker 9.2.1 Android 源码）：日期对话框 = 选中的年月日 + value 的时分，秒 / 毫秒归 0；时间对话框 = value 的年月日 + 选中的时分，秒 / 毫秒归 0；时区 = `timeZoneOffsetInMinutes` / `timeZoneName` / 设备时区。⇒ D3「date 模式保留时间」细化为「保留时分、秒归 0」（与原生一致）
+- [x] 新模块 `packages/agent/src/date-value.ts`：pickerMode / pickerOffset / parseLocal / resolvePickerDate / formatPickerValue / pickerValueMatches
+- [x] setValue：js 路径（value.ts `pickerDate`）与 iOS 滚轮路径（native.ts）都按 mode 合并；接受 `"2031-12-24"` / `"20:15"`（`"20:15:30"`）/ `"2031-12-24T20:15"`；mode 不匹配的字符串、无效日期、countdown + 字符串 ⇒ ACTION_NOT_SUPPORTED（说明可用写法）；min/max 检查合并后的值
+- [x] 值：日期 / 时间选择器的 element value = 显示的本地字符串（date `2031-12-24`、time `20:15`、datetime `2031-12-24T20:15`，秒非 0 时带 `:ss`；尊重 timeZoneOffsetInMinutes）；`expectValue` 接受这个字符串或 Date（按显示的部分比较，设备本地时间）；Driver.expectValue 类型加 Date
+- [x] 未支持：`timeZoneName`（按设备时区处理）
+- [x] 文档三语：api.mdx 值控件表、新小节 `#date-and-time-pickers`、expectValue 行
+- [x] 示例 App：DateField 加 `mode`（web 版改为只改对应部分，原来改日期会丢时间）；值控件页新增「截止日期 + 截止时间」共用一个 Date；values.feature 新增 2 个场景（分开选；`@ios @web` 读取时间选择器的值）
+- [x] 测试：values.test（#18 全部规则）、semantic.test（element value、Date 比较）、runtime.test、core expect.test
+- [x] 实测 values.feature：web 11/11；iOS 11/11（真实滚轮，date / time 两种 mode，expectValue "07:05"）；Android 10 通过 + 1 按标签跳过（issue 场景：先日期后时间，日期保留）
+- [x] `pnpm check` exit 0（840 tests）；docs:check 通过
+- **Status:** complete（2026-11-15；分支 `fix/date-picker` 叠在 `fix/diagnostics` 上，未提交）
 
 ### J.E 集成验收与发布
 - [ ] 集成分支上示例 App 全套 web / iOS / Android（长跑用 caffeinate）
@@ -112,6 +116,8 @@ HU 确认后提交 J.C 并开 PR（叠在 #25 上），然后开始 J.D（#18 da
 | D2 修正 | 缺 QuiescoRoot ⇒ doctor 一律 fail（不再按重置方式区分） | J.B 实测：没有 QuiescoRoot 时 agent 不连接，硬重置也跑不起来；HU 已知悉并同意提交（2026-11-15） |
 | J.A PR | #24（`fix/install-versions`） | 2026-11-15 |
 | J.B PR | #25（`fix/scaffold`，base `fix/install-versions`） | 2026-11-15 |
+| J.C PR | #26（`fix/diagnostics`，base `fix/scaffold`） | 2026-11-15 |
+| D3 细化 | date 模式保留时分、秒归 0；time 模式保留日期（Date 输入时秒归 0，字符串可带秒） | 与 datetimepicker 原生对话框一致（J.D 查证） |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
