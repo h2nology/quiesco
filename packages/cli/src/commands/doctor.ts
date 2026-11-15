@@ -11,6 +11,7 @@ import { loadConfig, serverPort } from '@quiesco/core';
 
 import type { CliContext, CliPlatform } from '../context.js';
 import { PLATFORMS, parsePlatform, takeOption } from '../context.js';
+import { CLI_COMMANDS, installedVersion, isQuiescoPackage, scriptCommands } from '../packages.js';
 
 export type CheckStatus = 'ok' | 'warn' | 'fail';
 
@@ -31,6 +32,7 @@ const ICON: Record<CheckStatus, string> = { ok: '✅', warn: '⚠️ ', fail: '�
 
 interface PackageJson {
   main?: string;
+  scripts?: Record<string, string>;
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
 }
@@ -83,6 +85,8 @@ function projectChecks(ctx: CliContext): CheckResult[] {
       : { name: 'Quiesco packages', status: 'fail', detail: `missing ${missing.join(', ')}`, fix: 'Run `npx quiesco init`, or install them.' },
   );
 
+  results.push(...versionChecks(ctx, pkg));
+
   const appJson = readJson<{ expo?: { plugins?: unknown[] } }>(ctx, path.join(ctx.cwd, 'app.json'));
   const plugins = appJson?.expo?.plugins ?? [];
   const listed = plugins.some((p) => p === '@quiesco/expo-plugin' || (Array.isArray(p) && p[0] === '@quiesco/expo-plugin'));
@@ -129,6 +133,67 @@ function projectChecks(ctx: CliContext): CheckResult[] {
     );
   }
   return results;
+}
+
+/**
+ * Issue #17: every Quiesco package in package.json is installed at one version, and every `quiesco <cmd>`
+ * in the scripts exists in it.
+ */
+function versionChecks(ctx: CliContext, pkg: PackageJson): CheckResult[] {
+  const results: CheckResult[] = [];
+  const names = [...new Set([...Object.keys(pkg.dependencies ?? {}), ...Object.keys(pkg.devDependencies ?? {})])].filter(isQuiescoPackage).sort();
+  if (names.length === 0) return results;
+  const installed = names.map((name) => ({ name, version: installedVersion(ctx, name) }));
+  const missing = installed.filter((p) => p.version === null).map((p) => p.name);
+  const versions = [...new Set(installed.flatMap((p) => (p.version !== null ? [p.version] : [])))];
+  const list = installed.map((p) => `${p.name} ${p.version ?? '(not installed)'}`).join(', ');
+  let project: string | undefined;
+  if (missing.length > 0) {
+    results.push({ name: 'Quiesco versions', status: 'fail', detail: `not installed: ${missing.join(', ')}`, fix: 'Install the dependencies (npm install / pnpm install).' });
+  } else if (versions.length > 1) {
+    const newest = [...versions].sort(compareVersions).at(-1) as string;
+    results.push({
+      name: 'Quiesco versions',
+      status: 'fail',
+      detail: `different versions: ${list}`,
+      fix: `Quiesco's packages are released together and only work with the same version. Install one version of all of them, e.g. ${names.map((n) => `${n}@${newest}`).join(' ')}.`,
+    });
+  } else {
+    project = versions[0] as string;
+    results.push(
+      project === ctx.version
+        ? { name: 'Quiesco versions', status: 'ok', detail: `${names.length} packages at ${project}` }
+        : {
+            name: 'Quiesco versions',
+            status: 'warn',
+            detail: `the project has ${project}; this doctor is ${ctx.version}`,
+            fix: "Run the project's own CLI (npx quiesco doctor in the project directory), or upgrade the project's Quiesco packages to the same version.",
+          },
+    );
+  }
+  const unknown = scriptCommands(pkg.scripts).filter((c) => !(CLI_COMMANDS as readonly string[]).includes(c.command));
+  if (unknown.length > 0) {
+    results.push({
+      name: 'scripts',
+      status: 'fail',
+      detail: unknown.map((c) => `"${c.script}" runs \`quiesco ${c.command}\``).join(', '),
+      fix: `quiesco ${ctx.version} has no such command (it has ${CLI_COMMANDS.join(', ')}). ${project !== undefined && project !== ctx.version ? `The project has Quiesco ${project}; upgrade it, or ` : ''}Fix the script.`,
+    });
+  }
+  return results;
+}
+
+/** Numeric semver order (prerelease tags compare as text). */
+function compareVersions(a: string, b: string): number {
+  const pa = a.split(/[.-]/);
+  const pb = b.split(/[.-]/);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] ?? '';
+    const y = pb[i] ?? '';
+    const d = /^\d+$/.test(x) && /^\d+$/.test(y) ? Number(x) - Number(y) : x.localeCompare(y);
+    if (d !== 0) return d;
+  }
+  return 0;
 }
 
 function rootCheck(ctx: CliContext, files: readonly string[]): CheckResult {

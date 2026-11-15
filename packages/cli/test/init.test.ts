@@ -15,9 +15,11 @@ describe('quiesco init', () => {
     expect(await main(['init'], ctx)).toBe(0);
     // dependencies with npm (package-lock.json), web included because react-native-web is installed
     expect(ctx.calls.map((c) => `${c.command} ${c.args.join(' ')}`)).toEqual([
-      'npm install @quiesco/agent @quiesco/native',
-      'npm install --save-dev quiesco @quiesco/core @quiesco/cucumber @quiesco/expo-plugin @cucumber/cucumber @quiesco/web playwright',
+      // the CLI's own version, not whatever the registry metadata calls latest (issue #17)
+      'npm install @quiesco/agent@9.9.9 @quiesco/native@9.9.9',
+      'npm install --save-dev quiesco@9.9.9 @quiesco/core@9.9.9 @quiesco/cucumber@9.9.9 @quiesco/expo-plugin@9.9.9 @cucumber/cucumber @quiesco/web@9.9.9 playwright',
     ]);
+    expect(ctx.lines.join('\n')).toMatch(/\$ versions — 7 Quiesco packages at 9\.9\.9/);
     expect(JSON.parse(ctx.file('app.json') as string).expo.plugins).toEqual(['expo-router', '@quiesco/expo-plugin']);
     expect(ctx.file('metro.config.js')).toContain('withQuiesco(getDefaultConfig(__dirname))');
     expect(ctx.file('index.ts')).toMatch(/^\/\/.*\n\/\/.*\nimport '@quiesco\/agent';\nimport 'expo-router\/entry';\n$/);
@@ -102,6 +104,28 @@ describe('quiesco init', () => {
     freshExpoApp(missing);
     expect(await main(['init', '--packages', dir], missing)).toBe(1);
     expect(missing.errors[0]).toMatch(/no tarball for @quiesco\/web/);
+  });
+
+  it('fails when the package manager installed another version than the CLI asked for (issue #17)', async () => {
+    // e.g. pnpm resolving from stale registry metadata: the scripts init writes need commands the old version lacks
+    const ctx = fakeContext();
+    freshExpoApp(ctx);
+    ctx.put('pnpm-lock.yaml', '');
+    const real = ctx.exec;
+    ctx.exec = async (c, a, o) => {
+      const r = await real(c, a, o);
+      if (c === 'pnpm' && a.includes('-D')) for (const name of ['quiesco', '@quiesco/core']) ctx.put(`node_modules/${name}/package.json`, JSON.stringify({ name, version: '0.1.1' }));
+      return r;
+    };
+    expect(await main(['init', '--platforms', 'ios'], ctx)).toBe(1);
+    const err = ctx.errors.join('\n');
+    expect(err).toMatch(/quiesco: 0\.1\.1 \(wanted 9\.9\.9\)/);
+    expect(err).toMatch(/@quiesco\/core: 0\.1\.1 \(wanted 9\.9\.9\)/);
+    expect(err).not.toMatch(/@quiesco\/agent:/);
+    expect(err).toMatch(/minimumReleaseAge/);
+    expect(err).toMatch(/pnpm add -D quiesco@9\.9\.9 @quiesco\/core@9\.9\.9 @quiesco\/cucumber@9\.9\.9 @quiesco\/expo-plugin@9\.9\.9\n/);
+    // nothing else was written: the project is not set up against the wrong version
+    expect(ctx.file('quiesco.config.mts')).toBeNull();
   });
 
   it('matches tarball names exactly (quiesco vs quiesco-agent)', () => {

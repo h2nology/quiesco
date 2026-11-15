@@ -15,7 +15,10 @@ overwritten — when a file needs a change Quiesco cannot make safely, it prints
 1. Installs the packages with the project's package manager (npm, pnpm, yarn or bun, from the lock file):
    `@quiesco/agent`, `@quiesco/native` as dependencies; `quiesco`, `@quiesco/core`, `@quiesco/cucumber`,
    `@quiesco/expo-plugin`, `@cucumber/cucumber` (and `@quiesco/web`, `playwright` for the web) as dev
-   dependencies.
+   dependencies. The Quiesco packages are installed at the version of the CLI that runs `init`
+   (`npx quiesco@0.4.0 init` installs 0.4.0), so the scripts it writes match the installed CLI. After the
+   install, `init` reads the installed versions back and stops with the install commands to run when one
+   differs (for example when the package manager resolved from stale registry metadata).
 2. Adds `@quiesco/expo-plugin` to the plugins in `app.json`.
 3. Creates `metro.config.js` with `withQuiesco()` (or explains how to wrap an existing one).
 4. Makes `@quiesco/agent` the first import of the entry file. Expo Router apps get an `index.ts`
@@ -122,7 +125,8 @@ npx quiesco doctor                 # every platform configured in quiesco.config
 npx quiesco doctor --platform ios
 ```
 
-Checks Node.js, the project setup (packages, config plugin, `withQuiesco()` in Metro, the agent as the
+Checks Node.js, the project setup (packages, that every Quiesco package has the same version, that
+every `quiesco <command>` in the package.json scripts exists, config plugin, `withQuiesco()` in Metro, the agent as the
 entry's first import, `<QuiescoRoot>`, the config file), the platform tools (simulators, adb and AVDs,
 Playwright's Chromium), the app builds and the port. Each problem comes with the fix. Exits with 1 when a
 required check fails; warnings do not fail.

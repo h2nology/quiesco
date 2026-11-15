@@ -5,7 +5,7 @@
  * Coordinates are in the window of the addressed view: dp on Android, pt on iOS — the space of
  * `getBoundingClientRect()` on both. Rejections carry one of {@link NativeErrorCode}.
  */
-import { requireOptionalNativeModule } from 'expo-modules-core';
+import { requireOptionalNativeModule } from 'expo';
 
 /** `code` of a rejected call. */
 export type NativeErrorCode =

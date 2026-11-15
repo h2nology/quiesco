@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { DoctorDeps } from '../src/commands/doctor';
 import { doctorCommand, firstImport, runChecks } from '../src/commands/doctor';
 import { main } from '../src/cli';
+import type { FakeContext } from './fake-context';
 import { fakeContext, freshExpoApp } from './fake-context';
 
 const deps = (overrides: Partial<DoctorDeps> = {}): DoctorDeps => ({
@@ -10,6 +11,11 @@ const deps = (overrides: Partial<DoctorDeps> = {}): DoctorDeps => ({
   portFree: async () => true,
   ...overrides,
 });
+
+/** node_modules/<name>/package.json for each package (the fake installs nothing by itself here). */
+function installed(ctx: FakeContext, versions: Record<string, string>): void {
+  for (const [name, version] of Object.entries(versions)) ctx.put(`node_modules/${name}/package.json`, JSON.stringify({ name, version }));
+}
 
 function setUpProject() {
   const ctx = fakeContext();
@@ -59,6 +65,7 @@ describe('quiesco doctor', () => {
     pkg.dependencies['@quiesco/agent'] = '0.0.0';
     pkg.devDependencies = { '@quiesco/cucumber': '0.0.0', '@cucumber/cucumber': '13.3.0' };
     ctx.put('package.json', JSON.stringify(pkg));
+    installed(ctx, { '@quiesco/agent': '9.9.9', '@quiesco/cucumber': '9.9.9' });
     ctx.put('src/app/_layout.tsx', "import { QuiescoRoot } from '@quiesco/agent';\n");
     ctx.put('dist/index.html', '');
     const exe = `${ctx.cwd}/chromium`;
@@ -71,6 +78,34 @@ describe('quiesco doctor', () => {
     expect(out).toMatch(/✅ Web: Chromium/);
     expect(out).toMatch(/✅ entry file: index\.ts imports @quiesco\/agent first/);
     expect(out).toMatch(/All required checks passed/);
+  });
+
+  it('checks that the Quiesco packages have one version and the scripts name existing commands (issue #17)', async () => {
+    const check = async (versions: Record<string, string>, scripts: Record<string, string> = {}, extra: Record<string, string> = {}) => {
+      const { ctx } = setUpProject();
+      const pkg = JSON.parse(ctx.file('package.json') as string);
+      pkg.devDependencies = { ...Object.fromEntries(Object.keys(versions).map((n) => [n, `^${versions[n]}`])), '@cucumber/cucumber': '13.3.0', ...extra };
+      pkg.scripts = scripts;
+      ctx.put('package.json', JSON.stringify(pkg));
+      installed(ctx, versions);
+      const results = await runChecks(ctx, 'web', deps());
+      return { versions: results.find((r) => r.name === 'Quiesco versions'), scripts: results.find((r) => r.name === 'scripts') };
+    };
+    const same = await check({ quiesco: '9.9.9', '@quiesco/agent': '9.9.9', '@quiesco/core': '9.9.9' }, { 'e2e:ios': 'quiesco test --platform ios', 'e2e:build:ios': 'npx quiesco build ios', v: 'quiesco --version', c: 'cat quiesco.config.mts @quiesco/agent' });
+    expect(same.versions).toMatchObject({ status: 'ok', detail: '3 packages at 9.9.9' });
+    expect(same.scripts).toBeUndefined();
+
+    // what the issue saw: init 0.3.0 wrote `quiesco build`, pnpm installed 0.1.1 for some packages
+    const mixed = await check({ quiesco: '0.1.1', '@quiesco/agent': '0.3.0', '@quiesco/core': '0.10.0' });
+    expect(mixed.versions).toMatchObject({ status: 'fail', detail: 'different versions: @quiesco/agent 0.3.0, @quiesco/core 0.10.0, quiesco 0.1.1' });
+    expect(mixed.versions?.fix).toContain('@quiesco/agent@0.10.0 @quiesco/core@0.10.0 quiesco@0.10.0');
+
+    const older = await check({ quiesco: '0.1.1', '@quiesco/agent': '0.1.1' }, { 'e2e:build:ios': 'quiesco build ios && quiesco frobnicate' });
+    expect(older.versions).toMatchObject({ status: 'warn', detail: 'the project has 0.1.1; this doctor is 9.9.9' });
+    expect(older.scripts).toMatchObject({ status: 'fail', detail: '"e2e:build:ios" runs `quiesco frobnicate`', fix: expect.stringMatching(/project has Quiesco 0\.1\.1; upgrade it/) });
+
+    const notInstalled = await check({ quiesco: '9.9.9' }, {}, { '@quiesco/web': '^9.9.9' });
+    expect(notInstalled.versions).toMatchObject({ status: 'fail', detail: 'not installed: @quiesco/web' });
   });
 
   it('checks Android tools and the build, and a busy port', async () => {

@@ -71,6 +71,13 @@ Quiescoが`Android showed "com.android.systemui isn't responding" over the app; 
 - **`@quiesco/web` / Playwrightが見つからない：** `npm i -D @quiesco/web playwright`と`npx playwright install chromium`を実行してください。ネイティブのみのプロジェクトでは不要です。
 - **遅延ロードするルートへの最初の遷移が「Requiring unknown module」で失敗する：** Expo Routerの無害な報告で、Quiescoはデフォルトで無視します（[既知の問題](./known-issues)）。
 
+## `unknown command`、またはQuiescoのバージョンが揃っていない {#quiesco-versions}
+
+Quiescoのパッケージ（`quiesco`、`@quiesco/*`）はまとめてリリースされ、同じバージョン同士でしか動きません。`npx quiesco doctor`がこれと、スクリプトで使っているコマンドをチェックします。アップグレードするときは、すべてのQuiescoパッケージを1つのコマンドで同じバージョンにします（例：`pnpm add -D quiesco@0.4.0 @quiesco/core@0.4.0 …`）。
+
+- **`^0.x`は次のminorに上がらない：** `^0.3.0`は0.3.xを許しますが、0.4.0は許しません。明示的にアップグレードしてください。
+- **pnpmの`minimumReleaseAge`：** pnpm 12はデフォルトで、バージョン範囲や`latest`を解決するときに公開から1日未満のバージョンを飛ばし、古いバージョンを選びます。リリース当日に`pnpm add -D quiesco`を実行すると、1つ前のバージョンが入ります。正確なバージョン（`quiesco init`が使う`quiesco@0.4.0`の形）はインストールされ、`pnpm-workspace.yaml`の`minimumReleaseAgeExclude`に追加されます。`minimumReleaseAge`を自分で設定すると、pnpmは先に確認するようになります（このとき`minimumReleaseAgeStrict`のデフォルトは`true`）。
+
 ## それでも解決しない場合 {#still-stuck}
 
 `npx quiesco tree`はエージェントから見えているものを、`this.app.getIdleState()`はいまビジーなものを表示します。失敗したシナリオには、cucumberのレポートにスクリーンショット、要素ツリー、トラッカーの状態が添付されます。

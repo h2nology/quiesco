@@ -1,5 +1,4 @@
 /** Command dispatch for the `quiesco` binary (requirements.md §6.12). */
-import { createRequire } from 'node:module';
 
 import { buildCommand } from './commands/build.js';
 import { devicesCommand } from './commands/devices.js';
@@ -36,11 +35,6 @@ Options:
   -h, --help     Show this help
   -v, --version  Show the version`;
 
-function version(): string {
-  const require = createRequire(import.meta.url);
-  return (require('../package.json') as { version: string }).version;
-}
-
 export async function main(argv: readonly string[], ctx: CliContext = defaultContext()): Promise<number> {
   const [command, ...args] = argv;
   try {
@@ -63,7 +57,7 @@ export async function main(argv: readonly string[], ctx: CliContext = defaultCon
         return await devicesCommand(args, ctx);
       case '-v':
       case '--version':
-        ctx.out(version());
+        ctx.out(ctx.version);
         return 0;
       case undefined:
       case '-h':

@@ -117,6 +117,20 @@ reports can be ignored with `appErrors.ignore` (see [known issues](./known-issue
 - **The first navigation to a lazy route fails with "Requiring unknown module":** a benign Expo Router
   report that Quiesco ignores by default ([known issues](./known-issues)).
 
+## `unknown command` or mixed Quiesco versions {#quiesco-versions}
+
+Quiesco's packages (`quiesco`, `@quiesco/*`) are released together and only work at the same version.
+`npx quiesco doctor` checks this and the commands your scripts use. To upgrade, install the same version
+of every Quiesco package in one command, e.g. `pnpm add -D quiesco@0.4.0 @quiesco/core@0.4.0 …`.
+
+- **`^0.x` does not reach the next minor:** `^0.3.0` allows 0.3.x but not 0.4.0. Upgrade explicitly.
+- **pnpm's `minimumReleaseAge`:** by default pnpm 12 skips versions published less than a day ago when
+  it resolves a range or `latest`, and takes an older one instead: on the day of a release,
+  `pnpm add -D quiesco` installs the previous version. An exact version (`quiesco@0.4.0`, which
+  `quiesco init` uses) is installed and added to `minimumReleaseAgeExclude` in `pnpm-workspace.yaml`.
+  Setting `minimumReleaseAge` yourself makes pnpm ask first (`minimumReleaseAgeStrict` then defaults to
+  `true`).
+
 ## Still stuck {#still-stuck}
 
 `npx quiesco tree` shows what the agent sees; `this.app.getIdleState()` shows what is busy right now.

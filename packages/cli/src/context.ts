@@ -15,6 +15,8 @@ export interface ExecResult {
 
 export interface CliContext {
   cwd: string;
+  /** The version of this CLI (`quiesco init` installs the same version of every Quiesco package). */
+  version: string;
   env: NodeJS.ProcessEnv;
   out(line: string): void;
   err(line: string): void;
@@ -67,6 +69,7 @@ const isWindows = process.platform === 'win32';
 export function defaultContext(): CliContext {
   return {
     cwd: process.cwd(),
+    version: (createRequire(import.meta.url)('../package.json') as { version: string }).version,
     env: process.env,
     out: (line) => process.stdout.write(`${line}\n`),
     err: (line) => process.stderr.write(`${line}\n`),
