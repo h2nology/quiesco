@@ -7,10 +7,10 @@
 3. cucumber / vitest / jest 三个 runner 全部支持；附测试、三语文档，在 examples/todo-app 上实跑验收。
 
 ## Current Phase
-P2
+P3
 
 ## Next Step
-P2：先做 `@quiesco/cucumber` 的 formatter plugin（以 scratchpad/cucumber-probe/quiesco-events.mjs 原型为起点，改用 core 的 `connectRunEvents`），配单元测试 + 一次真实 cucumber-js 子进程测试。
+P3：先写纯函数的进度状态（事件 → 计数 / 总数 / 运行中测试）与渲染器并单测，再接入 `quiesco test`（管道转发 runner 输出、底部重绘、cucumber formatter 注入、hello 提示）。
 
 ## 背景
 - 前置：0.2.0 已发布（`.planning/2026-11-14-issues-0-2/`）。
@@ -64,20 +64,22 @@ CLI (quiesco ui)    ── 事件 → WebSocket → 浏览器 (React)
 **Status:** complete
 
 ### P2 三个 runner 的 reporter
-- [ ] `@quiesco/cucumber` formatter plugin（testCase 计总数、最严重 step 结果作状态、`willBeRetried`、BeforeAll 失败转发、`--parallel` workerId）；CLI 以 `--format "file://…":"<null>"` 注入
-- [ ] `@quiesco/vitest` reporter（parseSpecifications 估算总数 + 每文件修正、concurrencyId、logs）+ `configureVitest` 插件注入；`quiesco()` 打开 includeTaskLocation
-- [ ] `@quiesco/jest` reporter（总数按文件累加、onTestFileResult 补 skip/todo/收集失败）；preset 自带 reporters
-- [ ] `hello` 握手：Jest / Vitest 未接入 reporter 时 CLI 提示如何加
-- [ ] 失败证据：各适配器 hook / fixture 侧（worker 内）用 `connectRunEvents` 发 `test:evidence`
-**Status:** in_progress
+- [x] `@quiesco/cucumber/events` formatter plugin（`CucumberRunEvents`：testCase 计总数、最严重 step 结果作状态、`willBeRetried`、BeforeAll 失败 → run:error、workerId、`this.log()` → logs、Rule / Outline 行）
+- [x] `@quiesco/vitest/reporter` + `quiescoPlugin()`（parseSpecifications 估算 → 每文件修正、concurrencyId−1、logs、未处理错误）；`quiesco()` 打开 includeTaskLocation；todo-app vitest 配置加插件
+- [x] `@quiesco/jest/reporter`（总数随文件增长、onTestFileResult 补 skip、testExecError → file:end）；preset 自带 `reporters: ['default', reporter]`
+- [x] 失败证据：cucumber After hook / vitest session fixture / jest 环境在 worker 内发 `test:evidence`（id 与 reporter 一致）
+- [→P3] CLI 注入（cucumber `--format "file://…":"/dev/null"`）与 `hello` 握手提示：和进度条一起做（需要消费端）
+**Status:** complete
 
 ### P3 终端进度条
+- [ ] `quiesco test` 启动 RunEventServer（仅在显示进度条时），env 传给 runner；cucumber 追加 `--format "<file URL of @quiesco/cucumber/events>":"<null>"`（从项目解析，解析不到则不加）；runner 退出后 `drain()`
+- [ ] Jest / Vitest 没收到 `hello`：提示如何接入（preset / reporters / quiescoPlugin）
 - [ ] runner stdout/stderr 改为管道转发，底部一行重绘（宽度自适应、ANSI 处理、换行不撕裂）
 - [ ] 显示：`[████░░░░] 12/30  ✓10 ✗1 ↷1  2m13s  ▶ 当前测试名`；多 worker 时显示各 worker 当前测试
 - [ ] 总数未知时（jest 收集前）显示不确定态
 - [ ] 非 TTY、`CI=true`、`--no-progress` 时关闭并保持原样 stdio；退出码不变；Ctrl-C 正确传给 runner
 - [ ] 单元测试（渲染器纯函数化，喂事件断言输出）
-**Status:** pending
+**Status:** in_progress
 
 ### P4 测试发现（UI 用）
 - [ ] 统一的 `listTests(runner)` → 文件 / 分组 / 测试树（cucumber dry-run，vitest list，jest 方案按 P0 结论）

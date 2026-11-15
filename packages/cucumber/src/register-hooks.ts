@@ -1,6 +1,10 @@
 import { After, AfterAll, Before, BeforeAll, Status, setDefaultTimeout, setWorldConstructor } from '@cucumber/cucumber';
 
+import { connectRunEvents } from '@quiesco/core';
+import type { RunEventClient } from '@quiesco/core';
+
 import { Lifecycle, tagLevels } from './lifecycle.js';
+import { pickleTestId } from './run-events.js';
 import type { LifecycleOptions } from './lifecycle.js';
 import { QuiescoWorld, bindLifecycle } from './world.js';
 
@@ -21,21 +25,33 @@ export interface RegisterOptions extends LifecycleOptions {
 /** Register the World and the lifecycle hooks with cucumber-js. Call once, from a support file. */
 export function registerQuiesco(options: RegisterOptions = {}): Lifecycle {
   const lifecycle = new Lifecycle(options);
+  // Evidence files go to `quiesco test` / `quiesco ui` from the worker that ran the scenario (the
+  // formatter in the coordinator only sees attachments' contents). Connected on the first failure.
+  let events: RunEventClient | null = null;
   bindLifecycle(lifecycle);
   setWorldConstructor(options.world ?? QuiescoWorld);
   setDefaultTimeout(options.stepTimeoutMs ?? 60_000);
 
   BeforeAll({ name: 'quiesco: start session', timeout: options.setupTimeoutMs ?? 600_000 }, () => lifecycle.beforeAll());
   Before({ name: 'quiesco: reset app', timeout: options.resetTimeoutMs ?? 180_000 }, ({ pickle, gherkinDocument }) => lifecycle.before(tagLevels(pickle.tags, gherkinDocument), pickle.name));
-  After({ name: 'quiesco: evidence' }, async function (this: QuiescoWorld, { pickle, result }) {
+  After({ name: 'quiesco: evidence' }, async function (this: QuiescoWorld, { pickle, gherkinDocument, result }) {
     const failed = result !== undefined && result.status !== Status.PASSED && result.status !== Status.SKIPPED;
     const error = failed ? (result.exception ?? result.message) : undefined;
-    for (const a of (await lifecycle.after({ tags: pickle.tags.map((t) => t.name), failed, error })).attachments) {
+    const evidence = await lifecycle.after({ tags: pickle.tags.map((t) => t.name), failed, error });
+    if (evidence.files.length > 0) {
+      events ??= connectRunEvents({ runner: 'cucumber' });
+      events.send({ type: 'test:evidence', testId: pickleTestId(pickle, gherkinDocument), files: evidence.files });
+    }
+    for (const a of evidence.attachments) {
       const opts = a.fileName !== undefined ? { mediaType: a.mediaType, fileName: a.fileName } : { mediaType: a.mediaType };
       if (typeof a.data === 'string') this.attach(a.data, opts);
       else this.attach(a.data, opts);
     }
   });
-  AfterAll({ name: 'quiesco: stop session', timeout: 120_000 }, () => lifecycle.afterAll());
+  AfterAll({ name: 'quiesco: stop session', timeout: 120_000 }, async () => {
+    await events?.close();
+    events = null;
+    await lifecycle.afterAll();
+  });
   return lifecycle;
 }

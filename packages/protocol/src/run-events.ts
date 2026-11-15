@@ -20,7 +20,7 @@ export const RUN_EVENTS_ENV = 'QUIESCO_EVENTS';
 export type RunnerName = 'cucumber' | 'vitest' | 'jest';
 
 /**
- * - `pending`: Jest's skipped tests, cucumber's pending steps.
+ * - `pending`: cucumber, a pending step (Jest's skipped tests are sent as `skipped`).
  * - `undefined`: cucumber, a step without a definition.
  * - `notRun`: never finished (the run ended or was interrupted first). Set by the consumer, never sent.
  */
@@ -66,12 +66,13 @@ export interface RunEvents {
    * The run starts. `total` is what the runner knows at this point: exact for cucumber, an estimate for
    * Vitest (static parse), the number of tests known so far for Jest (0). `files` are the test files.
    */
-  'run:start': { total: number; totalIsEstimate: boolean; files: readonly string[]; workers: number };
+  'run:start': { total: number; totalIsEstimate: boolean; files: readonly string[]; workers?: number };
   /** A better total (a file was collected). */
   'total:update': { total: number; totalIsEstimate: boolean };
   'file:start': { file: string };
   /** `error`: the file failed outside any test (syntax error, error while collecting, BeforeAll). */
   'file:end': { file: string; error?: RunError };
+  /** `worker`: 0-based index of the worker (device) running the test, when the runner tells. `startedAt`: epoch ms. */
   'test:start': { test: TestRef; worker?: number; attempt: number; startedAt: number };
   'test:end': {
     test: TestRef;

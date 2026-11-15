@@ -16,14 +16,14 @@
  * - After a failed test: the evidence (screenshot, element tree, idle state, logs) is written to the
  *   artifacts directory and its path is added to the failure message.
  */
-import { Lifecycle } from '@quiesco/core';
-import type { Driver, Session, WorkerInfo } from '@quiesco/core';
+import { Lifecycle, connectRunEvents } from '@quiesco/core';
+import type { Driver, RunEventClient, Session, WorkerInfo } from '@quiesco/core';
 import { test as base } from 'vitest';
 
 import { fullName, tagLevelsOf } from './tags.js';
 import type { TaskLike } from './tags.js';
 
-export { quiesco } from './config.js';
+export { quiesco, quiescoPlugin } from './config.js';
 export type { QuiescoVitestOptions } from './config.js';
 export { fullName, tagLevelsOf } from './tags.js';
 export type { TaskLike } from './tags.js';
@@ -59,6 +59,9 @@ export function addEvidence(task: FailedTask, files: readonly string[]): void {
 /** A session that failed to start fails the remaining tests at once instead of starting again for each. */
 let startFailure: unknown = null;
 
+/** Evidence files go to `quiesco test` / `quiesco ui` from this worker; connected on the first failure. */
+let events: RunEventClient | null = null;
+
 export const test = base.extend<{
   $worker: { quiesco: Lifecycle };
   $test: { app: Driver; session: Session };
@@ -78,6 +81,8 @@ export const test = base.extend<{
       try {
         await use(lifecycle);
       } finally {
+        await events?.close();
+        events = null;
         await lifecycle.afterAll();
       }
     },
@@ -92,6 +97,10 @@ export const test = base.extend<{
       const failed = t.result?.state === 'fail';
       const { files } = await quiesco.after({ tags: tagLevelsOf(t).flat(), failed, error: t.result?.errors?.[0] });
       if (failed) addEvidence(t, files);
+      if (files.length > 0) {
+        events ??= connectRunEvents({ runner: 'vitest' });
+        events.send({ type: 'test:evidence', testId: task.id, files });
+      }
     }
   },
   app: async ({ session }, use) => {

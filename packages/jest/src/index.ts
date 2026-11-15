@@ -25,6 +25,7 @@ declare global {
   var quiesco: QuiescoGlobal;
 }
 
-export { addEvidence, fullName, handleEvent, jestWorker, tagLevelsOf } from './events.js';
+export { addEvidence, fullName, handleEvent, jestWorker, tagLevelsOf, titlesOf } from './events.js';
+export { jestTestId } from './reporter.js';
 export { registryDir, sweepRegistry } from './shared.js';
 export type { BlockLike, EventLike, TestLike } from './events.js';

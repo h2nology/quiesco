@@ -34,6 +34,11 @@ function chain(test: TestLike): BlockLike[] {
   return out;
 }
 
+/** Describe titles and the test title, outermost first. */
+export function titlesOf(test: TestLike): string[] {
+  return chain(test).map((n) => n.name);
+}
+
 /** Title tags by level, outermost describe first. */
 export function tagLevelsOf(test: TestLike): string[][] {
   return chain(test).map((n) => titleTags(n.name));
@@ -56,7 +61,8 @@ export function addEvidence(test: TestLike, files: readonly string[]): void {
   if (typeof err.stack === 'string') err.stack = err.stack.replace(/\n|$/, `${note}\n`);
 }
 
-export async function handleEvent(lifecycle: Lifecycle, event: EventLike): Promise<void> {
+/** `onEvidence`: the evidence files of a finished test (sent to `quiesco test` / `quiesco ui`). */
+export async function handleEvent(lifecycle: Lifecycle, event: EventLike, onEvidence?: (test: TestLike, files: readonly string[]) => void): Promise<void> {
   const test = event.test;
   if (test === undefined || !lifecycle.running) return;
   if (event.name === 'test_start') {
@@ -73,6 +79,7 @@ export async function handleEvent(lifecycle: Lifecycle, event: EventLike): Promi
     try {
       const { files } = await lifecycle.after({ tags: tagLevelsOf(test).flat(), failed, error: test.errors[0] });
       if (failed) addEvidence(test, files);
+      if (files.length > 0) onEvidence?.(test, files);
     } catch (e) {
       test.errors.push(e);
     }
