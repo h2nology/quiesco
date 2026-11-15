@@ -14,8 +14,8 @@ npx quiesco <command> [options]
 1. 用项目的包管理器（根据 lock 文件判断 npm、pnpm、yarn 或 bun）安装包：`@quiesco/agent`、`@quiesco/native` 作为 dependencies；`quiesco`、`@quiesco/core`、`@quiesco/cucumber`、`@quiesco/expo-plugin`、`@cucumber/cucumber`（Web 还有 `@quiesco/web`、`playwright`）作为 dev dependencies。Quiesco 的包按运行 `init` 的 CLI 的版本安装（`npx quiesco@0.4.0 init` 安装 0.4.0），因此它写入的脚本与安装的 CLI 一致。安装后 `init` 会读回已安装的版本，有不一致时停止，并给出要运行的安装命令（例如包管理器用了缓存中过期的 registry 元数据时）。
 2. 把 `@quiesco/expo-plugin` 加到 `app.json` 的 plugins 中。
 3. 创建带有 `withQuiesco()` 的 `metro.config.js`（或说明如何包装已有的配置）。
-4. 让 `@quiesco/agent` 成为入口文件的第一个 import。Expo Router App 会得到一个 `index.ts`（`import '@quiesco/agent'; import 'expo-router/entry';`）以及 `"main": "index.ts"`。
-5. 写入 `quiesco.config.mts`（bundle id、package 和 scheme 取自 `app.json`）、`cucumber.mjs`、`features/support/quiesco.ts`、第一个 feature 及其步骤，以及 `e2e:*` 脚本。
+4. 让 `@quiesco/agent` 成为入口文件的第一个 import。Expo Router App 会得到一个 `index.ts`（`import '@quiesco/agent'; import 'expo-router/entry';`）以及 `"main": "index.ts"`。如果入口注册的是本地组件（`registerRootComponent(App)`，空白模板就是这样），`init` 还会在入口中用 `<QuiescoRoot>` 包裹该组件。
+5. 写入 `quiesco.config.mts`（bundle id、package 和 scheme 取自 `app.json`）、`cucumber.mjs`、`features/support/quiesco.ts`、第一个 feature 及其步骤，以及 `e2e:*` 脚本；并在 `tsconfig.json` 中加上 `"allowImportingTsExtensions": true`（step 文件之间用 `.ts` 导入，见 [step 文件不会被编译](./driver-pattern#type-stripping)）。
 
 | 选项 | |
 |---|---|
@@ -23,7 +23,7 @@ npx quiesco <command> [options]
 | `--packages <dir>` | 从 `<dir>` 中的 `.tgz` 文件（`pnpm pack` 的输出）安装 Quiesco，并把它们之间的相互依赖固定到这些文件 |
 | `--skip-install` | 只打印安装命令 |
 
-`init` 留给你做的事：用 `<QuiescoRoot>` 包裹根组件、添加 test id。
+`init` 留给你做的事：添加 test id；在 Expo Router App（以及它无法安全修改的其他入口）中用 `<QuiescoRoot>` 包裹根布局。`init` 会列出剩下的事项。
 
 ## `quiesco build` {#quiesco-build}
 

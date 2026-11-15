@@ -10,6 +10,7 @@ description: "症状別の失敗と、その直し方。"
 メッセージに確認すべき点が列挙されます。よくある原因は次のとおりです。
 
 - **アプリがe2eビルドではない。** JSバンドルとネイティブアプリの両方を`EXPO_PUBLIC_QUIESCO=1`付きでビルドする必要があります（Metro：`EXPO_PUBLIC_QUIESCO=1 npx expo start`。ネイティブ：`expo prebuild`の時点でもこの変数を設定しておく必要があります）。これがないと、エージェントは何もしないスタブになります。
+- **アプリが`<QuiescoRoot>`をレンダリングしていない。** エージェントはここから接続します。`npx quiesco doctor`が、ルートレイアウト、エントリー、エントリーが登録するコンポーネントをチェックします。
 - **`metro.config.js`で`withQuiesco()`を使っていない**、または追加する前にMetroを起動していた（Metroの設定は起動時に読み込まれるので、Metroを再起動してください）。
 - **Android：** ホストのポートは`adb reverse`で自動的にフォワードされます。実機の場合は、USBデバッグの許可も必要です。アプリが`localhost`で呼び出すポートには`apps.android.reversePorts`が必要です。
 - **dev clientがアプリではなくランチャーを表示している：** `devClient.metroUrl`でMetroが動いていません。

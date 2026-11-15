@@ -29,7 +29,11 @@ export interface TodoDriver {
 
 /** Through the UI, with Quiesco. */
 export class UiTodoDriver implements TodoDriver {
-  constructor(private readonly app: Driver) {}
+  private readonly app: Driver;
+
+  constructor(app: Driver) {
+    this.app = app;
+  }
 
   async loginAs(email: string) {
     await this.app.backdoor('loginAs', email);       // setup without the UI
@@ -53,7 +57,7 @@ Give the World a driver and register it instead of the default World:
 // features/support/world.ts
 import { QuiescoWorld, registerQuiesco } from '@quiesco/cucumber';
 
-import { UiTodoDriver } from './todo-driver';
+import { UiTodoDriver } from './todo-driver.ts';
 
 export class TodoWorld extends QuiescoWorld {
   get todos() {
@@ -71,7 +75,7 @@ Steps then read like the feature:
 import { Given, Then, When } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
 
-import type { TodoWorld } from '../support/world';
+import type { TodoWorld } from '../support/world.ts';
 
 Given('the user {string} is logged in', async function (this: TodoWorld, email: string) {
   await this.todos.loginAs(email);
@@ -90,6 +94,22 @@ Prefer Quiesco's assertions where they fit (`this.app.expectText('todo-item', �
 app shows the expected state. A plain `assert` on a query result checks once — fine after an action,
 because the action already waited for the app to be idle.
 
+## Step files are not compiled {#type-stripping}
+
+cucumber-js loads step and support files with Node's type stripping: Node removes the types and runs the
+rest as JavaScript, without `tsc`. Two rules follow, which the examples on this page keep:
+
+- **Relative imports name the `.ts` file:** `import { UiTodoDriver } from './todo-driver.ts'`.
+  `npx quiesco init` adds `"allowImportingTsExtensions": true` to `tsconfig.json`, so `tsc` accepts
+  them.
+- **No TypeScript syntax that generates code:** parameter properties
+  (`constructor(private app: Driver)`), `enum` and `namespace` fail with
+  `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`. Declare the field and assign it in the constructor; use a union
+  of string literals or an object `as const` instead of an `enum`.
+
+`npx cucumber-js --dry-run` loads every step file without starting the app, so it finds both kinds of
+mistakes in seconds.
+
 ## Ports & adapters: the same features against the API {#ports-adapters-the-same-features-against-the-api}
 
 Because the steps only see `TodoDriver`, a second implementation can run the same features without any
@@ -97,8 +117,12 @@ UI — against the backend API, in seconds, for example on every commit:
 
 ```ts
 export class ApiTodoDriver implements TodoDriver {
+  private readonly baseUrl: string;
   private token = '';
-  constructor(private readonly baseUrl: string) {}
+
+  constructor(baseUrl: string) {
+    this.baseUrl = baseUrl;
+  }
 
   async loginAs(email: string) {
     const res = await fetch(`${this.baseUrl}/login`, { method: 'POST', body: JSON.stringify({ email }) });

@@ -27,7 +27,11 @@ export interface TodoDriver {
 
 /** 通过 UI，借助 Quiesco 实现。*/
 export class UiTodoDriver implements TodoDriver {
-  constructor(private readonly app: Driver) {}
+  private readonly app: Driver;
+
+  constructor(app: Driver) {
+    this.app = app;
+  }
 
   async loginAs(email: string) {
     await this.app.backdoor('loginAs', email);       // 不经过 UI 准备状态
@@ -51,7 +55,7 @@ export class UiTodoDriver implements TodoDriver {
 // features/support/world.ts
 import { QuiescoWorld, registerQuiesco } from '@quiesco/cucumber';
 
-import { UiTodoDriver } from './todo-driver';
+import { UiTodoDriver } from './todo-driver.ts';
 
 export class TodoWorld extends QuiescoWorld {
   get todos() {
@@ -69,7 +73,7 @@ registerQuiesco({ world: TodoWorld });   // 替代 import '@quiesco/cucumber/reg
 import { Given, Then, When } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
 
-import type { TodoWorld } from '../support/world';
+import type { TodoWorld } from '../support/world.ts';
 
 Given('the user {string} is logged in', async function (this: TodoWorld, email: string) {
   await this.todos.loginAs(email);
@@ -86,14 +90,27 @@ Then('the first todo is {string}', async function (this: TodoWorld, title: strin
 
 在合适的地方优先使用 Quiesco 的断言（`this.app.expectText('todo-item', …)`）：它们会重试，直到 App 显示出预期的状态。对查询结果直接用 `assert` 只检查一次——在操作之后这样做没有问题，因为操作已经等到 App 空闲了。
 
+## step 文件不会被编译 {#type-stripping}
+
+cucumber-js 用 Node 的 type stripping 加载 step 和 support 文件：Node 去掉类型，把剩下的部分当作 JavaScript 运行，不经过 `tsc`。由此有两条规则，本页的示例都遵守：
+
+- **相对导入要写出 `.ts` 文件名：** `import { UiTodoDriver } from './todo-driver.ts'`。`npx quiesco init` 会在 `tsconfig.json` 中加上 `"allowImportingTsExtensions": true`，让 `tsc` 接受这种写法。
+- **不能用会生成代码的 TypeScript 语法：** 参数属性（`constructor(private app: Driver)`）、`enum` 和 `namespace` 会报 `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`。改为声明字段并在构造函数中赋值；用字符串字面量的联合类型或 `as const` 对象代替 `enum`。
+
+`npx cucumber-js --dry-run` 不启动 App 就会加载所有 step 文件，几秒钟内就能发现这两类错误。
+
 ## 端口与适配器：用同样的 feature 测试 API {#ports-adapters-the-same-features-against-the-api}
 
 由于步骤只看到 `TodoDriver`，第二种实现可以完全不经过 UI，直接针对后端 API 运行同样的 feature——只需几秒，例如可以在每次提交时运行：
 
 ```ts
 export class ApiTodoDriver implements TodoDriver {
+  private readonly baseUrl: string;
   private token = '';
-  constructor(private readonly baseUrl: string) {}
+
+  constructor(baseUrl: string) {
+    this.baseUrl = baseUrl;
+  }
 
   async loginAs(email: string) {
     const res = await fetch(`${this.baseUrl}/login`, { method: 'POST', body: JSON.stringify({ email }) });

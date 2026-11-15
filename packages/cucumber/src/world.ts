@@ -14,6 +14,8 @@ export function bindLifecycle(l: Lifecycle): void {
 /**
  * Cucumber World with `this.app` (the Quiesco Driver). Extend it to add your own business driver
  * (Ports & Adapters): `class MyWorld extends QuiescoWorld { todos = new TodoDriver(this.app) }`.
+ * Step files run with Node's type stripping: import the driver as `'./todo-driver.ts'`, and declare its
+ * fields instead of using parameter properties (`constructor(private app: Driver)` is not supported).
  */
 export class QuiescoWorld<Parameters = unknown> extends World<Parameters> {
   constructor(options: IWorldOptions<Parameters>) {

@@ -14,8 +14,8 @@ ExpoプロジェクトにQuiescoをセットアップします。各手順で何
 1. プロジェクトのパッケージマネージャー（ロックファイルから判断したnpm、pnpm、yarn、bunのいずれか）でパッケージをインストールします。`@quiesco/agent`と`@quiesco/native`はdependenciesに、`quiesco`、`@quiesco/core`、`@quiesco/cucumber`、`@quiesco/expo-plugin`、`@cucumber/cucumber`（Web向けには`@quiesco/web`と`playwright`も）はdevDependenciesに入ります。Quiescoのパッケージは`init`を実行したCLIと同じバージョンでインストールします（`npx quiesco@0.4.0 init`なら0.4.0）。そのため、書き込むスクリプトとインストールされたCLIが一致します。インストール後、`init`はインストールされたバージョンを読み直し、食い違いがあれば実行すべきインストールコマンドを示して停止します（パッケージマネージャーがキャッシュの古いレジストリ情報を使った場合など）。
 2. `app.json`のpluginsに`@quiesco/expo-plugin`を追加します。
 3. `withQuiesco()`を使った`metro.config.js`を作成します（既存のものがあれば、ラップする方法を説明します）。
-4. エントリーファイルの最初のimportを`@quiesco/agent`にします。Expo Routerのアプリには`index.ts`（`import '@quiesco/agent'; import 'expo-router/entry';`）と`"main": "index.ts"`を用意します。
-5. `quiesco.config.mts`（バンドルID、パッケージ名、スキームは`app.json`から取得）、`cucumber.mjs`、`features/support/quiesco.ts`、ステップ付きの最初のfeature、`e2e:*`スクリプトを書き出します。
+4. エントリーファイルの最初のimportを`@quiesco/agent`にします。Expo Routerのアプリには`index.ts`（`import '@quiesco/agent'; import 'expo-router/entry';`）と`"main": "index.ts"`を用意します。エントリーがローカルのコンポーネントを登録している場合（ブランクテンプレートのような`registerRootComponent(App)`）は、`init`がエントリーでそのコンポーネントを`<QuiescoRoot>`でラップします。
+5. `quiesco.config.mts`（バンドルID、パッケージ名、スキームは`app.json`から取得）、`cucumber.mjs`、`features/support/quiesco.ts`、ステップ付きの最初のfeature、`e2e:*`スクリプトを書き出し、`tsconfig.json`に`"allowImportingTsExtensions": true`を追加します（stepファイル同士は`.ts`付きでimportします。[stepファイルはコンパイルされない](./driver-pattern#type-stripping)を参照）。
 
 | オプション | |
 |---|---|
@@ -23,7 +23,7 @@ ExpoプロジェクトにQuiescoをセットアップします。各手順で何
 | `--packages <dir>` | `<dir>`内の`.tgz`ファイル（`pnpm pack`の出力）からQuiescoをインストールし、パッケージ間の依存もそれらに固定します |
 | `--skip-install` | インストールコマンドを表示するだけにします |
 
-`init`が行わず、自分で行う作業：ルートを`<QuiescoRoot>`でラップすること、テストIDの付与。
+`init`が行わず、自分で行う作業：テストIDの付与と、Expo Routerアプリ（および安全に変更できないその他のエントリー）でルートレイアウトを`<QuiescoRoot>`でラップすること。残った作業は`init`が一覧で示します。
 
 ## `quiesco build` {#quiesco-build}
 
