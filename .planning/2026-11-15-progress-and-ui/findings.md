@@ -184,8 +184,8 @@
   进度带：大卡片（环形进度三段 + 大号 `done / total` + 用时 / 预计剩余 + 状态胶囊）+ 每个设备一张泳道卡（只在多 worker 时）。
   主体：左测试树卡（分段过滤 + 排序 + 文件分组带计数徽标 + 行内状态圆点）、右详情卡（状态胶囊 + 位置 + 大标题 + 重跑；分段标签页 报告 / 证据(数量) / 控制台 / 源码）。
 - **Token（暗 / 亮）**：bg #09090B / #F4F4F5；surface #111114 / #FFFFFF；code #0C0C0F / #FAFAFA；chip #1C1C21 / #F1F1F3；
-  line rgba(255,255,255,.08) / rgba(9,9,11,.08)；fg #F4F4F5 / #09090B；muted #A1A1AA / #52525B；faint #71717A；
-  accent #A78BFA / #6D28D9（按钮底 #7C3AED / #6D28D9，白字）；passed #34D399 / #047857；failed #F87171 / #B91C1C；skipped #FBBF24 / #B45309；
+  line rgba(255,255,255,.08) / rgba(9,9,11,.08)；fg #F4F4F5 / #09090B；muted #A1A1AA / #52525B；faint #858590 / #6C6C75（实现后对比度审查从 #71717A 调整）；
+  accent #A78BFA / #6D28D9（按钮底 #7C3AED / #6D28D9，白字）；passed #34D399 / #047857；failed #F87171 / #B91C1C；skipped #FBBF24 / #AD5009（亮色由 #B45309 调整：其浅色底上 4.39 → 4.67）；
   各状态 soft 底 = 同色 10–14% 透明度。**默认暗色**，可切亮色，记住用户选择；跟随 `prefers-color-scheme` 作为初值。
 - **字体**：Space Grotesk（标题、数字）、DM Sans（界面 14px）、JetBrains Mono（路径、耗时、代码、日志 12–13px）；woff2 随包自带（离线可用），回退 system-ui / ui-monospace。
 - **图标**：Lucide 风格线性 SVG；状态 = 浅色底圆 + 图标，再配文字 / aria-label（不只靠颜色）。
@@ -193,6 +193,15 @@
   跳到详情链接、2px 紫色焦点环、progressbar（环形图 role=img + aria-label；另有隐藏 progressbar）、运行结束 aria-live 播报一次；
   动效：悬停 160ms、运行中旋转、连接点脉冲，`prefers-reduced-motion` 全部静态。运行中运行按钮禁用并说明原因。
 - **性能**：树 >100 行虚拟化；WebSocket 更新按帧合并。
+
+## P6 实现记录（2026-11-15）
+- 前端在 `packages/ui/web/`（React 19.3 + Vite 8.3.6 + @vitejs/plugin-react 6.1.2；6.2.x / 6.3.0 发布未满两周未用），构建到 `packages/ui/dist/web`；
+  根 `pnpm build` = `tsc -b && @quiesco/ui build:web`。字体 @fontsource-variable（Space Grotesk / DM Sans / JetBrains Mono 5.3.0）随包，无外网请求。
+- 界面文案用英文（与 CLI / README 一致）；测试名为用户内容原样显示。
+- 与设计说明的偏离：树未用虚拟化库，改用 `content-visibility: auto`（90 个测试实测流畅；超大项目再评估）；图标为自绘 Lucide 风格 SVG（不引 lucide-react）。
+- ui-ux-pro-max 审查（quick-reference §1–§3 + pro-rules 中适用于 Web 的项）：两主题全部文字 token 对比度计算 → 修正 3 处（见上）；375px 无横向溢出；
+  reduced-motion 下动画关闭；图标统一线性 2px；状态均有文字 / aria-label；运行中按钮禁用并有 title 说明；行内运行按钮 26px（WCAG 2.2 目标尺寸 24px 达标，桌面工具）。
+- 实跑截图（todo-app web）：空闲 / 运行中 / 通过 + 源码高亮 / 失败（真实设备截图 + 红框、堆栈、6 个证据文件）/ 亮色 / 手机宽度，浏览器控制台无错误。
 
 ## 开放问题
 见 task_plan.md「待用户确认」。

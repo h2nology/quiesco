@@ -7,10 +7,10 @@
 3. cucumber / vitest / jest 三个 runner 全部支持；附测试、三语文档，在 examples/todo-app 上实跑验收。
 
 ## Current Phase
-P6
+P7
 
 ## Next Step
-P6：在 `packages/ui/web/` 建 React + Vite 前端（构建到 `packages/ui/dist/web`），按 findings「P6 设计说明」（A · 现代深色）实现；需要新增 devDependencies（@vitejs/plugin-react、字体包、lucide-react / @tanstack/react-virtual 视需要），先确认安装方式。
+P7：三语文档（cli.mdx：进度条 / `--no-progress` / `quiesco list` / `quiesco ui`；新 UI 页面；runners.mdx：Vitest `quiescoPlugin()`、Jest 自定义 reporters 时加 `@quiesco/jest/reporter`；cucumber `paths` 限制）、README、packages/ui/README；iOS / Android 实跑（进度条 + UI）；`pnpm check`。
 
 ## 背景
 - 前置：0.2.0 已发布（`.planning/2026-11-14-issues-0-2/`）。
@@ -111,22 +111,22 @@ CLI (quiesco ui)    ── 事件 → WebSocket → 浏览器 (React)
 **Status:** complete
 
 ### P6 UI 前端（React + Vite）
-- [x] **设计先行**（A · 现代深色定稿）：用 `ui-ux-pro-max` 插件（skill `ui-ux-pro-max:ui-ux-pro-max`，必要时配合 `ui-ux-pro-max:design-system` 定 token）
-      做 UI/UX 设计：信息架构、布局、配色（亮 / 暗主题）、字体、状态色（通过 / 失败 / 跳过 / 运行中）、图标、交互与无障碍；
-      产出设计说明写进 findings.md，并给 HU 确认后再实现
-- [ ] 按设计实现（React + Vite stack 规范以 ui-ux-pro-max 的建议为准），实现后用该插件做一次 UI 审查
-- [ ] 左侧测试树：状态图标、搜索 / 过滤（失败、tag）、运行按钮（全部 / 文件 / 单个）
-- [ ] 顶部进度条与计数，运行 / 取消
-- [ ] 右侧详情：错误信息与堆栈、cucumber 步骤、耗时、证据（截图、元素树、空闲状态、日志）
-- [ ] 断线重连；运行中刷新页面能恢复当前状态
-- [ ] 组件测试 + 一个 Playwright 端到端冒烟（打开 UI、点运行、看到结果）
-**Status:** in_progress
+- [x] **设计先行**（A · 现代深色定稿，ui-ux-pro-max）
+- [x] 实现：`packages/ui/web/`（connection / model / App / TestTree / Detail / icons / styles），构建进 dist/web，根 build 包含
+- [x] 顶栏（项目·runner·平台、搜索 `/`、连接状态、主题、停止、全部运行）；进度带（环形三段、done/total、用时、开始阶段提示、多 worker 设备泳道）
+- [x] 左侧测试树：ARIA tree + roving tabindex（↑↓←→ Enter Home End，`r` 运行焦点项）、分段过滤（全部 / 失败 / 运行中 / 跳过 / 通过）、排序、重新列出、文件运行 / 单测运行按钮、文件级错误
+- [x] 右侧详情：状态胶囊 / 位置 / 设备 / 用时 / 重试次数、重跑；Report（错误、diff、堆栈、证据提示）、Evidence（截图放大 dialog、视频、JSON/文本文件）、Console（本测试日志 + runner 输出）、Source（只读、测试行 + 失败行高亮并滚动到位）
+- [x] 断线横幅 + 指数退避重连；token 连上后从地址栏移除；运行结束 aria-live 播报；未收到事件时的接入提示；主题记忆 + 系统偏好初值
+- [x] Playwright 冒烟测试（`packages/ui/test/web.test.ts`：列出、行内运行、失败 + 证据图加载、键盘 ↑ + r、主题切换、无页面错误）
+- [x] ui-ux-pro-max 审查：对比度修正 3 处、375px、reduced-motion 等（详见 findings「P6 实现记录」）
+- [x] 实跑 todo-app web（截图验证，含真实失败与证据）
+**Status:** complete
 
 ### P7 文档与验收
 - [ ] 三语文档：`cli.mdx`（`--no-progress`、`quiesco ui`），新增 UI 页面；README 提及
 - [ ] examples/todo-app：web 三个 runner 各跑一次进度条；UI 中点击运行单个测试 / 文件 / 全部；iOS、Android 至少各一次
 - [ ] `pnpm check` 全绿；`check:prod-strip` 不受影响
-**Status:** pending
+**Status:** in_progress
 
 ## 待用户确认
 （P0 后的问题已全部确认，见决定表）

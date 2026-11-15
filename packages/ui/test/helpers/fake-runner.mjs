@@ -26,7 +26,7 @@ for (const test of tests) {
     await new Promise(() => {});
   }
   client.send({ type: 'test:end', test, status: test.line === 9 ? 'failed' : 'passed', durationMs: 5, willRetry: false, ...(test.line === 9 ? { error: { message: 'boom' } } : {}) });
-  if (test.line === 9) client.send({ type: 'test:evidence', testId: test.id, files: ['/artifacts/x/failure.png'] });
+  if (test.line === 9) client.send({ type: 'test:evidence', testId: test.id, files: [process.env.FAKE_EVIDENCE ?? '/artifacts/x/failure.png'] });
 }
 // Like Vitest / Jest: a test of the file that was not chosen, reported as skipped.
 if (process.env.FAKE_SIBLING === '1') {

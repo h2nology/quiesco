@@ -19,3 +19,4 @@
 - HU 反馈「UI 太老气，不够现代化」→ 用 ui-ux-pro-max 重新检索（style: Dark Mode (OLED)、Soft UI Evolution；typography: Tech Startup、Friendly SaaS），视觉稿替换为两个方向：A 现代深色（Space Grotesk + DM Sans，近黑分层面板、紫罗兰强调、环形进度、浅色底状态标签）、B 现代浅色（Plus Jakarta Sans，悬浮卡片 + 柔和阴影、大圆角、bento 统计卡、分段标签页）。等 HU 选择。
 - HU 选定 A · 现代深色。findings 设计说明改为定稿（token / 字体 / 结构），决定表加「UI 视觉风格」，P6 设计先行勾选。下一步 P5 服务端。
 - P5 完成：@quiesco/ui 服务端（HTTP + WS、token/Host/Origin、证据/源码接口、运行队列、取消、文件监视重列）、core RunState 快照与 run-state 子路径、`quiesco ui` 命令；todo-app 实跑三 runner 通过；修了 exports 缺 default 条件（CLI require.resolve 找不到包）与范围外 skipped 覆盖结果两个问题。全量 817 tests 绿。
+- P6 完成：React 前端（A · 现代深色）实现并构建进 @quiesco/ui；Playwright 冒烟测试；ui-ux-pro-max 审查修正 3 个对比度不达标 token；todo-app web 实跑截图（空闲/运行中/通过/失败+证据/亮色/手机宽度）全部正常、无控制台错误。全量 818 tests 绿、lint/depcruise 绿。
