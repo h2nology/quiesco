@@ -7,10 +7,10 @@
 3. cucumber / vitest / jest 三个 runner 全部支持；附测试、三语文档，在 examples/todo-app 上实跑验收。
 
 ## Current Phase
-P8（发布，待 HU）
+完成（0.3.0 已发布）
 
 ## Next Step
-P0–P7 全部完成，已开 PR #15（feat/run-events → main）。下一步：HU 审查合并后，按 docs/releasing.md 发 0.3.0。
+0.3.0 已发布（npm 12 个包、标签 v0.3.0 → 6001cd7、GitHub Release）。待 HU 决定：是否发 0.3.1 带上 #16 的 Jest 列表排序修复（0.3.0 发布于修复合并之前）。
 
 ## 背景
 - 前置：0.2.0 已发布（`.planning/2026-11-14-issues-0-2/`）。
