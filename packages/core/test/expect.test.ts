@@ -51,6 +51,7 @@ describe('Driver state assertions', () => {
     await driver.expectNotChecked('a');
     await driver.expectValue('a', 0.5);
     await driver.expectValue('a', /^b/);
+    await driver.expectValue('a', new Date(Date.UTC(2031, 11, 24, 20, 15)));
     await driver.expectLabel('a', 'Close');
     const m = { id: 'a' };
     expect(assertions(agent)).toEqual([
@@ -63,6 +64,8 @@ describe('Driver state assertions', () => {
       { type: 'notChecked', matcher: m },
       { type: 'value', matcher: m, expected: 0.5 },
       { type: 'value', matcher: m, expected: { regex: { source: '^b', flags: '' } } },
+      // a Date for a date / time picker (issue #18)
+      { type: 'value', matcher: m, expected: { date: '2031-12-24T20:15:00.000Z' } },
       { type: 'label', matcher: m, expected: 'Close' },
     ]);
     expect(agent.requests[0]?.params['timeoutMs']).toBe(300);

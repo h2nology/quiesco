@@ -1,7 +1,7 @@
 /**
  * Hidden value-control playground (opened by the `openControls` backdoor), for
- * features/values.feature (Phase 6.3): a slider, a switch, a picker, a segmented control, a date field
- * and an adjustable stepper with accessibility actions. Each control shows its value in a text next to it.
+ * features/values.feature (Phase 6.3): a slider, a switch, a picker, a segmented control, a date field,
+ * a due date and time picked separately (issue #18) and an adjustable stepper with accessibility actions. Each control shows its value in a text next to it.
  */
 import Slider from '@react-native-community/slider';
 import { Picker } from '@react-native-picker/picker';
@@ -33,6 +33,7 @@ export default function Controls() {
   const [fruit, setFruit] = useState<string>('apple');
   const [size, setSize] = useState(0);
   const [birthday, setBirthday] = useState(() => new Date(2026, 0, 15));
+  const [due, setDue] = useState(() => new Date(2026, 10, 15, 9, 0));
   const [stepper, setStepper] = useState(5);
   const [lastAction, setLastAction] = useState('');
 
@@ -78,6 +79,13 @@ export default function Controls() {
         <View>
           <DateField testID="birthday" value={birthday} onChange={setBirthday} />
           <Text testID="birthday-value">{isoDate(birthday)}</Text>
+        </View>
+
+        <View>
+          {/* One Date, picked in two steps like Android's date and time dialogs (issue #18). */}
+          <DateField testID="due-date" value={due} onChange={setDue} />
+          <DateField testID="due-time" mode="time" value={due} onChange={setDue} />
+          <Text testID="due-value">{`${isoDate(due)} ${String(due.getHours()).padStart(2, '0')}:${String(due.getMinutes()).padStart(2, '0')}`}</Text>
         </View>
 
         <View style={styles.row}>

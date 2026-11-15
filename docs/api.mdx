@@ -74,7 +74,7 @@ around a component that drops it):
 | `Switch`, `expo-checkbox` | a boolean `value` and `onValueChange` | `true` / `false` |
 | `@react-native-picker/picker` | `onValueChange` and `selectedValue` | an item's value (also as a string), or its label |
 | `@react-native-segmented-control/segmented-control` | a `values` array and `onChange` / `onValueChange` | a segment's value, or its index |
-| `@react-native-community/datetimepicker` | a `Date` `value` and `onChange` / `onValueChange` | a `Date` (checked against `minimumDate` / `maximumDate`) |
+| `@react-native-community/datetimepicker` | a `Date` `value` and `onChange` / `onValueChange` | a `Date`, or a local string `"2031-12-24"` / `"20:15"` / `"2031-12-24T20:15"`; only the picker's part changes ([date and time pickers](#date-and-time-pickers)) |
 | DOM `<select>`, `<input type="date" / "time" / "datetime-local" / "month" / "week" / "range" / "number">`, checkbox | the element itself (web) | an option's value or label; a `Date` (written in local time) or the input's own string |
 
 Anything else fails with `ACTION_NOT_SUPPORTED` naming the callbacks that were found. Setting the
@@ -94,6 +94,34 @@ Android's `DateTimePicker` renders no view (it opens a dialog), so after the app
 finds the component itself by its testID (or `{ type: 'DateTimePicker' }` by name); the app closes the
 dialog when it handles the change, as it would for the user's choice. Only `id`, `type` and `index`
 reach such components.
+
+#### Date and time pickers {#date-and-time-pickers}
+
+Like the native dialogs, `setValue` changes only the part of the picker's `value` that its `mode` shows,
+in the picker's time zone (`timeZoneOffsetInMinutes`, else the device's):
+
+| `mode` | What changes | Takes |
+|---|---|---|
+| `date` (default) | the day; the hours and minutes stay, seconds become 0 | a `Date` or `"2031-12-24"` |
+| `time` | the hours and minutes; the day stays | a `Date` or `"20:15"` (`"20:15:30"` with seconds) |
+| `datetime` | a `Date`: all of it; a string: what it gives | a `Date`, `"2031-12-24T20:15"`, `"2031-12-24"` or `"20:15"` |
+| `countdown` | all of it | a `Date` |
+
+So picking a date and then a time on Android's two dialogs keeps the date:
+
+```ts
+await this.app.setValue('due-date-picker', '2031-12-24');
+await this.app.setValue('due-time-picker', '20:15');   // no need to invent a day
+```
+
+`minimumDate` / `maximumDate` are checked against the result. The strings are local time on the device,
+so they do not depend on the host's time zone; a `Date` is converted to the device's time zone.
+
+A picker's value (`expectValue`, the `value` of a query) is what it shows, in local time on the device:
+`"2031-12-24"` (`date`), `"20:15"` (`time`), `"2031-12-24T20:15"` (`datetime`, `countdown`), with
+`:ss` when the seconds are not 0. `expectValue` takes that string, or a `Date` that matches when those
+parts agree: `expectValue('due-time-picker', '20:15')`. Android's dialogs are gone once the app handled
+the change; check what the app shows instead.
 
 `adjustSlider` drags the thumb in `native` mode and reads the value back: the thumb follows the finger
 less the touch slop, so it drags again (always one way, with a run-up) until the slider is within one
@@ -148,7 +176,7 @@ Assertions retry until they hold or the timeout runs out (`ASSERTION_FAILED` wit
 | `expectNotVisible(target)` | no matching element is visible (absent or hidden) |
 | `expectExists(target)` / `expectNotExists(target)` | an element is / is not in the tree, visible or not |
 | `expectText(target, text \| RegExp)` | exactly one match and its text equals / matches |
-| `expectValue(target, value \| RegExp)` | exactly one match and its value equals / matches: input text, switch state, slider / picker value or `accessibilityValue` |
+| `expectValue(target, value \| RegExp \| Date)` | exactly one match and its value equals / matches: input text, switch state, slider / picker value (a date / time picker's: [date and time pickers](#date-and-time-pickers)) or `accessibilityValue` |
 | `expectLabel(target, text \| RegExp)` | exactly one match and its accessibility label equals / matches |
 | `expectFocused(target)` / `expectNotFocused(target)` | exactly one match and it has / does not have the input focus |
 | `expectEnabled(target)` / `expectDisabled(target)` | exactly one match and it is enabled / disabled (`disabled`, `accessibilityState.disabled`, `aria-disabled`, `editable={false}`, also inherited from an ancestor) |

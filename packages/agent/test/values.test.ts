@@ -125,7 +125,8 @@ describe('jsSetValue', () => {
   it('date: a set event and the date; onValueChange wins; min / max dates are checked', () => {
     const onChange = vi.fn();
     const d = new Date(2027, 2, 8, 12);
-    value.jsSetValue(value.detectControl(node({ owner: { value: new Date(), onChange } }), 'android'), { date: d.toISOString() }, 'android');
+    // mode="datetime" sets the whole value
+    value.jsSetValue(value.detectControl(node({ owner: { value: new Date(), mode: 'datetime', onChange } }), 'android'), { date: d.toISOString() }, 'android');
     expect(onChange).toHaveBeenCalledWith({ type: 'set', nativeEvent: { timestamp: d.getTime(), utcOffset: -d.getTimezoneOffset() } }, d);
     const onValueChange = vi.fn();
     value.jsSetValue(value.detectControl(node({ owner: { value: new Date(), onChange, onValueChange } }), 'ios'), { date: d.toISOString() }, 'ios');
@@ -133,7 +134,39 @@ describe('jsSetValue', () => {
     expect(onChange).toHaveBeenCalledOnce();
     const bounded = value.detectControl(node({ owner: { value: new Date(), onChange, maximumDate: new Date(2026, 0, 1) } }), 'ios');
     expect(errorOf(() => value.jsSetValue(bounded, { date: d.toISOString() }, 'ios')).message).toContain('maximumDate');
-    expect(errorOf(() => value.jsSetValue(bounded, 'tomorrow', 'ios')).message).toContain('takes a date');
+    expect(errorOf(() => value.jsSetValue(bounded, 'tomorrow', 'ios')).message).toContain('takes a Date or a local "2031-12-24" (date), "20:15" (time)');
+  });
+
+  it('date / time pickers change only their part of the value, as the native dialogs do (issue #18)', () => {
+    const set = (owner: Record<string, unknown>, v: unknown): Date => {
+      const onValueChange = vi.fn();
+      value.jsSetValue(value.detectControl(node({ owner: { onValueChange, ...owner } }), 'android'), v as never, 'android');
+      return onValueChange.mock.calls[0]?.[1] as Date;
+    };
+    const due = new Date(2031, 11, 24, 9, 30, 45, 123);
+    // the issue: pick a date, then a time; the time dialog keeps the date
+    expect(set({ value: due, mode: 'time' }, { date: new Date(2026, 10, 15, 20, 15).toISOString() })).toEqual(new Date(2031, 11, 24, 20, 15, 0, 0));
+    expect(set({ value: due, mode: 'time' }, '20:15')).toEqual(new Date(2031, 11, 24, 20, 15, 0, 0));
+    expect(set({ value: due, mode: 'time' }, '7:05:30')).toEqual(new Date(2031, 11, 24, 7, 5, 30, 0));
+    // the date dialog (also the default mode) keeps the hours and minutes; seconds become 0
+    expect(set({ value: due }, { date: new Date(2030, 4, 20, 14, 30).toISOString() })).toEqual(new Date(2030, 4, 20, 9, 30, 0, 0));
+    expect(set({ value: due, mode: 'date' }, '2030-05-20')).toEqual(new Date(2030, 4, 20, 9, 30, 0, 0));
+    // datetime: a Date as it is; a string sets what it gives
+    expect(set({ value: due, mode: 'datetime' }, '2030-05-20T14:30')).toEqual(new Date(2030, 4, 20, 14, 30, 0, 0));
+    expect(set({ value: due, mode: 'datetime' }, '14:30')).toEqual(new Date(2031, 11, 24, 14, 30, 0, 0));
+    // timeZoneOffsetInMinutes: the parts are in that zone
+    const utc = new Date(Date.UTC(2031, 11, 24, 23, 0));
+    expect(set({ value: utc, mode: 'time', timeZoneOffsetInMinutes: 0 }, '08:00')).toEqual(new Date(Date.UTC(2031, 11, 24, 8, 0)));
+    expect(set({ value: utc, mode: 'date', timeZoneOffsetInMinutes: 540 }, '2032-01-01')).toEqual(new Date(Date.UTC(2031, 11, 31, 23, 0)));
+    // what a picker cannot take
+    const message = (owner: Record<string, unknown>, v: unknown) => errorOf(() => set(owner, v)).message;
+    expect(message({ value: due, mode: 'time' }, '2030-05-20')).toContain('a time picker (mode="time") takes a time such as "20:15"');
+    expect(message({ value: due, mode: 'date' }, '20:15')).toContain('a date picker (mode="date") takes a day such as "2031-12-24"');
+    expect(message({ value: due }, '2030-02-30')).toContain('takes a Date or a local');
+    expect(message({ value: due }, '25:00')).toContain('takes a Date or a local');
+    expect(message({ value: due, mode: 'countdown' }, '00:10')).toContain('a countdown picker takes a Date');
+    // min / max apply to the merged value
+    expect(message({ value: due, mode: 'time', minimumDate: new Date(2031, 11, 24, 12) }, '08:00')).toContain('minimumDate');
   });
 
   it('DOM controls get change events with the value the browser would hold', () => {

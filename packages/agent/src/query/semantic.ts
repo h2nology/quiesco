@@ -20,6 +20,7 @@
  */
 import type { JsonValue, SemanticType } from '@quiesco/protocol';
 
+import { formatPickerValue, pickerMode, pickerOffset } from '../date-value';
 import type { HostNode } from '../fiber-adapter';
 
 const ROLES: Readonly<Record<string, SemanticType>> = {
@@ -249,6 +250,12 @@ function ownValue(node: HostNode, type: SemanticType | undefined): JsonValue | u
     if (typeof c === 'boolean') return c;
   }
   if (type === 'picker') {
+    // A date / time picker: what it shows, "2031-12-24" / "20:15" / "2031-12-24T20:15" (issue #18).
+    const date = propOf(node, 'value');
+    if (date instanceof Date && !Number.isNaN(date.getTime())) {
+      const props = { ...node.ownerProps(), ...node.props };
+      return formatPickerValue(date, pickerMode(props), pickerOffset(props));
+    }
     const v = jsonScalar(propOf(node, 'selectedValue')) ?? jsonScalar(propOf(node, 'value'));
     if (v !== undefined) return v;
   }

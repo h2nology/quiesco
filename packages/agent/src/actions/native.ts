@@ -382,7 +382,7 @@ export function nativePerformer(ctx: NativeContext): ActionPerformer {
           if (control.kind === 'picker') {
             await selectRow(wheels, 0, value.pickerIndex(control, v, 'native'));
           } else {
-            const d = value.toDate(v, 'native');
+            const d = value.pickerDate(control.props, v, 'native');
             value.checkDate(control.props, d, 'native');
             await selectDate(wheels, d);
           }

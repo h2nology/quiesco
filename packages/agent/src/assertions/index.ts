@@ -11,9 +11,17 @@
  */
 import type { AssertionSpec, ElementSummary, JsonValue, TextMatch } from '@quiesco/protocol';
 
+import { pickerValueMatches } from '../date-value';
 import { QuiescoError } from '../errors';
 import type { HostNode, Viewport } from '../fiber-adapter';
 import { findAll, summarize, toJsonValue, toRegExp } from '../query';
+
+/** `{ date: ISO }` (how the driver sends a Date) as a Date; null for anything else. */
+function dateValue(v: unknown): Date | null {
+  if (typeof v !== 'object' || v === null || Array.isArray(v) || Object.keys(v).length !== 1 || typeof (v as { date?: unknown }).date !== 'string') return null;
+  const d = new Date((v as { date: string }).date);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 
 function isTextMatch(v: unknown): v is TextMatch {
   return typeof v === 'string' || (typeof v === 'object' && v !== null && !Array.isArray(v) && 'regex' in v && Object.keys(v).length === 1);
@@ -119,6 +127,9 @@ function evaluatePositive(roots: readonly HostNode[], spec: AssertionSpec, viewp
       if (isTextMatch(expected) && typeof expected !== 'string') {
         return stateOf(describeText(expected), (e) => e.value, (a) => typeof a === 'string' && textMatches(a, expected));
       }
+      // A Date (sent as { date: ISO }) against a date / time picker's value: the parts the picker shows (issue #18).
+      const date = dateValue(expected);
+      if (date !== null) return stateOf(expected as JsonValue, (e) => e.value, (a) => (typeof a === 'string' && pickerValueMatches(a, date)) || jsonEqual(a, expected as JsonValue));
       return stateOf(expected as JsonValue, (e) => e.value, (a) => jsonEqual(a, expected as JsonValue));
     }
     case 'notVisible': {

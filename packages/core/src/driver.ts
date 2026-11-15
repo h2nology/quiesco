@@ -24,6 +24,7 @@ import type {
   Point,
   ResultOf,
   Speed,
+  TextMatch,
   TimedPoint,
   TrackerState,
   TreeNode,
@@ -394,8 +395,14 @@ export class Driver {
     return this.assert({ type: 'notChecked', matcher: toMatcher(target) }, opts);
   }
   /** Input text, switch state, slider / picker value or accessibilityValue equals (or matches) `expected`. */
-  expectValue(target: MatcherInput, expected: JsonValue | RegExp, opts?: CallOptions): Promise<ElementSummary[]> {
-    return this.assert({ type: 'value', matcher: toMatcher(target), expected: expected instanceof RegExp ? toTextMatch(expected) : expected }, opts);
+  /**
+   * The element's value. A date / time picker's value is what it shows, in the device's local time:
+   * "2031-12-24" (mode date), "20:15" (time), "2031-12-24T20:15" (datetime), seconds when not 0; a Date
+   * matches when those parts agree.
+   */
+  expectValue(target: MatcherInput, expected: JsonValue | RegExp | Date, opts?: CallOptions): Promise<ElementSummary[]> {
+    const value = expected instanceof RegExp ? toTextMatch(expected) : expected instanceof Date ? toControlValue(expected) : expected;
+    return this.assert({ type: 'value', matcher: toMatcher(target), expected: value as JsonValue | TextMatch }, opts);
   }
   expectLabel(target: MatcherInput, expected: TextQuery, opts?: CallOptions): Promise<ElementSummary[]> {
     return this.assert({ type: 'label', matcher: toMatcher(target), expected: toTextMatch(expected) }, opts);
