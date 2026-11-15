@@ -12,3 +12,4 @@
 - P1 完成（分支 feat/run-events）：protocol `run-events.ts`（类型 + NDJSON 编解码）、core `run-events.ts`（RunEventServer / connectRunEvents）；新增 23 个单元测试（含真实子进程 500 事件）；pnpm build/lint/depcruise/test 全绿（754 tests）。遇到并修复 unref 导致退出码 13。进入 P2。
 - P2 进行中：cucumber formatter（`@quiesco/cucumber/events`，CucumberRunEvents 映射 + After hook 发 test:evidence，21 测试含 CLI 子进程）完成；Vitest reporter（`@quiesco/vitest/reporter` + `quiescoPlugin()`，includeTaskLocation，fixture 发 test:evidence，4 测试含真实子进程）完成。协议调整：run:start.workers 可选，worker 统一 0 起。
 - P2 完成：Jest reporter（12 测试含真实 jest 子进程：skip 从文件结果补、收集失败 file:end、总数增长）+ preset reporters + 环境发 evidence。全量：build/lint/depcruise/typecheck:examples/test（765）全绿。CLI 注入与 hello 提示移到 P3。
+- P3 完成：RunState（core）、render / StickyTerminal / runWithProgress（cli）、quiesco test 接入（--no-progress、QUIESCO_PROGRESS=0、CI 关闭；cucumber formatter 注入；hello 提示）。实跑 todo-app web 三 runner + cucumber 并行全部正确。修了 0 列伪终端、Jest success 两个 bug。全量 787 tests 绿。

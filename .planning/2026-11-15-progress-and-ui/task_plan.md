@@ -7,10 +7,10 @@
 3. cucumber / vitest / jest 三个 runner 全部支持；附测试、三语文档，在 examples/todo-app 上实跑验收。
 
 ## Current Phase
-P3
+P4
 
 ## Next Step
-P3：先写纯函数的进度状态（事件 → 计数 / 总数 / 运行中测试）与渲染器并单测，再接入 `quiesco test`（管道转发 runner 输出、底部重绘、cucumber formatter 注入、hello 提示）。
+P4：统一的 `listTests(runner)`（cucumber 编程 API dry-run、`vitest list --json`、jest collect-only + `QUIESCO_LIST=1` 跳过设备），放在 `@quiesco/ui` 还是 CLI 待定（倾向新包 `@quiesco/ui` 的服务端）。
 
 ## 背景
 - 前置：0.2.0 已发布（`.planning/2026-11-14-issues-0-2/`）。
@@ -72,19 +72,21 @@ CLI (quiesco ui)    ── 事件 → WebSocket → 浏览器 (React)
 **Status:** complete
 
 ### P3 终端进度条
-- [ ] `quiesco test` 启动 RunEventServer（仅在显示进度条时），env 传给 runner；cucumber 追加 `--format "<file URL of @quiesco/cucumber/events>":"<null>"`（从项目解析，解析不到则不加）；runner 退出后 `drain()`
-- [ ] Jest / Vitest 没收到 `hello`：提示如何接入（preset / reporters / quiescoPlugin）
-- [ ] runner stdout/stderr 改为管道转发，底部一行重绘（宽度自适应、ANSI 处理、换行不撕裂）
-- [ ] 显示：`[████░░░░] 12/30  ✓10 ✗1 ↷1  2m13s  ▶ 当前测试名`；多 worker 时显示各 worker 当前测试
-- [ ] 总数未知时（jest 收集前）显示不确定态
-- [ ] 非 TTY、`CI=true`、`--no-progress` 时关闭并保持原样 stdio；退出码不变；Ctrl-C 正确传给 runner
-- [ ] 单元测试（渲染器纯函数化，喂事件断言输出）
-**Status:** in_progress
+- [x] `quiesco test` 启动 RunEventServer（仅在显示进度条时），env 传给 runner；cucumber 追加 `--format "<file URL of @quiesco/cucumber/events>":"/dev/null"`（从项目解析，解析不到则不加）；runner 退出后 `drain()`
+- [x] 没收到 `hello`：按 runner 提示如何接入（cucumber 装包 / Vitest quiescoPlugin / Jest reporters）
+- [x] core `RunState`（事件 → 计数 / 总数 / 运行中 / 每个测试状态 / 证据；UI 复用）
+- [x] runner 输出管道转发（FORCE_COLOR、COLUMNS 保留颜色与宽度），`StickyTerminal` 底部区域重绘，未完成的半行（cucumber 进度点）留在进度条上方原地补全
+- [x] 显示：`▕████░░▏ 12/30  ✓10 ✗1 ↷1  2m13s  ▶ 当前测试`；多 worker `▶ 1:… · 2:…`；估算总数 `~N`；CJK 按双宽截断；结束时最后一行留最终状态
+- [x] 非 TTY、`CI`、`--no-progress`、`QUIESCO_PROGRESS=0` 时关闭（原样 stdio）；退出码不变；Ctrl-C 时清掉进度条
+- [x] 单元测试：RunState 7、渲染 / StickyTerminal（虚拟终端）/ test 命令 / 真实子进程 14
+- [x] 实跑（todo-app web，`script` 伪终端 + 虚拟终端回放）：cucumber 5/5、vitest 7/7（~7 估算）、jest 7/7、cucumber `--workers 2` 显示两个 worker
+- [ ] Windows：`--format` 的引号转义与临时文件目标未在 Windows 上验证（无 Windows 机器）
+**Status:** complete
 
 ### P4 测试发现（UI 用）
 - [ ] 统一的 `listTests(runner)` → 文件 / 分组 / 测试树（cucumber dry-run，vitest list，jest 方案按 P0 结论）
 - [ ] 文件变化后重新发现（watch features / 测试文件）
-**Status:** pending
+**Status:** in_progress
 
 ### P5 UI 服务 `quiesco ui`
 - [ ] 命令：`quiesco ui --platform … [--runner …] [--port] [--open]`；只监听 127.0.0.1
@@ -119,4 +121,8 @@ CLI (quiesco ui)    ── 事件 → WebSocket → 浏览器 (React)
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
+| P3 实跑：伪终端报告 0 列 → 渲染宽度 0、进度条为空、半行按 1 列算行数（光标上移 40 行） | 1 | `columns()` 0 时按 80 |
+| P3 实跑：Jest 全部通过却显示 failed：`onRunComplete` 时 `results.success` 尚未计算 | 1 | 按 numFailedTests / numFailedTestSuites / numRuntimeErrorTestSuites 判断，加单测 |
+| P3 实跑：一次 `script` 录屏为空且退出码 1，无法复现 | 1 | 重跑正常；记录在案 |
+| P2 提交 e7cf712 含一个失败的 jest 测试（fixture 加 `/* global */` 后行号 +1，复跑时只看了输出尾部） | 1 | P3 中修正；以后看测试结果必须看到 passed/failed 计数 |
 | P1 子进程测试退出码 13（顶层 await 未完成）：client socket `unref()` 后 `close()` 等待期间事件循环为空 | 1 | `close()` 时 `socket.ref()`，冲刷完再放开 |

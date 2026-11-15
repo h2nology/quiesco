@@ -47,8 +47,10 @@ export interface Aggregated {
   numTotalTests: number;
   numTotalTestSuites: number;
   numFailedTests: number;
+  numFailedTestSuites: number;
   numRuntimeErrorTestSuites: number;
-  success: boolean;
+  /** Not set yet when reporters' onRunComplete runs (Jest computes it afterwards). */
+  success?: boolean;
   wasInterrupted?: boolean;
   startTime: number;
 }
@@ -129,7 +131,8 @@ export default class QuiescoReporter {
     const client = this.client;
     if (client === null) return;
     this.client = null;
-    client.send({ type: 'run:end', success: results.success, interrupted: results.wasInterrupted === true, durationMs: Date.now() - results.startTime });
+    const success = results.numFailedTests === 0 && results.numFailedTestSuites === 0 && results.numRuntimeErrorTestSuites === 0;
+    client.send({ type: 'run:end', success, interrupted: results.wasInterrupted === true, durationMs: Date.now() - results.startTime });
     await client.close();
   }
 

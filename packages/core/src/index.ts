@@ -51,3 +51,5 @@ export { RunEventServer, connectRunEvents, runEventsAddress } from './run-events
 export type { ConnectOptions, RunEventClient, RunEventServerOptions } from './run-events.js';
 export { RUN_EVENTS_ENV, RUN_EVENTS_PROTOCOL, createRunEventDecoder, emptyCounts, encodeRunEvent, isRunEvent } from '@quiesco/protocol';
 export type { RunCounts, RunError, RunEvent, RunEventOf, RunEventType, RunEvents, RunnerName, TestRef, TestStatus } from '@quiesco/protocol';
+export { RunState } from './run-state.js';
+export type { RunPhase, RunningTest, TestState } from './run-state.js';

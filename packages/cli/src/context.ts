@@ -4,6 +4,7 @@
  */
 import { spawn as nodeSpawn } from 'node:child_process';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 
 export interface ExecResult {
@@ -21,6 +22,12 @@ export interface CliContext {
   exec(command: string, args: readonly string[], options?: { cwd?: string; env?: NodeJS.ProcessEnv }): Promise<ExecResult>;
   /** Run a command with the terminal attached (cucumber-js); resolves with its exit code. */
   run(command: string, args: readonly string[], options?: { cwd?: string; env?: NodeJS.ProcessEnv }): Promise<number>;
+  /** Run a command with stdin attached and its output handed to the callbacks (the progress bar keeps the last line). */
+  runPiped(command: string, args: readonly string[], options: { cwd?: string; env?: NodeJS.ProcessEnv; onStdout: (chunk: string) => void; onStderr: (chunk: string) => void }): Promise<number>;
+  /** The terminal, when stdout is one (null when piped or redirected). */
+  terminal: Terminal | null;
+  /** Resolve `specifier` as code in `dir` would (the project's own packages); null when it is not installed. */
+  resolveFrom(dir: string, specifier: string): string | null;
   readFile(path: string): string | null;
   writeFile(path: string, content: string): void;
   exists(path: string): boolean;
@@ -36,6 +43,16 @@ export interface CliContext {
   onInterrupt(cleanup: () => Promise<void>): () => void;
   /** Wait (polling a dev server). */
   sleep(ms: number): Promise<void>;
+}
+
+export interface Terminal {
+  columns(): number;
+  /** Whether colors may be used (a color terminal, NO_COLOR not set). */
+  color: boolean;
+  stdout(text: string): void;
+  stderr(text: string): void;
+  /** Called on Ctrl-C without exiting (the child gets the signal too and ends the run); returns a remover. */
+  onInterrupt(handler: () => void): () => void;
 }
 
 export interface BackgroundProcess {
@@ -69,6 +86,22 @@ export function defaultContext(): CliContext {
         child.on('error', () => resolve(127));
         child.on('close', (code) => resolve(code ?? 1));
       }),
+    runPiped: (command, args, options) =>
+      new Promise((resolve) => {
+        const child = nodeSpawn(command, [...args], { cwd: options.cwd, env: options.env ?? process.env, stdio: ['inherit', 'pipe', 'pipe'], shell: isWindows });
+        child.stdout?.setEncoding('utf8').on('data', options.onStdout);
+        child.stderr?.setEncoding('utf8').on('data', options.onStderr);
+        child.on('error', () => resolve(127));
+        child.on('close', (code, signal) => resolve(code ?? (signal === 'SIGINT' ? 130 : signal !== null ? 143 : 1)));
+      }),
+    terminal: process.stdout.isTTY === true ? ttyTerminal() : null,
+    resolveFrom: (dir, specifier) => {
+      try {
+        return createRequire(path.join(dir, 'package.json')).resolve(specifier);
+      } catch {
+        return null;
+      }
+    },
     readFile: (p) => {
       try {
         return fs.readFileSync(p, 'utf8');
@@ -133,6 +166,20 @@ export function defaultContext(): CliContext {
       };
     },
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+  };
+}
+
+function ttyTerminal(): Terminal {
+  return {
+    // Some pseudo-terminals report 0 columns.
+    columns: () => (process.stdout.columns > 0 ? process.stdout.columns : 80),
+    color: process.env['NO_COLOR'] === undefined && process.stdout.hasColors?.() === true,
+    stdout: (text) => void process.stdout.write(text),
+    stderr: (text) => void process.stderr.write(text),
+    onInterrupt: (handler) => {
+      process.on('SIGINT', handler);
+      return () => void process.off('SIGINT', handler);
+    },
   };
 }
 

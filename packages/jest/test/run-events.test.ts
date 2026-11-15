@@ -43,7 +43,7 @@ describe('@quiesco/jest/reporter in a real Jest run', () => {
 
     const ends = new Map(ofType(received, 'test:end').map((e) => [e.test.path.join(' > '), e]));
     expect(ends.size).toBe(7);
-    expect(ends.get('outer > inner > passes')).toMatchObject({ status: 'passed', test: { id: jestTestId('tests/a.e2e.js', ['outer', 'inner', 'passes']), file: 'tests/a.e2e.js', line: 3, name: 'passes' } });
+    expect(ends.get('outer > inner > passes')).toMatchObject({ status: 'passed', test: { id: jestTestId('tests/a.e2e.js', ['outer', 'inner', 'passes']), file: 'tests/a.e2e.js', line: 4, name: 'passes' } });
     expect(ends.get('outer > fails')).toMatchObject({ status: 'failed', error: { message: expect.stringContaining('expect(received).toBe(expected)'), stack: expect.stringContaining('Expected: 2') } });
     expect(ends.get('outer > skipped')?.status).toBe('skipped'); // sent from the file result: no per-test events in Jest
     expect(ends.get('outer > todo')?.status).toBe('todo');
@@ -57,6 +57,15 @@ describe('@quiesco/jest/reporter in a real Jest run', () => {
     expect(fileEnds.find((e) => e.file === 'tests/c.e2e.js')?.error).toBeUndefined();
     expect(received.at(-1)).toMatchObject({ type: 'run:end', success: false, interrupted: false });
   }, 60_000);
+
+  it('a passing run ends with success (Jest sets results.success only after the reporters)', async () => {
+    const { default: Reporter } = await import('../src/reporter');
+    const sent: RunEvent[] = [];
+    const r = new Reporter({ rootDir: cwd });
+    (r as unknown as { client: { send: (e: RunEvent) => void; close: () => Promise<void> } }).client = { send: (e) => sent.push(e), close: async () => {} };
+    await r.onRunComplete(undefined, { numTotalTests: 2, numTotalTestSuites: 1, numFailedTests: 0, numFailedTestSuites: 0, numRuntimeErrorTestSuites: 0, startTime: Date.now() });
+    expect(sent[0]).toMatchObject({ type: 'run:end', success: true });
+  });
 });
 
 describe('handleEvent evidence callback', () => {

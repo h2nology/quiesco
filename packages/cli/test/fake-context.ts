@@ -31,6 +31,15 @@ export function fakeContext(answer: (command: string, args: readonly string[]) =
       calls.push({ command, args: [...args], ...(options.env !== undefined ? { env: options.env } : {}) });
       return answer(command, args).code ?? 0;
     },
+    runPiped: async (command, args, options) => {
+      calls.push({ command, args: [...args], ...(options.env !== undefined ? { env: options.env } : {}) });
+      const a = answer(command, args);
+      if (a.stdout !== undefined) options.onStdout(a.stdout);
+      if (a.stderr !== undefined) options.onStderr(a.stderr);
+      return a.code ?? 0;
+    },
+    terminal: null,
+    resolveFrom: () => null,
     readFile: (p) => (fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null),
     writeFile: (p, c) => {
       fs.mkdirSync(path.dirname(p), { recursive: true });
