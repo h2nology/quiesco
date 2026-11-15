@@ -75,3 +75,5 @@
 - Android（API 37）：Metro 自动启动 → students 4/4；diag 同 iOS（#2、#9）。
 - 集成分支 `pnpm check` 731 通过；示例 App web 全套 77 passed / 13 skipped（之前 75 + go-back 2）。
 - 验收完成，等 HU（见 task_plan Next Step）。
+- merge #10–#14（merge commit；#11 计划文件冲突、#14 test.ts 冲突按集成分支解决；每步 pnpm check：701 / 711 / 720 / 731）；main 上 `chore(release): 0.2.0`（148b77c），release:check 通过。
+- npm publish：本机 pnpm 非交互无法过 2FA ⇒ HU 自己发布；刚发布时 registry 处于 validating，几分钟后 11 包均为 0.2.0（latest）。tag v0.2.0 已 push；9 个 issue 已贴回复（replies.md）。I.F 完成。

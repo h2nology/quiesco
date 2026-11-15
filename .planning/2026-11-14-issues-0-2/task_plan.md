@@ -7,7 +7,7 @@
 I.F
 
 ## Next Step
-I.F 验收已在本地集成分支 `integration/0.2.0` 上完成（三端全过）。#10–#14 已合并，main 上 0.2.0 已提交。等 HU：看 replies.md（之后 Claude 贴到各 issue）、npm publish + tag v0.2.0。
+I.F 验收已在本地集成分支 `integration/0.2.0` 上完成（三端全过）。全部完成：#10–#14 已合并，npm 0.2.0 已发布，tag v0.2.0，9 个 issue 已回复并关闭。
 
 ## 背景
 - 前置：npm 0.1.1 已发布（tag v0.1.1，`.planning/2026-11-14-release/`）。
@@ -93,9 +93,9 @@ I.F 验收已在本地集成分支 `integration/0.2.0` 上完成（三端全过�
 - [x] 修复 commit cherry-pick 到 #14 分支（HU 2026-11-15）并 push，PR 说明已补
 - [x] merge #10–#14（HU 2026-11-15 让 Claude 合并；merge commit，依次改 base 为 main；冲突：#11 计划文件、#14 test.ts，按集成分支解决；每步 pnpm check）⇒ issue #1–#9 自动关闭
 - [x] merge 后 main 上：版本 0.2.0 commit、release:check
-- [ ] 每个 issue 贴回复（replies.md）
-- [ ] HU publish + tag v0.2.0
-- **Status:** in_progress（验收完成，等 HU）
+- [x] 每个 issue 贴回复（replies.md，HU 确认后 2026-11-15 贴出）
+- [x] HU npm publish（11 包 0.2.0，registry 确认）；tag v0.2.0（148b77c）已 push
+- **Status:** complete（2026-11-15）
 
 ## 待 HU 决定
 - D1–D6 全部已定（见 Decisions Made）。
