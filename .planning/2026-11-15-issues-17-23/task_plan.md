@@ -4,10 +4,10 @@
 解决 h2nology/quiesco 的 7 个 open issue（同一位用户在 Expo SDK 58 默认模板 + cucumber 项目上的实测反馈）。每个修复都附测试和三语文档，实跑验收后回复并关闭 issue，最后与 #16 的 Jest 列表排序修复一起发下一个版本。
 
 ## Current Phase
-J.E：0.4.0 已发布，待回复 / 关闭 issue
+完成（0.4.0 已发布，#17–#23 已回复并关闭）
 
 ## Next Step
-HU 确认后在 #17–#23 逐个回复修复内容与 0.4.0 并关闭。
+本任务完成。
 
 ## 背景
 - 前置：0.3.0 已发布；#16（Jest 列表排序）已合并、未发布（`.planning/2026-11-15-progress-and-ui/`）。
@@ -104,7 +104,8 @@ HU 确认后在 #17–#23 逐个回复修复内容与 0.4.0 并关闭。
 - [x] `pnpm check`（840）、`docs:check` 通过；prod-strip：本地需 --allow-clean 未跑，CI prod-strip workflow 在 #24、#27 上 web / android / ios 全部 success
 - [x] PR #24→#27 依次合并（merge commit）；0.4.0：release:check 通过，`chore(release): 0.4.0`（f63355b），HU 执行 npm publish（gitHead 1881aba），12 个包已在 npm；tag v0.4.0（1881aba）；GitHub Release https://github.com/h2nology/quiesco/releases/tag/v0.4.0
 - [x] npm 验证：全新默认模板 `npx quiesco@0.4.0 init` ⇒ 发布不满 24h 仍装到 0.4.0（写入 minimumReleaseAgeExclude）；doctor 通过；quick start web 1/1
-- [ ] 逐个回复并关闭 #17–#23（待 HU 确认）
+- [x] #17–#23 逐个回复（修复内容、PR、0.4.0、实测结果）并关闭（COMPLETED）
+- **Status:** complete（2026-11-15）
 - **Status:** pending
 
 ## Decisions Made
