@@ -12,6 +12,7 @@ import { loadConfig, serverPort } from '@quiesco/core';
 import type { CliContext, CliPlatform } from '../context.js';
 import { PLATFORMS, parsePlatform, takeOption } from '../context.js';
 import { CLI_COMMANDS, installedVersion, isQuiescoPackage, scriptCommands } from '../packages.js';
+import { rootSourceFiles } from '../project.js';
 
 export type CheckStatus = 'ok' | 'warn' | 'fail';
 
@@ -196,11 +197,22 @@ function compareVersions(a: string, b: string): number {
   return 0;
 }
 
-function rootCheck(ctx: CliContext, files: readonly string[]): CheckResult {
-  const found = files.some((f) => (ctx.readFile(f) ?? '').includes('QuiescoRoot'));
-  return found
-    ? { name: '<QuiescoRoot>', status: 'ok', detail: 'used in the app' }
-    : { name: '<QuiescoRoot>', status: 'warn', detail: 'not found in app/, src/ or the entry', fix: "Wrap the root layout: import { QuiescoRoot } from '@quiesco/agent'; <QuiescoRoot>…</QuiescoRoot>." };
+/**
+ * Issue #20: the agent connects from <QuiescoRoot> and the soft reset remounts the app through it, so a
+ * missing one fails (CONNECT_TIMEOUT on every run) whatever the reset mode.
+ */
+function rootCheck(ctx: CliContext, main: string | undefined): CheckResult {
+  const files = rootSourceFiles(ctx, main);
+  const found = files.find((f) => (ctx.readFile(f) ?? '').includes('QuiescoRoot'));
+  const rel = (f: string): string => path.relative(ctx.cwd, f);
+  return found !== undefined
+    ? { name: '<QuiescoRoot>', status: 'ok', detail: `in ${rel(found)}` }
+    : {
+        name: '<QuiescoRoot>',
+        status: 'fail',
+        detail: `not found in ${files.length > 0 ? files.map(rel).join(', ') : 'app/_layout, src/app/_layout, App or the entry file'}`,
+        fix: "Wrap the app's root in it: import { QuiescoRoot } from '@quiesco/agent'; <QuiescoRoot>…</QuiescoRoot> (the root layout, or the component the entry registers). The app connects to Quiesco from it, and the soft reset before each scenario remounts the app through it: without it no test can run.",
+      };
 }
 
 async function platformChecks(ctx: CliContext, platform: CliPlatform, config: QuiescoConfig | null): Promise<CheckResult[]> {
@@ -322,8 +334,7 @@ export async function runChecks(ctx: CliContext, only: CliPlatform | undefined, 
     });
   }
   results.push(...projectChecks(ctx));
-  const sources = ['app/_layout.tsx', 'src/app/_layout.tsx', 'App.tsx', 'App.js', 'src/App.tsx', 'app/_layout.js', 'src/app/_layout.js'].map((f) => path.join(ctx.cwd, f));
-  results.push(rootCheck(ctx, sources));
+  results.push(rootCheck(ctx, readJson<PackageJson>(ctx, path.join(ctx.cwd, 'package.json'))?.main));
 
   let config: QuiescoConfig | null = null;
   try {

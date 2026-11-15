@@ -12,6 +12,7 @@ import path from 'node:path';
 import type { CliContext, CliPlatform } from '../context.js';
 import { PLATFORMS, takeFlag, takeOption } from '../context.js';
 import { installedVersion, isQuiescoPackage } from '../packages.js';
+import { entryFile, registeredRoot, rootSourceFiles, wrapRegisteredRoot } from '../project.js';
 
 type PackageManager = 'npm' | 'pnpm' | 'yarn' | 'bun';
 
@@ -174,6 +175,10 @@ const CUCUMBER_CONFIG = `export default {
 
 const SUPPORT = `// this.app (the Quiesco driver) in every step, and the lifecycle hooks: one app session per run,
 // a soft reset before each scenario, screenshot + element tree on failure.
+//
+// Step and support files run with Node's type stripping, not tsc: relative imports name the .ts file
+// (import { TodoDriver } from './todo-driver.ts'), and TypeScript syntax that generates code is not
+// supported (parameter properties such as constructor(private app: Driver), enum, namespace).
 import '@quiesco/cucumber/register';
 `;
 
@@ -342,15 +347,29 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
       steps.push({ status: 'created', what: 'index.ts', note: `imports @quiesco/agent, then ${original}; package.json "main" set to index.ts` });
     }
   } else {
-    const entry = [main, `${main}.ts`, `${main}.tsx`, `${main}.js`].map((f) => path.join(ctx.cwd, f)).find((f) => ctx.exists(f));
-    const src = entry !== undefined ? (ctx.readFile(entry) ?? '') : null;
-    if (src === null || entry === undefined) {
+    const entry = entryFile(ctx, main);
+    const src = entry !== null ? (ctx.readFile(entry) ?? '') : null;
+    if (src === null || entry === null) {
       steps.push({ status: 'todo', what: 'entry file', note: `cannot find "${main}"; import '@quiesco/agent' on its first line` });
-    } else if (src.includes('@quiesco/agent')) {
-      steps.push({ status: 'skipped', what: path.basename(entry), note: 'already imports @quiesco/agent' });
     } else {
-      ctx.writeFile(entry, `import '@quiesco/agent'; // first: Quiesco hooks into React before the app loads\n${src}`);
-      steps.push({ status: 'updated', what: path.basename(entry), note: "added import '@quiesco/agent' as the first line" });
+      let next = src;
+      const notes: string[] = [];
+      if (!src.includes('@quiesco/agent')) {
+        next = `import '@quiesco/agent'; // first: Quiesco hooks into React before the app loads\n${src}`;
+        notes.push("added import '@quiesco/agent' as the first line");
+      }
+      // Issue #20: registerRootComponent(App) with a local App (the blank templates): wrap it here.
+      const wrapped = wrapRegisteredRoot(ctx, entry, next);
+      if (wrapped !== null) {
+        next = wrapped;
+        notes.push(`wrapped ${registeredRoot(ctx, entry, src)?.name ?? 'the root component'} in <QuiescoRoot>`);
+      }
+      if (next === src) {
+        steps.push({ status: 'skipped', what: path.basename(entry), note: 'already imports @quiesco/agent' });
+      } else {
+        ctx.writeFile(entry, next);
+        steps.push({ status: 'updated', what: path.basename(entry), note: notes.join('; ') });
+      }
     }
   }
 
@@ -370,6 +389,27 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
   write('features/support/quiesco.ts', SUPPORT, 'this.app and the lifecycle hooks');
   write('features/app.feature', FEATURE, 'a first scenario');
   write('features/step_definitions/app.steps.ts', STEPS, 'its step');
+
+  // 5b. tsconfig.json (issue #21): step files import each other with .ts (Node's type stripping needs it).
+  const tsconfigFile = path.join(ctx.cwd, 'tsconfig.json');
+  const tsconfigText = ctx.readFile(tsconfigFile);
+  if (tsconfigText !== null) {
+    let tsconfig: { compilerOptions?: Record<string, unknown> } | null;
+    try {
+      tsconfig = JSON.parse(tsconfigText) as { compilerOptions?: Record<string, unknown> };
+    } catch {
+      tsconfig = null; // comments or trailing commas: leave the file to the user
+    }
+    if (tsconfig?.compilerOptions?.['allowImportingTsExtensions'] === true) {
+      steps.push({ status: 'skipped', what: 'tsconfig.json', note: 'already allows .ts imports' });
+    } else if (tsconfig === null || typeof tsconfig !== 'object' || Array.isArray(tsconfig)) {
+      steps.push({ status: 'todo', what: 'tsconfig.json', note: 'add "allowImportingTsExtensions": true to compilerOptions (step files import each other with .ts)' });
+    } else {
+      tsconfig.compilerOptions = { ...tsconfig.compilerOptions, allowImportingTsExtensions: true };
+      writeJson(ctx, tsconfigFile, tsconfig);
+      steps.push({ status: 'updated', what: 'tsconfig.json', note: 'allowImportingTsExtensions: step files import each other with .ts' });
+    }
+  }
 
   // 6. Scripts.
   const scripts = { ...(latest.scripts ?? {}) };
@@ -393,9 +433,14 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
   for (const s of steps) ctx.out(`${icon[s.status]} ${s.what}${s.note !== undefined ? ` — ${s.note}` : ''}`);
   ctx.out('');
   ctx.out('Next:');
-  ctx.out("  1. Wrap the root layout in <QuiescoRoot> (import { QuiescoRoot } from '@quiesco/agent').");
-  ctx.out('  2. Give the home screen testID="home" (features/step_definitions/app.steps.ts looks for it).');
-  if (platforms.includes('web')) ctx.out('  3. npx playwright install chromium, then npm run e2e:web');
+  const next: string[] = [];
+  const finalMain = (readJson<PackageJson>(ctx, pkgFile) as PackageJson).main;
+  if (!rootSourceFiles(ctx, finalMain).some((f) => (ctx.readFile(f) ?? '').includes('QuiescoRoot'))) {
+    next.push("Wrap the root layout in <QuiescoRoot> (import { QuiescoRoot } from '@quiesco/agent'): the app connects to Quiesco from it, and the soft reset remounts it.");
+  }
+  next.push('Give the home screen testID="home" (features/step_definitions/app.steps.ts looks for it).');
+  if (platforms.includes('web')) next.push('npx playwright install chromium, then npm run e2e:web');
+  next.forEach((line, i) => ctx.out(`  ${i + 1}. ${line}`));
   if (platforms.some((p) => p !== 'web')) ctx.out('  •  iOS / Android: npm run e2e:build:ios (or :android) builds the app into binaryPath, then npm run e2e:ios; quiesco test starts Metro when it is not running. `npx quiesco doctor` checks the setup.');
   ctx.out('  •  A SYNC_TIMEOUT that names a decorative animation (the default template spins a glow): give it a testID and add it to sync.ignoreElements.');
   return 0;

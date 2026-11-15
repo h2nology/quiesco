@@ -16,3 +16,12 @@
 - 错误：一次文档替换误删 zh 标题，已恢复（见 task_plan Errors）。
 - `pnpm check` exit 0（828 tests）；docs:check 通过。
 - 下一步：等 HU 确认提交 / PR，然后 J.B。
+
+## 2026-11-15 会话 1（续）：J.A 提交、J.B
+- J.A 提交（c7c9c43 + dd8c49b），PR #24。
+- J.B 分支 `fix/scaffold`（叠在 J.A 上）。
+- 发现：缺 QuiescoRoot ⇒ agent 不连接（不只是软重置），doctor 改为一律 fail（D2 修正）。
+- #20 init 自动包裹 `registerRootComponent(App)`；doctor 搜索入口与其注册的组件。
+- #21 init 改 tsconfig、support 注释、driver-pattern 文档新节；实测中发现并修复 `registerQuiesco({ world })` 的 TS2419。
+- 实测：web 计数器 3/3；去掉包裹 ⇒ CONNECT_TIMEOUT；dry-run 能报两类错误。
+- `pnpm check` exit 0（834 tests）。下一步：HU 确认提交 / PR，然后 J.C。

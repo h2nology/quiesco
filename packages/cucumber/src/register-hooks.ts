@@ -1,4 +1,5 @@
 import { After, AfterAll, Before, BeforeAll, Status, setDefaultTimeout, setWorldConstructor } from '@cucumber/cucumber';
+import type { IWorldOptions } from '@cucumber/cucumber';
 
 import { connectRunEvents } from '@quiesco/core';
 import type { RunEventClient } from '@quiesco/core';
@@ -9,8 +10,12 @@ import type { LifecycleOptions } from './lifecycle.js';
 import { QuiescoWorld, bindLifecycle } from './world.js';
 
 export interface RegisterOptions extends LifecycleOptions {
-  /** Use your own World (must extend QuiescoWorld). Default QuiescoWorld. */
-  world?: typeof QuiescoWorld;
+  /**
+   * Use your own World (must extend QuiescoWorld). Default QuiescoWorld. A plain constructor type, not
+   * `typeof QuiescoWorld`: that one is generic over the world parameters, which no subclass satisfies.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cucumber's own default for world parameters
+  world?: new (options: IWorldOptions<any>) => QuiescoWorld<any>;
   /** Default step timeout. Each driver call has its own sync timeout; this caps a whole step. Default 60 s. */
   stepTimeoutMs?: number;
   /** BeforeAll timeout: booting an emulator can take minutes. Default 10 min. */

@@ -10,6 +10,7 @@ description: "按症状列出的失败情况及修复方法。"
 错误信息会列出需要检查的项目。最常见的原因：
 
 - **App 不是 e2e 构建。** JS bundle 和原生 App 都必须在 `EXPO_PUBLIC_QUIESCO=1` 下构建（Metro：`EXPO_PUBLIC_QUIESCO=1 npx expo start`；原生：执行 `expo prebuild` 时也必须设置该变量）。没有它，agent 就只是空实现的桩。
+- **App 没有渲染 `<QuiescoRoot>`。** agent 从它发起连接。`npx quiesco doctor` 会检查根布局、入口以及入口注册的组件。
 - **`metro.config.js` 没有使用 `withQuiesco()`**，或者 Metro 是在你添加它之前启动的（Metro 配置在启动时读取：请重启 Metro）。
 - **Android：** host 端端口会自动通过 `adb reverse` 转发；真机还需要授权 USB 调试。App 在 `localhost` 上访问的端口需要配置 `apps.android.reversePorts`。
 - **dev client 显示的是启动器而不是 App：** Metro 没有在 `devClient.metroUrl` 上运行。

@@ -27,7 +27,11 @@ export interface TodoDriver {
 
 /** UI経由で、Quiescoを使って実装する。 */
 export class UiTodoDriver implements TodoDriver {
-  constructor(private readonly app: Driver) {}
+  private readonly app: Driver;
+
+  constructor(app: Driver) {
+    this.app = app;
+  }
 
   async loginAs(email: string) {
     await this.app.backdoor('loginAs', email);       // UIを使わずに準備する
@@ -51,7 +55,7 @@ Worldにdriverを持たせ、デフォルトのWorldの代わりに登録しま�
 // features/support/world.ts
 import { QuiescoWorld, registerQuiesco } from '@quiesco/cucumber';
 
-import { UiTodoDriver } from './todo-driver';
+import { UiTodoDriver } from './todo-driver.ts';
 
 export class TodoWorld extends QuiescoWorld {
   get todos() {
@@ -69,7 +73,7 @@ registerQuiesco({ world: TodoWorld });   // import '@quiesco/cucumber/register' 
 import { Given, Then, When } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
 
-import type { TodoWorld } from '../support/world';
+import type { TodoWorld } from '../support/world.ts';
 
 Given('the user {string} is logged in', async function (this: TodoWorld, email: string) {
   await this.todos.loginAs(email);
@@ -86,14 +90,27 @@ Then('the first todo is {string}', async function (this: TodoWorld, title: strin
 
 使える場面では、Quiescoのアサーション（`this.app.expectText('todo-item', …)`）を優先してください。アプリが期待した状態を表示するまでリトライします。クエリ結果に対する素の`assert`は1回しかチェックしませんが、アクションの後なら問題ありません。アクションの時点で、アプリがアイドルになるのを待っているからです。
 
+## stepファイルはコンパイルされない {#type-stripping}
+
+cucumber-jsは、stepファイルとsupportファイルをNodeのtype strippingで読み込みます。Nodeは型を取り除き、残りを`tsc`を通さずにJavaScriptとして実行します。そのため、次の2つのルールがあります。このページの例はどちらも守っています。
+
+- **相対importには`.ts`まで書く：** `import { UiTodoDriver } from './todo-driver.ts'`。`npx quiesco init`は`tsconfig.json`に`"allowImportingTsExtensions": true`を追加するので、`tsc`もこの書き方を受け付けます。
+- **コードを生成するTypeScript構文は使えない：** パラメータープロパティ（`constructor(private app: Driver)`）、`enum`、`namespace`は`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`で失敗します。フィールドを宣言してコンストラクターで代入してください。`enum`の代わりには、文字列リテラルのユニオン型か`as const`のオブジェクトを使います。
+
+`npx cucumber-js --dry-run`はアプリを起動せずにすべてのstepファイルを読み込むので、どちらの間違いも数秒で見つかります。
+
 ## ポートとアダプター：同じfeatureをAPIに対して実行する {#ports-adapters-the-same-features-against-the-api}
 
 ステップからは`TodoDriver`しか見えないので、2つ目の実装を用意すれば、同じfeatureをUIなしで実行できます。バックエンドのAPIに対して数秒で実行できるので、たとえばコミットのたびに走らせられます。
 
 ```ts
 export class ApiTodoDriver implements TodoDriver {
+  private readonly baseUrl: string;
   private token = '';
-  constructor(private readonly baseUrl: string) {}
+
+  constructor(baseUrl: string) {
+    this.baseUrl = baseUrl;
+  }
 
   async loginAs(email: string) {
     const res = await fetch(`${this.baseUrl}/login`, { method: 'POST', body: JSON.stringify({ email }) });

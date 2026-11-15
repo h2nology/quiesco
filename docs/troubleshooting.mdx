@@ -13,6 +13,8 @@ The message lists what to check. Most often:
 - **The app is not an e2e build.** The JS bundle and the native app must both be built with
   `EXPO_PUBLIC_QUIESCO=1` (Metro: `EXPO_PUBLIC_QUIESCO=1 npx expo start`; native: the variable must be
   set at `expo prebuild` too). Without it the agent is the no-op stub.
+- **The app does not render `<QuiescoRoot>`.** The agent connects from it. `npx quiesco doctor` checks
+  the root layout, the entry and the component the entry registers.
 - **`metro.config.js` does not use `withQuiesco()`**, or Metro was started before you added it (the
   Metro config is read at start-up: restart Metro).
 - **Android:** the host port is forwarded with `adb reverse` automatically; a physical device also needs

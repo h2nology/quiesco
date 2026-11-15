@@ -54,7 +54,8 @@ describe('quiesco doctor', () => {
     expect(byName['config plugin']?.status).toBe('warn');
     expect(byName['Metro']).toMatchObject({ status: 'fail', fix: expect.stringMatching(/withQuiesco/) });
     expect(byName['entry file']).toMatchObject({ status: 'fail', detail: '"main" is expo-router/entry' });
-    expect(byName['<QuiescoRoot>']?.status).toBe('warn');
+    // the agent connects from <QuiescoRoot>: missing, no test can run (issue #20)
+    expect(byName['<QuiescoRoot>']).toMatchObject({ status: 'fail', detail: 'not found in src/app/_layout.tsx', fix: expect.stringMatching(/connects to Quiesco from it/) });
     expect(byName['quiesco.config']).toMatchObject({ status: 'fail', detail: 'No Quiesco config found in /x' });
   });
 
@@ -106,6 +107,22 @@ describe('quiesco doctor', () => {
 
     const notInstalled = await check({ quiesco: '9.9.9' }, {}, { '@quiesco/web': '^9.9.9' });
     expect(notInstalled.versions).toMatchObject({ status: 'fail', detail: 'not installed: @quiesco/web' });
+  });
+
+  it('looks for <QuiescoRoot> in the entry and the component it registers (issue #20)', async () => {
+    const root = async (files: Record<string, string>, main = 'index.ts') => {
+      const ctx = fakeContext();
+      ctx.put('package.json', JSON.stringify({ main, dependencies: { expo: '~58.0.25' } }));
+      for (const [f, c] of Object.entries(files)) ctx.put(f, c);
+      return (await runChecks(ctx, 'web', deps())).find((r) => r.name === '<QuiescoRoot>');
+    };
+    const entry = "import '@quiesco/agent';\nimport { registerRootComponent } from 'expo';\nimport Main from './src/Main';\nregisterRootComponent(Main);\n";
+    // the blank template's root component is not in a usual place
+    expect(await root({ 'index.ts': entry, 'src/Main.jsx': 'export default () => <QuiescoRoot />;' })).toMatchObject({ status: 'ok', detail: 'in src/Main.jsx' });
+    expect(await root({ 'index.ts': entry, 'src/Main.jsx': 'export default () => null;' })).toMatchObject({ status: 'fail', detail: 'not found in index.ts, src/Main.jsx' });
+    // init's wrapper in the entry
+    expect(await root({ 'index.ts': "import { QuiescoRoot } from '@quiesco/agent';\n" })).toMatchObject({ status: 'ok', detail: 'in index.ts' });
+    expect(await root({ 'App.jsx': '<QuiescoRoot>' }, 'expo/AppEntry')).toMatchObject({ status: 'ok', detail: 'in App.jsx' });
   });
 
   it('checks Android tools and the build, and a busy port', async () => {

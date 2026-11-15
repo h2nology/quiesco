@@ -79,6 +79,93 @@ describe('quiesco init', () => {
     expect(ctx.calls[1]?.args).not.toContain('playwright');
   });
 
+  it('wraps the component of registerRootComponent(App) in <QuiescoRoot> (blank template, issue #20)', async () => {
+    const ctx = fakeContext();
+    freshExpoApp(ctx);
+    const pkg = JSON.parse(ctx.file('package.json') as string);
+    pkg.main = 'index.ts';
+    ctx.put('package.json', JSON.stringify(pkg));
+    fs.rmSync(path.join(ctx.cwd, 'src/app/_layout.tsx'));
+    const blank = [
+      "import { registerRootComponent } from 'expo';",
+      '',
+      "import App from './App';",
+      '',
+      "// registerRootComponent calls AppRegistry.registerComponent('main', () => App);",
+      'registerRootComponent(App);',
+      '',
+    ].join('\n');
+    ctx.put('index.ts', blank);
+    ctx.put('App.tsx', 'export default function App() { return null; }\n');
+    expect(await main(['init', '--skip-install'], ctx)).toBe(0);
+    expect(ctx.file('index.ts')).toBe(
+      [
+        "import { QuiescoRoot } from '@quiesco/agent'; // first: Quiesco hooks into React before the app loads",
+        "import { registerRootComponent } from 'expo';",
+        "import { createElement } from 'react';",
+        '',
+        "import App from './App';",
+        '',
+        "// registerRootComponent calls AppRegistry.registerComponent('main', () => App);",
+        '// <QuiescoRoot> connects the app to Quiesco and remounts it for the soft reset before each scenario',
+        '// (it renders App unchanged in builds without EXPO_PUBLIC_QUIESCO=1).',
+        'function QuiescoApp() {',
+        '  return createElement(QuiescoRoot, null, createElement(App));',
+        '}',
+        '',
+        'registerRootComponent(QuiescoApp);',
+        '',
+      ].join('\n'),
+    );
+    const out = ctx.lines.join('\n');
+    expect(out).toMatch(/~ index\.ts — added import '@quiesco\/agent' as the first line; wrapped App in <QuiescoRoot>/);
+    expect(out).not.toMatch(/Wrap the root layout/);
+    expect(out).toMatch(/1\. Give the home screen testID="home"/);
+    // run again: nothing changes
+    ctx.lines.length = 0;
+    const before = ctx.file('index.ts');
+    expect(await main(['init', '--skip-install'], ctx)).toBe(0);
+    expect(ctx.file('index.ts')).toBe(before);
+    expect(ctx.lines.join('\n')).toMatch(/= index\.ts — already imports @quiesco\/agent/);
+  });
+
+  it('lets tsc accept the .ts imports of step files (issue #21)', async () => {
+    const ctx = fakeContext();
+    freshExpoApp(ctx);
+    ctx.put('tsconfig.json', '{\n  "extends": "expo/tsconfig.base",\n  "compilerOptions": {\n    "strict": true\n  }\n}\n');
+    expect(await main(['init', '--skip-install'], ctx)).toBe(0);
+    expect(JSON.parse(ctx.file('tsconfig.json') as string)).toEqual({ extends: 'expo/tsconfig.base', compilerOptions: { strict: true, allowImportingTsExtensions: true } });
+    expect(ctx.lines.join('\n')).toMatch(/~ tsconfig\.json — allowImportingTsExtensions/);
+    expect(ctx.file('features/support/quiesco.ts')).toMatch(/type stripping[\s\S]*'\.\/todo-driver\.ts'[\s\S]*parameter properties/);
+    ctx.lines.length = 0;
+    expect(await main(['init', '--skip-install'], ctx)).toBe(0);
+    expect(ctx.lines.join('\n')).toMatch(/= tsconfig\.json — already allows \.ts imports/);
+    // a tsconfig with comments is not rewritten
+    const commented = fakeContext();
+    freshExpoApp(commented);
+    commented.put('tsconfig.json', '{\n  // mine\n  "extends": "expo/tsconfig.base"\n}\n');
+    expect(await main(['init', '--skip-install'], commented)).toBe(0);
+    expect(commented.file('tsconfig.json')).toBe('{\n  // mine\n  "extends": "expo/tsconfig.base"\n}\n');
+    expect(commented.lines.join('\n')).toMatch(/! tsconfig\.json — add "allowImportingTsExtensions": true/);
+  });
+
+  it('leaves entries it cannot wrap safely alone and says what to do', async () => {
+    for (const source of [
+      "import { registerRootComponent } from 'expo';\nimport { App } from 'some-package';\nregisterRootComponent(App);\n",
+      "import { registerRootComponent } from 'expo';\nregisterRootComponent(() => null);\n",
+    ]) {
+      const ctx = fakeContext();
+      freshExpoApp(ctx);
+      const pkg = JSON.parse(ctx.file('package.json') as string);
+      pkg.main = 'index.ts';
+      ctx.put('package.json', JSON.stringify(pkg));
+      ctx.put('index.ts', source);
+      expect(await main(['init', '--skip-install'], ctx)).toBe(0);
+      expect(ctx.file('index.ts')).toBe(`import '@quiesco/agent'; // first: Quiesco hooks into React before the app loads\n${source}`);
+      expect(ctx.lines.join('\n')).toMatch(/1\. Wrap the root layout in <QuiescoRoot>/);
+    }
+  });
+
   it('installs from tarballs and pins the packages they depend on', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'quiesco-tgz-'));
     for (const f of ['quiesco-0.0.0.tgz', 'quiesco-agent-0.0.0.tgz', 'quiesco-native-0.0.0.tgz', 'quiesco-core-0.0.0.tgz', 'quiesco-cucumber-0.0.0.tgz', 'quiesco-expo-plugin-0.0.0.tgz', 'quiesco-protocol-0.0.0.tgz', 'quiesco-web-0.0.0.tgz']) {

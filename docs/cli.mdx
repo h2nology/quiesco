@@ -22,9 +22,13 @@ overwritten — when a file needs a change Quiesco cannot make safely, it prints
 2. Adds `@quiesco/expo-plugin` to the plugins in `app.json`.
 3. Creates `metro.config.js` with `withQuiesco()` (or explains how to wrap an existing one).
 4. Makes `@quiesco/agent` the first import of the entry file. Expo Router apps get an `index.ts`
-   (`import '@quiesco/agent'; import 'expo-router/entry';`) and `"main": "index.ts"`.
+   (`import '@quiesco/agent'; import 'expo-router/entry';`) and `"main": "index.ts"`. When the entry
+   registers a local component (`registerRootComponent(App)`, as in the blank templates), `init` also
+   wraps that component in `<QuiescoRoot>` there.
 5. Writes `quiesco.config.mts` (bundle id, package and scheme taken from `app.json`), `cucumber.mjs`,
-   `features/support/quiesco.ts`, a first feature with its step, and `e2e:*` scripts.
+   `features/support/quiesco.ts`, a first feature with its step, and `e2e:*` scripts, and adds
+   `"allowImportingTsExtensions": true` to `tsconfig.json` (step files import each other with `.ts`, see
+   [step files are not compiled](./driver-pattern#type-stripping)).
 
 | Option | |
 |---|---|
@@ -32,7 +36,7 @@ overwritten — when a file needs a change Quiesco cannot make safely, it prints
 | `--packages <dir>` | Install Quiesco from the `.tgz` files in `<dir>` (`pnpm pack` output) and pin their dependencies on each other to them |
 | `--skip-install` | Only print the install commands |
 
-What `init` leaves to you: wrapping the root in `<QuiescoRoot>` and test ids.
+What `init` leaves to you: test ids, and wrapping the root layout in `<QuiescoRoot>` in Expo Router apps (and other entries it cannot change safely); `init` lists what is left.
 
 ## `quiesco build` {#quiesco-build}
 

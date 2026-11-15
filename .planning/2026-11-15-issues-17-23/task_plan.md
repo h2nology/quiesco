@@ -4,10 +4,10 @@
 解决 h2nology/quiesco 的 7 个 open issue（同一位用户在 Expo SDK 58 默认模板 + cucumber 项目上的实测反馈）。每个修复都附测试和三语文档，实跑验收后回复并关闭 issue，最后与 #16 的 Jest 列表排序修复一起发下一个版本。
 
 ## Current Phase
-J.A 完成，待提交 / PR
+J.B 完成，待提交 / PR
 
 ## Next Step
-HU 确认后提交 J.A 并开 PR，然后开始 J.B（#20 init 自动包裹 `<QuiescoRoot>`）。
+HU 确认后提交 J.B 并开 PR（叠在 #24 上），然后开始 J.C（#19 复用 Metro 的提示、#22 `platform`）。
 
 ## 背景
 - 前置：0.3.0 已发布；#16（Jest 列表排序）已合并、未发布（`.planning/2026-11-15-progress-and-ui/`）。
@@ -63,13 +63,17 @@ HU 确认后提交 J.A 并开 PR，然后开始 J.B（#20 init 自动包裹 `<Qu
 - **Status:** complete（2026-11-15；分支 `fix/install-versions`，未提交）
 
 ### J.B 项目脚手架（#20、#21）
-- [ ] #20 init：entry 为 `registerRootComponent(App)` 且 `App` 是本地导入时，自动改成包裹 `<QuiescoRoot>`（或生成包裹组件）；识别不了时保留现有手动提示
-- [ ] #20 doctor：扫描文件加入 main entry 及其导入的根组件文件（含 `.jsx`）；按 D2 改级别和文案
-- [ ] #21 init：按 D4 改 tsconfig（已有则合并字段，不覆盖其他配置；无 tsconfig 时跳过并提示）
-- [ ] #21 生成的 `features/support/quiesco.ts` 加注释（type stripping：相对导入写 `.ts`；不支持 enum / 参数属性 / namespace）；driver-pattern 文档、README、world.ts docstring 加说明，示例改成不用参数属性
-- [ ] 测试：init.test（默认 Expo 模板 fixture）、doctor.test；三语文档
-- [ ] 实测：`create-expo-app` 默认模板 + `quiesco init`（tarball）⇒ doctor 全过、`tsc --noEmit` 通过、两个场景间状态被重置
-- **Status:** pending
+- [x] 调查：agent 只在 `<QuiescoRoot>` 挂载时连接 host（runtime.mount 创建 AgentClient）⇒ 缺它时**任何重置方式都连不上**（CONNECT_TIMEOUT），不只是软重置失效。D2 的「硬重置除外」不成立 ⇒ doctor 一律 fail（见 Decisions）
+- [x] #20 新模块 `packages/cli/src/project.ts`（entryFile / registeredRoot / rootSourceFiles / wrapRegisteredRoot）
+- [x] #20 init：entry 为 `registerRootComponent(App)` 且 App 来自本地相对导入 ⇒ 用 `createElement` 包裹成 `QuiescoApp`（无需 JSX；agent import 改为 `import { QuiescoRoot } from '@quiesco/agent'` 仍在第一行）；不符合的入口保持原样并列为 Next 待办；Next 列表只在找不到 QuiescoRoot 时提示包裹
+- [x] #20 doctor：缺 QuiescoRoot ⇒ fail；搜索 app/_layout、src/app/_layout、App、src/App（.tsx/.ts/.jsx/.js）+ main entry + entry 注册的组件文件；detail 列出实际搜索的文件
+- [x] #21 init：根 `tsconfig.json` 可解析为 JSON 时加 `allowImportingTsExtensions: true`（带注释时列为待办，不改写）；生成的 support 文件加 type stripping 注释
+- [x] #21 driver-pattern 三语：示例去掉参数属性、运行时 import 加 `.ts`；新节 `#type-stripping`（含 `cucumber-js --dry-run` 建议）；world.ts docstring
+- [x] 额外（实测发现）：`registerQuiesco({ world: TodoWorld })` 在 strict tsc 下 TS2419（`world?: typeof QuiescoWorld` 是泛型构造签名）⇒ 改为 `new (options: IWorldOptions<any>) => QuiescoWorld<any>`；cucumber 包新增 typecheck 测试 `world-types.test-d.ts`
+- [x] 文档三语：cli.mdx（init 第 4、5 步、留给用户的事）、troubleshooting（CONNECT_TIMEOUT 加 QuiescoRoot 一条）
+- [x] 实测（新 blank-typescript + react-native-web，本分支 tarball，pnpm）：init 自动包裹 + 改 tsconfig；driver 模式（`.ts` 导入、显式字段）`tsc --noEmit` 通过；web 计数器 2 个场景 + 首个场景 3/3 通过（第二个场景从 0 开始 ⇒ 软重置 remount 生效）；去掉包裹 ⇒ doctor ❌、`quiesco test` CONNECT_TIMEOUT；`cucumber-js --dry-run` 能报出参数属性与缺 `.ts` 两种错误
+- [x] `pnpm check` exit 0（834 tests）；`docs:check --no-mint` 通过
+- **Status:** complete（2026-11-15；分支 `fix/scaffold` 叠在 `fix/install-versions` 上，未提交）
 
 ### J.C 诊断与 API（#19、#22）
 - [ ] #19 `ensureDevServer` 返回是否复用；session 拿到这个信息；bundle 身份未知时：复用外部 Metro ⇒「<url> 的 Metro 不是 Quiesco 启动的，配置未知，请重启或停掉它」；否则保留原 metro.config.js 提示（可再用 init 的 `withQuiesco` 检测区分）
@@ -101,6 +105,8 @@ HU 确认后提交 J.A 并开 PR，然后开始 J.B（#20 init 自动包裹 `<Qu
 | D2 #20 doctor | 缺 QuiescoRoot ⇒ error；硬重置时除外 | HU 选择 |
 | D3 #18 picker | 按 mode 合并 + 接受 `"HH:mm"` / `"YYYY-MM-DD"` + expectValue 支持 Date | HU 选择 |
 | D7 版本 | 0.4.0，全部完成并三端验收后发布 | HU 选择 |
+| D2 修正 | 缺 QuiescoRoot ⇒ doctor 一律 fail（不再按重置方式区分） | J.B 实测：没有 QuiescoRoot 时 agent 不连接，硬重置也跑不起来；HU 已知悉并同意提交（2026-11-15） |
+| J.A PR | #24（`fix/install-versions`） | 2026-11-15 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
