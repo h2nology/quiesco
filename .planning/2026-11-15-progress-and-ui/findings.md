@@ -164,5 +164,13 @@
 - `run:end {success, reason?, counts}`；CLI 把 run:end 时仍未结束的测试标为「未运行」
 - 证据路径：core `Lifecycle.after()` 产生的文件 → 由各适配器的 hook/fixture 侧单独发 `test:evidence {id, files[]}`（reporter 拿不到 Lifecycle），按 id 关联
 
+## P1 实现与草案的差异（2026-11-15）
+- `TestRef` 用 `path: string[]`（祖先标题 + 标题）代替 `fullName`：三个 runner 拼接方式不同（` > ` / 空格），由显示端自己拼。
+- `run:start` 增加 `workers`；新增 `run:error`（cucumber BeforeAll、Vitest 未处理错误）。
+- `run:end` 不带 counts：由消费端根据 test:end 统计（避免 runner 与 Quiesco 统计口径不一致）；`notRun` 只由消费端设置。
+- `test:end` 带可选 `logs`（Vitest `t.logs()`）与 `worker`。
+- 客户端 socket 平时 `unref()`（忘记 close 也不会拖住 runner 进程），`close()` 时 `ref()` 冲刷；
+  服务端 `drain(timeout)` 用于 runner 退出后等残余事件；socket 文件 chmod 0600，关闭时删除；TMPDIR 过长回退 `/tmp`。
+
 ## 开放问题
 见 task_plan.md「待用户确认」。

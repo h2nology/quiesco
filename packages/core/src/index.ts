@@ -47,3 +47,7 @@ export { LogBuffer, killChildProcessesSync, trackChildProcess, trackedChildPids 
 export { SERIAL_WORKER } from './devices/provider.js';
 export { WORKER_SIMULATOR, workerSimulatorName } from './devices/ios.js';
 export { CPU_GPU_MODES, WORKER_AVD, emulatorGpu, workerAvdName } from './devices/android.js';
+export { RunEventServer, connectRunEvents, runEventsAddress } from './run-events.js';
+export type { ConnectOptions, RunEventClient, RunEventServerOptions } from './run-events.js';
+export { RUN_EVENTS_ENV, RUN_EVENTS_PROTOCOL, createRunEventDecoder, emptyCounts, encodeRunEvent, isRunEvent } from '@quiesco/protocol';
+export type { RunCounts, RunError, RunEvent, RunEventOf, RunEventType, RunEvents, RunnerName, TestRef, TestStatus } from '@quiesco/protocol';

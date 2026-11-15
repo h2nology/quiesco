@@ -7,10 +7,10 @@
 3. cucumber / vitest / jest 三个 runner 全部支持；附测试、三语文档，在 examples/todo-app 上实跑验收。
 
 ## Current Phase
-P1
+P2
 
 ## Next Step
-P1：在 `@quiesco/protocol` 定义事件类型（按 findings「事件协议草案」），在 `@quiesco/core` 实现 socket 服务端 / 客户端与 NDJSON 编解码，先写单元测试。
+P2：先做 `@quiesco/cucumber` 的 formatter plugin（以 scratchpad/cucumber-probe/quiesco-events.mjs 原型为起点，改用 core 的 `connectRunEvents`），配单元测试 + 一次真实 cucumber-js 子进程测试。
 
 ## 背景
 - 前置：0.2.0 已发布（`.planning/2026-11-14-issues-0-2/`）。
@@ -58,18 +58,18 @@ CLI (quiesco ui)    ── 事件 → WebSocket → 浏览器 (React)
 **Status:** complete
 
 ### P1 事件协议与传输
-- [ ] 定义事件类型（TS 类型 + 版本号字段），NDJSON 编解码，单元测试
-- [ ] 传输：服务端（CLI 侧）监听 + 客户端（reporter 侧）连接；`QUIESCO_EVENTS` 不存在时 reporter 什么都不做
-- [ ] depcruise 规则：协议模块不依赖任何 runner
-**Status:** in_progress
+- [x] 定义事件类型（TS 类型 + 版本号字段），NDJSON 编解码，单元测试 —— `packages/protocol/src/run-events.ts`
+- [x] 传输：服务端（CLI 侧）监听 + 客户端（reporter 侧）连接；`QUIESCO_EVENTS` 不存在时 reporter 什么都不做 —— `packages/core/src/run-events.ts`
+- [x] depcruise 规则：现有 `protocol-is-leaf` / `core-no-test-runner` 已覆盖，无需新增；`pnpm depcruise` 无违规
+**Status:** complete
 
 ### P2 三个 runner 的 reporter
 - [ ] `@quiesco/cucumber` formatter plugin（testCase 计总数、最严重 step 结果作状态、`willBeRetried`、BeforeAll 失败转发、`--parallel` workerId）；CLI 以 `--format "file://…":"<null>"` 注入
 - [ ] `@quiesco/vitest` reporter（parseSpecifications 估算总数 + 每文件修正、concurrencyId、logs）+ `configureVitest` 插件注入；`quiesco()` 打开 includeTaskLocation
 - [ ] `@quiesco/jest` reporter（总数按文件累加、onTestFileResult 补 skip/todo/收集失败）；preset 自带 reporters
 - [ ] `hello` 握手：Jest / Vitest 未接入 reporter 时 CLI 提示如何加
-- [ ] 失败证据路径进入 `testEnd`
-**Status:** pending
+- [ ] 失败证据：各适配器 hook / fixture 侧（worker 内）用 `connectRunEvents` 发 `test:evidence`
+**Status:** in_progress
 
 ### P3 终端进度条
 - [ ] runner stdout/stderr 改为管道转发，底部一行重绘（宽度自适应、ANSI 处理、换行不撕裂）
@@ -117,3 +117,4 @@ CLI (quiesco ui)    ── 事件 → WebSocket → 浏览器 (React)
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
+| P1 子进程测试退出码 13（顶层 await 未完成）：client socket `unref()` 后 `close()` 等待期间事件循环为空 | 1 | `close()` 时 `socket.ref()`，冲刷完再放开 |
