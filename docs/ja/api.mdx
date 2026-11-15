@@ -66,7 +66,7 @@ description: "this.app（Driver）、マッチャー、アプリ内API、設定�
 | `Switch`、`expo-checkbox` | 真偽値の`value`と`onValueChange` | `true` / `false` |
 | `@react-native-picker/picker` | `onValueChange`と`selectedValue` | 項目の値（文字列でも可）、またはそのラベル |
 | `@react-native-segmented-control/segmented-control` | `values`配列と`onChange` / `onValueChange` | セグメントの値、またはそのインデックス |
-| `@react-native-community/datetimepicker` | `Date`型の`value`と`onChange` / `onValueChange` | `Date`（`minimumDate` / `maximumDate`と照合されます） |
+| `@react-native-community/datetimepicker` | `Date`型の`value`と`onChange` / `onValueChange` | `Date`、またはローカル時刻の文字列`"2031-12-24"` / `"20:15"` / `"2031-12-24T20:15"`。ピッカーが受け持つ部分だけが変わります（[日付・時刻ピッカー](#date-and-time-pickers)） |
 | DOMの`<select>`、`<input type="date" / "time" / "datetime-local" / "month" / "week" / "range" / "number">`、チェックボックス | 要素そのもの（Web） | 選択肢の値またはラベル。`Date`（ローカル時刻で書き込まれます）、または入力欄自身の文字列 |
 
 それ以外は`ACTION_NOT_SUPPORTED`で失敗し、見つかったコールバックが示されます。現在と同じ値を設定してもイベントは送られず、無効なコントロールには何もしません（ユーザーが操作しようとした場合と同じです）。
@@ -82,6 +82,28 @@ description: "this.app（Driver）、マッチャー、アプリ内API、設定�
 | スライダー | コールバック（正確な値。実際にドラッグするには`adjustSlider`） | コールバック | `onSlidingStart`、`onValueChange`、`onSlidingComplete` |
 
 Androidの`DateTimePicker`はビューを描画せず（ダイアログを開くため）、アプリがダイアログを表示した後は、`setValue({ id })`がtestIDでコンポーネント自体を見つけます（名前で探すなら`{ type: 'DateTimePicker' }`）。アプリは変更を処理するときにダイアログを閉じます。ユーザーが選んだときと同じです。こうしたコンポーネントに届くのは`id`、`type`、`index`だけです。
+
+#### 日付・時刻ピッカー {#date-and-time-pickers}
+
+ネイティブのダイアログと同じく、`setValue`はピッカーの`value`のうち`mode`が表示する部分だけを変えます。計算はピッカーのタイムゾーン（`timeZoneOffsetInMinutes`、なければデバイスのタイムゾーン）で行います。
+
+| `mode` | 変わるもの | 受け付ける値 |
+|---|---|---|
+| `date`（デフォルト） | 日付。時・分はそのままで、秒は0になります | `Date`または`"2031-12-24"` |
+| `time` | 時・分。日付はそのまま | `Date`または`"20:15"`（秒付きは`"20:15:30"`） |
+| `datetime` | `Date`ならすべて、文字列なら指定した部分 | `Date`、`"2031-12-24T20:15"`、`"2031-12-24"`、`"20:15"` |
+| `countdown` | すべて | `Date` |
+
+そのため、Androidの2つのダイアログで日付、時刻の順に選んでも日付は保たれます。
+
+```ts
+await this.app.setValue('due-date-picker', '2031-12-24');
+await this.app.setValue('due-time-picker', '20:15');   // 日付をでっち上げる必要はありません
+```
+
+`minimumDate` / `maximumDate`は結果と照合されます。文字列はデバイス上のローカル時刻なので、ホストのタイムゾーンに左右されません。`Date`はデバイスのタイムゾーンに換算されます。
+
+ピッカーの値（`expectValue`やクエリ結果の`value`）は、表示されている内容をデバイスのローカル時刻で表したものです：`"2031-12-24"`（`date`）、`"20:15"`（`time`）、`"2031-12-24T20:15"`（`datetime`、`countdown`）。秒が0でなければ`:ss`が付きます。`expectValue`はこの文字列か、これらの部分が一致する`Date`を受け付けます：`expectValue('due-time-picker', '20:15')`。Androidのダイアログはアプリが変更を処理すると消えるので、代わりにアプリが表示している内容を確認してください。
 
 `adjustSlider`は`native`モードでつまみをドラッグし、値を読み返します。つまみはタッチスロップの分だけ指に遅れて動くため、スライダーが目標位置から1ステップ（連続値スライダーでは範囲の1%）以内に収まるまで、再度ドラッグします（常に同じ向きに、助走をつけて）。Web：つまみをマウスでドラッグ。`js`：その位置に当たる値をコールバックで渡します。
 
@@ -114,7 +136,7 @@ Androidの`DateTimePicker`はビューを描画せず（ダイアログを開く
 | `expectNotVisible(target)` | マッチする要素が1つも表示されていない（存在しない、または隠れている） |
 | `expectExists(target)` / `expectNotExists(target)` | 表示の有無にかかわらず、要素がツリーにある / ない |
 | `expectText(target, text \| RegExp)` | マッチがちょうど1つで、そのテキストが一致する / マッチする |
-| `expectValue(target, value \| RegExp)` | マッチがちょうど1つで、その値が一致する / マッチする：入力テキスト、スイッチの状態、スライダー / ピッカーの値、または`accessibilityValue` |
+| `expectValue(target, value \| RegExp \| Date)` | マッチがちょうど1つで、その値が一致する / マッチする：入力テキスト、スイッチの状態、スライダー / ピッカーの値（日付・時刻ピッカーの値は[日付・時刻ピッカー](#date-and-time-pickers)）、または`accessibilityValue` |
 | `expectLabel(target, text \| RegExp)` | マッチがちょうど1つで、そのアクセシビリティラベルが一致する / マッチする |
 | `expectFocused(target)` / `expectNotFocused(target)` | マッチがちょうど1つで、入力フォーカスがある / ない |
 | `expectEnabled(target)` / `expectDisabled(target)` | マッチがちょうど1つで、有効 / 無効である（`disabled`、`accessibilityState.disabled`、`aria-disabled`、`editable={false}`。祖先から継承したものも含む） |

@@ -33,3 +33,10 @@
 - #22：Driver / Session / QuiescoWorld 的 `platform`。
 - 实测中发现 `init --packages` 的 pnpm overrides 写错位置（pnpm 10+ 不读 package.json 的 pnpm 字段），已修。
 - 实测 A / B 场景与 platform 均符合预期。`pnpm check` exit 0（838 tests）。
+
+## 2026-11-15 会话 1（续）：J.C 提交、J.D
+- J.C 提交（0765ef5 + 08c75a1），PR #26（base fix/scaffold）。
+- J.D 分支 `fix/date-picker`（叠在 J.C 上）。
+- 查证 datetimepicker Android 源码的合并规则；新 date-value 模块；setValue 合并 + 字符串；picker 值 = 显示的本地字符串；expectValue 支持 Date。
+- 示例 App 加截止日期 / 时间；values.feature：web 11/11、iOS 11/11、Android 10 + 1 skip。
+- `pnpm check` exit 0（840 tests）。

@@ -86,6 +86,13 @@ describe('element state', () => {
     expect(elementValue(node({ type: 'Switch', props: { value: true } }))).toBe(true);
     expect(elementValue(node({ type: 'RNCSlider', props: { value: 0.25 } }))).toBe(0.25);
     expect(elementValue(node({ type: 'RNCPicker', owner: { selectedValue: 'ja' } }))).toBe('ja');
+    // date / time pickers: what they show, in local time (issue #18)
+    const due = new Date(2031, 11, 24, 20, 15);
+    expect(elementValue(node({ type: 'RNDateTimePicker', owner: { value: due } }))).toBe('2031-12-24');
+    expect(elementValue(node({ type: 'RNDateTimePicker', owner: { value: due, mode: 'time' } }))).toBe('20:15');
+    expect(elementValue(node({ type: 'RNDateTimePicker', owner: { value: due, mode: 'datetime' } }))).toBe('2031-12-24T20:15');
+    expect(elementValue(node({ type: 'RNDateTimePicker', owner: { value: new Date(2031, 11, 24, 20, 15, 30), mode: 'time' } }))).toBe('20:15:30');
+    expect(elementValue(node({ type: 'RNDateTimePicker', owner: { value: new Date(Date.UTC(2031, 11, 24, 23, 0)), mode: 'datetime', timeZoneOffsetInMinutes: 540 } }))).toBe('2031-12-25T08:00');
     expect(elementValue(node({ props: { accessibilityValue: { min: 0, max: 10, now: 3 } } }))).toBe(3);
     expect(elementValue(node({ props: { accessibilityValue: { text: 'three' } } }))).toBe('three');
     expect(elementValue(node({ props: { 'aria-valuenow': 7 } }))).toBe(7);
@@ -200,6 +207,20 @@ describe('state assertions', () => {
     expect(evaluate(r, { type: 'value', matcher: { id: 'wifi' }, expected: false }, VIEWPORT).pass).toBe(true);
     expect(evaluate(r, { type: 'value', matcher: { id: 'email' }, expected: 'x', not: true }, VIEWPORT).pass).toBe(true);
     expect(evaluate(r, { type: 'label', matcher: { id: 'email' }, expected: 'Email' }, VIEWPORT).pass).toBe(true);
+  });
+
+  it('value of a date / time picker: its string, or a Date compared by the parts it shows (issue #18)', () => {
+    const r = tree(
+      { testID: 'due-date', type: 'RNDateTimePicker', owner: { value: new Date(2031, 11, 24, 9, 30) } },
+      { testID: 'due-time', type: 'RNDateTimePicker', owner: { value: new Date(2031, 11, 24, 20, 15), mode: 'time' } },
+    );
+    const value = (id: string, expected: unknown) => evaluate(r, { type: 'value', matcher: { id }, expected: expected as never }, VIEWPORT);
+    expect(value('due-date', '2031-12-24').pass).toBe(true);
+    expect(value('due-date', { date: new Date(2031, 11, 24, 23, 59).toISOString() }).pass).toBe(true);
+    expect(value('due-date', { date: new Date(2031, 11, 25).toISOString() })).toMatchObject({ pass: false, actual: '2031-12-24' });
+    expect(value('due-time', '20:15').pass).toBe(true);
+    expect(value('due-time', { date: new Date(2000, 0, 1, 20, 15).toISOString() }).pass).toBe(true);
+    expect(value('due-time', { date: new Date(2031, 11, 24, 20, 16).toISOString() }).pass).toBe(false);
   });
 
   it('negated single-element assertions still need exactly one match', () => {

@@ -98,3 +98,8 @@
 ## J.C 发现
 - pnpm 10+ 不再读取 package.json 的 `pnpm` 字段（pnpm 12 CHANGELOG #16278、Rust engine 警告条目）；overrides 必须在 `pnpm-workspace.yaml`。`init --packages` 原来写在 package.json ⇒ 间接依赖装成 npm 版本（app20 里出现 `@quiesco+core@0.3.0` 与 tarball 版两份）。
 - 复现 #19 的办法：metro 配置不含 withQuiesco 时以 `EXPO_PUBLIC_QUIESCO=1` 启动 Metro（agent 为真实实现但没有 build config ⇒ hello 无 bundle），之后再恢复配置（Metro 不重读配置）。
+
+## J.D 发现
+- datetimepicker 9.2.1 Android：`DatePickerModule.onDateSet` ⇒ `calendar.set(year, month, day, date.hour(), date.minute(), 0)` + ms 0；`TimePickerModule.onTimeSet` ⇒ `calendar.set(date.year(), date.month(), date.day(), hour, minute, 0)` + ms 0；Material 版本相同。时区 `Common.getTimeZone(args)`：tzOffset > timeZoneName > 默认。
+- iOS 上 `RNDateTimePicker` host 的 ownerProps 有 `value: Date` 与 `mode`；`jsonScalar` 丢弃 Date ⇒ 之前 expectValue 拿不到值。
+- 示例 App 值控件页：新增字段在 iOS 上位于屏幕外；`scrollTo` 刚好把元素滚到底边时会被导航栏遮住（ELEMENT_OBSCURED 类错误），滚到两个选择器下方的文本即可。

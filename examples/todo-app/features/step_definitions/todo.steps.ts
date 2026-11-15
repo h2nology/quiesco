@@ -277,6 +277,33 @@ Then('生日是 {string}', async function (this: QuiescoWorld, iso: string) {
   await this.app.expectText({ id: 'birthday-value' }, iso);
 });
 
+// Issue #18: local strings; the date picker keeps the time, the time picker keeps the date.
+async function pickDue(app: QuiescoWorld['app'], part: 'date' | 'time', value: string): Promise<void> {
+  // Android opens a dialog from a button; the picker exists while the dialog is open.
+  const opener = (await app.query({ id: `due-${part}-open` })).length > 0;
+  // Below the birthday wheels on iOS: scroll down to the text under both pickers, so neither sits under the
+  // navigation bar at the bottom edge.
+  await app.scrollTo({ id: 'controls' }, { id: 'due-value' });
+  if (opener) await app.tap({ id: `due-${part}-open` });
+  await app.setValue({ id: `due-${part}` }, value);
+}
+
+When('把截止日期设为 {string}', async function (this: QuiescoWorld, day: string) {
+  await pickDue(this.app, 'date', day);
+});
+
+When('把截止时间设为 {string}', async function (this: QuiescoWorld, time: string) {
+  await pickDue(this.app, 'time', time);
+});
+
+Then('截止是 {string}', async function (this: QuiescoWorld, v: string) {
+  await this.app.expectText({ id: 'due-value' }, v);
+});
+
+Then('截止时间选择器的值是 {string}', async function (this: QuiescoWorld, time: string) {
+  await this.app.expectValue({ id: 'due-time' }, time);
+});
+
 When('对数量执行无障碍动作 {string}', async function (this: QuiescoWorld, name: string) {
   await this.app.accessibilityAction({ id: 'stepper' }, name);
 });

@@ -19,6 +19,7 @@
  */
 import type { ControlValue, DateValue } from '@quiesco/protocol';
 
+import { pickerMode, pickerOffset, resolvePickerDate } from '../date-value';
 import { QuiescoError } from '../errors';
 import type { CompositeNode, HostNode } from '../fiber-adapter';
 
@@ -270,6 +271,21 @@ export function toDate(value: ControlValue, platform: string): Date {
   throw unsupported('setValue', `a date picker takes a date (Date), got ${JSON.stringify(value)}`, platform);
 }
 
+/**
+ * The Date a date / time picker ends up with for `value` (issue #18): a mode="time" picker keeps its day
+ * and takes the hours and minutes, a mode="date" picker keeps its time, as the native dialogs do. Also
+ * takes local strings ("2031-12-24", "20:15", "2031-12-24T20:15").
+ */
+export function pickerDate(props: Props, value: ControlValue, platform: string): Date {
+  const input = typeof value === 'string' ? value : toDate(value, platform);
+  const current = props['value'] instanceof Date ? props['value'] : new Date();
+  try {
+    return resolvePickerDate(current, input, pickerMode(props), pickerOffset(props));
+  } catch (e) {
+    throw unsupported('setValue', (e as Error).message, platform);
+  }
+}
+
 /** A date within the picker's minimumDate / maximumDate. */
 export function checkDate(props: Props, d: Date, platform: string): void {
   const min = props['minimumDate'];
@@ -374,7 +390,7 @@ export function jsSetValue(control: Control, value: ControlValue, platform: stri
       return;
     }
     case 'date': {
-      const d = toDate(value, platform);
+      const d = pickerDate(p, value, platform);
       checkDate(p, d, platform);
       // datetimepicker: { type: 'set', nativeEvent: { timestamp, utcOffset } }; onValueChange wins over onChange.
       const event = { type: 'set', nativeEvent: { timestamp: d.getTime(), utcOffset: -d.getTimezoneOffset() } };

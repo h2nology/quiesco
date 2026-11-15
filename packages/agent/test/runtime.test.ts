@@ -500,7 +500,8 @@ describe('AgentRuntime', () => {
     commit(host('RCTView', { testID: 'screen', ...R(0) }), { tag: 0, type: DateTimePicker, props: { testID: 'when', value: new Date(0), onChange }, children: [] });
     const d = new Date(2027, 2, 8, 12);
     await expect(drive(call('action', { action: { type: 'setValue', matcher: { id: 'when' }, value: { date: d.toISOString() } }, mode: 'native', timeoutMs: 1000 }))).resolves.toEqual({ syncMs: expect.any(Number) });
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ type: 'set' }), d);
+    // a date picker (the default mode): the picked day at the value's time, as the native dialog does
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ type: 'set' }), new Date(2027, 2, 8, new Date(0).getHours(), new Date(0).getMinutes()));
     // Only id / type / index matchers reach such components.
     await expect(drive(call('action', { action: { type: 'setValue', matcher: { id: 'when', text: 'x' }, value: 1 }, mode: 'js', timeoutMs: 300 }), 400)).rejects.toMatchObject({ errorName: 'ELEMENT_NOT_FOUND' });
   });

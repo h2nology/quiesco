@@ -66,7 +66,7 @@ description: "this.app（Driver）、匹配器、App 内 API、配置、场景�
 | `Switch`、`expo-checkbox` | 布尔型的 `value` 和 `onValueChange` | `true` / `false` |
 | `@react-native-picker/picker` | `onValueChange` 和 `selectedValue` | 某一项的值（也可以是字符串形式），或其标签 |
 | `@react-native-segmented-control/segmented-control` | `values` 数组和 `onChange` / `onValueChange` | 某一段的值，或其索引 |
-| `@react-native-community/datetimepicker` | `Date` 类型的 `value` 和 `onChange` / `onValueChange` | 一个 `Date`（会对照 `minimumDate` / `maximumDate` 检查） |
+| `@react-native-community/datetimepicker` | `Date` 类型的 `value` 和 `onChange` / `onValueChange` | 一个 `Date`，或本地时间字符串 `"2031-12-24"` / `"20:15"` / `"2031-12-24T20:15"`；只改变选择器负责的那部分（[日期和时间选择器](#date-and-time-pickers)） |
 | DOM `<select>`、`<input type="date" / "time" / "datetime-local" / "month" / "week" / "range" / "number">`、复选框 | 元素本身（web） | 某个选项的值或标签；一个 `Date`（按本地时间写入），或输入框自身格式的字符串 |
 
 其他控件都会以 `ACTION_NOT_SUPPORTED` 失败，并列出找到的回调。设置为当前值时不会发送事件，禁用的控件不会被改动（与用户尝试操作时一样）。
@@ -82,6 +82,28 @@ description: "this.app（Driver）、匹配器、App 内 API、配置、场景�
 | 滑块 | 回调（精确值；真实拖动请用 `adjustSlider`） | 回调 | `onSlidingStart`、`onValueChange`、`onSlidingComplete` |
 
 Android 的 `DateTimePicker` 不渲染任何视图（它会打开一个对话框），因此在 App 显示它之后，`setValue({ id })`会通过 testID（或按名称用 `{ type: 'DateTimePicker' }`）直接找到该组件；App 处理这次变更时会关闭对话框，与处理用户的选择一样。这类组件只能通过 `id`、`type` 和 `index` 匹配。
+
+#### 日期和时间选择器 {#date-and-time-pickers}
+
+与原生对话框一样，`setValue` 只改变选择器 `value` 中由其 `mode` 显示的那部分，按选择器的时区计算（`timeZoneOffsetInMinutes`，否则为设备的时区）：
+
+| `mode` | 改变什么 | 接受 |
+|---|---|---|
+| `date`（默认） | 日期；时、分保持不变，秒变为 0 | `Date` 或 `"2031-12-24"` |
+| `time` | 时、分；日期保持不变 | `Date` 或 `"20:15"`（带秒为 `"20:15:30"`） |
+| `datetime` | `Date`：全部；字符串：它给出的部分 | `Date`、`"2031-12-24T20:15"`、`"2031-12-24"` 或 `"20:15"` |
+| `countdown` | 全部 | `Date` |
+
+因此在 Android 的两个对话框中先选日期再选时间，日期会保留：
+
+```ts
+await this.app.setValue('due-date-picker', '2031-12-24');
+await this.app.setValue('due-time-picker', '20:15');   // 不必编造一个日期
+```
+
+`minimumDate` / `maximumDate` 会对照结果检查。字符串是设备上的本地时间，因此不受 host 时区影响；`Date` 会换算成设备的时区。
+
+选择器的值（`expectValue`、查询结果中的 `value`）是它显示的内容，用设备上的本地时间表示：`"2031-12-24"`（`date`）、`"20:15"`（`time`）、`"2031-12-24T20:15"`（`datetime`、`countdown`），秒不为 0 时带上 `:ss`。`expectValue` 接受这样的字符串，或者一个 `Date`，这些部分一致时即匹配：`expectValue('due-time-picker', '20:15')`。Android 的对话框在 App 处理完变更后就消失了；请改为检查 App 显示的内容。
 
 `adjustSlider` 在 `native` 模式下拖动滑柄并读回值：滑柄跟随手指移动时会扣除触摸容差（touch slop），因此它会再次拖动（始终朝同一方向，并带助跑），直到滑块与目标位置相差不超过一个步长（连续滑块为范围的 1%）。Web：用鼠标拖动滑柄。`js`：通过回调设置该位置对应的值。
 
@@ -113,7 +135,7 @@ Android 的 `DateTimePicker` 不渲染任何视图（它会打开一个对话框
 | `expectNotVisible(target)` | 没有可见的匹配元素（不存在或被隐藏） |
 | `expectExists(target)` / `expectNotExists(target)` | 元素在 / 不在元素树中，无论是否可见 |
 | `expectText(target, text \| RegExp)` | 恰好一个匹配，且其文本等于 / 匹配 |
-| `expectValue(target, value \| RegExp)` | 恰好一个匹配，且其值等于 / 匹配：输入框文本、开关状态、滑块 / 选择器的值或 `accessibilityValue` |
+| `expectValue(target, value \| RegExp \| Date)` | 恰好一个匹配，且其值等于 / 匹配：输入框文本、开关状态、滑块 / 选择器的值（日期 / 时间选择器的值见[日期和时间选择器](#date-and-time-pickers)）或 `accessibilityValue` |
 | `expectLabel(target, text \| RegExp)` | 恰好一个匹配，且其无障碍标签等于 / 匹配 |
 | `expectFocused(target)` / `expectNotFocused(target)` | 恰好一个匹配，且它拥有 / 没有输入焦点 |
 | `expectEnabled(target)` / `expectDisabled(target)` | 恰好一个匹配，且它已启用 / 已禁用（`disabled`、`accessibilityState.disabled`、`aria-disabled`、`editable={false}`，也包括从祖先继承的） |
