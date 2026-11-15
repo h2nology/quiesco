@@ -88,3 +88,9 @@
 ### #23
 - Expo 官方做法：模块从 `expo` 导入（expo 再导出 `requireOptionalNativeModule`，见 node_modules/expo/build/Expo.d.ts；Expo 的模块模板 CHANGELOG：从 `expo` 而非 `expo-modules-core` 导入，独立模块才能在 Expo App 外构建）。
 - 改动：`packages/native/src/index.ts` 改为 `from 'expo'`；peer `expo: *`；devDependency `expo ~58.0.23`（monorepo 里类型检查用）。monorepo `nodeLinker: hoisted`，lockfile 变化只是去重；react 仍只有一份。
+
+## J.B 发现
+- `QuiescoRoot` 不只是软重置的 remount 点：`runtime.mount()`（只由 QuiescoRoot 调用）创建 AgentClient 并连接。没有它 ⇒ CONNECT_TIMEOUT（session.ts 的超时提示本来就写着 "renders <QuiescoRoot>"）。issue #20 说「App 没有它也能工作」很可能是推测；实测（web）确认连接不上。
+- Expo `tsconfig.base` 自带 `noEmit: true` ⇒ 加 `allowImportingTsExtensions` 合法。blank 模板 tsconfig 是纯 JSON。
+- `registerQuiesco({ world: TodoWorld })` 在 strict 下 TS2419：`typeof QuiescoWorld` 带泛型构造签名 `new <P>(o: IWorldOptions<P>) => QuiescoWorld<P>`，子类不满足。
+- `cucumber-js --dry-run` 会 import 所有 support / step 文件：参数属性 ⇒ `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`；缺 `.ts` ⇒ `ERR_MODULE_NOT_FOUND`。
