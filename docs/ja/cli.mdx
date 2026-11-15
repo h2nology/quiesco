@@ -32,9 +32,11 @@ npx quiesco test --platform web
 npx quiesco test --platform android --tags @smoke features/login.feature
 npx quiesco test --platform ios --runner vitest --config vitest.e2e.config.mts
 npx quiesco test --platform web --runner jest e2e/todo.test.js
+npx quiesco test --platform web -- --tags @debug
+npx quiesco test --help
 ```
 
-`QUIESCO_PLATFORM`を設定し、プロジェクトのテストランナーを実行します。ランナーは`cucumber-js`（デフォルト）、`jest`、`vitest run`のいずれかで（`--runner`）、それ以外の引数はすべてそのままランナーに渡します。`--workers N`はN個のワーカーを、それぞれ専用のデバイスで実行します（[parallel.md](./parallel)）。cucumber-jsでは`--parallel N`、Jestでは`--maxWorkers N`、Vitestでは`--fileParallelism --maxWorkers N`に変換されます（ランナー自身のフラグも使えます）。
+`QUIESCO_PLATFORM`を設定し、プロジェクトのテストランナーを実行します。ランナーは`cucumber-js`（デフォルト）、`jest`、`vitest run`のいずれかで（`--runner`）、それ以外の引数はすべてそのままランナーに渡します。`--`より後ろの引数もランナーに渡し、`--`自体は取り除きます。そのため、その後ろに書いたQuiescoのオプション名はランナーのものとして扱われます（`quiesco test -- --help`はランナーのヘルプを表示します）。`--workers N`はN個のワーカーを、それぞれ専用のデバイスで実行します（[parallel.md](./parallel)）。cucumber-jsでは`--parallel N`、Jestでは`--maxWorkers N`、Vitestでは`--fileParallelism --maxWorkers N`に変換されます（ランナー自身のフラグも使えます）。
 
 ## `quiesco devices` {#quiesco-devices}
 

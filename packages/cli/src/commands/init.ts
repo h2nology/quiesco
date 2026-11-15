@@ -162,8 +162,9 @@ function quiescoConfig(app: AppJson, platforms: readonly CliPlatform[]): string 
   return lines.join('\n');
 }
 
+// No `paths`: cucumber-js already defaults to features/**/*.feature, and paths set here are merged with the
+// ones given on the command line, so `quiesco test features/x.feature` would run every feature (issue #8).
 const CUCUMBER_CONFIG = `export default {
-  paths: ['features/**/*.feature'],
   import: ['features/support/**/*.ts', 'features/step_definitions/**/*.ts'],
   format: ['progress'],
 };
@@ -342,7 +343,7 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
     steps.push({ status: 'created', what: rel, note });
   };
   write('quiesco.config.mts', quiescoConfig(app, platforms), `apps: ${platforms.join(', ')}`, ['quiesco.config.ts', 'quiesco.config.mts', 'quiesco.config.js', 'quiesco.config.mjs']);
-  write('cucumber.mjs', CUCUMBER_CONFIG, 'features/**/*.feature', ['cucumber.mjs', 'cucumber.js', 'cucumber.cjs', 'cucumber.json', 'cucumber.yaml', 'cucumber.yml']);
+  write('cucumber.mjs', CUCUMBER_CONFIG, 'step files and format (features/**/*.feature by default)', ['cucumber.mjs', 'cucumber.js', 'cucumber.cjs', 'cucumber.json', 'cucumber.yaml', 'cucumber.yml']);
   write('features/package.json', '{ "type": "module" }\n', 'step files are ES modules');
   write('features/support/quiesco.ts', SUPPORT, 'this.app and the lifecycle hooks');
   write('features/app.feature', FEATURE, 'a first scenario');
