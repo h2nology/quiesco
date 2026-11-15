@@ -7,10 +7,10 @@
 3. cucumber / vitest / jest 三个 runner 全部支持；附测试、三语文档，在 examples/todo-app 上实跑验收。
 
 ## Current Phase
-P0
+P1
 
 ## Next Step
-P0：逐个查证三个 runner 的 reporter / formatter API 与「列出测试」能力（写进 findings.md），确认事件协议可行后再动代码。
+P1：在 `@quiesco/protocol` 定义事件类型（按 findings「事件协议草案」），在 `@quiesco/core` 实现 socket 服务端 / 客户端与 NDJSON 编解码，先写单元测试。
 
 ## 背景
 - 前置：0.2.0 已发布（`.planning/2026-11-14-issues-0-2/`）。
@@ -26,6 +26,10 @@ P0：逐个查证三个 runner 的 reporter / formatter API 与「列出测试�
 | UI 执行模型 | UI 服务常驻（保持 Metro / 设备），每次点击用过滤参数起一次 runner 子进程 | 三种 runner 统一、实现简单；代价是每次多一次 session 启动 |
 | UI 前端 | React + Vite，构建产物随包发布 | 组件化，便于测试树 / 详情 / 证据面板 |
 | UI/UX 设计 | 用 ui-ux-pro-max 插件设计，并用它做实现后的审查 | HU 指定 |
+| reporter 接入（P0 后） | cucumber：CLI 追加 `--format`；Vitest：新增 `quiescoPlugin()` 放进 plugins（init 生成的配置自带）；Jest：preset 自带 reporters；未收到 `hello` 时 CLI 提示 | 命令行 `--reporter(s)` 会替换用户 reporters；不改写用户配置 |
+| UI 包 | 独立 `@quiesco/ui`（服务 + React 产物），`quiesco ui` 动态加载，未安装时提示 | CLI 保持轻量 |
+| UI v1 范围 | 必做（测试树、运行全部 / 文件 / suite / 单个、实时进度条、错误详情）+ 证据面板 + 搜索 / 过滤 / 排序 + Console 与只读源码 + 设备 / worker 泳道；不做：快照、模块图、覆盖率、可编辑源码、watch 自动重跑 | HU 选择 |
+| 版本 | 全部完成并三端验收后一起发 0.3.0 | HU 选择 |
 
 ## 架构草案
 ```
@@ -44,25 +48,26 @@ CLI (quiesco ui)    ── 事件 → WebSocket → 浏览器 (React)
 ## Phases
 
 ### P0 查证（不写产品代码）
-- [ ] cucumber-js：自定义 formatter 拿 `testCase` / `testCaseStarted` / `testCaseFinished` 消息；`--parallel` 下 formatter 是否只在主进程；与用户自己的 `--format` 并存方式；`--dry-run` 列出 pickle（id、名字、feature:行号）
-- [ ] Vitest 5：reporter API（收集完成时拿总数、单测试开始/结束）；`--reporter` 追加而不替换默认 reporter 的写法；`vitest list --json`
-- [ ] Jest：自定义 reporter（`onRunStart` / `onTestCaseStart` / `onTestCaseResult`）；`--reporters default --reporters X`；测试名的列出能力（`--listTests` 只有文件）
-- [ ] Vitest UI 功能清单（以实际 `@vitest/ui` 为准），决定第一版要做 / 不做的项
-- [ ] 过滤运行单个测试的参数：cucumber `path:line` / `--name`，vitest `file -t`，jest `file -t`（名字含正则字符时的转义）
-- [ ] IPC 选型：Unix socket / Windows named pipe vs. 本地 TCP vs. 写文件；结论记 findings
-**Status:** in_progress
+- [x] cucumber-js：自定义 formatter 拿 `testCase` / `testCaseStarted` / `testCaseFinished` 消息；`--parallel` 下 formatter 是否只在主进程；与用户自己的 `--format` 并存方式；`--dry-run` 列出 pickle（id、名字、feature:行号）
+- [x] Vitest 5：reporter API（收集完成时拿总数、单测试开始/结束）；`--reporter` 追加而不替换默认 reporter 的写法；`vitest list --json`
+- [x] Jest：自定义 reporter（`onRunStart` / `onTestCaseStart` / `onTestCaseResult`）；`--reporters default --reporters X`；测试名的列出能力（`--listTests` 只有文件）
+- [x] Vitest UI 功能清单（以实际 `@vitest/ui` 为准），决定第一版要做 / 不做的项
+- [x] 过滤运行单个测试的参数：cucumber `path:line` / `--name`，vitest `file -t`，jest `file -t`（名字含正则字符时的转义）
+- [x] IPC 选型：Unix socket / Windows named pipe（`QUIESCO_EVENTS`），fd3 经 npx 丢失不可行；详见 findings
+- [x] 汇总已写入 findings「P0 汇总」与「事件协议草案」；HU 已确认接入方式 / UI 包 / v1 范围 / 版本
+**Status:** complete
 
 ### P1 事件协议与传输
 - [ ] 定义事件类型（TS 类型 + 版本号字段），NDJSON 编解码，单元测试
 - [ ] 传输：服务端（CLI 侧）监听 + 客户端（reporter 侧）连接；`QUIESCO_EVENTS` 不存在时 reporter 什么都不做
 - [ ] depcruise 规则：协议模块不依赖任何 runner
-**Status:** pending
+**Status:** in_progress
 
 ### P2 三个 runner 的 reporter
-- [ ] `@quiesco/cucumber` formatter（含 `--parallel`、Scenario Outline 每行一个测试、hook 失败）
-- [ ] `@quiesco/vitest` reporter（含 skip、tag 跳过、worker 编号）
-- [ ] `@quiesco/jest` reporter（总数在收集后更新）
-- [ ] `quiesco test` 自动注入 reporter，不覆盖用户自己的 reporter / format 配置
+- [ ] `@quiesco/cucumber` formatter plugin（testCase 计总数、最严重 step 结果作状态、`willBeRetried`、BeforeAll 失败转发、`--parallel` workerId）；CLI 以 `--format "file://…":"<null>"` 注入
+- [ ] `@quiesco/vitest` reporter（parseSpecifications 估算总数 + 每文件修正、concurrencyId、logs）+ `configureVitest` 插件注入；`quiesco()` 打开 includeTaskLocation
+- [ ] `@quiesco/jest` reporter（总数按文件累加、onTestFileResult 补 skip/todo/收集失败）；preset 自带 reporters
+- [ ] `hello` 握手：Jest / Vitest 未接入 reporter 时 CLI 提示如何加
 - [ ] 失败证据路径进入 `testEnd`
 **Status:** pending
 
@@ -85,7 +90,7 @@ CLI (quiesco ui)    ── 事件 → WebSocket → 浏览器 (React)
 - [ ] HTTP 静态资源 + WebSocket；命令：list / run(全部|文件|测试 ids) / cancel；事件转发
 - [ ] 运行队列：同一时间只跑一次（一个 session / 设备），运行中点击给出提示或排队
 - [ ] 证据文件接口（限制在 artifacts 目录，防路径穿越）
-- [ ] UI 打包位置：新包 `@quiesco/ui`（CLI 动态加载，未安装时提示安装）—— 待 P0 后与 HU 确认
+- [ ] 新包 `@quiesco/ui`：`quiesco ui` 动态加载，未安装时提示 `npm i -D @quiesco/ui`
 **Status:** pending
 
 ### P6 UI 前端（React + Vite）
@@ -106,10 +111,8 @@ CLI (quiesco ui)    ── 事件 → WebSocket → 浏览器 (React)
 - [ ] `pnpm check` 全绿；`check:prod-strip` 不受影响
 **Status:** pending
 
-## 待用户确认（P0 之后）
-- UI 是否独立成 `@quiesco/ui` 包（推荐，避免 CLI 带上 React 构建产物和 `ws` 依赖）
-- 版本号：随下一个版本 0.3.0 发布？
-- 第一版 UI 不做的项（候选：源码查看、模块图、覆盖率、watch 自动重跑）
+## 待用户确认
+（P0 后的问题已全部确认，见决定表）
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
