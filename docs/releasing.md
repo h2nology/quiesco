@@ -1,7 +1,7 @@
 # Releasing
 
-How to publish the Quiesco packages to npm. All 11 packages — the CLI `quiesco` and
-`@quiesco/{agent,core,cucumber,expo-plugin,jest,native,protocol,steps,vitest,web}` — are released
+How to publish the Quiesco packages to npm. All 12 packages — the CLI `quiesco` and
+`@quiesco/{agent,core,cucumber,expo-plugin,jest,native,protocol,steps,ui,vitest,web}` — are released
 together with one version number.
 
 ## Before the first release
@@ -16,7 +16,7 @@ together with one version number.
 
 ## Releasing a version
 
-1. **Set the version.** Change `version` in all 11 `packages/*/package.json` and `AGENT_VERSION` in
+1. **Set the version.** Change `version` in all 12 `packages/*/package.json` and `AGENT_VERSION` in
    `packages/agent/src/version.ts` (the agent reports it to the host). The packages depend on each other
    with `workspace:*`; pnpm replaces that with the exact version when it packs.
 
@@ -87,7 +87,7 @@ together with one version number.
   another package on the registry depends on it, so remove the dependents first — the reverse of the
   publish order:
 
-  1. `quiesco`, `@quiesco/steps`, `@quiesco/vitest`, `@quiesco/jest`, `@quiesco/web`
+  1. `quiesco`, `@quiesco/steps`, `@quiesco/vitest`, `@quiesco/jest`, `@quiesco/web`, `@quiesco/ui`
   2. `@quiesco/cucumber`
   3. `@quiesco/core`, `@quiesco/agent`
   4. `@quiesco/protocol`, `@quiesco/native`, `@quiesco/expo-plugin`

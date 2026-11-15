@@ -1,6 +1,6 @@
 {
   "name": "@quiesco/native",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Quiesco native touch injection (Expo Module). e2e builds only.",
   "license": "MIT",
   "author": "h2nology",
