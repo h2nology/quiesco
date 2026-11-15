@@ -11,7 +11,7 @@ npx quiesco <command> [options]
 
 在 Expo 项目中配置 Quiesco。每一步都会报告做了什么；已有文件绝不会被覆盖——当某个文件需要 Quiesco 无法安全完成的修改时，它会打印出需要添加的内容。
 
-1. 用项目的包管理器（根据 lock 文件判断 npm、pnpm、yarn 或 bun）安装包：`@quiesco/agent`、`@quiesco/native` 作为 dependencies；`quiesco`、`@quiesco/core`、`@quiesco/cucumber`、`@quiesco/expo-plugin`、`@cucumber/cucumber`（Web 还有 `@quiesco/web`、`playwright`）作为 dev dependencies。
+1. 用项目的包管理器（根据 lock 文件判断 npm、pnpm、yarn 或 bun）安装包：`@quiesco/agent`、`@quiesco/native` 作为 dependencies；`quiesco`、`@quiesco/core`、`@quiesco/cucumber`、`@quiesco/expo-plugin`、`@cucumber/cucumber`（Web 还有 `@quiesco/web`、`playwright`）作为 dev dependencies。Quiesco 的包按运行 `init` 的 CLI 的版本安装（`npx quiesco@0.4.0 init` 安装 0.4.0），因此它写入的脚本与安装的 CLI 一致。安装后 `init` 会读回已安装的版本，有不一致时停止，并给出要运行的安装命令（例如包管理器用了缓存中过期的 registry 元数据时）。
 2. 把 `@quiesco/expo-plugin` 加到 `app.json` 的 plugins 中。
 3. 创建带有 `withQuiesco()` 的 `metro.config.js`（或说明如何包装已有的配置）。
 4. 让 `@quiesco/agent` 成为入口文件的第一个 import。Expo Router App 会得到一个 `index.ts`（`import '@quiesco/agent'; import 'expo-router/entry';`）以及 `"main": "index.ts"`。
@@ -87,7 +87,7 @@ npx quiesco doctor                 # quiesco.config.mts 中配置的所有平台
 npx quiesco doctor --platform ios
 ```
 
-检查 Node.js、项目配置（包、config plugin、Metro 中的 `withQuiesco()`、agent 是否为入口的第一个 import、`<QuiescoRoot>`、配置文件）、平台工具（模拟器、adb 和 AVD、Playwright 的 Chromium）、App 构建和端口。每个问题都附带修复方法。必需的检查失败时以 1 退出；警告不会导致失败。
+检查 Node.js、项目配置（包、所有 Quiesco 包是否为同一版本、package.json 脚本中的每个 `quiesco <command>` 是否存在、config plugin、Metro 中的 `withQuiesco()`、agent 是否为入口的第一个 import、`<QuiescoRoot>`、配置文件）、平台工具（模拟器、adb 和 AVD、Playwright 的 Chromium）、App 构建和端口。每个问题都附带修复方法。必需的检查失败时以 1 退出；警告不会导致失败。
 
 ## `quiesco tree` {#quiesco-tree}
 

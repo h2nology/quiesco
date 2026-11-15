@@ -11,7 +11,7 @@ npx quiesco <command> [options]
 
 ExpoプロジェクトにQuiescoをセットアップします。各手順で何をしたかを報告します。既存のファイルは決して上書きしません。Quiescoが安全に変更できないファイルについては、追加すべき内容を表示します。
 
-1. プロジェクトのパッケージマネージャー（ロックファイルから判断したnpm、pnpm、yarn、bunのいずれか）でパッケージをインストールします。`@quiesco/agent`と`@quiesco/native`はdependenciesに、`quiesco`、`@quiesco/core`、`@quiesco/cucumber`、`@quiesco/expo-plugin`、`@cucumber/cucumber`（Web向けには`@quiesco/web`と`playwright`も）はdevDependenciesに入ります。
+1. プロジェクトのパッケージマネージャー（ロックファイルから判断したnpm、pnpm、yarn、bunのいずれか）でパッケージをインストールします。`@quiesco/agent`と`@quiesco/native`はdependenciesに、`quiesco`、`@quiesco/core`、`@quiesco/cucumber`、`@quiesco/expo-plugin`、`@cucumber/cucumber`（Web向けには`@quiesco/web`と`playwright`も）はdevDependenciesに入ります。Quiescoのパッケージは`init`を実行したCLIと同じバージョンでインストールします（`npx quiesco@0.4.0 init`なら0.4.0）。そのため、書き込むスクリプトとインストールされたCLIが一致します。インストール後、`init`はインストールされたバージョンを読み直し、食い違いがあれば実行すべきインストールコマンドを示して停止します（パッケージマネージャーがキャッシュの古いレジストリ情報を使った場合など）。
 2. `app.json`のpluginsに`@quiesco/expo-plugin`を追加します。
 3. `withQuiesco()`を使った`metro.config.js`を作成します（既存のものがあれば、ラップする方法を説明します）。
 4. エントリーファイルの最初のimportを`@quiesco/agent`にします。Expo Routerのアプリには`index.ts`（`import '@quiesco/agent'; import 'expo-router/entry';`）と`"main": "index.ts"`を用意します。
@@ -87,7 +87,7 @@ npx quiesco doctor                 # quiesco.config.mtsで設定したすべて�
 npx quiesco doctor --platform ios
 ```
 
-Node.js、プロジェクトのセットアップ（パッケージ、config plugin、Metroの`withQuiesco()`、エントリーの最初のimportとしてのエージェント、`<QuiescoRoot>`、設定ファイル）、プラットフォームのツール（シミュレーター、adbとAVD、PlaywrightのChromium）、アプリのビルド、ポートをチェックします。問題ごとに修正方法を示します。必須のチェックが失敗すると終了コード1で終わります。警告では失敗しません。
+Node.js、プロジェクトのセットアップ（パッケージ、すべてのQuiescoパッケージが同じバージョンか、package.jsonのスクリプトにある`quiesco <command>`がすべて存在するか、config plugin、Metroの`withQuiesco()`、エントリーの最初のimportとしてのエージェント、`<QuiescoRoot>`、設定ファイル）、プラットフォームのツール（シミュレーター、adbとAVD、PlaywrightのChromium）、アプリのビルド、ポートをチェックします。問題ごとに修正方法を示します。必須のチェックが失敗すると終了コード1で終わります。警告では失敗しません。
 
 ## `quiesco tree` {#quiesco-tree}
 

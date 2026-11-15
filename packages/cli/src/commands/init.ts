@@ -11,6 +11,7 @@ import path from 'node:path';
 
 import type { CliContext, CliPlatform } from '../context.js';
 import { PLATFORMS, takeFlag, takeOption } from '../context.js';
+import { installedVersion, isQuiescoPackage } from '../packages.js';
 
 type PackageManager = 'npm' | 'pnpm' | 'yarn' | 'bun';
 
@@ -231,10 +232,14 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
   // 1. Dependencies.
   const runtime = [...RUNTIME];
   const dev = [...DEV, ...(platforms.includes('web') ? WEB_DEV : [])];
-  let spec = (name: string): string => name;
+  // Issue #17: the version of this CLI, not whatever the registry metadata in the package manager's cache
+  // calls latest (a project on an older Quiesco than the scripts init writes for it).
+  let spec = (name: string): string => (isQuiescoPackage(name) ? `${name}@${ctx.version}` : name);
+  /** The version each Quiesco package must have after the install. */
+  let expected = (_name: string): string => ctx.version;
   if (packagesOpt.value !== undefined) {
     const dir = path.resolve(ctx.cwd, packagesOpt.value);
-    const ours = [...runtime, ...dev, ...TRANSITIVE].filter((n) => n === 'quiesco' || n.startsWith('@quiesco/'));
+    const ours = [...runtime, ...dev, ...TRANSITIVE].filter(isQuiescoPackage);
     const tarballs = findTarballs(dir, ours);
     const missing = ours.filter((n) => !tarballs.has(n));
     if (missing.length > 0) {
@@ -242,6 +247,7 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
       return 1;
     }
     spec = (name) => (tarballs.has(name) ? `file:${tarballs.get(name) as string}` : name);
+    expected = (name) => /-(\d[^/]*)\.tgz$/.exec(tarballs.get(name) ?? '')?.[1] ?? ctx.version;
     // Their own dependencies on each other ("@quiesco/protocol": "0.0.0") must resolve to the tarballs too.
     // npm refuses an override for a package that is also a direct dependency (EOVERRIDE) and reuses the
     // directly installed tarballs for those ranges anyway: pin only the indirect ones there. pnpm and
@@ -270,6 +276,21 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
       return 1;
     }
     steps.push({ status: 'ran', what: 'install', note: line });
+  }
+  if (!skipInstall.present) {
+    const ours = [...runtime, ...dev].filter(isQuiescoPackage);
+    const wrong = ours.map((name) => ({ name, want: expected(name), got: installedVersion(ctx, name) })).filter((p) => p.got !== p.want);
+    if (wrong.length > 0) {
+      ctx.err(`quiesco init: the installed Quiesco packages are not the version that was asked for:`);
+      for (const p of wrong) ctx.err(`  ${p.name}: ${p.got ?? 'not found in node_modules'} (wanted ${p.want})`);
+      ctx.err('All Quiesco packages must have the same version as the CLI that writes the project files. The');
+      ctx.err("package manager may have used stale registry metadata from its cache, or held a new release back");
+      ctx.err('(pnpm minimumReleaseAge). Install them again with the version given:');
+      for (const cmd of [addCommand(pm, false, runtime.map(spec)), addCommand(pm, true, dev.filter(isQuiescoPackage).map(spec))]) ctx.err(`  ${cmd.command} ${cmd.args.join(' ')}`);
+      ctx.err('then run quiesco init again.');
+      return 1;
+    }
+    steps.push({ status: 'ran', what: 'versions', note: `${ours.length} Quiesco packages at ${[...new Set(ours.map(expected))].join(', ')}` });
   }
 
   // 2. Config plugin in app.json.

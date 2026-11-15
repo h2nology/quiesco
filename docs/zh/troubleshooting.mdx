@@ -71,6 +71,13 @@ App 中未捕获的错误会让当前步骤失败——这通常是真正的 bug
 - **找不到 `@quiesco/web` / Playwright：** 执行 `npm i -D @quiesco/web playwright` 和 `npx playwright install chromium`。纯原生项目不需要它们。
 - **首次导航到懒加载路由时失败，报 "Requiring unknown module"：** 这是 Expo Router 的无害报错，Quiesco 默认会忽略（[已知问题](./known-issues)）。
 
+## `unknown command` 或 Quiesco 版本不一致 {#quiesco-versions}
+
+Quiesco 的包（`quiesco`、`@quiesco/*`）一起发布，只有版本相同时才能配合工作。`npx quiesco doctor` 会检查这一点以及脚本中用到的命令。升级时，用一条命令把所有 Quiesco 包装成同一版本，例如 `pnpm add -D quiesco@0.4.0 @quiesco/core@0.4.0 …`。
+
+- **`^0.x` 不会升到下一个 minor：** `^0.3.0` 允许 0.3.x，但不允许 0.4.0。请显式升级。
+- **pnpm 的 `minimumReleaseAge`：** pnpm 12 默认在解析版本范围或 `latest` 时跳过发布不到一天的版本，改用更旧的版本：发布当天 `pnpm add -D quiesco` 装到的是上一个版本。确切版本（`quiesco@0.4.0`，`quiesco init` 就是这样指定的）会被安装，并加到 `pnpm-workspace.yaml` 的 `minimumReleaseAgeExclude` 中。自己设置 `minimumReleaseAge` 后，pnpm 会先询问（此时 `minimumReleaseAgeStrict` 默认为 `true`）。
+
 ## 仍然无法解决 {#still-stuck}
 
 `npx quiesco tree` 显示 agent 看到的内容；`this.app.getIdleState()` 显示当前什么在忙碌。失败的场景会在 cucumber 报告中附带截图、元素树和跟踪器状态。
