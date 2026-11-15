@@ -121,9 +121,9 @@ function quiescoConfig(app: AppJson, platforms: readonly CliPlatform[]): string 
     lines.push(
       '    ios: {',
       `      bundleId: '${app.expo?.ios?.bundleIdentifier ?? 'com.example.app'}',${app.expo?.ios?.bundleIdentifier === undefined ? ' // TODO: expo.ios.bundleIdentifier' : ''}`,
-      '      // Simulator build made with EXPO_PUBLIC_QUIESCO=1 (expo prebuild + xcodebuild, or an EAS e2e build).',
+      '      // Simulator build made with EXPO_PUBLIC_QUIESCO=1: `npx quiesco build ios` writes it here (or an EAS e2e build).',
       `      binaryPath: 'ios/build/Build/Products/Debug-iphonesimulator/${ios.name}.app',${ios.exact ? '' : ' // TODO: check the .app name'}`,
-      "      // A dev client loading JS from Metro (EXPO_PUBLIC_QUIESCO=1 npx expo start). Remove for a bundled build.",
+      "      // A dev client loading JS from Metro (quiesco test starts it when it is not running). Remove for a bundled build.",
       "      devClient: { metroUrl: 'http://localhost:8081' },",
       '    },',
     );
@@ -132,6 +132,7 @@ function quiescoConfig(app: AppJson, platforms: readonly CliPlatform[]): string 
     lines.push(
       '    android: {',
       `      package: '${app.expo?.android?.package ?? 'com.example.app'}',${app.expo?.android?.package === undefined ? ' // TODO: expo.android.package' : ''}`,
+      "      // `npx quiesco build android` writes it here (EXPO_PUBLIC_QUIESCO=1).",
       "      binaryPath: 'android/app/build/outputs/apk/debug/app-debug.apk',",
       `      devClient: { scheme: '${scheme ?? 'myapp'}', metroUrl: 'http://localhost:8081' },${scheme === undefined ? ' // TODO: expo.scheme' : ''}`,
       '    },',
@@ -354,8 +355,8 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
   const wanted: Record<string, string> = {
     'e2e:start': 'EXPO_PUBLIC_QUIESCO=1 expo start',
     ...(platforms.includes('web') ? { 'e2e:web': 'EXPO_PUBLIC_QUIESCO=1 expo export --platform web && quiesco test --platform web' } : {}),
-    ...(platforms.includes('android') ? { 'e2e:android': 'quiesco test --platform android' } : {}),
-    ...(platforms.includes('ios') ? { 'e2e:ios': 'quiesco test --platform ios' } : {}),
+    ...(platforms.includes('android') ? { 'e2e:build:android': 'quiesco build android', 'e2e:android': 'quiesco test --platform android' } : {}),
+    ...(platforms.includes('ios') ? { 'e2e:build:ios': 'quiesco build ios', 'e2e:ios': 'quiesco test --platform ios' } : {}),
   };
   const added = Object.keys(wanted).filter((k) => scripts[k] === undefined);
   if (added.length > 0) {
@@ -374,7 +375,7 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
   ctx.out("  1. Wrap the root layout in <QuiescoRoot> (import { QuiescoRoot } from '@quiesco/agent').");
   ctx.out('  2. Give the home screen testID="home" (features/step_definitions/app.steps.ts looks for it).');
   if (platforms.includes('web')) ctx.out('  3. npx playwright install chromium, then npm run e2e:web');
-  if (platforms.some((p) => p !== 'web')) ctx.out('  •  iOS / Android: build the app with EXPO_PUBLIC_QUIESCO=1, check binaryPath in quiesco.config.mts, run `npx quiesco doctor`.');
+  if (platforms.some((p) => p !== 'web')) ctx.out('  •  iOS / Android: npm run e2e:build:ios (or :android) builds the app into binaryPath, then npm run e2e:ios; quiesco test starts Metro when it is not running. `npx quiesco doctor` checks the setup.');
   ctx.out('  •  A SYNC_TIMEOUT that names a decorative animation (the default template spins a glow): give it a testID and add it to sync.ignoreElements.');
   return 0;
 }

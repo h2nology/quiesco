@@ -23,7 +23,16 @@ npx quiesco <command> [options]
 | `--packages <dir>` | 从 `<dir>` 中的 `.tgz` 文件（`pnpm pack` 的输出）安装 Quiesco，并把它们之间的相互依赖固定到这些文件 |
 | `--skip-install` | 只打印安装命令 |
 
-`init` 留给你做的事：用 `<QuiescoRoot>` 包裹根组件、添加 test id，以及构建 iOS / Android 的 e2e App。
+`init` 留给你做的事：用 `<QuiescoRoot>` 包裹根组件、添加 test id。
+
+## `quiesco build` {#quiesco-build}
+
+```sh
+npx quiesco build ios
+npx quiesco build android --force
+```
+
+构建 e2e App（以 `EXPO_PUBLIC_QUIESCO=1` 运行 `expo prebuild`，然后是面向模拟器的 `xcodebuild`，或 `gradlew assembleDebug` / `assembleRelease`），并写到 `apps.<platform>.binaryPath`。在 iOS 上，derived data 路径、构建配置和 scheme 都从这个路径（`<dir>/Build/Products/<Configuration>-iphonesimulator/<Name>.app`）中读取。如果自上次构建以来 App 配置和依赖（含已安装的版本）都没有变化，并且构建产物还在，会跳过 Debug 构建；加 `--force` 则总是构建。Release 构建包含 JS bundle，总是会构建。
 
 ## `quiesco test` {#quiesco-test}
 
@@ -37,6 +46,8 @@ npx quiesco test --help
 ```
 
 设置 `QUIESCO_PLATFORM` 并运行项目的测试运行器——`cucumber-js`（默认）、`jest` 或 `vitest run`（`--runner`）；其余参数原样传给它。`--` 之后的参数也传给运行器，`--` 本身会被去掉，因此写在它之后的 Quiesco 选项名归运行器所有（`quiesco test -- --help` 显示运行器的帮助）。`--workers N` 运行 N 个 worker，每个使用自己的设备（[parallel.md](./parallel)）：对 cucumber-js 会变成 `--parallel N`，对 Jest 是 `--maxWorkers N`，对 Vitest 是 `--fileParallelism --maxWorkers N`（运行器自身的参数同样有效）。
+
+当 App 从 Metro 加载 JS（`devClient.metroUrl`，或 `apps.web.url`）而那里没有响应时，`quiesco test` 会以 `EXPO_PUBLIC_QUIESCO=1` 启动 Metro（`npx expo start --port <port>`，输出写到 `artifacts/metro.log`），等待它就绪，并在运行器结束时（包括 Ctrl-C）停止它。已经在运行的 Metro 会直接使用。配置中的 `devServer` 可以修改命令和超时时间，或关闭这一行为（`autoStart: false`）。直接运行运行器（`npx cucumber-js`）时不会启动 Metro。
 
 ## `quiesco devices` {#quiesco-devices}
 

@@ -399,6 +399,8 @@ declare module '@quiesco/agent' {
 
 只有运行时才知道的名称（例如取自 feature 文本）用 `name as keyof Backdoors` 收窄（`import type { Backdoors } from '@quiesco/core'`）。
 
+测试的 tsconfig 不包含该文件时，用 `import type {} from '../../src/backdoors'` 引入。普通的 `import '../../src/backdoors'` 在 cucumber-js 运行步骤时会失败：Node 需要文件扩展名，而该文件里只有类型。
+
 ## 配置 {#configuration}
 
 项目根目录下的 `quiesco.config.ts`（`.mts`、`.js` 和 `.mjs` 也可以）：
@@ -445,6 +447,7 @@ export default defineConfig({
 | `actions.gestureSlop` | 因平台而异（见 [多指手势](#multi-finger-gestures)） | `{ pinch, rotation }`：App 的识别器激活前手指需要移动的距离 |
 | `reset.default` | `soft` | `hard` 会在每个场景之前重新启动 App |
 | `reset.expectVisible` | — | 每次重置后必须可见的元素的匹配器，例如 `{ id: 'home' }`；不可见时，失败的是重置本身（`RESET_FAILED`），而不是场景的第一步 |
+| `devServer.autoStart` / `command` / `timeoutMs` | `true` / `npx expo start --port {port}` / `120000` | App 需要 Metro 而它没有运行时，`quiesco test` 以 `EXPO_PUBLIC_QUIESCO=1` 启动它，并在结束后停止 |
 | `bailOnRepeatedFailure` | `3` | 连续这么多个场景以同样的方式（同样的错误）失败后，打印带当前路由的提示并跳过其余场景；`false` 会运行所有场景（第 3 次时仍会打印提示） |
 | `server.port` / `server.host` | `7357` / 所有网络接口 | host 端的 WebSocket 服务器 |
 | `connectTimeoutMs` | `30000` | 启动后等待 App 连接的时长 |

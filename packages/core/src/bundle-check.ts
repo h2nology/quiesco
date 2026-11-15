@@ -12,6 +12,13 @@ import type { BundleInfo } from '@quiesco/protocol';
 const SOURCE = /\.(?:[cm]?[jt]sx?)$/;
 /** Not app source: dependencies, generated output, native projects, test artifacts. */
 const SKIP_DIRS = new Set(['node_modules', '.git', '.expo', 'ios', 'android', 'dist', 'web-build', 'build', 'artifacts', 'coverage', 'reports']);
+/**
+ * Test code is not in the app's bundle, so editing a step file needs no rebuild: the usual test
+ * directories, test files, and the tool configs at the project root (quiesco.config.mts, cucumber.mjs, …).
+ */
+const TEST_DIRS = new Set(['features', 'e2e', '__tests__', '__mocks__', 'test', 'tests', 'step_definitions']);
+const TEST_FILE = /\.(?:test|spec|steps?)\.[cm]?[jt]sx?$/;
+const ROOT_TOOL_FILE = /^(?:[\w-]+\.config|cucumber|\.?[\w-]*rc)\.[cm]?[jt]s$/;
 /** Bounds the walk in a large project; the newest of these is enough to tell. */
 const MAX_FILES = 5000;
 
@@ -30,8 +37,8 @@ export function newestSource(root: string): { file: string; mtimeMs: number } | 
       if (seen >= MAX_FILES) return;
       const p = path.join(dir, e.name);
       if (e.isDirectory()) {
-        if (!SKIP_DIRS.has(e.name) && !e.name.startsWith('.')) walk(p);
-      } else if (e.isFile() && SOURCE.test(e.name) && !e.name.endsWith('.d.ts')) {
+        if (!SKIP_DIRS.has(e.name) && !TEST_DIRS.has(e.name) && !e.name.startsWith('.')) walk(p);
+      } else if (e.isFile() && SOURCE.test(e.name) && !e.name.endsWith('.d.ts') && !TEST_FILE.test(e.name) && !(dir === root && ROOT_TOOL_FILE.test(e.name))) {
         seen++;
         const mtimeMs = fs.statSync(p, { throwIfNoEntry: false })?.mtimeMs;
         if (mtimeMs !== undefined && (newest === null || mtimeMs > newest.mtimeMs)) newest = { file: p, mtimeMs };

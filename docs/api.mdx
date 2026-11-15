@@ -503,6 +503,10 @@ declare module '@quiesco/agent' {
 A name that is only known at run time (e.g. from the feature text) is narrowed with
 `name as keyof Backdoors` (`import type { Backdoors } from '@quiesco/core'`).
 
+When the tests' tsconfig does not include the file, bring it in with `import type {} from '../../src/backdoors'`.
+A plain `import '../../src/backdoors'` fails when cucumber-js runs the steps: Node needs the file
+extension, and the file holds only types.
+
 ## Configuration {#configuration}
 
 `quiesco.config.ts` in the project root (`.mts`, `.js` and `.mjs` also work):
@@ -549,6 +553,7 @@ export default defineConfig({
 | `actions.gestureSlop` | per platform (see [Multi-finger gestures](#multi-finger-gestures)) | `{ pinch, rotation }`: how far fingers move before the app's recognizers activate |
 | `reset.default` | `soft` | `hard` relaunches the app before every scenario |
 | `reset.expectVisible` | — | A matcher that must be visible after every reset, e.g. `{ id: 'home' }`; otherwise the reset fails with `RESET_FAILED` instead of the scenario's first step |
+| `devServer.autoStart` / `command` / `timeoutMs` | `true` / `npx expo start --port {port}` / `120000` | `quiesco test` starts Metro with `EXPO_PUBLIC_QUIESCO=1` when the app needs it and it is not running, and stops it afterwards |
 | `bailOnRepeatedFailure` | `3` | After this many scenarios in a row fail the same way (same error), print a hint with the current route and skip the rest; `false` runs every scenario (the hint is still printed after 3) |
 | `server.port` / `server.host` | `7357` / all interfaces | The host's WebSocket server |
 | `connectTimeoutMs` | `30000` | How long to wait for the app after launch |

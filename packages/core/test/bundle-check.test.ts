@@ -28,6 +28,22 @@ describe('stale bundle check (issue #3)', () => {
     expect(newestSource(root)).toEqual({ file: path.join(root, 'src/store.ts'), mtimeMs: T + 5000 });
   });
 
+  it('leaves out test code and tool configs, which are not in the bundle', () => {
+    project({
+      'src/app/index.tsx': T,
+      'features/step_definitions/app.steps.ts': T + 9000,
+      'features/support/quiesco.ts': T + 9000,
+      'e2e/login.test.ts': T + 9000,
+      'src/store.test.ts': T + 9000,
+      'src/__tests__/store.ts': T + 9000,
+      'quiesco.config.mts': T + 9000,
+      'cucumber.mjs': T + 9000,
+      'metro.config.js': T + 9000,
+      'eslint.config.js': T + 9000,
+    });
+    expect(newestSource(root)).toEqual({ file: path.join(root, 'src/app/index.tsx'), mtimeMs: T });
+  });
+
   it('warns when a source file is newer than a bundle that does not follow changes', () => {
     project({ 'src/app/index.tsx': T + 60_000 });
     const ci = staleBundleWarning({ builtAt: T, watching: false, reason: 'CI' }, root, {});

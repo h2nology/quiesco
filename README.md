@@ -88,19 +88,13 @@ and `@quiesco/native`):
 
 ```sh
 npx expo install expo-dev-client
-EXPO_PUBLIC_QUIESCO=1 npx expo prebuild --clean
-# Android: debug APK (dev client)
-(cd android && ./gradlew assembleDebug)
-# iOS: simulator build (dev client)
-xcodebuild -workspace ios/<App>.xcworkspace -scheme <App> -configuration Debug \
-  -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath ios/build build
-
-EXPO_PUBLIC_QUIESCO=1 npx expo start --dev-client   # Metro, in another terminal
-npm run e2e:android       # or: npm run e2e:ios
+npx quiesco build ios       # or: npx quiesco build android
+npx quiesco test --platform ios
 ```
 
-Point `binaryPath` in `quiesco.config.mts` at the build (the generated config has the usual paths) and
-set the emulator / simulator in `devices` (see [configuration](https://shift-14cc7601.mintlify.site/api#configuration)). For CI, an
+`quiesco build` runs `expo prebuild` with `EXPO_PUBLIC_QUIESCO=1` and the native build, and writes the app
+where `binaryPath` in `quiesco.config.mts` says (the generated config has the usual paths). `quiesco test`
+starts Metro for the dev client when it is not running, and stops it afterwards. Set the emulator / simulator in `devices` (see [configuration](https://shift-14cc7601.mintlify.site/api#configuration)). For CI, an
 EAS build profile with `EXPO_PUBLIC_QUIESCO=1` produces the same e2e build; see
 [examples/todo-app](examples/todo-app/README.md) for a complete, tested setup on all three platforms.
 

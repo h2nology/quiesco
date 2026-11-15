@@ -1,6 +1,7 @@
 /** Command dispatch for the `quiesco` binary (requirements.md §6.12). */
 import { createRequire } from 'node:module';
 
+import { buildCommand } from './commands/build.js';
 import { devicesCommand } from './commands/devices.js';
 import { doctorCommand } from './commands/doctor.js';
 import { initCommand } from './commands/init.js';
@@ -14,6 +15,8 @@ export const HELP = `Usage: quiesco <command> [options]
 Commands:
   init     Set Quiesco up in this Expo project (dependencies, config plugin, Metro, entry, config, features)
              --platforms ios,android,web   --packages <dir> (install from tarballs)   --skip-install
+  build    Build the app for e2e tests (prebuild + xcodebuild / gradle) into apps.<platform>.binaryPath
+             ios|android   --force (also when the native inputs did not change)
   test     Run the tests with cucumber-js (or --runner jest|vitest); other arguments go to the runner unchanged
              --platform ios|android|web   --workers N (N devices in parallel)   (quiesco test --help for more)
   doctor   Check the tools and the project setup
@@ -38,6 +41,8 @@ export async function main(argv: readonly string[], ctx: CliContext = defaultCon
     switch (command) {
       case 'init':
         return await initCommand(args, ctx);
+      case 'build':
+        return await buildCommand(args, ctx);
       case 'test':
         return await testCommand(args, ctx);
       case 'doctor':

@@ -23,7 +23,16 @@ ExpoプロジェクトにQuiescoをセットアップします。各手順で何
 | `--packages <dir>` | `<dir>`内の`.tgz`ファイル（`pnpm pack`の出力）からQuiescoをインストールし、パッケージ間の依存もそれらに固定します |
 | `--skip-install` | インストールコマンドを表示するだけにします |
 
-`init`が行わず、自分で行う作業：ルートを`<QuiescoRoot>`でラップすること、テストIDの付与、iOS / Androidのe2eアプリのビルド。
+`init`が行わず、自分で行う作業：ルートを`<QuiescoRoot>`でラップすること、テストIDの付与。
+
+## `quiesco build` {#quiesco-build}
+
+```sh
+npx quiesco build ios
+npx quiesco build android --force
+```
+
+e2eアプリをビルドし（`EXPO_PUBLIC_QUIESCO=1`付きの`expo prebuild`の後、シミュレーター向けの`xcodebuild`、または`gradlew assembleDebug` / `assembleRelease`）、`apps.<platform>.binaryPath`に書き出します。iOSでは、derived dataのパス、構成、スキームをそのパス（`<dir>/Build/Products/<Configuration>-iphonesimulator/<Name>.app`）から読み取ります。前回からアプリの設定と依存関係（インストール済みのバージョンを含む）が変わっておらず、ビルドが残っていれば、Debugビルドは省略します。`--force`を付けると必ずビルドします。ReleaseビルドはJSバンドルを含むため、常にビルドします。
 
 ## `quiesco test` {#quiesco-test}
 
@@ -37,6 +46,8 @@ npx quiesco test --help
 ```
 
 `QUIESCO_PLATFORM`を設定し、プロジェクトのテストランナーを実行します。ランナーは`cucumber-js`（デフォルト）、`jest`、`vitest run`のいずれかで（`--runner`）、それ以外の引数はすべてそのままランナーに渡します。`--`より後ろの引数もランナーに渡し、`--`自体は取り除きます。そのため、その後ろに書いたQuiescoのオプション名はランナーのものとして扱われます（`quiesco test -- --help`はランナーのヘルプを表示します）。`--workers N`はN個のワーカーを、それぞれ専用のデバイスで実行します（[parallel.md](./parallel)）。cucumber-jsでは`--parallel N`、Jestでは`--maxWorkers N`、Vitestでは`--fileParallelism --maxWorkers N`に変換されます（ランナー自身のフラグも使えます）。
+
+アプリがMetroからJSを読み込み（`devClient.metroUrl`、または`apps.web.url`）、そこで何も応答しない場合、`quiesco test`は`EXPO_PUBLIC_QUIESCO=1`付きでMetroを起動し（`npx expo start --port <port>`、出力は`artifacts/metro.log`）、準備ができるまで待ち、ランナーが終わると停止します（Ctrl-Cのときも）。すでに動いているMetroはそのまま使います。設定の`devServer`でコマンドとタイムアウトを変えたり、この動作を止めたり（`autoStart: false`）できます。ランナーを直接実行した場合（`npx cucumber-js`）はMetroを起動しません。
 
 ## `quiesco devices` {#quiesco-devices}
 

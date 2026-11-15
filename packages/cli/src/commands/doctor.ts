@@ -170,7 +170,7 @@ async function platformChecks(ctx: CliContext, platform: CliPlatform, config: Qu
       out.push(
         ctx.exists(abs(bin))
           ? { name: 'iOS: app build', status: 'ok', detail: bin }
-          : { name: 'iOS: app build', status: 'warn', detail: `${bin} not found`, fix: 'Build it with EXPO_PUBLIC_QUIESCO=1 (prebuild + xcodebuild for the simulator, or an EAS e2e build).' },
+          : { name: 'iOS: app build', status: 'warn', detail: `${bin} not found`, fix: 'npx quiesco build ios (or an EAS e2e build made with EXPO_PUBLIC_QUIESCO=1).' },
       );
     }
   }
@@ -196,7 +196,7 @@ async function platformChecks(ctx: CliContext, platform: CliPlatform, config: Qu
       out.push(
         ctx.exists(abs(bin))
           ? { name: 'Android: app build', status: 'ok', detail: bin }
-          : { name: 'Android: app build', status: 'warn', detail: `${bin} not found`, fix: 'Build it with EXPO_PUBLIC_QUIESCO=1 (prebuild + gradlew assembleDebug, or an EAS e2e build).' },
+          : { name: 'Android: app build', status: 'warn', detail: `${bin} not found`, fix: 'npx quiesco build android (or an EAS e2e build made with EXPO_PUBLIC_QUIESCO=1).' },
       );
     }
   }

@@ -49,3 +49,29 @@
 - 实测：示例 App 新增 `features/go-back.feature`（REQ-DEMO-011，新建待办页返回、gestureEnabled:false 的能力演示页返回）web / iOS / Android 均 2/2（iOS runner 因源码变化自动重建）；smoke App `headerShown:false` 页 iOS 左边缘滑动返回 1/1。
 - 文档 en/ja/zh：api.mdx、platforms.mdx、steps.mdx、steps README。
 - #6：protocol `JsonCompatible` / `Backdoors` / `BackdoorName` / `BackdoorParams` / `BackdoorResult` / `BackdoorImpl`；先在 scratchpad 用 tsc 验证「对再导出的 interface 做 module augmentation 会合并到原声明、两个再导出模块共用」；Driver.backdoor 两个重载（注册表 / JSON 兼容）；agent `quiesco.backdoor<K extends BackdoorName>(name, fn: BackdoorImpl<K>)`；示例 App 声明全部后门、generic 步骤的动态名称改为 `as keyof Backdoors`；core 启用 typecheck；文档改为独立 `### 类型化后门` 小节。pnpm check 718 通过。
+
+### I.E（#5）进行中（2026-11-15）
+- 分支 `feat/metro-and-build`，叠在 I.D 上。
+- 设计：Metro 管理放在 `quiesco test`（CLI 主进程，一次运行只一个；并行 worker 不会各自启停）；直接跑 cucumber-js 不启动（文档写明）。
+- cli：`dev-server.ts`（devServerUrl：devClient.metroUrl 默认 :8081 / apps.web.url；`/status` 判断运行；未运行且是本机 ⇒ `npx expo start --port {port}` + EXPO_PUBLIC_QUIESCO=1，日志 `artifacts/metro.log`，500ms 轮询，超时 / 提前退出报错带日志尾；结束或 Ctrl-C 停进程组）；context 新增 spawnBackground / httpGet / onInterrupt / sleep；core config `devServer { autoStart, command, timeoutMs }`。
+- cli：`commands/build.ts`：prebuild（EXPO_PUBLIC_QUIESCO=1）+ iOS xcodebuild（derivedData / configuration / scheme 从 binaryPath 解析，-quiet）/ Android gradlew assemble<Variant>（必要时复制到 binaryPath）；原生输入指纹（app 配置 + 依赖及已安装版本）存 `.expo/quiesco/build-<platform>.json`，Debug 未变且产物在 ⇒ 跳过；Release 总是构建；`--force`。项目里没有 @expo/fingerprint，所以自己算。init 的配置注释、脚本（e2e:build:ios / e2e:build:android）、下一步说明改为 quiesco build。
+- 单元测试：cli 34 通过。
+- 实测：示例 App Metro 未运行时 `quiesco test --platform ios` ⇒ 自动启动、1 场景通过、结束后 8082 无监听；进程组 SIGINT ⇒ exit 130、Metro 停止；smoke `quiesco build ios` 成功（产物 08:41 更新），再次运行 0.1s 跳过；用新构建 + 自动 Metro 跑 iOS 1/1。Android build 进行中。
+- 文档：en/ja/zh native.mdx、cli.mdx（quiesco build 小节、Metro 说明）、api.mdx 配置表 devServer；README 原生部分。
+- Android：`quiesco build android` 成功（2m47s）、重跑跳过；新 APK + 自动 Metro 跑 Android 1/1。pnpm check 728 通过（第一次 lint 失败：build.test.ts 的 let ⇒ const）。
+
+### I.F 验收进行中（2026-11-15）
+- PR #10–#14 都还没 merge ⇒ 本地集成分支 `integration/0.2.0`（不 push）：feat/metro-and-build + merge fix/cli-help-and-cucumber-paths（test.ts 冲突：合并 `--` / --help 与 TestDeps / Metro；help 补 Metro 自动启动说明）。
+- `pnpm release:check` 通过（730 测试）；docs:check 通过。版本号改为 0.2.0（工作区，未提交），打 11 个 tarball 到 scratchpad `if/tgz`。
+- 全新 create-expo-app（SDK 58.0.25 / expo-router 58.0.31 / RN 0.88.1）`if/repro`，`init --packages`；复现 App 按 issue：`QuiescoRoot > Stack`，index（home / search / add-student / 学生列表）、`/students/new`（表单校验）、typed backdoors（students.set/get、debug.stick 模块状态）。
+- Web：students.feature 4/4（#1 A 停子页后 B 从首页开始、#4 goBack、#6 typed backdoor）；只跑指定文件、无 deprecation（#8）；`--help` / `-- --name`（#7）；diag.feature 消息带原因 + current route、elements.json（#2）；stuck.feature 3 次 RESET_FAILED 后提示并跳过 2 个，1.4s（#9）；一次性 export 后改 src ⇒ 警告（#3）。
+- 发现并修：① #3 改 step 文件也报 stale（扫描含 features/）⇒ 跳过测试目录 / 测试文件 / 根目录工具配置，+1 单元测试，文档 en/ja/zh troubleshooting（commit 2f22416）；② 测试端 `import '../../src/backdoors'` 在 Node 下运行失败 ⇒ 文档 api.mdx 写明用 `import type {}`；③ doctor「app build not found」提示改为 `npx quiesco build ios|android`（未提交）。
+- 坑：复现 App 用 useSyncExternalStore 未传 getServerSnapshot ⇒ web server 输出下 SSR 失败、客户端报 React #419（0.1.1 同样）⇒ App 自身问题。
+- 回复草稿：replies.md。
+- 进行中：`quiesco build ios`。
+- `quiesco build ios` 成功（无 expo-dev-client 也可），重跑 0.3s 跳过；`quiesco build android` 成功，重跑跳过。
+- iOS（iPhone 17 / iOS 27.0）：Metro 自动启动 → students 4/4（goBack 点原生导航栏返回）→ 结束后 8081 无监听；diag：#2「on a screen that is not on top … (current route: /students/new)」、#9 3 次 RESET_FAILED 后跳过 2 个；`CI=1` 手动启动的 Metro ⇒ 复用 + 「Metro was started with CI set」警告（#3）。
+- 坑：iOS 26+ 原生导航栏透明，复现 App 的 View 内容画在导航栏下 ⇒ tap 报「covered by … NavigationBarContentView」（判断正确，App 布局问题）⇒ ScrollView contentInsetAdjustmentBehavior="automatic"。
+- Android（API 37）：Metro 自动启动 → students 4/4；diag 同 iOS（#2、#9）。
+- 集成分支 `pnpm check` 731 通过；示例 App web 全套 77 passed / 13 skipped（之前 75 + go-back 2）。
+- 验收完成，等 HU（见 task_plan Next Step）。

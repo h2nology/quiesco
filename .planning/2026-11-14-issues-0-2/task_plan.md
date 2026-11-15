@@ -3,8 +3,11 @@
 ## Goal
 逐个解决 h2nology/quiesco 的 9 个 open issue（均来自同一位用户在 Expo SDK 58 + expo-router + cucumber 项目上的实测反馈），每个修复附测试与文档，用实跑验收后关闭 issue，最后发一个新版本。
 
+## Current Phase
+I.F
+
 ## Next Step
-PR #10、#11、#12、I.D 的 PR 等 HU review / merge（I.C、I.D 依次叠在 #11 上）。下一步 I.E（#5 自动启动 Metro + `quiesco build`）。
+I.F 验收已在本地集成分支 `integration/0.2.0` 上完成（三端全过）。验收修复已 cherry-pick 到 #14。等 HU：看 replies.md、merge #10–#14；然后 main 上提交 0.2.0、release:check、贴回复、publish + tag。
 
 ## 背景
 - 前置：npm 0.1.1 已发布（tag v0.1.1，`.planning/2026-11-14-release/`）。
@@ -75,17 +78,24 @@ PR #10、#11、#12、I.D 的 PR 等 HU review / merge（I.C、I.D 依次叠在 #
 - **Status:** complete（2026-11-15；PR 待 merge，叠在 I.C 上）
 
 ### I.E 工作流自动化（#5）
-- [ ] 类似 Playwright `webServer`：`devClient.metroUrl` / `apps.web.url` 不可达时以 `EXPO_PUBLIC_QUIESCO=1` 启动 `expo start`，等就绪，结束后停止；已在运行则复用；配置可关闭
-- [ ] `quiesco build ios|android`：`EXPO_PUBLIC_QUIESCO=1` prebuild + 原生构建，产物写到配置的 `binaryPath`；原生输入（app.json、原生依赖）未变时跳过
-- [ ] 文档：快速开始简化为 `quiesco build` + `quiesco test`
-- **Status:** pending
+- [x] Metro 管理（类似 Playwright webServer）放在 `quiesco test`：devClient.metroUrl / apps.web.url 无响应且在本机 ⇒ `npx expo start --port {port}` + EXPO_PUBLIC_QUIESCO=1，就绪后跑 runner，结束 / Ctrl-C 停进程组；已在运行则复用；config `devServer { autoStart, command, timeoutMs }`；日志 `artifacts/metro.log`
+- [x] `quiesco build ios|android [--force]`：prebuild + xcodebuild（从 binaryPath 解析 derivedData / configuration / scheme）/ gradlew assemble<Variant>（必要时复制到 binaryPath）；Debug 原生输入未变则跳过，Release 总是构建
+- [x] init：配置注释、`e2e:build:ios` / `e2e:build:android` 脚本、下一步说明
+- [x] 文档：en/ja/zh native.mdx、cli.mdx、api.mdx（devServer）；README
+- [x] 实测：示例 App 自动启停 Metro（iOS 1 场景）、SIGINT ⇒ Metro 停止；smoke `quiesco build ios`（成功、重跑跳过）+ iOS 1/1；`quiesco build android`（2m47s，重跑跳过）+ Android 1/1
+- [x] `pnpm check` 728 通过；docs:check 通过
+- **Status:** complete（2026-11-15；PR 待 merge，叠在 I.D 上）
 
 ### I.F 验收与发布
-- [ ] `pnpm check` / `release:check` 全过
-- [ ] tarball 装进全新 create-expo-app（含 expo-router），三端按 issue 里的复现步骤逐个验证
-- [ ] 每个 issue 回复修复说明并关闭（回复内容先给 HU 看）
-- [ ] 版本号按 D5，HU publish + tag
-- **Status:** pending
+- [x] `pnpm check` / `release:check` 全过（本地集成分支 `integration/0.2.0`：730 → 修复后 731）
+- [x] tarball 装进全新 create-expo-app（含 expo-router），三端按 issue 里的复现步骤逐个验证（详见 progress「I.F」）
+- [x] 验收中发现的问题已修（集成分支 2 个 commit）：#3 改 step 文件误报 stale；doctor 提示改为 quiesco build；文档补 `import type {}`
+- [x] 修复 commit cherry-pick 到 #14 分支（HU 2026-11-15）并 push，PR 说明已补
+- [ ] HU：看 replies.md；merge #10–#14（#10 后合并时 test.ts 冲突：help 补 Metro 自动启动一句，见集成分支 3280ee8）
+- [ ] merge 后 main 上：版本 0.2.0 commit、release:check
+- [ ] 每个 issue 贴回复（replies.md）
+- [ ] HU publish + tag v0.2.0
+- **Status:** in_progress（验收完成，等 HU）
 
 ## 待 HU 决定
 - D1–D6 全部已定（见 Decisions Made）。
@@ -105,12 +115,14 @@ PR #10、#11、#12、I.D 的 PR 等 HU review / merge（I.C、I.D 依次叠在 #
 | D6：每个阶段一个 PR（I.A–I.E 各一个）（HU 2026-11-14） | |
 | D2：重置后初始状态默认看初始路由（expo-router）；`quiesco.config` 可选配置一个必须可见的元素（HU 2026-11-14） | 零配置；非 expo-router 项目也能用 |
 | I.C 分支从 I.B 分支开、PR 叠在 #11 上（2026-11-15） | #2 复用 I.B 的 `route` |
+| I.E：Metro 启停放在 `quiesco test`（CLI 主进程），不放 core Lifecycle（2026-11-15） | 并行 worker 是多个进程，各自启停会冲突、互相停掉；代价是直接跑 cucumber-js 不自动启动 |
 | D4：`quiesco.config` 的 `bailOnRepeatedFailure: N`，**默认开启，N=3**；提示信息总是打印（HU 2026-11-14） | 坏状态下不再每步等满超时 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
 | I.B：示例 App iOS 3 个场景回归（RESET 未处理的 dev toast 遮挡） | 1 partial 快照 ⇒ 仍未处理；2 target 到下层 navigator ⇒ 仍未处理；3 完整 state payload ⇒ 仍未处理 | 4 dispatch 后等 state 变化再 remount ⇒ 通过（原因见 findings「I.B 回归」） |
+| I.E：pnpm check lint 失败（build.test.ts 的 `let ctx`） | 1 | 改 const |
 | I.D：Android goBack 在新建待办页失败（路由未变） | 1 | 自动聚焦输入框弹出键盘，第一次返回只关键盘 ⇒ agent 先关键盘 |
 | I.D：core 类型测试全部「Unused @ts-expect-error」 | 1 | nodenext 下 `../src/driver` 缺扩展名 ⇒ Driver 成 any；改 `.js` |
 | I.D：docs:check 失败（MDX 解析） | 1 | 段落里的 `{#typed-backdoors}` 被当成 JS 表达式 ⇒ 改为 `###` 标题 |

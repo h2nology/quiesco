@@ -6,8 +6,27 @@
  * Everything after a `--` goes to the runner as-is, and the `--` itself is dropped (issue #7): cucumber-js
  * would read every argument after it as a path.
  */
+import type { QuiescoConfig } from '@quiesco/core';
+import { loadConfig } from '@quiesco/core';
+
 import type { CliContext } from '../context.js';
 import { parsePlatform, takeOption } from '../context.js';
+import { ensureDevServer } from '../dev-server.js';
+
+export interface TestDeps {
+  /** The project's quiesco.config (null when there is none: the runner reports that itself). */
+  loadConfig: (cwd: string, env: NodeJS.ProcessEnv) => Promise<QuiescoConfig | null>;
+}
+
+const defaultTestDeps: TestDeps = {
+  loadConfig: async (cwd, env) => {
+    try {
+      return (await loadConfig({ cwd, ...(env['QUIESCO_CONFIG'] !== undefined ? { file: env['QUIESCO_CONFIG'] } : {}), worker: { workerIndex: 0, workerCount: 1 } })).config;
+    } catch {
+      return null;
+    }
+  },
+};
 
 const RUNNERS = {
   cucumber: { command: ['cucumber-js'], workers: (n: number) => (n > 1 ? ['--parallel', String(n)] : []) },
@@ -21,6 +40,9 @@ export const TEST_HELP = `Usage: quiesco test [options] [runner arguments…]
 
 Sets QUIESCO_PLATFORM and runs the project's test runner. Arguments Quiesco does not know go to the runner
 unchanged; everything after \`--\` goes to the runner as well (the \`--\` itself is dropped).
+
+When nothing answers at devClient.metroUrl (native) or apps.web.url (web) on this machine, it starts
+\`npx expo start\` first and stops it afterwards (config: devServer; log: artifacts/metro.log).
 
 Options:
   --platform ios|android|web     Platform to test (or set QUIESCO_PLATFORM)
@@ -39,7 +61,7 @@ function isRunner(v: string | undefined): v is Runner {
   return v !== undefined && Object.hasOwn(RUNNERS, v);
 }
 
-export async function testCommand(args: readonly string[], ctx: CliContext): Promise<number> {
+export async function testCommand(args: readonly string[], ctx: CliContext, deps: TestDeps = defaultTestDeps): Promise<number> {
   // Quiesco reads its own options only before a `--`; what follows goes to the runner untouched.
   const dashDash = args.indexOf('--');
   const own = dashDash === -1 ? args : args.slice(0, dashDash);
@@ -72,6 +94,19 @@ export async function testCommand(args: readonly string[], ctx: CliContext): Pro
     }
     workerArgs = [...spec.workers(n)];
   }
-  // npx runs the project's own runner (node_modules/.bin), the one the tests import.
-  return ctx.run('npx', [...spec.command, ...workerArgs, ...rest], { cwd: ctx.cwd, env: { ...ctx.env, QUIESCO_PLATFORM: platform } });
+  // The Metro dev server the app loads its JS from, started when nothing answers there (issue #5).
+  const config = await deps.loadConfig(ctx.cwd, ctx.env);
+  let devServer;
+  try {
+    devServer = config === null ? null : await ensureDevServer(ctx, config, platform);
+  } catch (e) {
+    ctx.err(`quiesco test: ${(e as Error).message}`);
+    return 1;
+  }
+  try {
+    // npx runs the project's own runner (node_modules/.bin), the one the tests import.
+    return await ctx.run('npx', [...spec.command, ...workerArgs, ...rest], { cwd: ctx.cwd, env: { ...ctx.env, QUIESCO_PLATFORM: platform } });
+  } finally {
+    await devServer?.stop();
+  }
 }

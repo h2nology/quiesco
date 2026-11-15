@@ -400,6 +400,8 @@ declare module '@quiesco/agent' {
 
 実行時にしか分からない名前（featureの文から取った名前など）は、`name as keyof Backdoors`で絞り込みます（`import type { Backdoors } from '@quiesco/core'`）。
 
+テストのtsconfigにそのファイルが含まれないときは、`import type {} from '../../src/backdoors'`で取り込みます。通常の`import '../../src/backdoors'`は、cucumber-jsがステップを実行するときに失敗します。Nodeにはファイル拡張子が必要で、しかもそのファイルには型しかないためです。
+
 ## 設定 {#configuration}
 
 プロジェクトルートの`quiesco.config.ts`です（`.mts`、`.js`、`.mjs`も使えます）。
@@ -446,6 +448,7 @@ export default defineConfig({
 | `actions.gestureSlop` | プラットフォームごと（[マルチタッチジェスチャー](#multi-finger-gestures)を参照） | `{ pinch, rotation }`：アプリの認識器が有効になるまでに指が動く距離 |
 | `reset.default` | `soft` | `hard`にすると各シナリオの前にアプリを再起動する |
 | `reset.expectVisible` | — | 毎回のリセット後に表示されているべき要素のマッチャー。例：`{ id: 'home' }`。表示されていなければ、シナリオの最初のステップではなくリセット自体が`RESET_FAILED`で失敗する |
+| `devServer.autoStart` / `command` / `timeoutMs` | `true` / `npx expo start --port {port}` / `120000` | アプリがMetroを必要とし、それが動いていないとき、`quiesco test`が`EXPO_PUBLIC_QUIESCO=1`付きで起動し、終わったら停止する |
 | `bailOnRepeatedFailure` | `3` | この数のシナリオが続けて同じ失敗（同じエラー）をしたら、現在のルートを含むヒントを表示し、残りをスキップする。`false`ならすべてのシナリオを実行する（ヒントは3回目で表示する） |
 | `server.port` / `server.host` | `7357` / すべてのインターフェース | ホスト側のWebSocketサーバー |
 | `connectTimeoutMs` | `30000` | 起動後にアプリの接続を待つ時間 |
