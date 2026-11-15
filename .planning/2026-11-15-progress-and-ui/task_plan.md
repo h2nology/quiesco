@@ -10,7 +10,7 @@
 P8（发布，待 HU）
 
 ## Next Step
-P0–P7 全部完成（分支 feat/run-events）。下一步由 HU 决定：推送分支并开 PR，以及按 docs/releasing.md 发 0.3.0。
+P0–P7 全部完成，已开 PR #15（feat/run-events → main）。下一步：HU 审查合并后，按 docs/releasing.md 发 0.3.0。
 
 ## 背景
 - 前置：0.2.0 已发布（`.planning/2026-11-14-issues-0-2/`）。
