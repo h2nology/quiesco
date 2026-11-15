@@ -5,7 +5,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import type { AgentConfig, Platform, TrackerState, TreeNode } from '@quiesco/protocol';
+import type { AgentConfig, AgentMethods, Platform, ResultOf, TrackerState, TreeNode } from '@quiesco/protocol';
 
 import type { QuiescoConfig } from './config.js';
 import { DEFAULT_CONNECT_TIMEOUT_MS, ignoredAppErrors, serverPort, toAgentConfig } from './config.js';
@@ -16,6 +16,7 @@ import type { DeviceProvider, LaunchParams, LaunchUrlHandling, WorkerInfo } from
 import { DeviceApi } from './device.js';
 import type { AppRunState, DeviceHost } from './device.js';
 import { Artifacts } from './artifacts.js';
+import { describeBundle, staleBundleWarning } from './bundle-check.js';
 import type { Attachment, ScenarioArtifacts } from './artifacts.js';
 import { Driver } from './driver.js';
 import { failureRects, highlight } from './screenshots.js';
@@ -62,6 +63,8 @@ export interface SessionOptions {
 export interface Evidence {
   screenshot?: Buffer;
   tree?: TreeNode | null;
+  /** The condensed element list and the route (issue #2). */
+  elements?: ResultOf<AgentMethods['listElements']>;
   idle?: TrackerState[];
   /** Why a piece could not be collected. */
   errors: string[];
@@ -254,6 +257,7 @@ export class Session {
     if (result.failed) {
       const ev = await this.collectEvidence();
       if (ev.screenshot !== undefined) evidence.push({ data: ev.screenshot, mediaType: 'image/png', fileName: 'failure.png' });
+      if (ev.elements !== undefined) evidence.push({ data: JSON.stringify(ev.elements, null, 2), mediaType: 'application/json', fileName: 'elements.json' });
       if (ev.tree !== undefined) evidence.push({ data: JSON.stringify({ elementTree: ev.tree }, null, 2), mediaType: 'application/json', fileName: 'element-tree.json' });
       if (ev.idle !== undefined) evidence.push({ data: JSON.stringify({ idleState: ev.idle }, null, 2), mediaType: 'application/json', fileName: 'idle-state.json' });
       if (ev.errors.length > 0) evidence.push({ data: `Quiesco could not collect: ${ev.errors.join('; ')}`, mediaType: 'text/plain', fileName: 'evidence-errors.txt' });
@@ -272,6 +276,13 @@ export class Session {
       this.driver.getTree().then(
         (t) => (ev.tree = t),
         (e: unknown) => ev.errors.push(`element tree: ${(e as Error).message}`),
+      ),
+      this.driver.listElements().then(
+        (l) => (ev.elements = l),
+        // An agent older than this host does not have it: not worth an error line.
+        (e: unknown) => {
+          if (!(e instanceof QuiescoError && e.code === -32601)) ev.errors.push(`element list: ${(e as Error).message}`);
+        },
       ),
       this.driver.getIdleState().then(
         (s) => (ev.idle = s),
@@ -309,6 +320,21 @@ export class Session {
     await this.provider.shutdown().catch((e: unknown) => this.logger.warn(`device shutdown failed: ${(e as Error).message}`));
   }
 
+  /** Where the project's sources are, for the stale-bundle check: the test runner runs in the project root. */
+  private readonly projectRoot = process.cwd();
+  /** Bundles already checked (by build time): a reconnect of the same bundle is not checked again. */
+  private readonly checkedBundles = new Set<number>();
+
+  /** Issue #3: say when the app's JS bundle cannot have the project's latest changes. Once per bundle. */
+  private checkBundle(conn: AgentConnection): void {
+    const bundle = conn.info.bundle;
+    this.logger.debug(`app JS: ${describeBundle(bundle)}`);
+    if (bundle === undefined || this.checkedBundles.has(bundle.builtAt)) return;
+    this.checkedBundles.add(bundle.builtAt);
+    const warning = staleBundleWarning(bundle, this.projectRoot);
+    if (warning !== null) this.logger.warn(warning);
+  }
+
   /**
    * The open connection; after a disconnect (web page reload, app restart) waits for the app to come
    * back within the connect timeout.
@@ -330,6 +356,7 @@ export class Session {
   private adopt(conn: AgentConnection): void {
     if (this.connection === conn) return;
     this.connection = conn;
+    this.checkBundle(conn);
     conn.on('log', (l) => this.logger[l.level](`[app] ${l.message}`));
     this.driver.attach(conn);
   }

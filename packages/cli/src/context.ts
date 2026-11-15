@@ -26,6 +26,8 @@ export interface CliContext {
   exists(path: string): boolean;
   platform: NodeJS.Platform;
   nodeVersion: string;
+  /** Whether a person is at the terminal (stdout is a TTY), not a CI job. */
+  interactive: boolean;
 }
 
 const isWindows = process.platform === 'win32';
@@ -66,6 +68,7 @@ export function defaultContext(): CliContext {
     exists: (p) => fs.existsSync(p),
     platform: process.platform,
     nodeVersion: process.versions.node,
+    interactive: process.stdout.isTTY === true,
   };
 }
 

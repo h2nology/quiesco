@@ -345,7 +345,9 @@ await this.app.sync.enable();
 
 ### 可见性
 
-当元素本身及其祖先都没有被样式隐藏（`display: none`、`opacity: 0`），且它有一部分在屏幕上时，元素即为可见：即位于窗口内，**并且**位于每一个会裁剪内容的祖先（滚动视图、`overflow` 不为 `visible` 的元素）之内。被滚出滚动视图的元素即使其位置在窗口内也不可见。`visibleRatio` 是其面积中可见部分的比例。被其他元素遮挡不属于可见性的范畴；操作会单独检查这一点（`ELEMENT_OBSCURED`）。
+当元素本身及其祖先都没有被样式隐藏（`display: none`、`opacity: 0`），且它有一部分在屏幕上时，元素即为可见：即位于窗口内，**并且**位于每一个会裁剪内容的祖先（滚动视图、`overflow` 不为 `visible` 的元素）之内。被滚出滚动视图的元素即使其位置在窗口内也不可见。`visibleRatio` 是其面积中可见部分的比例。不在最上层的页面上的元素也不可见：在 iOS / Android 上，原生栈会保留下面的页面，并被后推入的页面覆盖（以透明模态方式呈现的除外），非活动标签页的页面也会被分离。被其他元素遮挡不属于可见性的范畴；操作会单独检查这一点（`ELEMENT_OBSCURED`）。
+
+找到了元素但它不可见时，失败信息会说明原因（在不是最上层的页面上、被祖先的样式隐藏、在窗口之外、被滚动视图裁剪、没有尺寸）；使用 Expo Router 的 App，失败信息末尾会带上当前路由：`(current route: /students/new)`。
 
 ## App 内 API（`@quiesco/agent`） {#in-app-api-quiescoagent}
 
@@ -475,7 +477,7 @@ export default defineConfig({
 
 | 产物 | 何时生成 | 内容 |
 |---|---|---|
-| 失败证据 | 场景失败时 | `failure.png`——用红框标出失败调用所涉及元素的屏幕截图（断言的元素、被遮挡的目标、多个匹配）；`element-tree.json`；`idle-state.json`（当时有什么在忙碌） |
+| 失败证据 | 场景失败时 | `failure.png`——用红框标出失败调用所涉及元素的屏幕截图（断言的元素、被遮挡的目标、多个匹配）；`elements.json`——当前路由，以及所有带 testID、标签或自身文本的元素（是否可见，不可见时的原因）；`element-tree.json`；`idle-state.json`（当时有什么在忙碌） |
 | 保存的截图 | `screenshot(…, { name })` | `<name>.png` |
 | `video` | 按策略 | iOS 用 `simctl io recordVideo`（MP4）；Android 用 `screenrecord`（MP4，每 3 分钟一个新片段）；web 用 Playwright 的录屏（WebM）。以文件路径的形式附加 |
 | `logs` | 按策略 | `device.log`：iOS 为 App 进程的统一日志（`log stream`，info 及以上级别），Android 为 App uid 的 logcat，web 为页面控制台和未捕获的错误。最后 300 行内联显示 |

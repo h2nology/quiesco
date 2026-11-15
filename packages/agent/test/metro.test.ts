@@ -6,7 +6,8 @@ import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
-const { withQuiesco } = require('../metro.cjs') as {
+const { withQuiesco, watchMode } = require('../metro.cjs') as {
+  watchMode: (env: Record<string, string>, argv: readonly string[]) => { watching: boolean; reason?: string };
   withQuiesco: <T extends object>(config: T, options?: { enabled?: boolean; env?: Record<string, string>; projectRoot?: string; artifactsDir?: string | false }) => T & {
     resolver: { resolveRequest: (ctx: unknown, name: string, platform: string | null) => unknown; blockList?: RegExp[] };
     serializer?: { getModulesRunBeforeMainModule?: (entry: string) => string[] };
@@ -36,9 +37,21 @@ describe('withQuiesco', () => {
     const fromAgent = { ...c, originModulePath: path.join(agentSrc, 'runtime.ts') };
     const resolved = config.resolver.resolveRequest(fromAgent, './build-config', 'ios') as { filePath: string };
     expect(resolved.filePath).toBe(path.join(root, '.expo', 'quiesco', 'build-config.js'));
-    expect(fs.readFileSync(resolved.filePath, 'utf8')).toContain('export const buildConfig = {"port":7999,"session":null};');
+    expect(fs.readFileSync(resolved.filePath, 'utf8')).toMatch(/export const buildConfig = \{"port":7999,"session":null,"bundle":\{"builtAt":\d+,"watching":true\}\};/);
     // a './build-config' import from app code is not touched
     expect(config.resolver.resolveRequest(c, './build-config', 'ios')).toBe('upstream');
+  });
+});
+
+describe('watchMode (issue #3)', () => {
+  it('a one-off bundle or Metro with CI set does not follow source changes', () => {
+    expect(watchMode({}, ['start'])).toEqual({ watching: true });
+    expect(watchMode({ CI: '1' }, ['start'])).toEqual({ watching: false, reason: 'CI' });
+    expect(watchMode({ CI: 'true' }, [])).toEqual({ watching: false, reason: 'CI' });
+    expect(watchMode({ CI: 'false' }, [])).toEqual({ watching: true });
+    expect(watchMode({ CI: '0' }, [])).toEqual({ watching: true });
+    expect(watchMode({}, ['export', '--platform', 'web'])).toEqual({ watching: false, reason: 'export' });
+    expect(watchMode({}, ['export:embed'])).toEqual({ watching: false, reason: 'export' });
   });
 });
 

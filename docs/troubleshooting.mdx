@@ -28,6 +28,11 @@ the first import of the entry file.
 
 ## The app shows old code {#the-app-shows-old-code}
 
+Quiesco warns when the app's JS bundle cannot have your latest changes: Metro started with `CI` set
+(Expo then starts it without a file watcher), or a one-off bundle (`expo export`) older than a source file
+in the project. Start Metro without `CI`, or build the bundle again. `quiesco doctor` also warns when `CI`
+is set in your terminal.
+
 Metro without Watchman can miss file changes (after `git checkout`, or files written by scripts) and
 keep serving the old bundle. Restart Metro with `--clear`, or install Watchman. For Android release
 builds, Gradle does not notice changes in workspace packages: delete

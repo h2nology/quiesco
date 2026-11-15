@@ -246,6 +246,16 @@ export async function runChecks(ctx: CliContext, only: CliPlatform | undefined, 
       ? { name: 'Node.js', status: 'ok', detail: `v${ctx.nodeVersion}` }
       : { name: 'Node.js', status: 'fail', detail: `v${ctx.nodeVersion}`, fix: `Quiesco needs Node.js ${MIN_NODE_MAJOR} or later.` },
   );
+  // Issue #3: Expo starts Metro without a file watcher when CI is set, so edits never reach the app.
+  const ci = ctx.env['CI'];
+  if (ctx.interactive && ci !== undefined && ci !== '' && ci !== '0' && ci.toLowerCase() !== 'false') {
+    results.push({
+      name: 'CI',
+      status: 'warn',
+      detail: `CI=${ci} is set in this terminal`,
+      fix: 'Metro started with CI set does not watch files, so code changes do not reach the app under test. Unset it (unset CI) before EXPO_PUBLIC_QUIESCO=1 npx expo start.',
+    });
+  }
   results.push(...projectChecks(ctx));
   const sources = ['app/_layout.tsx', 'src/app/_layout.tsx', 'App.tsx', 'App.js', 'src/App.tsx', 'app/_layout.js', 'src/app/_layout.js'].map((f) => path.join(ctx.cwd, f));
   results.push(rootCheck(ctx, sources));
