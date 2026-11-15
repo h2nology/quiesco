@@ -6,7 +6,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ClientMessage, RunTarget } from '../../src/messages';
 import type { UiData } from './connection';
 import { Alert, Device, Rerun, StatusDot } from './icons';
-import { STATUS_LABEL, allTests, formatMs } from './model';
+import { useI18n } from './i18n';
+import type { Translate } from './i18n';
+import { STATUS_KEY, allTests, formatMs } from './model';
 import type { RowStatus } from './model';
 
 type Tab = 'report' | 'evidence' | 'console' | 'source';
@@ -34,6 +36,7 @@ interface Props {
 }
 
 export function Detail({ data, selected }: Props) {
+  const { t } = useI18n();
   const [tab, setTab] = useState<Tab>('report');
   const ref: TestRef | undefined = useMemo(() => allTests(data).find((t) => t.id === selected), [data, selected]);
   const st: TestState | undefined = selected !== null ? data.state.tests.get(selected) : undefined;
@@ -41,12 +44,12 @@ export function Detail({ data, selected }: Props) {
 
   if (ref === undefined) {
     return (
-      <section id="detail" className="panel detail-panel" aria-label="Test details" tabIndex={-1}>
+      <section id="detail" className="panel detail-panel" aria-label={t('testDetails')} tabIndex={-1}>
         <div className="empty" style={{ flexGrow: 1 }}>
           <span className="display" style={{ fontSize: 18, color: 'var(--fg)' }}>
-            Pick a test
+            {t('pickTest')}
           </span>
-          <span>Select a test in the tree to see its result, evidence, output and source. Press Run all to run everything.</span>
+          <span>{t('pickTestHelp')}</span>
         </div>
       </section>
     );
@@ -55,30 +58,30 @@ export function Detail({ data, selected }: Props) {
   const [pillBg, pillFg] = PILL[status] ?? ['var(--skipped-soft)', 'var(--skipped)'];
   const evidence = st?.evidence ?? [];
   const tabs: [Tab, string, number | null][] = [
-    ['report', 'Report', null],
-    ['evidence', 'Evidence', evidence.length > 0 ? evidence.length : null],
-    ['console', 'Console', st?.logs !== undefined && st.logs.length > 0 ? st.logs.length : null],
-    ['source', 'Source', null],
+    ['report', t('tabReport'), null],
+    ['evidence', t('tabEvidence'), evidence.length > 0 ? evidence.length : null],
+    ['console', t('tabConsole'), st?.logs !== undefined && st.logs.length > 0 ? st.logs.length : null],
+    ['source', t('tabSource'), null],
   ];
 
   return (
-    <section id="detail" className="panel detail-panel" aria-label="Test details" tabIndex={-1}>
+    <section id="detail" className="panel detail-panel" aria-label={t('testDetails')} tabIndex={-1}>
       <div className="detail-head">
         <div className="grow" style={{ display: 'flex', flexDirection: 'column', gap: 6, flexBasis: 300 }}>
           <div className="row wrap muted" style={{ fontSize: 12 }}>
             <span className="status-pill" style={{ background: pillBg, color: pillFg, padding: '2px 9px', fontSize: 12 }}>
               <StatusDot status={status} size={14} />
-              {STATUS_LABEL[status]}
+              {t(STATUS_KEY[status])}
             </span>
             <span className="mono">{`${ref.file}${ref.line !== undefined ? `:${ref.line}` : ''}`}</span>
             {st?.worker !== undefined && (
               <span className="row" style={{ gap: 4 }}>
                 <Device size={13} />
-                {`Device ${st.worker + 1}`}
+                {t('device', { n: st.worker + 1 })}
               </span>
             )}
             {st?.durationMs !== undefined && <span className="mono">{formatMs(st.durationMs)}</span>}
-            {st?.attempt !== undefined && st.attempt > 0 && <span>{`attempt ${st.attempt + 1}`}</span>}
+            {st?.attempt !== undefined && st.attempt > 0 && <span>{t('attempt', { n: st.attempt + 1 })}</span>}
           </div>
           {ref.path.length > 1 && (
             <span className="faint ellipsis" style={{ fontSize: 12.5 }}>
@@ -89,13 +92,13 @@ export function Detail({ data, selected }: Props) {
             {ref.name}
           </h1>
         </div>
-        <button type="button" className="btn" disabled={running} onClick={() => data.run({ kind: 'tests', ids: [ref.id] })} title={running ? 'A run is in progress: one device, one run at a time' : 'Run this test again'}>
+        <button type="button" className="btn" disabled={running} onClick={() => data.run({ kind: 'tests', ids: [ref.id] })} title={running ? t('busyTitle') : t('runAgainTitle')}>
           <Rerun size={14} />
-          {status === 'idle' ? 'Run' : 'Run again'}
+          {status === 'idle' ? t('run') : t('runAgain')}
         </button>
       </div>
 
-      <div className="segmented" role="group" aria-label="Detail view" style={{ margin: '0 22px', alignSelf: 'flex-start' }}>
+      <div className="segmented" role="group" aria-label={t('detailView')} style={{ margin: '0 22px', alignSelf: 'flex-start' }}>
         {tabs.map(([t, label, badge]) => (
           <button key={t} type="button" aria-pressed={tab === t} onClick={() => setTab(t)} style={{ minHeight: 30, padding: '0 14px', fontSize: 13 }}>
             {label}
@@ -107,28 +110,30 @@ export function Detail({ data, selected }: Props) {
       </div>
 
       <div className="detail-body">
-        {tab === 'report' && <Report status={status} st={st} openEvidence={() => setTab('evidence')} />}
-        {tab === 'evidence' && <Evidence files={evidence} status={status} />}
-        {tab === 'console' && <Console st={st} output={data.output} />}
-        {tab === 'source' && <Source ref_={ref} st={st} />}
+        {tab === 'report' && <Report status={status} st={st} openEvidence={() => setTab('evidence')} t={t} />}
+        {tab === 'evidence' && <Evidence files={evidence} status={status} t={t} />}
+        {tab === 'console' && <Console st={st} output={data.output} t={t} />}
+        {tab === 'source' && <Source ref_={ref} st={st} t={t} />}
       </div>
     </section>
   );
 }
 
-function Report({ status, st, openEvidence }: { status: RowStatus; st: TestState | undefined; openEvidence(): void }) {
+function Report({ status, st, openEvidence, t }: { status: RowStatus; st: TestState | undefined; openEvidence(): void; t: Translate }) {
   const error = st?.error;
   if (error === undefined) {
     const text =
       status === 'passed'
-        ? `Passed${st?.durationMs !== undefined ? ` in ${formatMs(st.durationMs)}` : ''}.`
+        ? st?.durationMs !== undefined
+          ? t('passedIn', { d: formatMs(st.durationMs) })
+          : t('passedPlain')
         : status === 'idle'
-          ? 'Not run yet in this session. Run it with the button above, or press r in the tree.'
+          ? t('notRunHelp')
           : status === 'running'
-            ? 'Running…'
+            ? t('running')
             : status === 'queued'
-              ? 'Waiting for its turn in this run.'
-              : `${STATUS_LABEL[status]}.`;
+              ? t('waitingTurn')
+              : t(STATUS_KEY[status]);
     return <div className="empty">{text}</div>;
   }
   const [first, ...rest] = plain(error.message).split('\n');
@@ -148,7 +153,7 @@ function Report({ status, st, openEvidence }: { status: RowStatus; st: TestState
       </div>
       {error.diff !== undefined && (
         <div className="block">
-          <div className="block-title">Difference</div>
+          <div className="block-title">{t('difference')}</div>
           <pre>
             {plain(error.diff)
               .split('\n')
@@ -162,20 +167,20 @@ function Report({ status, st, openEvidence }: { status: RowStatus; st: TestState
       )}
       {stack !== undefined && stack !== error.message && (
         <div className="block">
-          <div className="block-title">Stack</div>
+          <div className="block-title">{t('stack')}</div>
           <pre className="muted">{stack}</pre>
         </div>
       )}
       {(st?.evidence?.length ?? 0) > 0 && (
         <div className="row panel" style={{ padding: 12, gap: 14 }}>
           <div className="grow" style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontWeight: 600 }}>Evidence saved at the failure</span>
+            <span style={{ fontWeight: 600 }}>{t('evidenceSaved')}</span>
             <span className="muted" style={{ fontSize: 13 }}>
               {st?.evidence?.map(baseName).join(' · ')}
             </span>
           </div>
           <button type="button" className="btn small-btn" onClick={openEvidence}>
-            View evidence
+            {t('viewEvidence')}
           </button>
         </div>
       )}
@@ -183,11 +188,11 @@ function Report({ status, st, openEvidence }: { status: RowStatus; st: TestState
   );
 }
 
-function Evidence({ files, status }: { files: readonly string[]; status: RowStatus }) {
+function Evidence({ files, status, t }: { files: readonly string[]; status: RowStatus; t: Translate }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [zoom, setZoom] = useState<string | null>(null);
   if (files.length === 0) {
-    return <div className="empty">{status === 'failed' ? 'No evidence was saved for this failure (artifacts policy, or the run was stopped).' : 'Quiesco saves evidence (screenshot, element tree, idle state, logs) when a test fails.'}</div>;
+    return <div className="empty">{status === 'failed' ? t('noEvidenceFailed') : t('evidenceHelp')}</div>;
   }
   const images = files.filter(isImage);
   const videos = files.filter(isVideo);
@@ -200,13 +205,13 @@ function Evidence({ files, status }: { files: readonly string[]; status: RowStat
             <button
               type="button"
               className="shot"
-              aria-label={`Enlarge ${baseName(f)}`}
+              aria-label={t('enlarge', { file: baseName(f) })}
               onClick={() => {
                 setZoom(f);
                 dialog.current?.showModal();
               }}
             >
-              <img src={fileUrl(f)} alt={`Screenshot: ${baseName(f)}`} loading="lazy" />
+              <img src={fileUrl(f)} alt={t('screenshotOf', { file: baseName(f) })} loading="lazy" />
             </button>
             <figcaption className="muted mono" style={{ fontSize: 12 }}>
               {baseName(f)}
@@ -218,16 +223,16 @@ function Evidence({ files, status }: { files: readonly string[]; status: RowStat
         ))}
       </div>
       {texts.map((f) => (
-        <TextFile key={f} path={f} />
+        <TextFile key={f} path={f} t={t} />
       ))}
-      <dialog ref={dialog} className="viewer" onClick={() => dialog.current?.close()} onClose={() => setZoom(null)} aria-label="Screenshot">
-        {zoom !== null && <img src={fileUrl(zoom)} alt={`Screenshot: ${baseName(zoom)}`} />}
+      <dialog ref={dialog} className="viewer" onClick={() => dialog.current?.close()} onClose={() => setZoom(null)} aria-label={t('screenshot')}>
+        {zoom !== null && <img src={fileUrl(zoom)} alt={t('screenshotOf', { file: baseName(zoom) })} />}
       </dialog>
     </>
   );
 }
 
-function TextFile({ path }: { path: string }) {
+function TextFile({ path, t }: { path: string; t: Translate }) {
   const [text, setText] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
@@ -241,30 +246,30 @@ function TextFile({ path }: { path: string }) {
           setText(t);
         }
       })
-      .catch(() => live && setText('(could not be read)'));
+      .catch(() => live && setText(t('unreadable')));
     return () => {
       live = false;
     };
-  }, [path]);
+  }, [path, t]);
   const lines = (text ?? '').split('\n');
   return (
     <div className="block">
       <div className="block-title row">
         <span className="grow mono">{baseName(path)}</span>
         <a href={fileUrl(path)} target="_blank" rel="noreferrer">
-          Open
+          {t('open')}
         </a>
       </div>
-      <pre style={{ maxHeight: 360 }}>{text === null ? 'Loading…' : lines.length > 400 ? `${lines.slice(0, 400).join('\n')}\n… (${lines.length - 400} more lines: Open)` : text}</pre>
+      <pre style={{ maxHeight: 360 }}>{text === null ? t('loading') : lines.length > 400 ? `${lines.slice(0, 400).join('\n')}\n${t('moreLines', { n: lines.length - 400 })}` : text}</pre>
     </div>
   );
 }
 
-function Console({ st, output }: { st: TestState | undefined; output: string }) {
+function Console({ st, output, t }: { st: TestState | undefined; output: string; t: Translate }) {
   return (
     <>
       <div className="block">
-        <div className="block-title">This test</div>
+        <div className="block-title">{t('thisTest')}</div>
         <pre>
           {st?.logs !== undefined && st.logs.length > 0
             ? st.logs.map((l, i) => (
@@ -272,18 +277,18 @@ function Console({ st, output }: { st: TestState | undefined; output: string }) 
                   {plain(l.text).replace(/\n$/, '')}
                 </span>
               ))
-            : 'No output kept for this test (Vitest keeps console output per test; cucumber keeps this.log()).'}
+            : t('noTestOutput')}
         </pre>
       </div>
       <div className="block">
-        <div className="block-title">Runner output (last run)</div>
-        <pre style={{ maxHeight: 420 }}>{output === '' ? 'Nothing yet.' : plain(output)}</pre>
+        <div className="block-title">{t('runnerOutput')}</div>
+        <pre style={{ maxHeight: 420 }}>{output === '' ? t('nothingYet') : plain(output)}</pre>
       </div>
     </>
   );
 }
 
-function Source({ ref_, st }: { ref_: TestRef; st: TestState | undefined }) {
+function Source({ ref_, st, t }: { ref_: TestRef; st: TestState | undefined; t: Translate }) {
   const [text, setText] = useState<string | null>(null);
   const container = useRef<HTMLPreElement>(null);
   useEffect(() => {
@@ -307,11 +312,11 @@ function Source({ ref_, st }: { ref_: TestRef; st: TestState | undefined }) {
     const line = failingLine ?? ref_.line;
     if (text !== null && line !== undefined) container.current?.querySelector(`[data-line="${line}"]`)?.scrollIntoView({ block: 'center' });
   }, [text, failingLine, ref_.line]);
-  if (text === null) return <div className="empty">Loading {ref_.file}…</div>;
-  if (text === '') return <div className="empty">{`${ref_.file} could not be read.`}</div>;
+  if (text === null) return <div className="empty">{t('loadingFile', { file: ref_.file })}</div>;
+  if (text === '') return <div className="empty">{t('fileUnreadable', { file: ref_.file })}</div>;
   return (
     <div className="block">
-      <div className="block-title mono">{`${ref_.file} · read-only`}</div>
+      <div className="block-title mono">{t('readOnly', { file: ref_.file })}</div>
       <pre ref={container} style={{ padding: '0 0 12px', maxHeight: 'calc(100vh - 420px)', overflow: 'auto' }}>
         {text.split('\n').map((l, i) => {
           const n = i + 1;

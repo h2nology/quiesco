@@ -17,7 +17,7 @@ import type { RunEvent, RunnerName, TestList, TestRef } from '@quiesco/protocol'
 import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
 
-import type { ClientMessage, RunningInfo, ServerMessage, UiInfo } from './messages.js';
+import type { ClientMessage, NoticeCode, RunningInfo, ServerMessage, UiInfo } from './messages.js';
 import type { RunHandle } from './spawn.js';
 import { targetArgs } from './targets.js';
 import type { RunTarget } from './targets.js';
@@ -153,13 +153,13 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServer>
     watchFiles();
   };
 
-  const run = (target: RunTarget): string | null => {
-    if (running !== null) return 'A run is already in progress (one device: one run at a time).';
+  const run = (target: RunTarget): { code: NoticeCode; message: string } | null => {
+    if (running !== null) return { code: 'busy', message: 'A run is already in progress (one device: one run at a time).' };
     let args: string[];
     try {
       args = targetArgs(options.runner, target, knownTests());
     } catch (e) {
-      return (e as Error).message;
+      return { code: 'unknown-tests', message: (e as Error).message };
     }
     output = '';
     chosen = target.kind === 'tests' ? new Set(target.ids) : null;
@@ -275,7 +275,7 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServer>
         }
         if (m.type === 'run') {
           const problem = run(m.target);
-          if (problem !== null) send(ws, { type: 'notice', level: 'error', message: problem });
+          if (problem !== null) send(ws, { type: 'notice', level: 'error', ...problem });
         } else if (m.type === 'cancel') {
           handle?.stop();
         } else if (m.type === 'list') {

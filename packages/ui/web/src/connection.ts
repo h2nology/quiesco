@@ -7,13 +7,15 @@ import { RunState } from '@quiesco/core/run-state';
 import type { TestList } from '@quiesco/protocol';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { ClientMessage, RunTarget, RunningInfo, ServerMessage, UiInfo } from '../../src/messages';
+import type { ClientMessage, NoticeCode, RunTarget, RunningInfo, ServerMessage, UiInfo } from '../../src/messages';
 
 export type ConnectionStatus = 'connecting' | 'open' | 'closed';
 
 export interface Notice {
   id: number;
   level: 'info' | 'error';
+  /** Known notices are shown in the page's language. */
+  code?: NoticeCode;
   message: string;
 }
 
@@ -57,8 +59,8 @@ export function useUiConnection(): UiData & { send(m: ClientMessage): void; run(
   }, []);
 
   const notify = useCallback(
-    (level: Notice['level'], message: string) => {
-      const n = { id: ++noticeId.current, level, message };
+    (level: Notice['level'], message: string, code?: NoticeCode) => {
+      const n: Notice = { id: ++noticeId.current, level, message, ...(code !== undefined ? { code } : {}) };
       store.current.notices = [...store.current.notices.slice(-3), n];
       bump();
       setTimeout(() => {
@@ -117,7 +119,7 @@ export function useUiConnection(): UiData & { send(m: ClientMessage): void; run(
             s.output = (s.output + m.text).slice(-OUTPUT_KEEP);
             break;
           case 'notice':
-            notify(m.level, m.message);
+            notify(m.level, m.message, m.code);
             return;
         }
         bump();

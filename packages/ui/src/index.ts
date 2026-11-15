@@ -8,4 +8,4 @@ export { spawnRun } from './spawn.js';
 export type { RunHandle, SpawnRunOptions } from './spawn.js';
 export { targetArgs } from './targets.js';
 export type { RunTarget } from './targets.js';
-export type { ClientMessage, RunningInfo, ServerMessage, UiInfo } from './messages.js';
+export type { ClientMessage, NoticeCode, RunningInfo, ServerMessage, UiInfo } from './messages.js';

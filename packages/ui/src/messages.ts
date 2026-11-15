@@ -29,7 +29,10 @@ export type ServerMessage =
   | { type: 'run'; running: RunningInfo | null; exitCode?: number; state?: RunStateSnapshot }
   /** The runner's own output (stdout / stderr). */
   | { type: 'output'; stream: 'stdout' | 'stderr'; text: string }
-  | { type: 'notice'; level: 'info' | 'error'; message: string };
+  /** `code` lets the page show the notice in its language; `message` is the English text. */
+  | { type: 'notice'; level: 'info' | 'error'; code?: NoticeCode; message: string };
+
+export type NoticeCode = 'busy' | 'unknown-tests';
 
 export interface RunningInfo {
   target: RunTarget;

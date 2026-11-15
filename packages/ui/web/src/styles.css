@@ -65,6 +65,13 @@ button { cursor: pointer; transition: background-color 160ms ease, border-color 
 button:disabled { cursor: not-allowed; opacity: 0.5; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 a { color: var(--accent); }
+/* CJK text falls back to the system's CJK fonts (none are bundled). */
+:lang(zh) body, body:lang(zh) { font-family: 'DM Sans Variable', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', system-ui, sans-serif; }
+:lang(ja) body, body:lang(ja) { font-family: 'DM Sans Variable', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', Meiryo, 'Noto Sans JP', system-ui, sans-serif; }
+.lang { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
+.lang select { border: 0; background: transparent; font-size: 13px; cursor: pointer; }
+.lang:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+.lang select:focus-visible { outline: none; }
 code, pre, kbd, .mono { font-family: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace; }
 .display { font-family: 'Space Grotesk Variable', system-ui, sans-serif; letter-spacing: -0.01em; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }

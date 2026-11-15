@@ -129,7 +129,7 @@ describe('quiesco ui server', () => {
     await c.next((m): m is Extract<ServerMessage, { type: 'event' }> => m.type === 'event' && m.event.type === 'test:start');
     c.send({ type: 'run', target: { kind: 'all' } });
     const busy = await c.next((m): m is Extract<ServerMessage, { type: 'notice' }> => m.type === 'notice');
-    expect(busy.message).toMatch(/already in progress/);
+    expect(busy).toMatchObject({ code: 'busy', message: expect.stringMatching(/already in progress/) });
 
     const late = connect(s);
     await late.opened;

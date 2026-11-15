@@ -91,7 +91,25 @@ describe.runIf(fs.existsSync(path.join(staticDir, 'index.html')))('quiesco ui we
     // Theme toggle.
     await page.getByRole('button', { name: 'Switch to light theme' }).click();
     expect(await page.evaluate(() => document.documentElement.dataset['theme'])).toBe('light');
+
+    // Language: 日本語, remembered across a reload.
+    await page.getByRole('combobox', { name: 'Language' }).selectOption('ja');
+    await page.getByRole('button', { name: 'すべて実行' }).waitFor();
+    expect(await page.evaluate(() => document.documentElement.lang)).toBe('ja');
+    await page.reload();
+    await page.getByRole('button', { name: 'すべて実行' }).waitFor();
     expect(errors).toEqual([]);
     await page.close();
+  });
+
+  it('starts in the browser’s language (zh-CN → 简体中文)', async () => {
+    const context = await browser.newContext({ locale: 'zh-CN' });
+    const page = await context.newPage();
+    page.setDefaultTimeout(8000);
+    await page.goto(server.url);
+    await page.getByRole('button', { name: '全部运行' }).waitFor();
+    await page.getByRole('tree', { name: '测试文件与测试' }).waitFor();
+    expect(await page.evaluate(() => document.documentElement.lang)).toBe('zh-CN');
+    await context.close();
   });
 });

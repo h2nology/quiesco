@@ -5,7 +5,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useUiConnection } from './connection';
 import type { UiData } from './connection';
 import { Detail } from './Detail';
-import { Device, Logo, Moon, Play, Search, Spinner, Stop, Sun, Check, X, Skip } from './icons';
+import { LOCALES, useI18n } from './i18n';
+import type { Locale, Translate } from './i18n';
+import { Device, Globe, Logo, Moon, Play, Search, Spinner, Stop, Sun, Check, X, Skip } from './icons';
 import { allTests, formatMs } from './model';
 import type { Filter, Sort } from './model';
 import { TestTree } from './TestTree';
@@ -47,6 +49,7 @@ function useTicker(active: boolean): void {
 
 export function App() {
   const ui = useUiConnection();
+  const { t, locale, setLocale } = useI18n();
   const [theme, toggleTheme] = useTheme();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
@@ -91,16 +94,16 @@ export function App() {
   useEffect(() => {
     if (wasRunning.current && !running) {
       const c = ui.state.counts;
-      setAnnounce(`Run finished: ${c.passed} passed, ${c.failed} failed, ${c.skipped + c.pending + c.todo} skipped.`);
+      setAnnounce(t('runFinished', { passed: c.passed, failed: c.failed, skipped: c.skipped + c.pending + c.todo }));
     }
     wasRunning.current = running;
-  }, [running, ui.state]);
+  }, [running, ui.state, t]);
 
   const info = ui.info;
   return (
     <div className="app">
       <a className="skip-link" href="#detail">
-        Skip to test details
+        {t('skipToDetails')}
       </a>
       <header className="header">
         <div className="row">
@@ -115,43 +118,54 @@ export function App() {
         <div className="search">
           <Search size={16} className="muted" />
           <label htmlFor="search" className="sr-only">
-            Search tests
+ {t('searchLabel')}
           </label>
-          <input id="search" ref={searchRef} type="search" placeholder="Search tests, files or @tags" value={query} onChange={(e) => setQuery(e.target.value)} autoComplete="off" />
+          <input id="search" ref={searchRef} type="search" placeholder={t('searchPlaceholder')} value={query} onChange={(e) => setQuery(e.target.value)} autoComplete="off" />
           <kbd className="kbd">/</kbd>
         </div>
         <div className="row">
-          <Connection status={ui.status} />
-          <button type="button" className="btn icon-btn" onClick={toggleTheme} aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'} title={theme === 'dark' ? 'Light theme' : 'Dark theme'}>
+          <Connection status={ui.status} t={t} />
+          <label className="lang" title={t('language')}>
+            <Globe size={15} className="muted" />
+            <span className="sr-only">{t('language')}</span>
+            <select value={locale} onChange={(e) => setLocale(e.target.value as Locale)} aria-label={t('language')}>
+              {LOCALES.map((l) => (
+                <option key={l.id} value={l.id} lang={l.htmlLang}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="button" className="btn icon-btn" onClick={toggleTheme} aria-label={theme === 'dark' ? t('themeToLight') : t('themeToDark')} title={theme === 'dark' ? t('themeToLight') : t('themeToDark')}>
             {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
           </button>
-          <button type="button" className="btn" onClick={() => ui.send({ type: 'cancel' })} disabled={!running} title="Stop the run (Ctrl/⌘ + .)">
+          <button type="button" className="btn" onClick={() => ui.send({ type: 'cancel' })} disabled={!running} title={t('stopTitle')}>
             <Stop size={12} />
-            Stop
+            {t('stop')}
           </button>
-          <button type="button" className="btn btn-primary" onClick={() => ui.run({ kind: 'all' })} disabled={running || ui.status !== 'open'} title={running ? 'A run is in progress: one device, one run at a time' : 'Run all tests (Ctrl/⌘ + Enter)'}>
+          <button type="button" className="btn btn-primary" onClick={() => ui.run({ kind: 'all' })} disabled={running || ui.status !== 'open'} title={running ? t('busyTitle') : t('runAllTitle')}>
             {running ? <Spinner size={13} strokeWidth={2.5} /> : <Play size={13} />}
-            {running ? 'Running…' : 'Run all'}
+            {running ? t('running') : t('runAll')}
           </button>
         </div>
       </header>
 
       {ui.status === 'closed' && (
         <div className="banner error" role="alert">
-          Disconnected from quiesco ui. Reconnecting… (is <code>quiesco ui</code> still running?)
+          {t('disconnectedBanner')}
         </div>
       )}
       {ui.notices.map((n) => (
         <div key={n.id} className={`banner${n.level === 'error' ? ' error' : ''}`} role="status">
-          <span className="grow">{n.message}</span>
+          <span className="grow">{n.code === 'busy' ? t('noticeBusy') : n.code === 'unknown-tests' ? t('noticeUnknownTests') : n.message}</span>
           <button type="button" className="btn small-btn" onClick={() => ui.dismiss(n.id)}>
-            Dismiss
+            {t('dismiss')}
           </button>
         </div>
       ))}
-      {ui.state.phase !== 'idle' && ui.state.runner === null && !running && <NoEvents runner={info?.runner} />}
+      {ui.state.phase !== 'idle' && ui.state.runner === null && !running && <NoEvents runner={info?.runner} t={t} />}
 
-      <ProgressBand data={ui} />
+      <ProgressBand data={ui} t={t} />
 
       <main className="main">
         <TestTree data={ui} query={query} filter={filter} setFilter={setFilter} sort={sort} setSort={setSort} selected={selected} onSelect={setSelected} />
@@ -164,9 +178,9 @@ export function App() {
   );
 }
 
-function Connection({ status }: { status: UiData['status'] }) {
+function Connection({ status, t }: { status: UiData['status']; t: Translate }) {
   const color = status === 'open' ? 'var(--passed)' : status === 'connecting' ? 'var(--skipped)' : 'var(--failed)';
-  const label = status === 'open' ? 'Connected' : status === 'connecting' ? 'Connecting' : 'Disconnected';
+  const label = status === 'open' ? t('connected') : status === 'connecting' ? t('connecting') : t('disconnected');
   return (
     <span className="row muted" style={{ fontSize: 12, gap: 6, padding: '0 6px' }}>
       <span className={status === 'open' ? 'pulse' : ''} aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 999, background: color }} />
@@ -175,16 +189,11 @@ function Connection({ status }: { status: UiData['status'] }) {
   );
 }
 
-function NoEvents({ runner }: { runner: string | undefined }) {
-  const how =
-    runner === 'vitest'
-      ? 'Add quiescoPlugin() to the plugins of your Vitest config.'
-      : runner === 'jest'
-        ? "Your Jest config replaces the preset's reporters: add '@quiesco/jest/reporter'."
-        : 'Install @quiesco/cucumber in this project.';
+function NoEvents({ runner, t }: { runner: string | undefined; t: Translate }) {
+  const how = runner === 'vitest' ? t('noEventsVitest') : runner === 'jest' ? t('noEventsJest') : t('noEventsCucumber');
   return (
     <div className="banner" role="status">
-      The run sent no test events, so the tree cannot follow it. {how}
+      {t('noEvents')} {how}
     </div>
   );
 }
@@ -195,7 +204,7 @@ function arc(n: number, total: number, start: number) {
   return { dash: `${len} ${C - len}`, offset: -start, len };
 }
 
-function ProgressBand({ data }: { data: UiData }) {
+function ProgressBand({ data, t }: { data: UiData; t: Translate }) {
   const s: RunState = data.state;
   // A run was asked for but its runner has not reported yet (starting the device / app).
   const starting = data.running !== null && (s.phase !== 'running' || (s.startedAt ?? 0) < data.running.startedAt - 1000);
@@ -211,24 +220,24 @@ function ProgressBand({ data }: { data: UiData }) {
   const lanes = data.running !== null && running.length > 0 && (s.workers ?? 1) > 1;
   const elapsed = s.phase === 'idle' ? '' : formatMs(s.elapsedMs);
   const caption = starting
-    ? 'Starting the run (device and app)…'
+    ? t('starting')
     : s.phase === 'idle'
       ? data.listing
-        ? 'Listing tests…'
-        : `${data.list?.tests.length ?? 0} tests · not run yet`
+        ? t('listing')
+        : t('notRunYetCount', { n: data.list?.tests.length ?? 0 })
       : s.phase === 'running'
-        ? `done · ${elapsed}${s.totalIsApproximate ? ' · total still growing' : ''}`
-        : `${s.interrupted ? 'stopped' : s.success === true ? 'passed' : 'failed'} · ${elapsed}`;
+        ? `${t('doneElapsed', { elapsed })}${s.totalIsApproximate ? ` · ${t('totalGrowing')}` : ''}`
+        : t(s.interrupted ? 'endedStopped' : s.success === true ? 'endedPassed' : 'endedFailed', { elapsed });
   return (
-    <section className="band" aria-label="Run progress">
+    <section className="band" aria-label={t('runProgress')}>
       <div className="panel progress-card">
-        <svg width="64" height="64" viewBox="0 0 64 64" role="img" aria-label={`${done} of ${total} tests done, ${c.failed} failed`}>
+        <svg width="64" height="64" viewBox="0 0 64 64" role="img" aria-label={t('ringLabel', { done, total, failed: c.failed })}>
           <circle cx="32" cy="32" r="26" fill="none" stroke="var(--track)" strokeWidth="7" />
           <circle cx="32" cy="32" r="26" fill="none" stroke="var(--passed)" strokeWidth="7" strokeDasharray={p.dash} strokeDashoffset={p.offset} transform="rotate(-90 32 32)" style={{ transition: 'stroke-dasharray 200ms' }} />
           <circle cx="32" cy="32" r="26" fill="none" stroke="var(--failed)" strokeWidth="7" strokeDasharray={f.dash} strokeDashoffset={f.offset} transform="rotate(-90 32 32)" />
           <circle cx="32" cy="32" r="26" fill="none" stroke="var(--skipped)" strokeWidth="7" strokeDasharray={k.dash} strokeDashoffset={k.offset} transform="rotate(-90 32 32)" />
         </svg>
-        <div role="progressbar" aria-label="Tests done" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div role="progressbar" aria-label={t('testsDone')} aria-valuemin={0} aria-valuemax={total} aria-valuenow={done} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <div className="row" style={{ alignItems: 'baseline', gap: 6 }}>
             <span className="display big-num">{done}</span>
             <span className="display muted" style={{ fontSize: 18 }}>
@@ -244,15 +253,15 @@ function ProgressBand({ data }: { data: UiData }) {
         <div className="row wrap">
           <span className="status-pill" style={{ background: 'var(--passed-soft)', color: 'var(--passed)' }}>
             <Check size={13} strokeWidth={3} />
-            {c.passed} passed
+            {t('nPassed', { n: c.passed })}
           </span>
           <span className="status-pill" style={{ background: 'var(--failed-soft)', color: 'var(--failed)' }}>
             <X size={13} strokeWidth={3} />
-            {c.failed} failed
+            {t('nFailed', { n: c.failed })}
           </span>
           <span className="status-pill" style={{ background: 'var(--skipped-soft)', color: 'var(--skipped)' }}>
             <Skip size={13} strokeWidth={3} />
-            {skipped} skipped
+            {t('nSkipped', { n: skipped })}
           </span>
         </div>
       </div>
@@ -261,7 +270,7 @@ function ProgressBand({ data }: { data: UiData }) {
           <div key={r.test.id} className="panel lane">
             <div className="row muted" style={{ fontSize: 12 }}>
               <Device size={14} />
-              <span style={{ fontWeight: 600 }}>{`Device ${(r.worker ?? 0) + 1}`}</span>
+              <span style={{ fontWeight: 600 }}>{t('device', { n: (r.worker ?? 0) + 1 })}</span>
               <span className="grow" />
               <span className="mono">{formatMs(Date.now() - r.startedAt)}</span>
             </div>

@@ -9,7 +9,8 @@ import type { KeyboardEvent } from 'react';
 import type { ClientMessage, RunTarget } from '../../src/messages';
 import type { UiData } from './connection';
 import { Alert, Chevron, FileIcon, Play, Refresh, StatusDot } from './icons';
-import { STATUS_LABEL, buildTree, formatMs } from './model';
+import { useI18n } from './i18n';
+import { STATUS_KEY, buildTree, formatMs } from './model';
 import type { Filter, Sort } from './model';
 
 interface Props {
@@ -26,6 +27,7 @@ interface Props {
 type Node = { kind: 'file'; key: string; file: string } | { kind: 'test'; key: string; id: string; file: string };
 
 export function TestTree({ data, query, filter, setFilter, sort, setSort, selected, onSelect }: Props) {
+  const { t } = useI18n();
   const files = useMemo(() => buildTree(data, filter, query, sort), [data, filter, query, sort]);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [focusKey, setFocusKey] = useState<string | null>(null);
@@ -34,9 +36,9 @@ export function TestTree({ data, query, filter, setFilter, sort, setSort, select
   const counts = useMemo(() => {
     let failed = 0;
     let active = 0;
-    for (const f of buildTree(data, 'all', '', 'default')) for (const t of f.tests) {
-      if (t.status === 'failed') failed++;
-      if (t.status === 'running' || t.status === 'queued') active++;
+    for (const f of buildTree(data, 'all', '', 'default')) for (const x of f.tests) {
+      if (x.status === 'failed') failed++;
+      if (x.status === 'running' || x.status === 'queued') active++;
     }
     return { failed, active };
   }, [data]);
@@ -45,7 +47,7 @@ export function TestTree({ data, query, filter, setFilter, sort, setSort, select
   const nodes: Node[] = [];
   for (const f of files) {
     nodes.push({ kind: 'file', key: `f:${f.file}`, file: f.file });
-    if (!collapsed.has(f.file)) for (const t of f.tests) nodes.push({ kind: 'test', key: `t:${t.ref.id}`, id: t.ref.id, file: f.file });
+    if (!collapsed.has(f.file)) for (const x of f.tests) nodes.push({ kind: 'test', key: `t:${x.ref.id}`, id: x.ref.id, file: f.file });
   }
   const current = focusKey !== null && nodes.some((n) => n.key === focusKey) ? focusKey : (nodes.find((n) => n.kind === 'test' && n.id === selected)?.key ?? nodes[0]?.key ?? null);
 
@@ -89,18 +91,18 @@ export function TestTree({ data, query, filter, setFilter, sort, setSort, select
   };
 
   const filters: [Filter, string][] = [
-    ['all', 'All'],
-    ['failed', counts.failed > 0 ? `Failed ${counts.failed}` : 'Failed'],
-    ['running', counts.active > 0 ? `Running ${counts.active}` : 'Running'],
-    ['skipped', 'Skipped'],
-    ['passed', 'Passed'],
+    ['all', t('filterAll')],
+    ['failed', counts.failed > 0 ? `${t('filterFailed')} ${counts.failed}` : t('filterFailed')],
+    ['running', counts.active > 0 ? `${t('filterRunning')} ${counts.active}` : t('filterRunning')],
+    ['skipped', t('filterSkipped')],
+    ['passed', t('filterPassed')],
   ];
-  const runTitle = running ? 'A run is in progress: one device, one run at a time' : undefined;
+  const runTitle = running ? t('busyTitle') : undefined;
 
   return (
-    <aside className="panel tree-panel" aria-label="Tests">
+    <aside className="panel tree-panel" aria-label={t('tests')}>
       <div className="row wrap" style={{ padding: '12px 12px 8px' }}>
-        <div className="segmented" role="group" aria-label="Filter by status">
+        <div className="segmented" role="group" aria-label={t('filterLabel')}>
           {filters.map(([f, label]) => (
             <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)}>
               {label}
@@ -109,21 +111,21 @@ export function TestTree({ data, query, filter, setFilter, sort, setSort, select
         </div>
         <span className="grow" />
         <label htmlFor="sort" className="sr-only">
-          Sort
+          {t('sort')}
         </label>
         <select id="sort" value={sort} onChange={(e) => setSort(e.target.value as Sort)} style={{ minHeight: 32, padding: '0 8px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: 12.5 }}>
-          <option value="default">File order</option>
-          <option value="failed">Failed first</option>
-          <option value="slowest">Slowest first</option>
+          <option value="default">{t('sortFile')}</option>
+          <option value="failed">{t('sortFailed')}</option>
+          <option value="slowest">{t('sortSlowest')}</option>
         </select>
-        <button type="button" className="run-one" style={{ opacity: 1 }} onClick={() => data.send({ type: 'list' })} aria-label="List the tests again" title="List the tests again">
+        <button type="button" className="run-one" style={{ opacity: 1 }} onClick={() => data.send({ type: 'list' })} aria-label={t('relist')} title={t('relist')}>
           <Refresh size={15} className={data.listing ? 'spin' : ''} />
         </button>
       </div>
 
       {files.length === 0 ? (
         <div className="empty">
-          {data.listing ? 'Listing tests…' : data.list === null ? 'Waiting for the test list…' : query !== '' || filter !== 'all' ? 'No test matches.' : 'No tests found.'}
+          {data.listing ? t('listing') : data.list === null ? t('waitingList') : query !== '' || filter !== 'all' ? t('noMatch') : t('noTests')}
           {(data.list?.errors ?? []).filter((e) => e.file === undefined).map((e, i) => (
             <pre key={i} className="mono" style={{ whiteSpace: 'pre-wrap', color: 'var(--failed)', fontSize: 12, textAlign: 'left' }}>
               {e.message}
@@ -131,7 +133,7 @@ export function TestTree({ data, query, filter, setFilter, sort, setSort, select
           ))}
         </div>
       ) : (
-        <ul className="tree" role="tree" aria-label="Test files and tests" ref={treeRef} onKeyDown={onKeyDown}>
+         <ul className="tree" role="tree" aria-label={t('treeLabel')} ref={treeRef} onKeyDown={onKeyDown}>
           {files.map((f) => {
             const open = !collapsed.has(f.file);
             const fileKey = `f:${f.file}`;
@@ -144,9 +146,9 @@ export function TestTree({ data, query, filter, setFilter, sort, setSort, select
                     <span className="grow ellipsis" style={{ fontSize: 13, fontWeight: 600 }}>
                       {f.file}
                     </span>
-                    <span className={`count mono${f.failed > 0 || f.error !== undefined ? ' bad' : ''}`}>{f.error !== undefined && f.total === 0 ? 'error' : `${f.done}/${f.total}`}</span>
+                    <span className={`count mono${f.failed > 0 || f.error !== undefined ? ' bad' : ''}`}>{f.error !== undefined && f.total === 0 ? t('fileError') : `${f.done}/${f.total}`}</span>
                   </button>
-                  <button type="button" className="run-one" tabIndex={-1} disabled={running} onClick={() => data.run({ kind: 'file', file: f.file })} aria-label={`Run ${f.file}`} title={runTitle ?? `Run ${f.file}`}>
+                  <button type="button" className="run-one" tabIndex={-1} disabled={running} onClick={() => data.run({ kind: 'file', file: f.file })} aria-label={t('runItem', { name: f.file })} title={runTitle ?? t('runItem', { name: f.file })}>
                     <Play size={11} />
                   </button>
                 </div>
@@ -160,38 +162,38 @@ export function TestTree({ data, query, filter, setFilter, sort, setSort, select
                 )}
                 {open && (
                   <ul role="group">
-                    {f.tests.map((t) => {
-                      const key = `t:${t.ref.id}`;
-                      const label = `${t.ref.name}, ${STATUS_LABEL[t.status]}${t.state?.durationMs !== undefined ? `, ${formatMs(t.state.durationMs)}` : ''}`;
+                    {f.tests.map((item) => {
+                      const key = `t:${item.ref.id}`;
+                      const label = `${item.ref.name}, ${t(STATUS_KEY[item.status])}${item.state?.durationMs !== undefined ? `, ${formatMs(item.state.durationMs)}` : ''}`;
                       return (
                         <li
-                          key={t.ref.id}
+                          key={item.ref.id}
                           role="treeitem"
-                          aria-selected={t.ref.id === selected}
+                          aria-selected={item.ref.id === selected}
                           aria-label={label}
                           tabIndex={current === key ? 0 : -1}
                           data-key={key}
                           className="test-row"
                           onFocus={() => setFocusKey(key)}
                           onClick={() => {
-                            onSelect(t.ref.id);
+                            onSelect(item.ref.id);
                             setFocusKey(key);
                           }}
                           style={{ cursor: 'pointer', outlineOffset: -2 }}
                         >
-                          <StatusDot status={t.status} />
+                          <StatusDot status={item.status} />
                           <span className="grow" style={{ display: 'flex', flexDirection: 'column', minWidth: 0, padding: '5px 0' }}>
-                            {t.groups !== '' && (
+                            {item.groups !== '' && (
                               <span className="ellipsis faint" style={{ fontSize: 11.5 }}>
-                                {t.groups}
+                                {item.groups}
                               </span>
                             )}
-                            <span className="ellipsis test-name" style={{ color: t.status === 'idle' || t.status === 'queued' ? 'var(--muted)' : undefined }}>
-                              {t.ref.name}
+                            <span className="ellipsis test-name" style={{ color: item.status === 'idle' || item.status === 'queued' ? 'var(--muted)' : undefined }}>
+                              {item.ref.name}
                             </span>
                           </span>
                           <span className="mono muted" style={{ fontSize: 11.5, whiteSpace: 'nowrap' }}>
-                            {formatMs(t.state?.durationMs)}
+                            {formatMs(item.state?.durationMs)}
                           </span>
                           <button
                             type="button"
@@ -200,10 +202,10 @@ export function TestTree({ data, query, filter, setFilter, sort, setSort, select
                             disabled={running}
                             onClick={(e) => {
                               e.stopPropagation();
-                              data.run({ kind: 'tests', ids: [t.ref.id] });
+                              data.run({ kind: 'tests', ids: [item.ref.id] });
                             }}
-                            aria-label={`Run ${t.ref.name}`}
-                            title={runTitle ?? 'Run this test (r)'}
+                            aria-label={t('runItem', { name: item.ref.name })}
+                            title={runTitle ?? t('runTestTitle')}
                           >
                             <Play size={11} />
                           </button>
@@ -219,19 +221,19 @@ export function TestTree({ data, query, filter, setFilter, sort, setSort, select
       )}
       <div className="hint" aria-hidden="true">
         <span>
-          <kbd>↑↓</kbd> move
+          <kbd>↑↓</kbd> {t('hintMove')}
         </span>
         <span>
-          <kbd>r</kbd> run
+          <kbd>r</kbd> {t('hintRun')}
         </span>
         <span>
-          <kbd>⌘↵</kbd> run all
+          <kbd>⌘↵</kbd> {t('hintRunAll')}
         </span>
         <span>
-          <kbd>⌘.</kbd> stop
+          <kbd>⌘.</kbd> {t('hintStop')}
         </span>
         <span>
-          <kbd>/</kbd> search
+          <kbd>/</kbd> {t('hintSearch')}
         </span>
       </div>
     </aside>

@@ -31,6 +31,7 @@ P7：三语文档（cli.mdx：进度条 / `--no-progress` / `quiesco list` / `qu
 | UI v1 范围 | 必做（测试树、运行全部 / 文件 / suite / 单个、实时进度条、错误详情）+ 证据面板 + 搜索 / 过滤 / 排序 + Console 与只读源码 + 设备 / worker 泳道；不做：快照、模块图、覆盖率、可编辑源码、watch 自动重跑 | HU 选择 |
 | 版本 | 全部完成并三端验收后一起发 0.3.0 | HU 选择 |
 | UI 布局 | 双栏（左测试树、右详情标签页）+ 顶部进度条带，设备泳道只在多 worker 时出现 | HU 选择；视觉稿 https://claude.ai/artifact/2mf3Y9aHqyhxoEd4Wfo7iy |
+| UI 多语言 | 中文（简体）/ 日本語 / English；初始 = 上次选择 → 浏览器语言 → 英文；顶栏切换并记住；测试名等用户内容不翻译 | HU 指定（2026-11-15） |
 | UI 视觉风格 | A · 现代深色（Dark Mode/OLED；Space Grotesk + DM Sans + JetBrains Mono；紫罗兰强调；环形进度；圆角分层面板），默认暗色可切亮色；token 见 findings「P6 设计说明」 | HU 选择（第一版 Swiss 风被否：太老气） |
 
 ## 架构草案
@@ -120,6 +121,8 @@ CLI (quiesco ui)    ── 事件 → WebSocket → 浏览器 (React)
 - [x] Playwright 冒烟测试（`packages/ui/test/web.test.ts`：列出、行内运行、失败 + 证据图加载、键盘 ↑ + r、主题切换、无页面错误）
 - [x] ui-ux-pro-max 审查：对比度修正 3 处、375px、reduced-motion 等（详见 findings「P6 实现记录」）
 - [x] 实跑 todo-app web（截图验证，含真实失败与证据）
+- [x] 多语言（中 / 日 / 英）：`web/src/i18n.tsx` 类型化词典（缺 key 编译失败）+ 占位符；顶栏语言切换（记住）；`<html lang>`；中日文用系统 CJK 字体（`:lang()`，不打包）；服务端 notice 加 `code` 由页面翻译；
+      测试：词典完整性 / 占位符一致 / 语言检测单测，浏览器测试切换日语并刷新保持、zh-CN 浏览器自动中文；实跑截图（日语暗色、中文亮色），修正日语「接続中」→「接続済み」
 **Status:** complete
 
 ### P7 文档与验收

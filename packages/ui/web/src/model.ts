@@ -7,6 +7,7 @@ import type { RunError, RunnerName, TestRef, TestStatus } from '@quiesco/protoco
 
 import type { RunTarget, RunningInfo } from '../../src/messages';
 import type { UiData } from './connection';
+import type { MessageKey } from './i18n';
 
 export type RowStatus = TestStatus | 'running' | 'queued' | 'idle';
 export type Filter = 'all' | 'failed' | 'passed' | 'skipped' | 'running';
@@ -110,15 +111,15 @@ export function formatMs(ms: number | undefined): string {
   return `${Math.floor(s / 60)}m${String(Math.round(s % 60)).padStart(2, '0')}s`;
 }
 
-export const STATUS_LABEL: Record<RowStatus, string> = {
-  passed: 'Passed',
-  failed: 'Failed',
-  skipped: 'Skipped',
-  todo: 'Todo',
-  pending: 'Pending',
-  undefined: 'Undefined step',
-  notRun: 'Not run',
-  running: 'Running',
-  queued: 'Queued',
-  idle: 'Not run yet',
+export const STATUS_KEY: Record<RowStatus, MessageKey> = {
+  passed: 'statusPassed',
+  failed: 'statusFailed',
+  skipped: 'statusSkipped',
+  todo: 'statusTodo',
+  pending: 'statusPending',
+  undefined: 'statusUndefined',
+  notRun: 'statusNotRun',
+  running: 'statusRunning',
+  queued: 'statusQueued',
+  idle: 'statusIdle',
 };
