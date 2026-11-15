@@ -104,4 +104,18 @@ describe('RunState', () => {
     expect(s.counts.failed).toBe(0);
     expect(s.tests.get('a')?.status).toBe('failed');
   });
+
+  it('round-trips through a JSON snapshot', () => {
+    const s = new RunState(() => 5);
+    s.apply({ type: 'run:start', total: 2, totalIsEstimate: true, files: ['f'], workers: 2 });
+    s.apply(start('a', 1));
+    s.apply(end('a', 'failed'));
+    s.apply(start('b', 0));
+    s.apply({ type: 'file:end', file: 'g', error: { message: 'boom' } });
+    const copy = RunState.fromSnapshot(JSON.parse(JSON.stringify(s.snapshot())) as ReturnType<RunState['snapshot']>, () => 5);
+    expect(copy.snapshot()).toEqual(s.snapshot());
+    expect(copy.total).toBe(2);
+    copy.apply(end('b'));
+    expect(copy.done).toBe(2);
+  });
 });

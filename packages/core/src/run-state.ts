@@ -29,6 +29,26 @@ export interface RunningTest {
 
 export type RunPhase = 'idle' | 'running' | 'ended';
 
+/** A RunState as plain JSON (`quiesco ui` sends it to a browser that connects mid-run). */
+export interface RunStateSnapshot {
+  phase: RunPhase;
+  runner: RunnerName | null;
+  reportedTotal: number;
+  totalIsEstimate: boolean;
+  workers?: number;
+  files: string[];
+  counts: RunCounts;
+  done: number;
+  running: RunningTest[];
+  tests: TestState[];
+  fileErrors: [string, RunError][];
+  runErrors: RunError[];
+  success: boolean | null;
+  interrupted: boolean;
+  startedAt: number | null;
+  endedAt: number | null;
+}
+
 export class RunState {
   phase: RunPhase = 'idle';
   runner: RunnerName | null = null;
@@ -107,6 +127,48 @@ export class RunState {
         this.finish(event.success, event.interrupted);
         break;
     }
+  }
+
+  snapshot(): RunStateSnapshot {
+    return {
+      phase: this.phase,
+      runner: this.runner,
+      reportedTotal: this.reportedTotal,
+      totalIsEstimate: this.totalIsEstimate,
+      ...(this.workers !== undefined ? { workers: this.workers } : {}),
+      files: [...this.files],
+      counts: { ...this.counts },
+      done: this.done,
+      running: [...this.running.values()],
+      tests: [...this.tests.values()],
+      fileErrors: [...this.fileErrors],
+      runErrors: [...this.runErrors],
+      success: this.success,
+      interrupted: this.interrupted,
+      startedAt: this.startedAt,
+      endedAt: this.endedAt,
+    };
+  }
+
+  static fromSnapshot(s: RunStateSnapshot, now: () => number = Date.now): RunState {
+    const state = new RunState(now);
+    state.phase = s.phase;
+    state.runner = s.runner;
+    state.reportedTotal = s.reportedTotal;
+    state.totalIsEstimate = s.totalIsEstimate;
+    state.workers = s.workers;
+    state.files = [...s.files];
+    state.counts = { ...s.counts };
+    state.done = s.done;
+    for (const r of s.running) state.running.set(r.test.id, r);
+    for (const t of s.tests) state.tests.set(t.test.id, t);
+    for (const [file, e] of s.fileErrors) state.fileErrors.set(file, e);
+    state.runErrors.push(...s.runErrors);
+    state.success = s.success;
+    state.interrupted = s.interrupted;
+    state.startedAt = s.startedAt;
+    state.endedAt = s.endedAt;
+    return state;
   }
 
   /** The runner process exited (maybe without `run:end`: crash, Ctrl-C). */

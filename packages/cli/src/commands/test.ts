@@ -21,7 +21,7 @@ export interface TestDeps {
   loadConfig: (cwd: string, env: NodeJS.ProcessEnv) => Promise<QuiescoConfig | null>;
 }
 
-const defaultTestDeps: TestDeps = {
+export const defaultTestDeps: TestDeps = {
   loadConfig: async (cwd, env) => {
     try {
       return (await loadConfig({ cwd, ...(env['QUIESCO_CONFIG'] !== undefined ? { file: env['QUIESCO_CONFIG'] } : {}), worker: { workerIndex: 0, workerCount: 1 } })).config;
@@ -31,13 +31,13 @@ const defaultTestDeps: TestDeps = {
   },
 };
 
-const RUNNERS = {
+export const RUNNERS = {
   cucumber: { command: ['cucumber-js'], workers: (n: number) => (n > 1 ? ['--parallel', String(n)] : []) },
   // `jest` reads jest.config.*.
   jest: { command: ['jest'], workers: (n: number) => ['--maxWorkers', String(n)] },
   vitest: { command: ['vitest', 'run'], workers: (n: number) => (n > 1 ? ['--fileParallelism', '--maxWorkers', String(n)] : ['--no-file-parallelism', '--maxWorkers', '1']) },
 } as const;
-type Runner = keyof typeof RUNNERS;
+export type Runner = keyof typeof RUNNERS;
 
 export const TEST_HELP = `Usage: quiesco test [options] [runner arguments…]
 
@@ -61,7 +61,7 @@ Examples:
   quiesco test --platform web -- --tags @debug
   quiesco test --platform ios --runner vitest --config vitest.e2e.config.mts`;
 
-function isRunner(v: string | undefined): v is Runner {
+export function isRunner(v: string | undefined): v is Runner {
   return v !== undefined && Object.hasOwn(RUNNERS, v);
 }
 

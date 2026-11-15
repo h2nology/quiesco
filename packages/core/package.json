@@ -36,6 +36,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./run-state": {
+      "types": "./dist/run-state.d.ts",
+      "import": "./dist/run-state.js"
     }
   },
   "files": [

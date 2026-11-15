@@ -14,3 +14,8 @@
 - P2 完成：Jest reporter（12 测试含真实 jest 子进程：skip 从文件结果补、收集失败 file:end、总数增长）+ preset reporters + 环境发 evidence。全量：build/lint/depcruise/typecheck:examples/test（765）全绿。CLI 注入与 hello 提示移到 P3。
 - P3 完成：RunState（core）、render / StickyTerminal / runWithProgress（cli）、quiesco test 接入（--no-progress、QUIESCO_PROGRESS=0、CI 关闭；cucumber formatter 注入；hello 提示）。实跑 todo-app web 三 runner + cucumber 并行全部正确。修了 0 列伪终端、Jest success 两个 bug。全量 787 tests 绿。
 - P4 完成：TestList 协议、三个 `@quiesco/<runner>/list` 入口、core listTests、`quiesco list` 命令；24 测试；todo-app 实跑列出 cucumber 90 / vitest 7 / jest 7，报告文件未被覆盖。全量 800 tests 绿。
+- P6 设计先行：ui-ux-pro-max 生成设计系统 + 针对性检索，设计说明草案写入 findings，待 HU 确认。
+- HU 选定双栏 + 顶部进度条带布局，要求先看视觉稿。已发布可交互视觉稿（私有）：https://claude.ai/artifact/2mf3Y9aHqyhxoEd4Wfo7iy （主题切换、过滤、选中、详情 4 个标签页、搜索）。等 HU 反馈后进入实现。
+- HU 反馈「UI 太老气，不够现代化」→ 用 ui-ux-pro-max 重新检索（style: Dark Mode (OLED)、Soft UI Evolution；typography: Tech Startup、Friendly SaaS），视觉稿替换为两个方向：A 现代深色（Space Grotesk + DM Sans，近黑分层面板、紫罗兰强调、环形进度、浅色底状态标签）、B 现代浅色（Plus Jakarta Sans，悬浮卡片 + 柔和阴影、大圆角、bento 统计卡、分段标签页）。等 HU 选择。
+- HU 选定 A · 现代深色。findings 设计说明改为定稿（token / 字体 / 结构），决定表加「UI 视觉风格」，P6 设计先行勾选。下一步 P5 服务端。
+- P5 完成：@quiesco/ui 服务端（HTTP + WS、token/Host/Origin、证据/源码接口、运行队列、取消、文件监视重列）、core RunState 快照与 run-state 子路径、`quiesco ui` 命令；todo-app 实跑三 runner 通过；修了 exports 缺 default 条件（CLI require.resolve 找不到包）与范围外 skipped 覆盖结果两个问题。全量 817 tests 绿。

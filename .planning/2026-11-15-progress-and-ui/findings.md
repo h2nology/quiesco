@@ -172,5 +172,27 @@
 - 客户端 socket 平时 `unref()`（忘记 close 也不会拖住 runner 进程），`close()` 时 `ref()` 冲刷；
   服务端 `drain(timeout)` 用于 runner 退出后等残余事件；socket 文件 chmod 0600，关闭时删除；TMPDIR 过长回退 `/tmp`。
 
+## P6 设计说明（定稿：A · 现代深色，HU 2026-11-15 选定）
+视觉稿：https://claude.ai/artifact/2mf3Y9aHqyhxoEd4Wfo7iy （Main.dc.html = A；Soft.dc.html = 未选的 B）。
+第一版草案（Swiss / Fira / 海军蓝）HU 认为「太老气」被替换。来源：ui-ux-pro-max `--domain style "modern dark developer tool"` → Dark Mode (OLED)；
+`--domain typography "modern SaaS developer tool"` → Tech Startup（Space Grotesk + DM Sans）；代码字体 JetBrains Mono；
+`--domain color "developer tool dark code"`；ux：Color Only、Keyboard Navigation、Skip Links、Progress Indicators；react：Virtualize long lists。
+树形键盘与进度播报采用 WAI-ARIA tree / progressbar（非库内结果）。
+
+- **结构**：外边距 10px，面板之间 10px 间隙，每块面板圆角 14px、1px 细边（不用整屏分割线）。
+  顶栏：Logo（紫色圆角方块）+ 项目·runner·平台胶囊 + 居中搜索框（`/` 提示）+ 连接状态（脉冲点）+ 主题 + 停止 + 全部运行。
+  进度带：大卡片（环形进度三段 + 大号 `done / total` + 用时 / 预计剩余 + 状态胶囊）+ 每个设备一张泳道卡（只在多 worker 时）。
+  主体：左测试树卡（分段过滤 + 排序 + 文件分组带计数徽标 + 行内状态圆点）、右详情卡（状态胶囊 + 位置 + 大标题 + 重跑；分段标签页 报告 / 证据(数量) / 控制台 / 源码）。
+- **Token（暗 / 亮）**：bg #09090B / #F4F4F5；surface #111114 / #FFFFFF；code #0C0C0F / #FAFAFA；chip #1C1C21 / #F1F1F3；
+  line rgba(255,255,255,.08) / rgba(9,9,11,.08)；fg #F4F4F5 / #09090B；muted #A1A1AA / #52525B；faint #71717A；
+  accent #A78BFA / #6D28D9（按钮底 #7C3AED / #6D28D9，白字）；passed #34D399 / #047857；failed #F87171 / #B91C1C；skipped #FBBF24 / #B45309；
+  各状态 soft 底 = 同色 10–14% 透明度。**默认暗色**，可切亮色，记住用户选择；跟随 `prefers-color-scheme` 作为初值。
+- **字体**：Space Grotesk（标题、数字）、DM Sans（界面 14px）、JetBrains Mono（路径、耗时、代码、日志 12–13px）；woff2 随包自带（离线可用），回退 system-ui / ui-monospace。
+- **图标**：Lucide 风格线性 SVG；状态 = 浅色底圆 + 图标，再配文字 / aria-label（不只靠颜色）。
+- **交互 / 无障碍**：键盘（ARIA tree roving tabindex，↑↓ ←→ Enter，`r` 运行，⌘/Ctrl+Enter 全部运行，⌘/Ctrl+. 停止，`/` 搜索，Esc）、
+  跳到详情链接、2px 紫色焦点环、progressbar（环形图 role=img + aria-label；另有隐藏 progressbar）、运行结束 aria-live 播报一次；
+  动效：悬停 160ms、运行中旋转、连接点脉冲，`prefers-reduced-motion` 全部静态。运行中运行按钮禁用并说明原因。
+- **性能**：树 >100 行虚拟化；WebSocket 更新按帧合并。
+
 ## 开放问题
 见 task_plan.md「待用户确认」。

@@ -8,6 +8,7 @@ import { initCommand } from './commands/init.js';
 import { listCommand } from './commands/list.js';
 import { testCommand } from './commands/test.js';
 import { treeCommand } from './commands/tree.js';
+import { uiCommand } from './commands/ui.js';
 import type { CliContext } from './context.js';
 import { defaultContext } from './context.js';
 
@@ -20,6 +21,8 @@ Commands:
              ios|android   --force (also when the native inputs did not change)
   test     Run the tests with cucumber-js (or --runner jest|vitest); other arguments go to the runner unchanged
              --platform ios|android|web   --workers N (N devices in parallel)   (quiesco test --help for more)
+  ui       Open the test UI: run tests from the browser and watch them live (needs @quiesco/ui)
+             --platform ios|android|web   --runner …   --port N   --no-open
   list     List the tests the runner would run, without running them
              --runner cucumber|jest|vitest   --json
   doctor   Check the tools and the project setup
@@ -48,6 +51,8 @@ export async function main(argv: readonly string[], ctx: CliContext = defaultCon
         return await buildCommand(args, ctx);
       case 'test':
         return await testCommand(args, ctx);
+      case 'ui':
+        return await uiCommand(args, ctx);
       case 'list':
         return await listCommand(args, ctx);
       case 'doctor':

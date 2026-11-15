@@ -299,6 +299,9 @@ importers:
       '@quiesco/steps':
         specifier: workspace:*
         version: link:../../packages/steps
+      '@quiesco/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@quiesco/vitest':
         specifier: workspace:*
         version: link:../../packages/vitest
@@ -400,6 +403,22 @@ importers:
       '@cucumber/cucumber-expressions':
         specifier: 20.1.0
         version: 20.1.0
+
+  packages/ui:
+    dependencies:
+      '@quiesco/core':
+        specifier: workspace:*
+        version: link:../core
+      '@quiesco/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      ws:
+        specifier: 8.22.1
+        version: 8.22.1
+    devDependencies:
+      '@types/ws':
+        specifier: 8.18.2
+        version: 8.18.2
 
   packages/vitest:
     dependencies:

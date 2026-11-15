@@ -7,10 +7,10 @@
 3. cucumber / vitest / jest 三个 runner 全部支持；附测试、三语文档，在 examples/todo-app 上实跑验收。
 
 ## Current Phase
-P5
+P6
 
 ## Next Step
-P5 开始前先做 P6 的第一步「设计先行」（ui-ux-pro-max）给 HU 确认，因为 UI 服务的 WebSocket 消息形状取决于界面要显示什么；然后建 `@quiesco/ui` 包（服务端：HTTP + WebSocket + 运行队列 + 证据文件接口）。
+P6：在 `packages/ui/web/` 建 React + Vite 前端（构建到 `packages/ui/dist/web`），按 findings「P6 设计说明」（A · 现代深色）实现；需要新增 devDependencies（@vitejs/plugin-react、字体包、lucide-react / @tanstack/react-virtual 视需要），先确认安装方式。
 
 ## 背景
 - 前置：0.2.0 已发布（`.planning/2026-11-14-issues-0-2/`）。
@@ -30,6 +30,8 @@ P5 开始前先做 P6 的第一步「设计先行」（ui-ux-pro-max）给 HU �
 | UI 包 | 独立 `@quiesco/ui`（服务 + React 产物），`quiesco ui` 动态加载，未安装时提示 | CLI 保持轻量 |
 | UI v1 范围 | 必做（测试树、运行全部 / 文件 / suite / 单个、实时进度条、错误详情）+ 证据面板 + 搜索 / 过滤 / 排序 + Console 与只读源码 + 设备 / worker 泳道；不做：快照、模块图、覆盖率、可编辑源码、watch 自动重跑 | HU 选择 |
 | 版本 | 全部完成并三端验收后一起发 0.3.0 | HU 选择 |
+| UI 布局 | 双栏（左测试树、右详情标签页）+ 顶部进度条带，设备泳道只在多 worker 时出现 | HU 选择；视觉稿 https://claude.ai/artifact/2mf3Y9aHqyhxoEd4Wfo7iy |
+| UI 视觉风格 | A · 现代深色（Dark Mode/OLED；Space Grotesk + DM Sans + JetBrains Mono；紫罗兰强调；环形进度；圆角分层面板），默认暗色可切亮色；token 见 findings「P6 设计说明」 | HU 选择（第一版 Swiss 风被否：太老气） |
 
 ## 架构草案
 ```
@@ -95,18 +97,21 @@ CLI (quiesco ui)    ── 事件 → WebSocket → 浏览器 (React)
 **Status:** complete
 
 ### P5 UI 服务 `quiesco ui`
-- [ ] 命令：`quiesco ui --platform … [--runner …] [--port] [--open]`；只监听 127.0.0.1
-- [ ] 常驻 Metro（复用 `ensureDevServer`），退出时清理
-- [ ] HTTP 静态资源 + WebSocket；命令：list / run(全部|文件|测试 ids) / cancel；事件转发
-- [ ] 运行队列：同一时间只跑一次（一个 session / 设备），运行中点击给出提示或排队
-- [ ] 证据文件接口（限制在 artifacts 目录，防路径穿越）
-- [ ] 新包 `@quiesco/ui`：`quiesco ui` 动态加载，未安装时提示 `npm i -D @quiesco/ui`
-- [ ] 测试树：启动时 `listTests()`，测试文件变化时重新列出；运行结果按 id 合并（Vitest `.each` 静态项在该文件跑过后由真实结果替换）
-- [ ] 运行选中项：cucumber `path:line`（配置有 `paths` 时的处理）、vitest `file:line`（`.each` 单例加 `-t`）、jest `--runTestsByPath file -t '^…$'`
-**Status:** in_progress
+- [x] 新包 `packages/ui`（`@quiesco/ui`，依赖 core / protocol / ws 8.22.1）；CLI 用 `resolveFrom` 动态加载，未安装时提示 `npm i -D @quiesco/ui`
+- [x] 命令 `quiesco ui [--platform] [--runner] [--workers] [--port] [--no-open] [runner 参数]`；只监听 127.0.0.1；交互终端才自动开浏览器
+- [x] 安全：随机 token（URL → HttpOnly SameSite=Strict cookie）、Host / Origin 校验（防 DNS rebinding）、CSP、nosniff；证据只读 artifacts 目录内（realpath 防穿越），源码只读已列出的测试文件，非媒体一律 text/plain
+- [x] WebSocket `/ws`：welcome（信息 + 列表 + RunState 快照 + 运行中 + 已有输出）→ list / event / run / output / notice；客户端 run(all|file|tests) / cancel / list
+- [x] core：`RunState.snapshot()` / `fromSnapshot()`，浏览器可用的子路径 `@quiesco/core/run-state`
+- [x] 运行：同一时间一次（忙时 notice）；`targetArgs`（cucumber `file:l1:l2`、vitest `file:line`、jest `--runTestsByPath` + 转义锚定 `-t`）；以 `quiesco test` 同样的方式起 runner（runner 命令、workers、cucumber formatter、用户参数，目标放最后）；进程组 SIGINT 停止，10 s 后 SIGKILL
+- [x] 运行指定测试时，丢弃范围外测试被 Vitest / Jest 过滤报成的 skipped，总数改为选中数（实跑发现）
+- [x] Metro 在 UI 存续期间保持；测试文件所在目录变化 → 去抖后重新列出（运行中排队）
+- [x] 测试：targets 5、服务端 10（含真实子进程、取消、中途连接、安全）、CLI ui 6、RunState 快照 1
+- [x] 实跑（todo-app web，脚本客户端）：cucumber 90 个列出、选一个运行通过；vitest / jest 选一个运行通过，范围外不再被标 skipped
+- [ ] 已知限制：cucumber 配置里有 `paths` 时，命令行路径是追加而非替换（cucumber-js 行为），会多跑；文档写明
+**Status:** complete
 
 ### P6 UI 前端（React + Vite）
-- [ ] **设计先行**：用 `ui-ux-pro-max` 插件（skill `ui-ux-pro-max:ui-ux-pro-max`，必要时配合 `ui-ux-pro-max:design-system` 定 token）
+- [x] **设计先行**（A · 现代深色定稿）：用 `ui-ux-pro-max` 插件（skill `ui-ux-pro-max:ui-ux-pro-max`，必要时配合 `ui-ux-pro-max:design-system` 定 token）
       做 UI/UX 设计：信息架构、布局、配色（亮 / 暗主题）、字体、状态色（通过 / 失败 / 跳过 / 运行中）、图标、交互与无障碍；
       产出设计说明写进 findings.md，并给 HU 确认后再实现
 - [ ] 按设计实现（React + Vite stack 规范以 ui-ux-pro-max 的建议为准），实现后用该插件做一次 UI 审查
@@ -115,7 +120,7 @@ CLI (quiesco ui)    ── 事件 → WebSocket → 浏览器 (React)
 - [ ] 右侧详情：错误信息与堆栈、cucumber 步骤、耗时、证据（截图、元素树、空闲状态、日志）
 - [ ] 断线重连；运行中刷新页面能恢复当前状态
 - [ ] 组件测试 + 一个 Playwright 端到端冒烟（打开 UI、点运行、看到结果）
-**Status:** pending
+**Status:** in_progress
 
 ### P7 文档与验收
 - [ ] 三语文档：`cli.mdx`（`--no-progress`、`quiesco ui`），新增 UI 页面；README 提及

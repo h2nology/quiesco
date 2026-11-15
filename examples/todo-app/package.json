@@ -39,6 +39,7 @@
     "@quiesco/expo-plugin": "workspace:*",
     "@quiesco/jest": "workspace:*",
     "@quiesco/steps": "workspace:*",
+    "@quiesco/ui": "workspace:*",
     "@quiesco/vitest": "workspace:*",
     "@quiesco/web": "workspace:*",
     "@types/react": "~19.3.0",
