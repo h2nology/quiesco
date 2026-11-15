@@ -4,10 +4,10 @@
 解决 h2nology/quiesco 的 7 个 open issue（同一位用户在 Expo SDK 58 默认模板 + cucumber 项目上的实测反馈）。每个修复都附测试和三语文档，实跑验收后回复并关闭 issue，最后与 #16 的 Jest 列表排序修复一起发下一个版本。
 
 ## Current Phase
-J.D 完成，待提交 / PR
+J.E 验收完成，待 HU 确认合并与发布
 
 ## Next Step
-HU 确认后提交 J.D 并开 PR（叠在 #26 上），然后开始 J.E（集成分支三端全套验收、发布 0.4.0、回复并关闭 issue）。
+HU 确认后：依次合并 #24→#27、版本 0.4.0 + release:check、npm 发布（需 HU npm login / OTP）、tag v0.4.0 + GitHub Release、回复并关闭 #17–#23。
 
 ## 背景
 - 前置：0.3.0 已发布；#16（Jest 列表排序）已合并、未发布（`.planning/2026-11-15-progress-and-ui/`）。
@@ -100,8 +100,8 @@ HU 确认后提交 J.D 并开 PR（叠在 #26 上），然后开始 J.E（集成
 - **Status:** complete（2026-11-15；分支 `fix/date-picker` 叠在 `fix/diagnostics` 上，未提交）
 
 ### J.E 集成验收与发布
-- [ ] 集成分支上示例 App 全套 web / iOS / Android（长跑用 caffeinate）
-- [ ] `pnpm check`、`docs:check`、`check:prod-strip`（J.A 改了 native 包）
+- [x] 集成分支（`fix/date-picker` HEAD）示例 App 全套：web 79 passed / 13 skipped；iOS 86 / 6；Android 86 / 6；0 失败。默认模板冒烟（tarball，quick start web）1/1
+- [x] `pnpm check`（840）、`docs:check` 通过；prod-strip：本地需 --allow-clean 未跑，CI prod-strip workflow 在 #24、#27 上 web / android / ios 全部 success
 - [ ] PR 合并；按 docs/releasing.md 发 0.4.0（D7）；逐个回复并关闭 #17–#23
 - **Status:** pending
 
@@ -122,4 +122,5 @@ HU 确认后提交 J.D 并开 PR（叠在 #26 上），然后开始 J.E（集成
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
+| 本地 `pnpm check:prod-strip` exit 2：会 `expo prebuild --clean` 删除 dev client 构建，要求 `--allow-clean` | 1 | 不删本地构建；用 CI prod-strip workflow（#24 通过，#27 运行中） |
 | 文档编辑脚本里的条件替换误删了 zh/troubleshooting.mdx 的 `## 仍然无法解决` 标题 | 1 | git checkout 恢复该文件后重新编辑；之后的替换都用 assert count==1 |

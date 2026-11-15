@@ -40,3 +40,15 @@
 - 查证 datetimepicker Android 源码的合并规则；新 date-value 模块；setValue 合并 + 字符串；picker 值 = 显示的本地字符串；expectValue 支持 Date。
 - 示例 App 加截止日期 / 时间；values.feature：web 11/11、iOS 11/11、Android 10 + 1 skip。
 - `pnpm check` exit 0（840 tests）。
+
+## 2026-11-15 会话 1（续）：J.D 提交、J.E
+- J.D 提交，PR #27（base fix/diagnostics）。集成分支 = `fix/date-picker` HEAD（含 #24–#27 + main）。
+- PR #24 CI：check / web / android 通过，ios 进行中（查看时）。
+- web 全套：92 scenarios（79 passed, 13 skipped），0 失败。
+- 冒烟：全新默认模板（expo-router，pnpm）+ 本分支 tarball：init（index.ts、tsconfig、pnpm-workspace.yaml overrides）⇒ doctor 缺 QuiescoRoot ❌ ⇒ 按 quick start 包裹 / testID / glow ignore ⇒ doctor ✅ ⇒ `npm run e2e:web` 1/1。模板自带 3 个 tsc 错误（未改动的模板同样有，与本次无关）。
+- iOS 全套：后台运行中。
+- iOS 全套：92 scenarios（86 passed, 6 skipped），0 失败。Android 全套：后台运行中。
+- Android 全套：92 scenarios（86 passed, 6 skipped），0 失败。check:prod-strip：后台运行中。
+- 本地 `check:prod-strip` 拒绝运行（exit 2）：需要 `expo prebuild --clean`，会删掉示例 App 的 ios/ android/ dev client 构建，要求 `--allow-clean`。未加；改用 CI 的 prod-strip workflow（PR 上的 android / ios / web 检查）：#24 全部通过；#27（含全部改动）运行中。
+- #27 CI 全部通过：prod-strip（web / android / ios）success，check ×2 pass。验收完成，等待 HU 确认合并与发布。
+- 合并 #24→#25→#26→#27（merge commit）。版本 0.4.0：release:check 通过（840 tests；12 packages at 0.4.0），提交 f63355b 并推送 main。
