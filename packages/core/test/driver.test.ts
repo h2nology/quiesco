@@ -88,6 +88,29 @@ describe('Driver', () => {
     expect(agent.requests.map((r) => r.method)).toEqual(['action', 'waitForIdle', 'action', 'waitForIdle']);
   });
 
+  it('goBack: hands goBack to the provider and fails when the route did not change (issue #4)', async () => {
+    const routes = ['/todos/new', '/todos', '/todos', '/todos'];
+    const { driver, agent, provider } = await setup((m) => {
+      if (m === 'route') return { route: routes.shift() ?? null };
+      if (m === 'action') return { hostInput: { kind: 'goBack' } };
+      return { waitedMs: 3 };
+    });
+    await driver.goBack();
+    expect(provider.inputs).toEqual([{ kind: 'goBack' }]);
+    expect(agent.requests.map((r) => r.method)).toEqual(['route', 'action', 'waitForIdle', 'route']);
+    await expect(driver.goBack()).rejects.toMatchObject({ errorName: 'ASSERTION_FAILED', message: expect.stringMatching(/^goBack did not leave \/todos/) });
+  });
+
+  it('goBack without a route (no Expo Router) does not check it', async () => {
+    const { driver, provider } = await setup((m) => {
+      if (m === 'route') return { route: null };
+      if (m === 'action') return { hostInput: { kind: 'goBack' } };
+      return { waitedMs: 3 };
+    });
+    await driver.goBack();
+    expect(provider.inputs).toEqual([{ kind: 'goBack' }]);
+  });
+
   it('an action whose tap opens a JS dialog returns once the dialog is up, without waiting for idle', async () => {
     const provider = new DialogProvider();
     provider.opensDialog = true;

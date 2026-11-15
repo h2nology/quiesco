@@ -929,6 +929,7 @@ export class AndroidProvider implements DeviceProvider {
   async injectInput(input: HostInput): Promise<void> {
     switch (input.kind) {
       case 'back':
+      case 'goBack':
         await this.shell('input keyevent KEYCODE_BACK');
         return;
       case 'navigate':

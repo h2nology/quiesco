@@ -103,6 +103,12 @@ export const GENERIC_STEPS: readonly GenericStep[] = [
     run: (app) => app.pressBack(),
   },
   {
+    name: 'goBack',
+    expressions: { zh: '返回上一页', ja: '前の画面に戻る', en: 'I go back' },
+    examples: { zh: '返回上一页', ja: '前の画面に戻る', en: 'I go back' },
+    run: (app) => app.goBack(),
+  },
+  {
     name: 'openUrl',
     expressions: { zh: '打开链接 {string}', ja: 'リンク {string} を開く', en: 'I open the link {string}' },
     examples: { zh: '打开链接 "myapp://todos"', ja: 'リンク "myapp://todos" を開く', en: 'I open the link "myapp://todos"' },

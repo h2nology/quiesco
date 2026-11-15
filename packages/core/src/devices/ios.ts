@@ -34,7 +34,7 @@ import type { Exec } from './exec.js';
 import { execCommand } from './exec.js';
 import { LogBuffer, exited, spawnProcess } from './streams.js';
 import type { ChildLike, SpawnProcess } from './streams.js';
-import { IosSystemRunner, PERMISSION_ALLOW, PERMISSION_DENY, dismissButton, screenNodes } from './ios-runner.js';
+import { IosSystemRunner, PERMISSION_ALLOW, PERMISSION_DENY, backButton, dismissButton, screenNodes } from './ios-runner.js';
 import type { Permission } from './permissions.js';
 import { SERIAL_WORKER } from './provider.js';
 import type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions, SystemNode, WorkerInfo } from './provider.js';
@@ -138,7 +138,7 @@ export interface IosProviderOptions {
 }
 
 /** What IosProvider uses of IosSystemRunner. */
-export type SystemRunnerLike = Pick<IosSystemRunner, 'running' | 'screen' | 'tap' | 'openNotificationCenter' | 'stop'>;
+export type SystemRunnerLike = Pick<IosSystemRunner, 'running' | 'screen' | 'tap' | 'openNotificationCenter' | 'stop'> & Partial<Pick<IosSystemRunner, 'navigationBar' | 'edgeSwipeBack'>>;
 
 /** `27.0` / `iOS 27.0` / `27` → does the runtime identifier match? */
 export function runtimeMatches(runtime: string, version: string): boolean {
@@ -688,6 +688,23 @@ export class IosProvider implements DeviceProvider {
   }
 
   /**
+   * `app.goBack()` on iOS (issue #4), as a user would: tap the navigation bar's back button when the app
+   * shows one, else the edge swipe from the left (interactive pop). Through the XCUITest runner, which sees
+   * the app's native navigation bar (the agent cannot: it is not a React element).
+   */
+  async goBack(): Promise<void> {
+    const runner = this.runner;
+    if (runner.navigationBar === undefined || runner.edgeSwipeBack === undefined) throw new Error('the iOS system UI runner cannot go back');
+    const back = backButton(await runner.navigationBar(this.bundleId));
+    if (back !== null) {
+      const [x = 0, y = 0, w = 0, h = 0] = back.frame;
+      await runner.tap(x + w / 2, y + h / 2);
+      return;
+    }
+    await runner.edgeSwipeBack();
+  }
+
+  /**
    * Tap the notification titled `title`: its banner while it is shown, else in Notification Center
    * (swiped down from the top edge). Banners read "<time>, <title>, <body>".
    */
@@ -833,8 +850,11 @@ export class IosProvider implements DeviceProvider {
         throw new QuiescoError('ACTION_NOT_SUPPORTED', 'pressBack is not available on iOS: there is no system back button', {
           action: 'pressBack',
           platform: 'ios',
-          hint: 'tap the app\'s own back control instead (e.g. the navigation bar back button), or tag the scenario @android',
+          hint: 'use app.goBack(): the navigation bar back button, else the edge swipe',
         });
+      case 'goBack':
+        await this.goBack();
+        return;
       case 'navigate':
         throw new QuiescoError(
           'ACTION_NOT_SUPPORTED',

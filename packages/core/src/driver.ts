@@ -9,10 +9,14 @@ import type {
   AgentEvents,
   AgentMethods,
   AssertionSpec,
+  BackdoorParams,
+  BackdoorResult,
+  Backdoors,
   ControlValue,
   Direction,
   Edge,
   ElementSummary,
+  JsonCompatible,
   JsonValue,
   KeyName,
   ParamsOf,
@@ -208,6 +212,23 @@ export class Driver {
   }
   async pressBack(opts?: ActionOptions): Promise<void> {
     await this.action({ type: 'pressBack' }, opts);
+  }
+  /**
+   * Go back as a user would (issue #4): Android back, browser back on the web, and on iOS the navigation
+   * bar's back button, else the edge swipe. In Expo Router apps it fails when the route did not change.
+   */
+  async goBack(opts?: ActionOptions): Promise<void> {
+    const before = await this.currentRoute();
+    await this.action({ type: 'goBack' }, opts);
+    if (before === null || opts?.sync === false) return;
+    const after = await this.currentRoute();
+    if (after === before) {
+      throw new QuiescoError('ASSERTION_FAILED', `goBack did not leave ${before}: there is no screen to go back to here, or the back button / swipe was not handled (e.g. gestureEnabled: false without a back button)`, {
+        expected: `a route other than ${before}`,
+        actual: after,
+        elements: [],
+      });
+    }
   }
   async openUrl(url: string, opts?: ActionOptions): Promise<void> {
     await this.action({ type: 'openUrl', url }, opts);
@@ -410,12 +431,22 @@ export class Driver {
     return (await this.call('getIdleState', {})).trackers;
   }
 
-  async backdoor<T extends JsonValue = JsonValue>(name: string, ...args: JsonValue[]): Promise<T> {
+  /**
+   * Call a backdoor the app registered (`quiesco.backdoor`). With a `Backdoors` declaration (issue #6) the
+   * name, the arguments and the result are checked against it; without one, the arguments only need to be
+   * JSON-compatible (interfaces included) and the result is `T`.
+   */
+  async backdoor<K extends keyof Backdoors>(name: K, ...args: BackdoorParams<K>): Promise<BackdoorResult<K, never>>;
+  async backdoor<T = JsonValue, const A extends readonly unknown[] = readonly unknown[]>(
+    name: [keyof Backdoors] extends [never] ? string : never,
+    ...args: A & { readonly [I in keyof A]: JsonCompatible<A[I]> }
+  ): Promise<T>;
+  async backdoor(name: string, ...args: readonly unknown[]): Promise<unknown> {
     const bad = findNonJson(args, '$args');
     if (bad !== null) {
       throw new QuiescoError('NOT_SERIALIZABLE', `Backdoor "${name}" argument at ${bad.path} is not JSON (${bad.reason})`, { where: 'args', path: bad.path });
     }
-    return (await this.call('backdoor', { name, args })).value as T;
+    return (await this.call('backdoor', { name, args: args as JsonValue[] })).value;
   }
 
   /** Soft reset (storage, onReset hooks, remount, wait for idle). Returns its duration in ms. */

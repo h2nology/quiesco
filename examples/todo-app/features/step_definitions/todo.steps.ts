@@ -73,6 +73,11 @@ Then('App 可以直接使用位置信息', async function (this: QuiescoWorld) {
 
 // ---- form state (Phase 6.1: focus, enabled, checked, value, semantic type) ----
 
+// The same step on every platform: no platform branch (issue #4).
+When('返回上一页', async function (this: QuiescoWorld) {
+  await this.app.goBack();
+});
+
 When('打开新建待办页面', async function (this: QuiescoWorld) {
   await this.app.tap({ id: 'add-todo' });
 });

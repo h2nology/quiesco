@@ -295,6 +295,7 @@ export class WebProvider implements DeviceProvider {
         await page.goto(new URL(input.url, this.baseUrl ?? undefined).href);
         return;
       case 'back':
+      case 'goBack':
         await page.goBack();
         return;
     }

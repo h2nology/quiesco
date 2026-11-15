@@ -485,6 +485,14 @@ export class AgentRuntime {
   private async action(spec: ActionSpec, mode: ParamsOf<AgentMethods['action']>['mode'], opts: SyncOption): Promise<ResultOf<AgentMethods['action']>> {
     // Device-level actions are performed by the host's DeviceProvider (adb / simctl / Playwright).
     if (spec.type === 'pressBack') return { hostInput: { kind: 'back' } };
+    if (spec.type === 'goBack') {
+      // A user closes the keyboard first: on Android the first back press would only close it.
+      if (this.deps.keyboardFrame() !== null) {
+        this.deps.dismissKeyboard();
+        await this.syncIfNeeded(opts);
+      }
+      return { hostInput: { kind: 'goBack' } };
+    }
     if (spec.type === 'openUrl') return this.openUrl(spec.url, opts);
 
     const timeoutMs = this.timeout(opts);

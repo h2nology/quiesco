@@ -14,6 +14,7 @@ description: "iOS、Android 和 Web 并列对比：输入、权限、系统弹�
 | 文本输入 | `insertText` | `InputConnection.commitText`（任何语言，一次性写入） | Playwright 键盘 |
 | 没有 `@quiesco/native` 时 | 只有 `js` 模式（此时为默认）；`openUrl` 不可用 | 只有 `js` 模式（此时为默认） | 始终是真实输入 |
 | `pressBack()` | 不可用（`ACTION_NOT_SUPPORTED`） | 返回键 | 浏览器后退 |
+| `goBack()` | 导航栏返回按钮，没有时从左边缘右滑 | 返回键 | 浏览器后退 |
 | 在某个坐标 `tap`、`drag`、`pressKey`（native 模式） | 需要用 `@quiesco/native` ≥ Phase 6.2 构建的 App（`gesture`、`pressKey`）；较旧的构建会得到 `ACTION_NOT_SUPPORTED` 并提示重新构建 | 同左 | 通过 Playwright 进行真实输入 |
 | `drag` | 真实触摸；在 iOS 26 上，内容区域内向右滑动还会返回上一屏（在需要向右拖动内容的屏幕上关闭返回手势） | 真实触摸 | 鼠标拖动；指针下的文本必须不可选中（一旦选中文本，Web responder 手势就会结束） |
 | `openUrl()` | 在 App 内打开（无系统确认） | `am start` | 页面导航 |

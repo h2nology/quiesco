@@ -14,6 +14,7 @@ description: "iOS、Android、Webの比較：入力、権限、システムダ�
 | テキスト入力 | `insertText` | `InputConnection.commitText`（どの言語でも、一度に書き込む） | Playwrightのキーボード |
 | `@quiesco/native`なしの場合 | `js`モードのみ（その場合のデフォルト）。`openUrl`は使えない | `js`モードのみ（その場合のデフォルト） | 常に実際の入力 |
 | `pressBack()` | 使えない（`ACTION_NOT_SUPPORTED`） | 戻るキー | ブラウザの戻る |
+| `goBack()` | ナビゲーションバーの戻るボタン、なければ左端からのスワイプ | 戻るキー | ブラウザの戻る |
 | 座標指定の`tap`、`drag`、`pressKey`（nativeモード） | `@quiesco/native` ≥ Phase 6.2でビルドしたアプリが必要（`gesture`、`pressKey`）。それより古いビルドでは、再ビルドを促すメッセージ付きで`ACTION_NOT_SUPPORTED` | 同じ | Playwrightによる実際の入力 |
 | `drag` | 実際のタッチ。iOS 26では、コンテンツ内で右方向にスワイプすると画面も戻ってしまう（コンテンツを右にドラッグする画面では、戻るジェスチャーをオフにする） | 実際のタッチ | マウスでのドラッグ。ポインター下のテキストは選択できないようにしておく必要がある（選択が起きるとWebのresponderジェスチャーが終わる） |
 | `openUrl()` | アプリ内で開く（システムの確認なし） | `am start` | ページ遷移 |

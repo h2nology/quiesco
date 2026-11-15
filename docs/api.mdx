@@ -44,6 +44,7 @@ All calls take an optional last argument:
 | `drag(target, to, { holdMs, speed })` | Press and hold the element (default 800 ms), move to the center of `to` (an element) or to `{ point }` (window coordinates), release |
 | `tapAt({ x, y })` / `longPressAt({ x, y }, { durationMs })` | Touch a point of the screen (window coordinates), whatever is there |
 | `pressBack()` | Android back button; browser back on the web; not available on iOS |
+| `goBack()` | Back to the previous screen as a user would, on every platform: Android back (the keyboard is closed first), browser back, on iOS the navigation bar's back button, else the edge swipe (through the system UI runner). In Expo Router apps it fails when the route did not change |
 | `openUrl(url)` | Open a deep link (in the app on iOS, `am start` on Android, the address bar on the web) |
 | `dismissKeyboard()` | Hide the software keyboard |
 | `setValue(target, value)` | Set a value control: slider (number), switch / checkbox (boolean), picker (an item's value or label), segmented control (a segment's value or index), date / time picker or date input (`Date`). See [Value controls](#value-controls) |
@@ -177,7 +178,7 @@ with `.not`. A negated single-element assertion (`not.toHaveText`, ...) still ne
 | `getTree()` | The element tree as JSON, with semantic types (also attached to failed scenarios) |
 | `waitForIdle({ timeoutMs })` | Waits until idle; resolves with the time it took |
 | `getIdleState()` | Every tracker's state — what is busy right now |
-| `backdoor(name, ...args)` | Calls a backdoor registered in the app; arguments and result are JSON |
+| `backdoor(name, ...args)` | Calls a backdoor registered in the app; arguments and result are JSON (interfaces are fine). Typed by name with a `Backdoors` declaration ([Typed backdoors](#typed-backdoors)) |
 | `reset()` | Soft reset (Quiesco does this before every scenario) |
 
 An element summary has `type` (host component), `semanticType`, `testID`, `text`, `label`, `role`,
@@ -480,6 +481,27 @@ up. The reset then checks that the app is on the route the first reset of the ru
 not (the app navigated away on mount from state the reset did not clear), the reset fails with
 `RESET_FAILED` naming both routes. Clear that state in `onReset`, or tag the scenario `@hard-reset`. For
 apps without Expo Router, `reset.expectVisible` in the config does the same check with an element.
+
+### Typed backdoors {#typed-backdoors}
+
+Declare the backdoors once, in a file both the app and the tests
+compile, and both sides are checked against it: `quiesco.backdoor(name, fn)` takes only declared names
+with a matching function (async or not), and `this.app.backdoor(name, ...args)` checks the name, the
+arguments and the result (`null` for a backdoor that returns nothing). Without a declaration, any name
+works and the arguments only need to be JSON-compatible.
+
+```ts
+// src/backdoors.ts: compiled by the app and by the tests
+declare module '@quiesco/agent' {
+  interface Backdoors {
+    'students.set': (list: Student[]) => void;
+    'students.get': (id: string) => Student | null;
+  }
+}
+```
+
+A name that is only known at run time (e.g. from the feature text) is narrowed with
+`name as keyof Backdoors` (`import type { Backdoors } from '@quiesco/core'`).
 
 ## Configuration {#configuration}
 

@@ -76,6 +76,8 @@ export type ActionSpec =
    */
   | { type: 'multiTouch'; matcher?: Matcher; fingers: TimedPoint[][] }
   | { type: 'pressBack' }
+  /** What a user does to go back (issue #4): Android back, browser back, iOS back button or edge swipe. */
+  | { type: 'goBack' }
   | { type: 'openUrl'; url: string }
   | { type: 'dismissKeyboard' };
 
@@ -104,4 +106,5 @@ export type HostInput =
   /** Set the value of the `<input>` at (x, y) as a user would (Playwright fill: date / time inputs). */
   | { kind: 'fill'; x: number; y: number; value: string }
   | { kind: 'navigate'; url: string }
-  | { kind: 'back' };
+  | { kind: 'back' }
+  | { kind: 'goBack' };

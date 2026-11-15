@@ -1,5 +1,7 @@
 /** Public app-side API (requirements.md §6.5, §6.6). Shared by index.ts and the production stub. */
-import type { JsonValue } from '@quiesco/protocol';
+import type { BackdoorImpl, BackdoorName, JsonValue } from '@quiesco/protocol';
+
+export type { Backdoors } from '@quiesco/protocol';
 
 /** A backdoor: test-only function the host can call. Arguments and result must be JSON-serializable. */
 export type Backdoor = (...args: never[]) => unknown;
@@ -11,8 +13,11 @@ export interface StorageAdapter {
 }
 
 export interface QuiescoApi {
-  /** Register a backdoor under `name` (re-registering replaces it). Returns an unregister function. */
-  backdoor(name: string, fn: Backdoor): () => void;
+  /**
+   * Register a backdoor under `name` (re-registering replaces it). Returns an unregister function. With a
+   * `Backdoors` declaration (issue #6), only declared names, with their declared function type.
+   */
+  backdoor<K extends BackdoorName>(name: K, fn: BackdoorImpl<K>): () => void;
   /** Hook run on every soft reset, after storage is cleared and before the app remounts. */
   onReset(hook: () => void | Promise<void>): () => void;
   /** Extra store to clear on soft reset. AsyncStorage (native) / web storage are cleared built-in. */
