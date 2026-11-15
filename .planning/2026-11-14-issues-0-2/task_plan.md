@@ -3,8 +3,11 @@
 ## Goal
 逐个解决 h2nology/quiesco 的 9 个 open issue（均来自同一位用户在 Expo SDK 58 + expo-router + cucumber 项目上的实测反馈），每个修复附测试与文档，用实跑验收后关闭 issue，最后发一个新版本。
 
+## Current Phase
+I.F
+
 ## Next Step
-I.A–I.E 的 PR（#10–#14）等 HU review / merge（#11→#12→#13→#14 依次叠加）。之后 I.F：合并后在 main 上 pnpm check、tarball 装进全新 create-expo-app（含 expo-router）按 issue 复现步骤三端验证、给每个 issue 写回复（先给 HU 看）、版本 0.2.0、HU publish + tag。
+I.F 验收已在本地集成分支 `integration/0.2.0` 上完成（三端全过）。等 HU：看 replies.md、决定验收修复（03c83f6、2f22416）怎么进 PR、merge #10–#14；然后 main 上提交 0.2.0、release:check、贴回复、publish + tag。
 
 ## 背景
 - 前置：npm 0.1.1 已发布（tag v0.1.1，`.planning/2026-11-14-release/`）。
@@ -84,11 +87,14 @@ I.A–I.E 的 PR（#10–#14）等 HU review / merge（#11→#12→#13→#14 依
 - **Status:** complete（2026-11-15；PR 待 merge，叠在 I.D 上）
 
 ### I.F 验收与发布
-- [ ] `pnpm check` / `release:check` 全过
-- [ ] tarball 装进全新 create-expo-app（含 expo-router），三端按 issue 里的复现步骤逐个验证
-- [ ] 每个 issue 回复修复说明并关闭（回复内容先给 HU 看）
-- [ ] 版本号按 D5，HU publish + tag
-- **Status:** pending
+- [x] `pnpm check` / `release:check` 全过（本地集成分支 `integration/0.2.0`：730 → 修复后 731）
+- [x] tarball 装进全新 create-expo-app（含 expo-router），三端按 issue 里的复现步骤逐个验证（详见 progress「I.F」）
+- [x] 验收中发现的问题已修（集成分支 2 个 commit）：#3 改 step 文件误报 stale；doctor 提示改为 quiesco build；文档补 `import type {}`
+- [ ] HU：看 replies.md；决定 2 个修复 commit 怎么进 PR；merge #10–#14
+- [ ] merge 后 main 上：版本 0.2.0 commit、release:check
+- [ ] 每个 issue 贴回复（replies.md）
+- [ ] HU publish + tag v0.2.0
+- **Status:** in_progress（验收完成，等 HU）
 
 ## 待 HU 决定
 - D1–D6 全部已定（见 Decisions Made）。

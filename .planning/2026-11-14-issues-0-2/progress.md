@@ -59,3 +59,19 @@
 - 实测：示例 App Metro 未运行时 `quiesco test --platform ios` ⇒ 自动启动、1 场景通过、结束后 8082 无监听；进程组 SIGINT ⇒ exit 130、Metro 停止；smoke `quiesco build ios` 成功（产物 08:41 更新），再次运行 0.1s 跳过；用新构建 + 自动 Metro 跑 iOS 1/1。Android build 进行中。
 - 文档：en/ja/zh native.mdx、cli.mdx（quiesco build 小节、Metro 说明）、api.mdx 配置表 devServer；README 原生部分。
 - Android：`quiesco build android` 成功（2m47s）、重跑跳过；新 APK + 自动 Metro 跑 Android 1/1。pnpm check 728 通过（第一次 lint 失败：build.test.ts 的 let ⇒ const）。
+
+### I.F 验收进行中（2026-11-15）
+- PR #10–#14 都还没 merge ⇒ 本地集成分支 `integration/0.2.0`（不 push）：feat/metro-and-build + merge fix/cli-help-and-cucumber-paths（test.ts 冲突：合并 `--` / --help 与 TestDeps / Metro；help 补 Metro 自动启动说明）。
+- `pnpm release:check` 通过（730 测试）；docs:check 通过。版本号改为 0.2.0（工作区，未提交），打 11 个 tarball 到 scratchpad `if/tgz`。
+- 全新 create-expo-app（SDK 58.0.25 / expo-router 58.0.31 / RN 0.88.1）`if/repro`，`init --packages`；复现 App 按 issue：`QuiescoRoot > Stack`，index（home / search / add-student / 学生列表）、`/students/new`（表单校验）、typed backdoors（students.set/get、debug.stick 模块状态）。
+- Web：students.feature 4/4（#1 A 停子页后 B 从首页开始、#4 goBack、#6 typed backdoor）；只跑指定文件、无 deprecation（#8）；`--help` / `-- --name`（#7）；diag.feature 消息带原因 + current route、elements.json（#2）；stuck.feature 3 次 RESET_FAILED 后提示并跳过 2 个，1.4s（#9）；一次性 export 后改 src ⇒ 警告（#3）。
+- 发现并修：① #3 改 step 文件也报 stale（扫描含 features/）⇒ 跳过测试目录 / 测试文件 / 根目录工具配置，+1 单元测试，文档 en/ja/zh troubleshooting（commit 2f22416）；② 测试端 `import '../../src/backdoors'` 在 Node 下运行失败 ⇒ 文档 api.mdx 写明用 `import type {}`；③ doctor「app build not found」提示改为 `npx quiesco build ios|android`（未提交）。
+- 坑：复现 App 用 useSyncExternalStore 未传 getServerSnapshot ⇒ web server 输出下 SSR 失败、客户端报 React #419（0.1.1 同样）⇒ App 自身问题。
+- 回复草稿：replies.md。
+- 进行中：`quiesco build ios`。
+- `quiesco build ios` 成功（无 expo-dev-client 也可），重跑 0.3s 跳过；`quiesco build android` 成功，重跑跳过。
+- iOS（iPhone 17 / iOS 27.0）：Metro 自动启动 → students 4/4（goBack 点原生导航栏返回）→ 结束后 8081 无监听；diag：#2「on a screen that is not on top … (current route: /students/new)」、#9 3 次 RESET_FAILED 后跳过 2 个；`CI=1` 手动启动的 Metro ⇒ 复用 + 「Metro was started with CI set」警告（#3）。
+- 坑：iOS 26+ 原生导航栏透明，复现 App 的 View 内容画在导航栏下 ⇒ tap 报「covered by … NavigationBarContentView」（判断正确，App 布局问题）⇒ ScrollView contentInsetAdjustmentBehavior="automatic"。
+- Android（API 37）：Metro 自动启动 → students 4/4；diag 同 iOS（#2、#9）。
+- 集成分支 `pnpm check` 731 通过；示例 App web 全套 77 passed / 13 skipped（之前 75 + go-back 2）。
+- 验收完成，等 HU（见 task_plan Next Step）。
