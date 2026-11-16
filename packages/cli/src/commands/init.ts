@@ -10,6 +10,7 @@ import path from 'node:path';
 
 import type { CliContext, CliPlatform } from '../context.js';
 import { PLATFORMS, takeFlag, takeOption } from '../context.js';
+import { MIN_EXPO_SDK, UPGRADE_SDK_FIX, expoSdk } from '../expo-sdk.js';
 import { entryFile, registeredRoot, rootSourceFiles, wrapRegisteredRoot } from '../project.js';
 import type { AppJson, InitStep, PackageJson, StepLog } from '../setup-steps.js';
 import { DEV, RUNTIME, WEB_DEV, detectPackageManager, ensureAppIds, ensureScripts, ensureTsconfig, firstScheme, installPackages, printSteps, readJson, writeJson } from '../setup-steps.js';
@@ -144,6 +145,8 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
     ctx.err(`quiesco init: ${ctx.cwd} is not an Expo project (no expo dependency in package.json).`);
     return 1;
   }
+  const sdk = expoSdk(ctx, pkg.dependencies?.['expo'] ?? pkg.devDependencies?.['expo']);
+  if (sdk !== null && sdk.sdk < MIN_EXPO_SDK) ctx.err(`quiesco init: warning: this app is on Expo SDK ${sdk.sdk} (expo ${sdk.version}). ${UPGRADE_SDK_FIX}`);
   const hasWebDeps = pkg.dependencies?.['react-native-web'] !== undefined;
   const platforms: CliPlatform[] =
     platformsOpt.value !== undefined

@@ -12,6 +12,7 @@ import { loadConfig, serverPort } from '@quiesco/core';
 
 import type { CliContext, CliPlatform } from '../context.js';
 import { PLATFORMS, parsePlatform, takeOption } from '../context.js';
+import { MIN_EXPO_SDK, UPGRADE_SDK_FIX, expoSdk } from '../expo-sdk.js';
 import { CLI_COMMANDS, installedVersion, isQuiescoPackage, scriptCommands } from '../packages.js';
 import { rootSourceFiles } from '../project.js';
 
@@ -72,17 +73,22 @@ function androidTool(ctx: CliContext, rel: string, name: string): string {
   return name;
 }
 
+function expoCheck(ctx: CliContext, pkg: PackageJson): CheckResult {
+  if (!hasDep(pkg, 'expo')) return { name: 'Expo project', status: 'fail', detail: 'expo is not a dependency', fix: 'Quiesco tests Expo apps; run it in one (npx create-expo-app).' };
+  const declared = pkg.dependencies?.['expo'] ?? pkg.devDependencies?.['expo'];
+  const sdk = expoSdk(ctx, declared);
+  if (sdk === null) return { name: 'Expo project', status: 'ok', detail: `expo ${declared ?? ''}` };
+  const detail = `expo ${sdk.version} (SDK ${sdk.sdk}${sdk.installed ? '' : ', not installed'})`;
+  return sdk.sdk >= MIN_EXPO_SDK ? { name: 'Expo project', status: 'ok', detail } : { name: 'Expo project', status: 'fail', detail, fix: UPGRADE_SDK_FIX };
+}
+
 function projectChecks(ctx: CliContext): CheckResult[] {
   const results: CheckResult[] = [];
   const pkg = readJson<PackageJson>(ctx, path.join(ctx.cwd, 'package.json'));
   if (pkg === null) {
     return [{ name: 'project', status: 'fail', detail: `no package.json in ${ctx.cwd}`, fix: 'Run quiesco in the Expo app directory.' }];
   }
-  results.push(
-    hasDep(pkg, 'expo')
-      ? { name: 'Expo project', status: 'ok', detail: `expo ${pkg.dependencies?.['expo'] ?? pkg.devDependencies?.['expo'] ?? ''}` }
-      : { name: 'Expo project', status: 'fail', detail: 'expo is not a dependency', fix: 'Quiesco tests Expo apps; run it in one (npx create-expo-app).' },
-  );
+  results.push(expoCheck(ctx, pkg));
   const missing = ['@quiesco/agent', '@quiesco/cucumber', '@cucumber/cucumber'].filter((d) => !hasDep(pkg, d));
   results.push(
     missing.length === 0
