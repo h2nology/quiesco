@@ -1,3 +1,7 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { QuiescoConfig } from '../src/config';
@@ -72,7 +76,8 @@ describe('Session', () => {
 
   it("attaches the scenario's console.errors to a failed scenario, and forgets them at the next one (issue #31)", async () => {
     const { provider, agents } = agentOnLaunch((m) => (m === 'getTree' ? { root: null } : m === 'listElements' ? { route: null, elements: [], truncated: false } : {}));
-    session = await Session.create({ config: config(), platform: 'android', provider, logger: silentLogger });
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'quiesco-artifacts-'));
+    session = await Session.create({ config: config({ artifacts: { dir } }), platform: 'android', provider, logger: silentLogger });
     await session.startScenario({ name: 'logs in' });
     agents[0]!.notify('log', { level: 'error', message: "The screen 'login' was removed natively", timestamp: 1 });
     await expect.poll(() => session!.driver.appLogErrors.length).toBe(1);
