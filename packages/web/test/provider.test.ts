@@ -32,7 +32,26 @@ const PAGE = `<!doctype html><html><body style="margin:0">
   for (const type of ['touchstart', 'touchmove', 'touchend']) {
     document.getElementById('t').addEventListener(type, (e) => touchLog.push(type + ':' + e.touches.length));
   }
+  // Like react-native-gesture-handler on the web: capture each touch pointer, count the active ones.
+  window.pointerLog = [];
+  window.pointerErrors = [];
+  const t = document.getElementById('t');
+  const active = new Set();
+  const onPointer = (e) => {
+    if (e.pointerType !== 'touch') return;
+    try {
+      if (e.type === 'pointerdown') { e.target.setPointerCapture(e.pointerId); active.add(e.pointerId); }
+      if (e.type === 'pointerup') { e.target.releasePointerCapture(e.pointerId); active.delete(e.pointerId); }
+    } catch (err) { pointerErrors.push(err.name); }
+    const last = pointerLog[pointerLog.length - 1];
+    const entry = e.type.slice(7) + ':' + active.size;
+    if (!(e.type === 'pointermove' && last === entry)) pointerLog.push(entry);
+  };
+  for (const type of ['pointerdown', 'pointermove', 'pointerup']) t.addEventListener(type, onPointer);
 </script></body></html>`;
+
+/** Pointer events of the two-finger frames below, as the page sees them (active touch pointers after each). */
+const MULTI_TOUCH_POINTERS = ['down:1', 'down:2', 'move:2', 'up:1', 'up:0'];
 
 let dir: string;
 let provider: WebProvider;
@@ -116,6 +135,8 @@ describe('WebProvider (real Chromium)', () => {
     const page = (touch as unknown as { page: { evaluate(f: string): Promise<string[]> } }).page;
     // CDP reports each changed point as its own DOM event, as a touch screen does.
     expect(await page.evaluate('touchLog')).toEqual(['touchstart:1', 'touchstart:2', 'touchmove:2', 'touchend:1', 'touchend:0']);
+    expect(await page.evaluate('pointerLog')).toEqual(MULTI_TOUCH_POINTERS);
+    expect(await page.evaluate('pointerErrors')).toEqual([]);
     await touch.shutdown();
   });
 
@@ -403,5 +424,69 @@ describe('webPathFor', () => {
     expect(webPathFor('/a/b')).toBe('/a/b');
     expect(webPathFor('https://example.com/x')).toBe('https://example.com/x');
     expect(webPathFor('relative/path')).toBe('/relative/path');
+  });
+});
+
+// Firefox and WebKit have no CDP: the same frames as synthetic events in the page (synthetic-touch.ts).
+// Requires `npx playwright install firefox webkit`.
+
+describe.each(['firefox', 'webkit'] as const)('WebProvider without CDP (real %s)', (browser) => {
+  it('plays the frames as the same touch and pointer events as Chromium, captures included', async () => {
+    const frames = [0, 1, 50, 450, 1, 150, 450, 16, 1, 60, 450, 1, 150, 450, 32, 1, 60, 450, 0, 0, 0, 48, 0, 0, 0, 0, 0, 0];
+    const touch = new WebProvider({ app: { distDir: dir }, device: { browser, viewport: { width: 390, height: 844, hasTouch: true, isMobile: browser !== 'firefox' } } });
+    await touch.boot();
+    await touch.install();
+    try {
+      await touch.launch({ port: 1, sessionId: 's' });
+      await touch.injectInput({ kind: 'touches', fingers: 2, frames });
+      const page = (touch as unknown as { page: { evaluate(f: string): Promise<unknown> } }).page;
+      expect(await page.evaluate('touchLog')).toEqual(['touchstart:1', 'touchstart:2', 'touchmove:2', 'touchend:1', 'touchend:0']);
+      expect(await page.evaluate('pointerLog')).toEqual(MULTI_TOUCH_POINTERS);
+      expect(await page.evaluate('pointerErrors')).toEqual([]);
+      // The page's own capture methods are back afterwards.
+      expect(await page.evaluate('Element.prototype.setPointerCapture.toString().includes("[native code]")')).toBe(true);
+    } finally {
+      await touch.shutdown();
+    }
+  });
+
+  it('offline: requests fail, navigator.onLine is false with offline / online events, also after a relaunch; the WebSocket keeps working', async () => {
+    const echo = new WebSocketServer({ port: 0, host: '127.0.0.1' });
+    echo.on('connection', (ws) => ws.on('message', (m) => ws.send(`echo:${String(m)}`)));
+    await new Promise((r) => echo.once('listening', r));
+    const port = (echo.address() as AddressInfo).port;
+    const p = new WebProvider({ app: { distDir: dir }, device: { browser } });
+    await p.boot();
+    await p.install();
+    const page = () => (p as unknown as { page: { evaluate<T>(f: string): Promise<T> } }).page;
+    const connect = () => page().evaluate(`new Promise((r) => { window.sock = new WebSocket('ws://localhost:${port}'); sock.onopen = r; })`);
+    const probe = () =>
+      page().evaluate<[boolean, string, string]>(`(async () => {
+        const fetched = await fetch(location.href, { cache: 'no-store' }).then(() => 'ok', () => 'failed');
+        const echoed = await new Promise((r) => { window.sock.onmessage = (e) => r(e.data); window.sock.send('ping'); });
+        return [navigator.onLine, fetched, echoed];
+      })()`);
+    try {
+      await p.launch({ port, sessionId: 's' });
+      await page().evaluate(`window.events = []; addEventListener('offline', () => events.push('offline')); addEventListener('online', () => events.push('online'));`);
+      await connect();
+      await p.setNetwork(true);
+      expect(await probe()).toEqual([false, 'failed', 'echo:ping']);
+      await p.setNetwork(false);
+      expect(await probe()).toEqual([true, 'ok', 'echo:ping']);
+      expect(await page().evaluate('events')).toEqual(['offline', 'online']);
+
+      // A relaunch while offline loads the page, then goes offline (as on Chromium).
+      await p.setNetwork(true);
+      await p.terminate({ keepData: true });
+      await p.launch({ port, sessionId: 's' });
+      await connect();
+      expect(await probe()).toEqual([false, 'failed', 'echo:ping']);
+      await p.resetDeviceState();
+      expect(await probe()).toEqual([true, 'ok', 'echo:ping']);
+    } finally {
+      await p.shutdown();
+      echo.close();
+    }
   });
 });

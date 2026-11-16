@@ -98,7 +98,8 @@ export type HostInput =
   | { kind: 'key'; key: string }
   /**
    * Several fingers (touch screens): flat frames `[tMs, down0, x0, y0, down1, x1, y1, ...]` for
-   * `fingers` fingers, played back as touch events (web: CDP Input.dispatchTouchEvent).
+   * `fingers` fingers, played back as touch events (web: CDP Input.dispatchTouchEvent on Chromium,
+   * synthetic pointer / touch events in the page on Firefox and WebKit).
    */
   | { kind: 'touches'; fingers: number; frames: number[] }
   /** Choose the option with this value in the `<select>` at (x, y) (Playwright selectOption). */

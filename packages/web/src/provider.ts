@@ -39,6 +39,7 @@ export function webPathFor(url: string): string {
 
 import { isServerExport, startExpoServer } from './expo-server.js';
 import { startStaticServer } from './static-server.js';
+import { playSyntheticTouches } from './synthetic-touch.js';
 import type { StaticServer } from './static-server.js';
 
 const BROWSERS: Record<NonNullable<WebDeviceConfig['browser']>, BrowserType> = { chromium, firefox, webkit };
@@ -49,6 +50,18 @@ const WEB_PERMISSIONS: Partial<Record<Permission, string>> = {
   location: 'geolocation',
   notifications: 'notifications',
 };
+
+/**
+ * Runs in the page (Firefox / WebKit, no CDP): `navigator.onLine` reports `onLine`, and window gets an
+ * `online` / `offline` event when that changes. Online again removes the override (the browser's own
+ * value shows through).
+ */
+export function setOnLineInPage(onLine: boolean): void {
+  const before = navigator.onLine;
+  if (onLine) delete (navigator as { onLine?: boolean }).onLine;
+  else Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false });
+  if (navigator.onLine !== before) window.dispatchEvent(new Event(navigator.onLine ? 'online' : 'offline'));
+}
 
 /** Ids of a JS dialog's parts in systemNodes(). */
 export const DIALOG_MESSAGE = 'dialog.message';
@@ -98,7 +111,7 @@ export class WebProvider implements DeviceProvider {
   private geolocation: { latitude: number; longitude: number } | null = null;
   private colorScheme: ColorScheme | null = null;
   private locale: string | null = null;
-  /** setNetwork('offline'): requests aborted, and (Chromium) `navigator.onLine` false; see applyNetwork. */
+  /** setNetwork('offline'): requests aborted and `navigator.onLine` false; see setNetwork. */
   private offline = false;
   private networkCdp: CDPSession | null = null;
   private readonly abortRoute = (route: Route): Promise<void> => route.abort('internetdisconnected');
@@ -367,6 +380,9 @@ export class WebProvider implements DeviceProvider {
    * Offline: every request of the page is aborted (`net::ERR_INTERNET_DISCONNECTED`) and, on Chromium,
    * `navigator.onLine` turns false with real `offline` and `navigator.connection` `change` events (CDP
    * `Network.overrideNetworkState`).
+   * Firefox and WebKit have no CDP: `navigator.onLine` is overridden in the page and `offline` / `online`
+   * fired on window — what NetInfo listens to there (no `navigator.connection` in those browsers). A
+   * launch while offline applies it after loading, as on Chromium.
    * Not `context.setOffline()`: it also stops Quiesco's own WebSocket (messages no longer arrive; checked
    * in Phase 6.6). Request routes do not see WebSockets, so the connection keeps working; the agent fails
    * the app's new WebSockets.
@@ -383,7 +399,7 @@ export class WebProvider implements DeviceProvider {
     if (this.offline) await ctx.route('**/*', this.abortRoute);
     else await ctx.unroute('**/*', this.abortRoute);
     if ((this.device.browser ?? 'chromium') !== 'chromium') {
-      if (this.offline) this.logger.warn(`setNetwork('offline'): ${this.device.browser ?? ''} cannot report navigator.onLine === false (Chromium only); requests fail all the same`);
+      await page.evaluate(setOnLineInPage, !this.offline).catch((e: unknown) => this.logger.debug(`navigator.onLine override: ${(e as Error).message}`));
       return;
     }
     // The override lasts while its CDP session is attached: keep it until online.
@@ -581,6 +597,11 @@ export class WebProvider implements DeviceProvider {
         platform: 'web',
         hint: 'run the scenario with a viewport that has hasTouch: true (phone / tablet), or tag it for touch platforms only',
       });
+    }
+    // Firefox / WebKit have no CDP: synthetic pointer and touch events in the page (synthetic-touch.ts).
+    if ((this.device.browser ?? 'chromium') !== 'chromium') {
+      await page.evaluate(playSyntheticTouches, { fingers, frames });
+      return;
     }
     const cdp = await page.context().newCDPSession(page);
     const stride = 1 + 3 * fingers;
