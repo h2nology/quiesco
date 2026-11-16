@@ -4,10 +4,10 @@
 Firefox、WebKit 与 Chromium 一起作为 Web 端的正式验收对象（HU 2026-11-16）：Chromium 才有的能力在其他浏览器上尽量给出替代实现，确实做不到的报 `ACTION_NOT_SUPPORTED` 并说明原因（不再漏出 Playwright 原始错误）；修掉 WebKit 下拖动类动作的 bug；新增浏览器标签；doctor / init / 文档三语写明各浏览器的支持程度；CI Web 矩阵加 Firefox、WebKit。
 
 ## Current Phase
-F.1 完成（分支 `feat/firefox-webkit`，未提交）
+F.2 完成（分支 `feat/firefox-webkit`）
 
 ## Next Step
-F.2：查 WebKit 下拖动失效（排序、滑块、快速滑动）的根因。
+F.3：WebKit 的撤销定位权限、剪贴板读写、移动端 wheel（swipe）。
 
 ## 背景
 - 原计划 `.planning/2026-11-07-quiesco/` §11-6（HU 2026-11-08）：第一版只验收 Chromium；provider 可配 `firefox` / `webkit`，但从没实跑过。`requirements.md:46`：Firefox、WebKit 尽力支持。
@@ -57,11 +57,14 @@ F.2：查 WebKit 下拖动失效（排序、滑块、快速滑动）的根因。
 - **Status:** complete
 
 ### F.2 WebKit 拖动
-- [ ] 查根因（排序、滑块），修复；单元测试
-- **Status:** pending
+- [x] 根因：WebKit 把 Playwright `mouse.move({ steps })` 的各步一口气发完（38 步 40 ms）并立刻松开，App 还没跟上最后几次移动 ⇒ 落点偏一行（findings F.2）。与长按时长、选区无关
+- [x] 修复：web drag 按 durationMs 逐步推进，到终点停 100 ms 再松开（与 agent 原生 drag 的 DROP_HOLD_MS 一致），三个浏览器统一
+- [x] 测试：provider.test 三个浏览器各 1 个（撤掉修复时三个都失败）；`pnpm check` 896 通过
+- [x] 实跑：排序 + 滑块 + actions.feature 共 7 场景，Chromium / Firefox 通过、WebKit 连续 5 次通过；全量 Chromium 79 / 13，WebKit 75 / 13 / 4 失败（都是 F.3 的项）
+- **Status:** complete
 
 ### F.3 WebKit 平台限制
-- [ ] 撤销定位权限、剪贴板、mobile wheel：逐项确认绕法或报不支持
+- [ ] 撤销定位权限、剪贴板、mobile wheel：逐项确认绕法或报不支持（web 的 swipe / scroll 走 wheel，`packages/agent/src/actions/host.ts:103`）
 - **Status:** pending
 
 ### F.4 示例、doctor / init、文档

@@ -38,3 +38,8 @@
 - 事件序列与 CDP 一致：每个按下 / 抬起的手指各一个 touchstart / touchend，移动的手指按 target 合成一个 touchmove；PointerEvent 每个手指各一个。
 - NetInfo web（`nativeModule.web.ts`）：有 `navigator.connection` 时听它的 `change`（Chromium），否则听 window `online` / `offline`，读 `navigator.onLine` ⇒ Firefox / WebKit 上在页面里覆盖 `navigator.onLine` 并派发事件即可；恢复时删除覆盖。离线时文档请求本身也被拦截（三个浏览器一样），所以不用处理「离线时重新加载」；离线重启沿用 launch 后再应用。
 - 另：示例 feature 里 `@needs-touch` / `@multi-touch` 只是说明性标签，没有配置去排除；桌面视口下双指手势失败（`ACTION_NOT_SUPPORTED`）在 Chromium 上也一样，是之前就有的情况。F.4 加浏览器标签时一并处理（如桌面视口的运行排除 `@multi-touch`）。
+
+## F.2 WebKit 拖动（2026-11-16）
+- 直接用 Playwright 拖（spike `spike-drag/`）：三个浏览器都会收到同样的 pointer / mouse 事件序列；WebKit 额外有 `selectstart` / `selectionchange`，但 RN-web 遇到 selectionchange 时会问 `onPanResponderTerminationRequest`，排序页返回 false，选区也是空的 ⇒ 不是原因。
+- 拖动中采样被拖行的 transform：Chromium 每次 `mouse.move` 等一帧（38 步约 620 ms），行跟到 104 px；WebKit 38 步在 40 ms 内发完，松开时行只到 85 px（有时更少）。排序页落点 = `round(dy / 52)` ⇒ 少于 78 px 就只移一行，正是失败时的「香蕉、苹果、樱桃…」。600 ms 第一次通过是碰巧。
+- 修复：provider 自己按时间推进每一步（`durationMs * k / steps`），终点停 100 ms 再松开。滑块（adjustSlider，300 ms、不长按）同一路径，一并修好。
