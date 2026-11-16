@@ -477,7 +477,8 @@ export default defineConfig({
 | `connectTimeoutMs` | `30000` | 起動後にアプリの接続を待つ時間 |
 | `logLevel` | `warn` | テスト出力に転送するアプリのコンソールメッセージ（`off`で無効） |
 | `tags` | 後述 | シナリオタグの名前を変える |
-| `appErrors.ignore` / `ignoreDefaults` | `[]` / `true` | ステップを失敗させず、警告をログに出すだけにするアプリのエラー |
+| `appErrors.ignore` / `ignoreDefaults` | `[]` / `true` | ステップを失敗させず、警告をログに出すだけにするアプリのエラー（失敗メッセージに示す`console.error`からも除きます） |
+| `appErrors.logBox` | `'clear'` | devビルドのReact NativeのLogBox。`'clear'`はソフトリセットのたびに消し、`'ignore'`はLogBoxの通知を一切出さず、`'keep'`はそのままにします（[LogBoxがアプリを覆う](./troubleshooting#logbox)） |
 
 プラットフォームは`QUIESCO_PLATFORM`（`ios`、`android`、`web`）または`quiesco test --platform`で決まります。設定ファイルは普通のTypeScriptなので、値を環境変数から取ることもできます。
 
@@ -495,7 +496,7 @@ export default defineConfig({
 
 ## エラー {#errors}
 
-失敗は`QuiescoError`として報告されます。`errorName`、対処法を示すメッセージ、構造化された`data`を持ちます。スタックは呼び出したコード（stepやdriverクラス）から始まり、Quiesco自身とWebSocketライブラリのフレームは含みません。
+失敗は`QuiescoError`として報告されます。`errorName`、対処法を示すメッセージ、構造化された`data`を持ちます。シナリオの中でアプリが`console.error`を出していた場合、メッセージの最後に直近の1件が付き、`data.appLogErrors`にすべてが入ります（失敗したシナリオには`app-errors.txt`としても添付されます）。これが原因であることがよくあります。スタックは呼び出したコード（stepやdriverクラス）から始まり、Quiesco自身とWebSocketライブラリのフレームは含みません。
 
 | エラー | 意味 |
 |---|---|

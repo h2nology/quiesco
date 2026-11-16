@@ -251,6 +251,7 @@ export class Session {
    */
   async startScenario(info: ScenarioInfo = {}): Promise<void> {
     this.driver.lastFailure = null;
+    this.driver.clearAppLogErrors();
     await this.artifacts.beginScenario(info.name ?? 'scenario');
   }
 
@@ -267,6 +268,9 @@ export class Session {
       if (ev.tree !== undefined) evidence.push({ data: JSON.stringify({ elementTree: ev.tree }, null, 2), mediaType: 'application/json', fileName: 'element-tree.json' });
       if (ev.idle !== undefined) evidence.push({ data: JSON.stringify({ idleState: ev.idle }, null, 2), mediaType: 'application/json', fileName: 'idle-state.json' });
       if (ev.errors.length > 0) evidence.push({ data: `Quiesco could not collect: ${ev.errors.join('; ')}`, mediaType: 'text/plain', fileName: 'evidence-errors.txt' });
+      // Issue #31: what the app logged with console.error in this scenario, oldest first.
+      const logged = this.driver.appLogErrors;
+      if (logged.length > 0) evidence.push({ data: `${logged.join('\n\n')}\n`, mediaType: 'text/plain', fileName: 'app-errors.txt' });
     }
     return this.artifacts.endScenario({ failed: result.failed, evidence });
   }

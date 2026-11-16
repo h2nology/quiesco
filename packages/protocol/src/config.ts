@@ -44,7 +44,14 @@ export interface AgentConfig {
    * older hosts.
    */
   workerIndex?: number;
+  /**
+   * React Native's LogBox in dev builds (issue #31): `clear` its logs on every soft reset, `ignore` them
+   * (no toasts at all), or `keep` them. Optional for older hosts (`keep`).
+   */
+  logBox?: LogBoxMode;
 }
+
+export type LogBoxMode = 'clear' | 'ignore' | 'keep';
 
 export interface GestureSlop {
   /** Change of the distance between two fingers before a pinch recognizer activates. */

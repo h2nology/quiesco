@@ -108,8 +108,42 @@ function blockPaths(blockList, { files, dirs }) {
   ];
 }
 
+/** The agent's own sources, also through a symlinked node_modules (pnpm). */
+const AGENT_SRC_REAL = (() => {
+  try {
+    return fs.realpathSync(AGENT_SRC);
+  } catch {
+    return AGENT_SRC;
+  }
+})();
+
 /**
- * @template {{ projectRoot?: string; resolver?: { resolveRequest?: Function | null; blockList?: RegExp | RegExp[] | null }; serializer?: { getModulesRunBeforeMainModule?: (entryFilePath: string) => string[] } }} T
+ * A stack frame in the agent's code. The agent wraps `console.*` (to forward the app's logs), so it is the
+ * top frame of every `console.error` LogBox shows (issue #31): LogBox should point at the app's line.
+ * @param {string | undefined} file
+ */
+function isAgentFrame(file) {
+  if (typeof file !== 'string' || file === '') return false;
+  return file.startsWith(AGENT_SRC + path.sep) || file.startsWith(AGENT_SRC_REAL + path.sep) || /[\\/]node_modules[\\/]@quiesco[\\/]agent[\\/]/.test(file);
+}
+
+/**
+ * Collapse the agent's frames in symbolicated stacks (LogBox's call stack and source), on top of the
+ * config's own customizeFrame (Expo's collapses React Native internals).
+ * @param {((frame: { file?: string }) => unknown) | undefined | null} upstream
+ */
+function collapseAgentFrames(upstream) {
+  /** @param {{ file?: string; lineNumber?: number; column?: number; methodName?: string }} frame */
+  return function customizeFrame(frame) {
+    const own = typeof upstream === 'function' ? upstream(frame) : undefined;
+    if (!isAgentFrame(frame.file)) return own;
+    const merge = (/** @type {unknown} */ r) => ({ ...(typeof r === 'object' && r !== null ? r : {}), collapse: true });
+    return own !== null && typeof own === 'object' && typeof (/** @type {{ then?: unknown }} */ (own).then) === 'function' ? /** @type {Promise<unknown>} */ (own).then(merge) : merge(own);
+  };
+}
+
+/**
+ * @template {{ projectRoot?: string; resolver?: { resolveRequest?: Function | null; blockList?: RegExp | RegExp[] | null }; serializer?: { getModulesRunBeforeMainModule?: (entryFilePath: string) => string[] }; symbolicator?: { customizeFrame?: ((frame: { file?: string }) => unknown) | null } }} T
  * @param {T} config Metro config (e.g. from expo/metro-config)
  * @param {{ enabled?: boolean; env?: NodeJS.ProcessEnv; projectRoot?: string; artifactsDir?: string | false }} [options]
  * @returns {T}
@@ -161,7 +195,8 @@ function withQuiesco(config, options = {}) {
     ...config,
     resolver,
     serializer: { ...config.serializer, getModulesRunBeforeMainModule },
+    symbolicator: { ...config.symbolicator, customizeFrame: collapseAgentFrames(config.symbolicator?.customizeFrame) },
   };
 }
 
-module.exports = { withQuiesco, isE2E, watchMode };
+module.exports = { withQuiesco, isE2E, watchMode, isAgentFrame };

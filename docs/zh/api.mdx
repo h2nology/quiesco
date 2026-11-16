@@ -476,7 +476,8 @@ export default defineConfig({
 | `connectTimeoutMs` | `30000` | 启动后等待 App 连接的时长 |
 | `logLevel` | `warn` | 转发到测试输出的 App 控制台消息（`off` 为关闭） |
 | `tags` | 见下文 | 重命名场景标签 |
-| `appErrors.ignore` / `ignoreDefaults` | `[]` / `true` | 只记录警告、不使步骤失败的 App 错误 |
+| `appErrors.ignore` / `ignoreDefaults` | `[]` / `true` | 只记录警告、不使步骤失败的 App 错误（失败消息列出的 `console.error` 里也不包含它们） |
+| `appErrors.logBox` | `'clear'` | dev 构建中 React Native 的 LogBox：`'clear'` 每次软重置时清除，`'ignore'` 完全不显示 LogBox 通知，`'keep'` 保持原样（[LogBox 盖住了 App](./troubleshooting#logbox)） |
 
 平台取自 `QUIESCO_PLATFORM`（`ios`、`android`、`web`）或 `quiesco test --platform`。配置文件就是普通的 TypeScript，因此配置值可以来自环境变量。
 
@@ -494,7 +495,7 @@ export default defineConfig({
 
 ## 错误 {#errors}
 
-失败均为 `QuiescoError`，带有 `errorName`、一条说明该怎么做的消息，以及结构化的 `data`。它的堆栈从发起调用的代码（你的 step 或 driver 类）开始，不包含 Quiesco 自身和 WebSocket 库的帧。
+失败均为 `QuiescoError`，带有 `errorName`、一条说明该怎么做的消息，以及结构化的 `data`。如果 App 在这个场景中输出过 `console.error`，消息最后会附上最近一条，`data.appLogErrors` 里有全部（也会作为 `app-errors.txt` 附在失败的场景上）：它往往就是原因。它的堆栈从发起调用的代码（你的 step 或 driver 类）开始，不包含 Quiesco 自身和 WebSocket 库的帧。
 
 | 错误 | 含义 |
 |---|---|

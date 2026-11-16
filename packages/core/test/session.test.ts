@@ -1,3 +1,7 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { QuiescoConfig } from '../src/config';
@@ -68,6 +72,22 @@ describe('Session', () => {
     expect(ev.tree).toBeNull();
     expect(ev.elements?.route).toBe('/students/new');
     expect(ev.errors).toEqual(['idle state: boom']);
+  });
+
+  it("attaches the scenario's console.errors to a failed scenario, and forgets them at the next one (issue #31)", async () => {
+    const { provider, agents } = agentOnLaunch((m) => (m === 'getTree' ? { root: null } : m === 'listElements' ? { route: null, elements: [], truncated: false } : {}));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'quiesco-artifacts-'));
+    session = await Session.create({ config: config({ artifacts: { dir } }), platform: 'android', provider, logger: silentLogger });
+    await session.startScenario({ name: 'logs in' });
+    agents[0]!.notify('log', { level: 'error', message: "The screen 'login' was removed natively", timestamp: 1 });
+    await expect.poll(() => session!.driver.appLogErrors.length).toBe(1);
+    const failed = await session.afterScenario({ failed: true });
+    const file = failed.attachments.find((a) => a.fileName === 'app-errors.txt');
+    expect(file?.data.toString()).toBe("The screen 'login' was removed natively\n");
+    await session.startScenario({ name: 'next' });
+    expect(session.driver.appLogErrors).toEqual([]);
+    const passed = await session.afterScenario({ failed: false });
+    expect(passed.attachments.find((a) => a.fileName === 'app-errors.txt')).toBeUndefined();
   });
 
   it('an agent without listElements (older than the host) is not an evidence error', async () => {

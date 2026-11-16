@@ -31,3 +31,11 @@
 - am start 诊断（A，临时改 config）：package 写成 com.example.app ⇒「is installed but does not open qt-new:// links」（模拟器上确实有以前测试留下的 com.example.app）；写成不存在的 com.anonymous.nothere ⇒「is not installed on emulator-5554 … npx quiesco doctor compares them」。config 已还原。
 - K.B 实测完成。下一步：等 HU 确认提交 / PR。
 - HU 确认后提交并开 PR（base fix/error-diagnostics）。K.B 完成，下一步 K.C。HU 要求以后用中文交流（已记入 memory）。
+
+## 2026-11-16 会话 1（续）：K.C
+- PR #37（K.B，base fix/error-diagnostics）。分支 `fix/logbox` 叠在上面。
+- 调研：RN 0.88 LogBox、Expo `@expo/log-box` 只换 UI（见 findings）。
+- 实现：protocol `LogBoxMode`、config `appErrors.logBox`（默认 clear）；agent `reset/logbox(.native).ts`，configure 时 ignore、软重置前 clear；Driver 收集场景内的 console.error，失败消息加一行 + `data.appLogErrors`，失败场景附 `app-errors.txt`。`pnpm check` exit 0（868 个测试）。文档三语。
+- 实测：项目 A 换成本分支的包（`init --upgrade --packages ../tgz2`），App 加 log-error / bottom 按钮，features/logbox.feature；Android 上 clear 与 keep 对照：跑着。
+- 实测：clear ⇒ 1 passed / 1 failed（失败消息带 console.error，后一个场景通过）；keep ⇒ 2 failed（后一个场景的点击被 LogBox 吃掉）。两个新发现记进 findings，等 HU 决定。
+- HU：第 2 点（LogBox 帧折叠）本阶段做，第 1 点开新 issue。实现 `collapseAgentFrames`（metro.cjs），测试 1 个；真机 keep 模式截图确认 Source = App.tsx:10:87。`pnpm check` exit 0（869 个测试）。新 issue #38。提交并开 PR。K.C 完成，下一步 K.D。

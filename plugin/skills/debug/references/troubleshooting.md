@@ -67,6 +67,16 @@ run: usually artifacts in a directory other than `artifacts/` (pass the same pat
 `withQuiesco(config, { artifactsDir })` and restart Metro), or generated files of your own (add them to
 `resolver.blockList`). In parallel runs one worker's screenshots then break another worker's taps.
 
+### LogBox covers the app {#logbox}
+
+In a dev build, an app's `console.error` opens a LogBox toast at the bottom of the screen ("Console Error",
+or the full LogBox once tapped), and taps there then fail with `ELEMENT_OBSCURED`. Quiesco clears LogBox on
+every soft reset (`appErrors.logBox: 'clear'`), so the next scenario starts without it, and the failure
+message of the scenario names the error (`The app logged a console.error in this scenario; the last: …`,
+all of them in `app-errors.txt`). Fix the error in the app; to keep LogBox from showing at all while
+testing, set `appErrors.logBox: 'ignore'` (errors still reach the failure message). LogBox's source and call stack
+start at the app's line: `withQuiesco()` collapses the frames of the agent, which forwards `console.*`.
+
 ## "… isn't responding" on Android (parallel runs) {#android-not-responding}
 
 Quiesco warns `Android showed "com.android.systemui isn't responding" over the app; Quiesco chose Wait`:
@@ -89,7 +99,8 @@ Check the app log (forwarded at `logLevel`) and the device log.
 ## `APP_ERROR` {#app-error}
 
 An uncaught error in the app fails the current step — it is usually a real bug. Known harmless framework
-reports can be ignored with `appErrors.ignore` (see [known issues](./known-issues.md)).
+reports can be ignored with `appErrors.ignore` (see [known issues](./known-issues.md)). A `console.error` does not
+fail the step; a failure later in the scenario names it ([LogBox covers the app](#logbox)).
 
 ## iOS {#ios}
 

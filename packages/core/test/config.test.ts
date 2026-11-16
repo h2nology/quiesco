@@ -25,7 +25,13 @@ describe('config', () => {
       },
       logLevel: 'info',
       workerIndex: 0,
+      logBox: 'clear',
     });
+  });
+
+  it('passes appErrors.logBox to the agent, clear by default (issue #31)', () => {
+    expect(toAgentConfig({ apps: {} }).logBox).toBe('clear');
+    expect(toAgentConfig({ apps: {}, appErrors: { logBox: 'ignore' } }).logBox).toBe('ignore');
   });
 
   it('passes sync.ignoreElements to the agent as matchers', () => {

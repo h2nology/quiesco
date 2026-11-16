@@ -12,7 +12,7 @@ const clock: Clock = { setTimeout: (cb, ms) => setTimeout(cb, ms), clearTimeout:
 const R = (y: number) => ({ __rect: { x: 0, y, width: 100, height: 40 } });
 
 function setup(
-  opts: { platform?: 'ios' | 'android' | 'web'; busy?: () => boolean; native?: ReturnType<AppDeps['nativeModule']>; keyboard?: () => ReturnType<AppDeps['keyboardFrame']>; appState?: () => ReturnType<AppDeps['appState']>; globals?: Record<string, unknown> } = {},
+  opts: { platform?: 'ios' | 'android' | 'web'; busy?: () => boolean; native?: ReturnType<AppDeps['nativeModule']>; keyboard?: () => ReturnType<AppDeps['keyboardFrame']>; appState?: () => ReturnType<AppDeps['appState']>; globals?: Record<string, unknown>; logBox?: { clearAllLogs(): void; ignoreAllLogs(v?: boolean): void } } = {},
 ) {
   const target: Record<string, unknown> = { ...opts.globals };
   const sockets: FakeSocket[] = [];
@@ -40,6 +40,7 @@ function setup(
     adapter: { loadScheduler: () => fakeScheduler().mod, platformDeps: { getPublicInstance: () => (f) => f.stateNode, viewport: () => ({ width: 400, height: 800 }) } },
     trackers: () => [tracker],
     storage: () => [{ name: 'mem', clear: () => void storageCleared.push(Date.now()) }],
+    ...(opts.logBox !== undefined ? { logBox: () => opts.logBox ?? null } : {}),
   });
   rt.installEarly();
   return { rt, deps, sockets, target, storageCleared, call: (m: string, p: unknown) => rt.handle(m, p) };
@@ -396,6 +397,39 @@ describe('AgentRuntime', () => {
     expect(order).toEqual(['hook', 'remount']);
     off();
     await expect(drive(call('reset', {}))).rejects.toMatchObject({ errorName: 'RESET_FAILED', data: { step: 'remount' } });
+  });
+
+  it('LogBox: cleared before each soft reset, notifications off with ignore, left alone with keep (issue #31)', async () => {
+    const calls: string[] = [];
+    const logBox = { clearAllLogs: () => void calls.push('clear'), ignoreAllLogs: (v?: boolean) => void calls.push(`ignore:${String(v)}`) };
+    const { rt, call } = setup({ logBox });
+    rt.resets.onReset(() => void calls.push('hook'));
+    rt.setRemount(() => calls.push('remount'));
+    const config = (logBox?: 'clear' | 'ignore' | 'keep') => ({ ...rt.config, ...(logBox !== undefined ? { logBox } : {}) });
+    rt.configure(config('clear'));
+    await drive(call('reset', {}));
+    expect(calls).toEqual(['clear', 'hook', 'remount']);
+    calls.length = 0;
+    rt.configure(config('ignore'));
+    rt.configure(config('ignore')); // once
+    await drive(call('reset', {}));
+    expect(calls).toEqual(['ignore:true', 'clear', 'hook', 'remount']);
+    calls.length = 0;
+    rt.configure(config('keep')); // turns notifications back on, and no more clearing
+    await drive(call('reset', {}));
+    expect(calls).toEqual(['ignore:false', 'hook', 'remount']);
+    calls.length = 0;
+    rt.configure(config()); // an older host: keep
+    await drive(call('reset', {}));
+    expect(calls).toEqual(['hook', 'remount']);
+  });
+
+  it('a failing LogBox fails neither the configuration nor the reset', async () => {
+    const broken = { clearAllLogs: () => { throw new Error('no LogBox'); }, ignoreAllLogs: () => { throw new Error('no LogBox'); } };
+    const { rt, call } = setup({ logBox: broken });
+    rt.setRemount(() => {});
+    expect(() => rt.configure({ ...rt.config, logBox: 'ignore' })).not.toThrow();
+    await expect(drive(call('reset', {}))).resolves.toEqual({ durationMs: expect.any(Number) });
   });
 
   it('reset puts the Expo Router state back before the remount, reports the route and fails when the app wanders off (issue #1)', async () => {
