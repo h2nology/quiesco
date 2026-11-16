@@ -8,3 +8,4 @@
 - 文档三语。项目 A 实测：Android、iOS 都报 ELEMENT_OBSCURED 并点名 LogBox（iOS 需要让 JS 描述优先于原生的笼统消息，已改）。`pnpm check` exit 0（881）。示例 App 三端全量 e2e：跑着。
 - 示例 App 三端全量 e2e 0 失败（web 79/13、iOS 86/6、Android 86/6）。等 HU 确认提交 / PR。
 - HU：提交并开 PR，先合并到 main，下次一起发布。
+- #41（Mintlify autopilot）check 失败：plugin references 没重新生成。内容是对的（K.D 漏改文档里的 4 层）。修正放进 #42（f274813），#41 留言后关闭。

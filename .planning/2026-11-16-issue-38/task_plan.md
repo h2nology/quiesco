@@ -47,6 +47,7 @@ JS 层的命中测试改为看**整棵树**（不受 QuiescoRoot 范围限制）
 ### L.3 收尾
 2026-11-16 HU：提交并开 PR，先合并到 main，下次一起发布。
 - [x] 提交、PR
+- [x] #41（Mintlify autopilot：文档里「超过 4 层」漏改成 8）：内容正确，但没重新生成 plugin references ⇒ docs workflow 失败。HU 选推荐：同样的修正放进 #42（f274813，含 references），#41 留言后关闭
 - [ ] CI 通过后合并到 main（merge commit）
 - [ ] 下次发布时：发布说明写进 #38 的修复；回复并关闭 #38
 - **Status:** in_progress
