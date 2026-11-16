@@ -4,10 +4,10 @@
 Firefox、WebKit 与 Chromium 一起作为 Web 端的正式验收对象（HU 2026-11-16）：Chromium 才有的能力在其他浏览器上尽量给出替代实现，确实做不到的报 `ACTION_NOT_SUPPORTED` 并说明原因（不再漏出 Playwright 原始错误）；修掉 WebKit 下拖动类动作的 bug；新增浏览器标签；doctor / init / 文档三语写明各浏览器的支持程度；CI Web 矩阵加 Firefox、WebKit。
 
 ## Current Phase
-F.3 完成（分支 `feat/firefox-webkit`）：三个浏览器全量都是 0 失败
+F.4 完成（分支 `feat/firefox-webkit`）：浏览器标签、示例自动排除、doctor 按配置的浏览器检查、文档三语
 
 ## Next Step
-F.4：浏览器标签、doctor / init、文档三语。
+F.5：三浏览器 × 两视口验收；改了 core（tags / lifecycle / session），iOS / Android 跑一次全量；CI 矩阵。
 
 ## 背景
 - 原计划 `.planning/2026-11-07-quiesco/` §11-6（HU 2026-11-08）：第一版只验收 Chromium；provider 可配 `firefox` / `webkit`，但从没实跑过。`requirements.md:46`：Firefox、WebKit 尽力支持。
@@ -73,11 +73,12 @@ F.4：浏览器标签、doctor / init、文档三语。
 - **Status:** complete
 
 ### F.4 示例、doctor / init、文档
-- [ ] core `tags.ts`：浏览器标签（只约束 web，最内层决定，可改名）；cucumber / vitest / jest 适配器拿到当前浏览器；单元测试
-- [ ] 示例：`QUIESCO_BROWSER` 提交；做不到的场景打浏览器标签
-- [ ] doctor / init 按配置的浏览器检查和提示；单元测试
-- [ ] 文档三语（platforms 浏览器对照表、api、troubleshooting）；plugin references
-- **Status:** pending
+- [x] core `tags.ts`：`@chromium` / `@firefox` / `@webkit`（只约束 web，最内层决定，与平台标签分开判定，可改名）；三个适配器都经 `Lifecycle.runsHere`，它从 `devices.web.browser`（默认 chromium）取浏览器；vitest 声明三个标签；单元测试 +2
+- [x] 示例：`QUIESCO_BROWSER` 已在 b19dd83 提交。三个浏览器都 0 失败，不需要浏览器标签；`cucumber.mjs` 按环境自动排除：桌面视口排除 `@multi-touch`，js 档位排除 `@needs-touch`（之前只是说明性标签）；README 补环境变量
+- [x] doctor 按 `devices.web.browser` 检查（`Web: WebKit` 等，fix 为 `npx playwright install <browser>`）；缺 `@quiesco/web` 时的安装提示也按配置的浏览器；init 生成的配置不写 browser（默认 chromium），提示不变；单元测试 +1
+- [x] 文档三语：platforms 新增「浏览器」节（对照表 + drag 节奏、合成事件说明）、设备 / 多指 / 权限 / 断网 / 剪贴板行；api 的 `devices.web.browser` 与浏览器标签；runners；troubleshooting 4 条；example-app、index、cli；plugin references 重新生成
+- [x] `pnpm check` 902 通过；`docs:check` 通过；实跑 WebKit 桌面视口不加 `--tags`：74 / 12 / 0
+- **Status:** complete
 
 ### F.5 验收
 - [ ] 三个浏览器 × 手机 / 桌面视口全量 0 失败（不支持的项按标签跳过）
