@@ -298,10 +298,10 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | # | 事项 | 何时需要 | 状态 |
 |---|------|---------|------|
 | 1 | 开源许可证 | 发布前（Phase 5 前即可） | ✅ MIT（HU 2026-11-08） |
-| 2 | 最低支持 Expo SDK | Phase 0 结束时给建议 | ✅ SDK 58（HU 2026-11-07）；Phase 4 CI 冒烟 55–57 后可再下调 |
+| 2 | 最低支持 Expo SDK | Phase 0 结束时给建议 | ✅ SDK 58（HU 2026-11-07）→ 下调到 SDK 55（2026-11-16，55–58 三端全量实跑通过；CI Web 矩阵；见 `.planning/2026-11-16-expo-sdk-55-57/`） |
 | 3 | iOS 注入替代方案（若 S4 失败） | S4 结论后 | 不需要（S4 成功） |
 | 4 | CI：GitHub Actions / EAS Workflows | Phase 1 搭骨架时（依赖检查要进 CI） | ✅ GitHub Actions（HU 2026-11-07） |
-| 5 | npm `@quiesco` 组织与发布流程 | 发布前 | 未决 |
+| 5 | npm `@quiesco` 组织与发布流程 | 发布前 | ✅ npm org `quiesco`、`npm login` 与 publish 由 HU 执行；11 个包（`quiesco` + `@quiesco/*`）`publishConfig.access: public`；流程见 `docs/releasing.md`（`release:check` → publish → 打 tag → 从 npm 验证）；0.1.0 首发 2026-11-14（详见 `.planning/2026-11-14-release/`） |
 | 6 | Web 是否首版验收 Firefox/WebKit | Phase 3 前 | ✅ 只验收 Chromium（HU 2026-11-08）；provider 可配置 firefox / webkit 但不作为验收对象 |
 | 7 | Web 视口默认值（手机/桌面/两者） | Phase 3 前 | ✅ 手机 / 平板 / 桌面三个视口都作为验收对象（HU 2026-11-08）；默认手机 |
 
@@ -323,7 +323,7 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | Node 侧包用 `tsc -b` 编译 ESM；agent 通过 `react-native` 字段让 Metro 直接读 TS 源码；`.npmrc` 用 `node-linker=hoisted` | 开发时 App 端不需要构建步骤，Metro / autolinking 兼容 |
 | protocol 只放类型和常量；正则在协议上表示为 `{ regex: { source, flags } }`，转换由两端各自完成；Quiesco 错误码从 1001 起，`error.data` 按错误名定型 | 需求 §5「只包含类型和常量」；避开 JSON-RPC 保留区间 |
 | 后门 / onReset / 软重置的最小实现提前到 Phase 1，完善留在 Phase 2 | 第 9 节验收用例需要；HU 2026-11-07 确认 |
-| 最低支持 Expo SDK 58 | HU 决定（§11-2）；55–57 静态检查通过，Phase 4 冒烟后再考虑下调 |
+| 最低支持 Expo SDK 58 → 55 | HU 决定（§11-2）；2026-11-16 下调到 55（`.planning/2026-11-16-expo-sdk-55-57/`） |
 | CI 使用 GitHub Actions | HU 决定（§11-4） |
 | §6.2-4 改为 `idle-callback` tracker：跟踪挂起的 requestIdleCallback，旧版本兼容 InteractionManager；requirements.md 已同步 | RN 0.88 移除 InteractionManager；HU 2026-11-07 确认 |
 | `text` 匹配只返回「最深」的匹配节点（若某后代也满足整个 Matcher，则丢弃祖先） | 容器的文本包含子节点文本，否则 `{ text: 'Login' }` 会同时命中按钮 View 和 RCTText，动作必然报多个匹配 |
