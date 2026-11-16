@@ -7,7 +7,7 @@ Android 上点击被 LogBox toast（或其他 QuiescoRoot 范围外、画在 app
 L.3 收尾
 
 ## Next Step
-等 PR 的 CI，通过后合并到 main。
+下次发布时：发布说明写进 #38 的修复（以及 #41 的文档修正），回复并关闭 #38。
 
 ## 背景
 - 0.4.1 已发布（`.planning/2026-11-16-issues-29-35/`）；#38 是 #31 实测时发现的。
@@ -48,7 +48,7 @@ JS 层的命中测试改为看**整棵树**（不受 QuiescoRoot 范围限制）
 2026-11-16 HU：提交并开 PR，先合并到 main，下次一起发布。
 - [x] 提交、PR
 - [x] #41（Mintlify autopilot：文档里「超过 4 层」漏改成 8）：内容正确，但没重新生成 plugin references ⇒ docs workflow 失败。HU 选推荐：同样的修正放进 #42（f274813，含 references），#41 留言后关闭
-- [ ] CI 通过后合并到 main（merge commit）
+- [x] CI（docs / ci / prod-strip）全部通过后合并到 main（merge commit 7714354），删除分支
 - [ ] 下次发布时：发布说明写进 #38 的修复；回复并关闭 #38
 - **Status:** in_progress
 
