@@ -1,6 +1,6 @@
 {
   "name": "@quiesco/cucumber",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "cucumber-js World and hooks for Quiesco",
   "license": "MIT",
   "author": "h2nology",
