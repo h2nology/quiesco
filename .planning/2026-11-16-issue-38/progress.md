@@ -11,3 +11,4 @@
 - #41（Mintlify autopilot）check 失败：plugin references 没重新生成。内容是对的（K.D 漏改文档里的 4 层）。修正放进 #42（f274813），#41 留言后关闭。
 - #42 CI 全绿，合并到 main（7714354），分支已删。#38 保持 open，下次发布时回复关闭。
 - HU：现在发布 0.4.2。版本号改好，release:check 通过，`chore(release): 0.4.2` 推送。等 HU publish。
+- HU 发布 0.4.2。tag v0.4.2、GitHub Release。npm 验证通过（项目 A 的 #38 场景、新项目 init + doctor）。#38 回复并关闭。任务完成，open issue 为 0。

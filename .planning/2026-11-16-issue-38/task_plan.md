@@ -4,10 +4,10 @@
 Android 上点击被 LogBox toast（或其他 QuiescoRoot 范围外、画在 app 上面的 RN 元素）盖住的元素时，报 ELEMENT_OBSCURED，并说明是 LogBox。配测试和三语文档，实测后回复并关闭 #38，随下一个版本发布。
 
 ## Current Phase
-L.4 发布 0.4.2
+完成（0.4.2 已发布，#38 已回复并关闭）
 
 ## Next Step
-请 HU 执行 `pnpm -r publish`。
+本任务完成。
 
 ## 背景
 - 0.4.1 已发布（`.planning/2026-11-16-issues-29-35/`）；#38 是 #31 实测时发现的。
@@ -56,11 +56,11 @@ JS 层的命中测试改为看**整棵树**（不受 QuiescoRoot 范围限制）
 2026-11-16 HU：现在发布，版本 0.4.2。
 - [x] main（3e63f0b）的 packages/ 与跑过三端全量 e2e 的 4e425c0 相同（之后只有文档 / 计划提交）；v0.4.1 以来 native / expo-plugin 无改动；main 的 ci / prod-strip success ⇒ 不重跑全量 e2e
 - [x] 版本 0.4.2（12 个 package.json + AGENT_VERSION + plugin.json），`release:check` 通过，`chore(release): 0.4.2` 推送
-- [ ] HU 执行 `pnpm -r publish`
-- [ ] tag v0.4.2；GitHub Release「0.4.2」
-- [ ] npm 验证
-- [ ] 回复并关闭 #38
-- **Status:** in_progress
+- [x] HU 执行 `pnpm -r publish`：12 个包 0.4.2 已在 npm
+- [x] tag v0.4.2（b6dfccb）；GitHub Release「0.4.2」https://github.com/h2nology/quiesco/releases/tag/v0.4.2
+- [x] npm 验证：项目 A 用 `npx quiesco@0.4.2 init --upgrade` 换成 npm 包，Android 上 #38 的场景报 ELEMENT_OBSCURED 并点名 LogBox；新空白模板 `npx quiesco@0.4.2 init` + doctor 通过
+- [x] 回复并关闭 #38。open issue：0
+- **Status:** complete（2026-11-16）
 
 ## Decisions Made
 | 日期 | 决定 | 依据 |
