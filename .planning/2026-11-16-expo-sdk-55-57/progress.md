@@ -19,3 +19,5 @@
 - SDK 57：Web 79/0、Android 86/0、iOS 26.5 86/0（iOS 27：同上）。known-issues 改为「SDK 55–57 on Xcode 27 / iOS 27」。
 - SDK 58 回归（重建示例 App）：Web 79/0、Android 86/0、iOS 86/0。但 Android 7m01（热）vs 关闭校正 5m22 ⇒ 每次调用前 locate 太重（+30%）⇒ 改为窗口尺寸变化时或每秒最多一次（CALIBRATION_INTERVAL_MS）⇒ 5m24。
 - 节流后 SDK 55 Android 再跑：86/0（5m26）。
+- 提交 5 个 commit，PR #43。CI 全部通过：ci、docs、Mintlify；sdk-compat SDK 55 / 56 / 57 / 58（web，Linux + Chromium，各 3–4 分钟，首次运行）；prod-strip web / android / iOS。
+- GitHub 合并接口两次 502（PR 停在 OPEN、main 未变）⇒ HU 指示直接本地合并：`git merge --no-ff` 推送 main（e6e3a65），PR #43 自动标记 MERGED。删除分支 feat/expo-sdk-55-57（本地和远端）。

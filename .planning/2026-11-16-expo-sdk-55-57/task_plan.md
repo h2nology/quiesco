@@ -4,10 +4,10 @@
 最低支持 Expo SDK 从 58 下调到 55（55 / 56 / 57 / 58 都正式支持）：示例 App 的全量 feature 在每个 SDK × 三端（iOS / Android / Web）实跑通过；CI 加 Web 冒烟矩阵；doctor / init 检查 SDK 版本；文档三语改为「SDK 55+」。
 
 ## Current Phase
-C.7 验收（本地完成；CI 矩阵待推送后在 GitHub 上首次运行）
+完成（PR #43 的 CI 全部通过；2026-11-16 合并到 main：e6e3a65）
 
 ## Next Step
-HU 确认后提交；推送分支让 `sdk-compat` workflow 在 GitHub 上首次运行（Linux 上的 Web 实跑未验证过）。
+本任务完成。随下一个版本发布。
 
 ## 背景
 - 原计划 `.planning/2026-11-07-quiesco/` §11-2：SDK 58，「Phase 4 CI 冒烟 55–57 后可再下调」——冒烟一直没做。
@@ -42,7 +42,7 @@ HU 确认后提交；推送分支让 `sdk-compat` workflow 在 GitHub 上首次�
 
 ### C.4 doctor / init 版本检查 + 单元测试（完成）
 
-### C.5 CI Web 冒烟矩阵（55 / 56 / 57 / 58）（已写，未在 GitHub 上运行）
+### C.5 CI Web 冒烟矩阵（55 / 56 / 57 / 58）（完成：PR #43 上首次运行全部通过）
 
 ### C.6 文档三语 + plugin skill 引用；README / quickstart / agent README；known-issues 补版本差异（完成；CONTRIBUTING 加 sdk-compat）
 
