@@ -1,0 +1,62 @@
+<!-- Generated from docs/runners.mdx by scripts/build-plugin-refs.mjs — do not edit. -->
+
+# Jest and Vitest
+
+Use Quiesco from Jest or Vitest instead of Cucumber.
+`@quiesco/vitest` and `@quiesco/jest` do for Vitest and Jest what `@quiesco/cucumber` does for
+Cucumber: one session (device and app) for the whole run, a reset before every test, tests tagged for
+another platform skipped (`@ios`, `@android`, `@web`, `@native`; the innermost level wins), and a
+failure's message lists the evidence files (screenshot, element tree, idle state, logs).
+
+## Vitest {#vitest}
+
+`app` is a test fixture:
+
+```ts
+// vitest.config.ts
+import { quiesco, quiescoPlugin } from '@quiesco/vitest/config';
+import { defineConfig } from 'vitest/config';
+export default defineConfig({ plugins: [quiescoPlugin()], test: { ...quiesco(), include: ['e2e/**/*.test.ts'] } });
+
+// e2e/todo.test.ts
+import { test } from '@quiesco/vitest';
+
+test('a new todo appears at the top', async ({ app }) => {
+  await app.tap('add-todo');                      // waits until the app is idle, then taps
+  await app.type('todo-title', 'Buy milk');
+  await app.tap({ role: 'button', text: 'Save' });
+  await app.expectText({ id: 'todo-item', index: 0 }, 'Buy milk');
+});
+test('Android only', { tags: ['@android'] }, async ({ app }) => { /* … */ });
+```
+
+`quiesco()` keeps the app across files (`isolate: false`), runs them one at a time (or on N devices with
+`quiesco({ workers: N })`) and declares the platform tags. `quiescoPlugin()` sends the run's progress to the
+progress bar of `quiesco test` and to `quiesco ui`; it adds its reporter only when they run Vitest, next to
+your own reporters.
+
+## Jest {#jest}
+
+A preset; tests reach the app through the global `quiesco`:
+
+```js
+// jest.config.js
+module.exports = { preset: '@quiesco/jest', maxWorkers: 1, testTimeout: 120_000 }; // maxWorkers: N = N devices
+
+// e2e/todo.test.js
+test('a new todo appears at the top @ios', async () => {
+  await quiesco.app.tap('add-todo');
+});
+```
+
+Platform tags go in test or `describe` titles (Jest has no test options). The preset also adds the reporter
+that sends the run's progress to `quiesco test` and `quiesco ui`. A config with its own `reporters` replaces
+the preset's: add `'@quiesco/jest/reporter'` there (next to `'default'`).
+
+## Running {#running}
+
+Run either with `npx quiesco test --platform ios --runner vitest|jest`, or from the browser with
+[`quiesco ui`](https://shift-14cc7601.mintlify.site/ui). Both are in
+[examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e); details in
+[using Quiesco without Cucumber](./api.md#using-quiesco-without-cucumber), several devices at once in
+[parallel runs](./parallel.md).
