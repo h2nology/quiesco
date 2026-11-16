@@ -11,3 +11,4 @@
 - F.1：开分支 `feat/firefox-webkit`。spike 确认合成 PointerEvent 可驱动 RNGH 多指手势（三浏览器 × 两视口）；WebKit 要用 createTouch / createTouchList。实现 synthetic-touch.ts 与 setOnLineInPage；provider.test +4（Firefox / WebKit）；`pnpm check` 893 通过。
 - 实跑：Firefox 全量 79 / 13 / 0 失败；WebKit 73 / 13 / 6 失败（撤销定位、剪贴板 ×2、拖动排序、快速滑动、滑块）；Chromium 回归 79 / 13。F.1 完成，未提交。下一步 F.2。
 - F.2：WebKit 拖动根因是 move 步一口气发完、松开时 App 没跟上；web drag 改为按时长推进 + 终点停 100 ms。测试 +3（反向验证）；pnpm check 896；WebKit 拖动场景 5 次全过；全量 Chromium 79 / 13，WebKit 75 / 13 / 4 失败（F.3）。
+- F.3（2026-11-17）：WebKit 定位权限变化时重启 App；剪贴板由 Quiesco 保存（clipboard-store.ts）；移动端 WebKit 用合成 WheelEvent。测试 +3；pnpm check 899。全量：手机视口三浏览器 79 / 13 / 0；桌面视口（not @multi-touch）三者 74 / 12 / 0。下一步 F.4。

@@ -4,10 +4,10 @@
 Firefox、WebKit 与 Chromium 一起作为 Web 端的正式验收对象（HU 2026-11-16）：Chromium 才有的能力在其他浏览器上尽量给出替代实现，确实做不到的报 `ACTION_NOT_SUPPORTED` 并说明原因（不再漏出 Playwright 原始错误）；修掉 WebKit 下拖动类动作的 bug；新增浏览器标签；doctor / init / 文档三语写明各浏览器的支持程度；CI Web 矩阵加 Firefox、WebKit。
 
 ## Current Phase
-F.2 完成（分支 `feat/firefox-webkit`）
+F.3 完成（分支 `feat/firefox-webkit`）：三个浏览器全量都是 0 失败
 
 ## Next Step
-F.3：WebKit 的撤销定位权限、剪贴板读写、移动端 wheel（swipe）。
+F.4：浏览器标签、doctor / init、文档三语。
 
 ## 背景
 - 原计划 `.planning/2026-11-07-quiesco/` §11-6（HU 2026-11-08）：第一版只验收 Chromium；provider 可配 `firefox` / `webkit`，但从没实跑过。`requirements.md:46`：Firefox、WebKit 尽力支持。
@@ -64,8 +64,13 @@ F.3：WebKit 的撤销定位权限、剪贴板读写、移动端 wheel（swipe�
 - **Status:** complete
 
 ### F.3 WebKit 平台限制
-- [ ] 撤销定位权限、剪贴板、mobile wheel：逐项确认绕法或报不支持（web 的 swipe / scroll 走 wheel，`packages/agent/src/actions/host.ts:103`）
-- **Status:** pending
+- [x] 探测（findings F.3）：WebKit 页面一直沿用第一次得到的定位授权；剪贴板能写不能读、无授权；移动端 WebKit 无 `mouse.wheel`，但合成 WheelEvent 会滚动
+- [x] 定位：WebKit 上定位权限确实变化时 `setPermission` 返回 `relaunch: true`（与 Android 撤销时重启一致，数据保留）；场景重置恢复授权时同样重启
+- [x] 剪贴板：WebKit 上由 Quiesco 保存剪贴板（`clipboard-store.ts`，每个 provider 一份、跨重启保留）：页面的 `navigator.clipboard` readText / writeText / read / write 经 binding 读写它，`copy` 事件（execCommand / 用户复制）也记下；测试的 setClipboard / getClipboard 直接读写它。只支持文本
+- [x] 滚轮：WebKit + 移动端视口时在该点派发合成 WheelEvent
+- [x] 测试：WebKit 专属 3 个（剪贴板各通道与跨重启、定位重启与不变时不重启、移动端滚轮）；`pnpm check` 899 通过
+- [x] 实跑：手机视口 Chromium / Firefox / WebKit 全量都是 **79 / 13 / 0 失败**；桌面视口（`--tags 'not @multi-touch'`）三者都是 74 / 12 / 0
+- **Status:** complete
 
 ### F.4 示例、doctor / init、文档
 - [ ] core `tags.ts`：浏览器标签（只约束 web，最内层决定，可改名）；cucumber / vitest / jest 适配器拿到当前浏览器；单元测试

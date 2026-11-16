@@ -43,3 +43,18 @@
 - 直接用 Playwright 拖（spike `spike-drag/`）：三个浏览器都会收到同样的 pointer / mouse 事件序列；WebKit 额外有 `selectstart` / `selectionchange`，但 RN-web 遇到 selectionchange 时会问 `onPanResponderTerminationRequest`，排序页返回 false，选区也是空的 ⇒ 不是原因。
 - 拖动中采样被拖行的 transform：Chromium 每次 `mouse.move` 等一帧（38 步约 620 ms），行跟到 104 px；WebKit 38 步在 40 ms 内发完，松开时行只到 85 px（有时更少）。排序页落点 = `round(dy / 52)` ⇒ 少于 78 px 就只移一行，正是失败时的「香蕉、苹果、樱桃…」。600 ms 第一次通过是碰巧。
 - 修复：provider 自己按时间推进每一步（`durationMs * k / steps`），终点停 100 ms 再松开。滑块（adjustSlider，300 ms、不长按）同一路径，一并修好。
+
+## F.3 WebKit 的平台限制（2026-11-17）
+探测（scratchpad `spike-f3/`，localhost 安全上下文，触摸视口）：
+
+| | Chromium | Firefox | WebKit |
+|---|---|---|---|
+| clearPermissions 后当前页 getCurrentPosition | 拒绝（code 1），query = prompt | 弹授权（挂起），query = prompt | **仍返回坐标**，query 仍 granted；新开的页面被拒绝 |
+| 运行时 grantPermissions 后当前页 | — | — | 仍拒绝（query 变 granted）⇒ 页面一直用第一次的决定 |
+| grantPermissions clipboard-* | ok | Unknown permission（但读写都可用） | Unknown permission；writeText ok，**readText NotAllowedError** |
+| mouse.wheel（isMobile） | ok | ok | **not supported in mobile WebKit** |
+| 合成 WheelEvent 是否滚动 | 否 | 否 | **是** |
+
+- 定位：core 的 `afterChange` / `resetDeviceState` 已支持 provider 返回 `relaunch: true`（Android 撤销时就是这样）⇒ WebKit 上定位权限变化时重启 App（数据保留），新页面按新设置。只验证了 geolocation，其他权限（camera 等）不重启。
+- 剪贴板：expo-clipboard web 用 `navigator.clipboard.read()` / `write()`（ClipboardItem），也用 readText / writeText，最后退到 `execCommand('copy')`。WebKit 上无法让真实读取成功 ⇒ 由 Quiesco 保存（context.exposeBinding + addInitScript 覆盖四个方法 + window 的 copy 事件）。限制：只有文本；页面外的系统剪贴板看不到。
+- 滚轮：web 的 swipe / scroll 都走 wheel（`packages/agent/src/actions/host.ts:103`）；WebKit 会对合成的 wheel 事件执行滚动 ⇒ 移动端 WebKit 用它代替 `mouse.wheel`。
