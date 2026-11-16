@@ -97,6 +97,19 @@ export class FiberAdapter {
   }
 
   /**
+   * Top-level host nodes of the whole app, ignoring the scope: also what React Native renders around
+   * QuiescoRoot (LogBox's toast, the debugging overlay). For hit tests only (issue #38).
+   */
+  getAllHostRoots(): HostNode[] {
+    const out: HostNode[] = [];
+    for (const [rendererID, roots] of this.requireHook().roots) {
+      const platform = this.platformFor(rendererID);
+      for (const root of roots) out.push(...buildHostTree(root.current, platform));
+    }
+    return out;
+  }
+
+  /**
    * Components within the scope that render no host element and satisfy `test` (value actions on e.g.
    * Android's DateTimePicker, which renders null and opens a system dialog). With `viewless`, also
    * components whose host elements all have no size (issue #29: @expo/ui's DateTimePicker in dialog

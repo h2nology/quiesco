@@ -11,7 +11,7 @@ import { QuiescoError } from '../errors';
 import type { HostNode, Viewport } from '../fiber-adapter';
 import { summarize } from '../query';
 import type { Clock } from '../sync';
-import { center, describe, hitTest, isAncestor } from './hit-test';
+import { center, describe, describeCover, hitTest, isAncestor } from './hit-test';
 import type { ActionPerformer } from './performer';
 import type { FingerPath } from './multitouch';
 import { framesForSequence, pinchGestures, rotateGesture } from './multitouch';
@@ -20,6 +20,8 @@ import * as value from './value';
 export interface HostContext {
   clock: Clock;
   roots: () => readonly HostNode[];
+  /** The whole app for the hit test (see NativeContext.hitRoots). Default: `roots`. */
+  hitRoots?: () => readonly HostNode[];
   viewport: () => Viewport | null;
   matcher: Matcher;
   deadline: number;
@@ -43,12 +45,13 @@ export function hostPerformer(ctx: HostContext): ActionPerformer {
       if (rect === null) throw new QuiescoError('ELEMENT_NOT_FOUND', 'The element cannot be measured (unmounted?)', { matcher: ctx.matcher });
       const same = prev !== null && Math.abs(prev.x - rect.x) < 0.5 && Math.abs(prev.y - rect.y) < 0.5 && Math.abs(prev.width - rect.width) < 0.5;
       if (same || ctx.clock.now() >= ctx.deadline) {
-        const top = hitTest(ctx.roots(), point === undefined ? center(rect) : { x: rect.x + point.x, y: rect.y + point.y });
+        const top = hitTest((ctx.hitRoots ?? ctx.roots)(), point === undefined ? center(rect) : { x: rect.x + point.x, y: rect.y + point.y });
         if (top !== null && !isAncestor(node, top)) {
-          throw new QuiescoError('ELEMENT_OBSCURED', `${describe(node)} is covered by ${describe(top)}; a real click would not reach it`, {
+          const by = describeCover(top, ctx.roots());
+          throw new QuiescoError('ELEMENT_OBSCURED', `${describe(node)} is covered by ${by}; a real click would not reach it`, {
             matcher: ctx.matcher,
             element: summarize(node, ctx.viewport()),
-            obscuredBy: describe(top),
+            obscuredBy: by,
           });
         }
         return rect;

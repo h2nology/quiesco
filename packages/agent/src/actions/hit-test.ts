@@ -23,6 +23,31 @@ export function describe(n: HostNode): string {
   return `<${n.type}${id}${text}>`;
 }
 
+/** Whether `n` is one of the hosts under `roots` (compared as rendered elements). */
+function within(roots: readonly HostNode[], n: HostNode): boolean {
+  const visit = (r: HostNode): boolean => r.isSameElement(n) || r.children.some(visit);
+  return roots.some(visit);
+}
+
+/** A component above `n` (up to the root) whose name matches `re`. */
+function ownedBy(n: HostNode, re: RegExp): boolean {
+  for (let h: HostNode | null = n; h !== null; h = h.parent) if (h.ownerNames().some((name) => re.test(name))) return true;
+  return false;
+}
+
+/**
+ * What covers an element, for ELEMENT_OBSCURED. The hit test sees the whole app, also what React Native
+ * draws over it outside <QuiescoRoot> (issue #38): LogBox's toast is named as such (dev builds keep the
+ * component names, and LogBox exists only there).
+ */
+export function describeCover(top: HostNode, scoped: readonly HostNode[]): string {
+  if (within(scoped, top)) return describe(top);
+  if (ownedBy(top, /LogBox/)) {
+    return `React Native's LogBox ${describe(top)}: the toast a console.error opened (appErrors.logBox: 'clear', the default, removes it on every soft reset; fix the error in the app)`;
+  }
+  return `${describe(top)}, drawn over the app outside <QuiescoRoot>`;
+}
+
 /**
  * Topmost host node whose rect contains `p` (later in render order = drawn on top; zIndex / elevation
  * are not considered). `pointerEvents: none` removes a subtree, `box-none` only the node itself.

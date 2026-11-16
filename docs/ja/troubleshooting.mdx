@@ -35,13 +35,13 @@ frame-stableの行で、待機時間のわりにサンプリングされたフ�
 
 ## `ELEMENT_OBSCURED` {#element-obscured}
 
-実際にタッチすると、別のものに当たってしまう状態です。エラーには、その対象が示されます（`obscuredBy`。iOSではネイティブのヒットチェーン）。よくある原因：ダイアログやシートが開いたまま、トースト、半透明のナビゲーションバーの下にあるコンテンツ（iOS 26以降）、アニメーションでまだ定位置に移動中の要素。対象を覆うソフトウェアキーボードは自動的に閉じます。
+実際にタッチすると、別のものに当たってしまう状態です。エラーには、その対象が示されます（`obscuredBy`。iOSではネイティブのヒットチェーン）。よくある原因：ダイアログやシートが開いたまま、トースト、半透明のナビゲーションバーの下にあるコンテンツ（iOS 26以降）、アニメーションでまだ定位置に移動中の要素。対象を覆うソフトウェアキーボードは自動的に閉じます。React Nativeが`<QuiescoRoot>`の外でアプリの上に描画する要素も対象です。LogBoxのトーストはLogBoxだと示し（[後述](#logbox)）、それ以外は「drawn over the app outside `<QuiescoRoot>`」と示します。
 
 iOSで`(the touch would reach UIView)`と出て、`failure.png`の上部に**「Refreshing...」**バーが写っている場合、Metroが監視しているファイルが変わったためにdev clientがリロードしています。テストの実行中に何かがプロジェクト内に書き込んでいます。多くの場合、`artifacts/`以外のディレクトリに出力された成果物（同じパスを`withQuiesco(config, { artifactsDir })`に渡してMetroを再起動してください）か、独自に生成しているファイル（`resolver.blockList`に追加してください）です。並列実行では、あるワーカーのスクリーンショットが別のワーカーのタップを壊すことになります。
 
 ### LogBoxがアプリを覆う {#logbox}
 
-devビルドでは、アプリの`console.error`が画面下部にLogBoxのトースト（「Console Error」、タップすると全画面のLogBox）を開き、そこをタップすると`ELEMENT_OBSCURED`で失敗するようになります。QuiescoはソフトリセットのたびにLogBoxを消す（`appErrors.logBox: 'clear'`）ので、次のシナリオはLogBoxがない状態で始まります。そのシナリオの失敗メッセージには、そのエラーが示されます（`The app logged a console.error in this scenario; the last: …`。すべては`app-errors.txt`にあります）。エラーはアプリで直してください。テスト中にLogBoxを一切表示したくない場合は、`appErrors.logBox: 'ignore'`を設定します（エラーは引き続き失敗メッセージに出ます）。LogBoxのSourceとコールスタックはアプリの行から始まります。`withQuiesco()`が、`console.*`を転送するエージェントのフレームを折りたたむためです。
+devビルドでは、アプリの`console.error`が画面下部にLogBoxのトースト（「Console Error」、タップすると全画面のLogBox）を開き、そこをタップすると`ELEMENT_OBSCURED`で失敗するようになります（iOSでもAndroidでも、React NativeのLogBoxだと示されます）。QuiescoはソフトリセットのたびにLogBoxを消す（`appErrors.logBox: 'clear'`）ので、次のシナリオはLogBoxがない状態で始まります。そのシナリオの失敗メッセージには、そのエラーが示されます（`The app logged a console.error in this scenario; the last: …`。すべては`app-errors.txt`にあります）。エラーはアプリで直してください。テスト中にLogBoxを一切表示したくない場合は、`appErrors.logBox: 'ignore'`を設定します（エラーは引き続き失敗メッセージに出ます）。LogBoxのSourceとコールスタックはアプリの行から始まります。`withQuiesco()`が、`console.*`を転送するエージェントのフレームを折りたたむためです。
 
 ## Androidで「… isn't responding」が出る（並列実行） {#android-not-responding}
 

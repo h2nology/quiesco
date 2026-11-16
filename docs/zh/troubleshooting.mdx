@@ -35,13 +35,13 @@ App 始终没有进入空闲状态；错误会列出所有处于忙碌状态的�
 
 ## `ELEMENT_OBSCURED` {#element-obscured}
 
-真实的触摸会点到别的东西上。错误会指出是什么（`obscuredBy`；在 iOS 上是原生的命中链）。常见原因：对话框或底部弹层仍然打开、toast、内容位于半透明导航栏下方（iOS 26+）、元素仍在以动画移动到位。遮住目标的软键盘会被自动收起。
+真实的触摸会点到别的东西上。错误会指出是什么（`obscuredBy`；在 iOS 上是原生的命中链）。常见原因：对话框或底部弹层仍然打开、toast、内容位于半透明导航栏下方（iOS 26+）、元素仍在以动画移动到位。遮住目标的软键盘会被自动收起。React Native 在 `<QuiescoRoot>` 之外画在 App 上面的元素也算：LogBox 的 toast 会直接点名（[见下文](#logbox)），其他元素会说明是「drawn over the app outside `<QuiescoRoot>`」。
 
 在 iOS 上，如果出现 `(the touch would reach UIView)`，且 `failure.png` 顶部有一条 **"Refreshing..."** 横条，说明 Metro 监听的某个文件发生了变化，dev client 正在重新加载。有东西在测试运行期间往项目里写文件：通常是写到 `artifacts/` 以外目录的产物（把同一路径传给 `withQuiesco(config, { artifactsDir })` 并重启 Metro），或者是你自己生成的文件（把它们加到 `resolver.blockList`）。在并行运行中，一个 worker 的截图会因此破坏另一个 worker 的点击。
 
 ### LogBox 盖住了 App {#logbox}
 
-在 dev 构建中，App 的 `console.error` 会在屏幕底部打开 LogBox 的 toast（"Console Error"，点开后是完整的 LogBox），之后点那里会以 `ELEMENT_OBSCURED` 失败。Quiesco 会在每次软重置时清除 LogBox（`appErrors.logBox: 'clear'`），所以下一个场景开始时它已经不在了；这个场景的失败消息会指出这条错误（`The app logged a console.error in this scenario; the last: …`，全部都在 `app-errors.txt` 里）。请在 App 中修好这个错误；如果测试时完全不想显示 LogBox，设置 `appErrors.logBox: 'ignore'`（错误仍会出现在失败消息里）。LogBox 的 Source 和调用栈从 App 的那一行开始：`withQuiesco()` 会折叠 agent（它转发 `console.*`）的帧。
+在 dev 构建中，App 的 `console.error` 会在屏幕底部打开 LogBox 的 toast（"Console Error"，点开后是完整的 LogBox），之后点那里会以 `ELEMENT_OBSCURED` 失败，并指出是 React Native 的 LogBox（iOS 和 Android 都是）。Quiesco 会在每次软重置时清除 LogBox（`appErrors.logBox: 'clear'`），所以下一个场景开始时它已经不在了；这个场景的失败消息会指出这条错误（`The app logged a console.error in this scenario; the last: …`，全部都在 `app-errors.txt` 里）。请在 App 中修好这个错误；如果测试时完全不想显示 LogBox，设置 `appErrors.logBox: 'ignore'`（错误仍会出现在失败消息里）。LogBox 的 Source 和调用栈从 App 的那一行开始：`withQuiesco()` 会折叠 agent（它转发 `console.*`）的帧。
 
 ## Android 上的 "… isn't responding"（并行运行） {#android-not-responding}
 
