@@ -9,6 +9,9 @@ const viewports: Record<string, WebViewport> = {
   desktop: { width: 1280, height: 800 },
 };
 const viewportName = process.env['QUIESCO_VIEWPORT'] ?? 'mobile';
+// Browser for web runs (QUIESCO_BROWSER): Chromium is the accepted one; Firefox and WebKit are best effort.
+const browser = process.env['QUIESCO_BROWSER'] ?? 'chromium';
+if (browser !== 'chromium' && browser !== 'firefox' && browser !== 'webkit') throw new Error(`Unknown QUIESCO_BROWSER "${browser}" (chromium, firefox, webkit)`);
 // Metro serving the dev clients (`pnpm start:e2e`, port 8082); QUIESCO_METRO_URL points at another one.
 const metroUrl = process.env['QUIESCO_METRO_URL'] ?? 'http://localhost:8082';
 const viewport = viewports[viewportName];
@@ -49,7 +52,7 @@ export default defineConfig(({ workerIndex }) => ({
       ...(process.env['QUIESCO_IOS_DEVICE'] !== undefined ? { device: process.env['QUIESCO_IOS_DEVICE'] } : {}),
       ...(process.env['QUIESCO_IOS_OS'] !== undefined ? { os: process.env['QUIESCO_IOS_OS'] } : {}),
     },
-    web: { browser: 'chromium', viewport },
+    web: { browser, viewport },
   },
   // Granted before the app starts, so no system dialog interrupts a scenario (features/permissions.feature).
   // Location is the one permission every platform can pre-grant (camera / notifications cannot be on the
