@@ -40,6 +40,7 @@ export function webPathFor(url: string): string {
 import { isServerExport, startExpoServer } from './expo-server.js';
 import { startStaticServer } from './static-server.js';
 import { playSyntheticTouches } from './synthetic-touch.js';
+import { CLIPBOARD_BINDING, installClipboardStore } from './clipboard-store.js';
 import type { StaticServer } from './static-server.js';
 
 const BROWSERS: Record<NonNullable<WebDeviceConfig['browser']>, BrowserType> = { chromium, firefox, webkit };
@@ -118,6 +119,8 @@ export class WebProvider implements DeviceProvider {
   private locale: string | null = null;
   /** setNetwork('offline'): requests aborted and `navigator.onLine` false; see setNetwork. */
   private offline = false;
+  /** WebKit only: the clipboard (clipboard-store.ts), one per provider like a device's, kept across relaunches. */
+  private clipboardText = '';
   private networkCdp: CDPSession | null = null;
   private readonly abortRoute = (route: Route): Promise<void> => route.abort('internetdisconnected');
   /** Permissions granted at runtime beyond / revoked from the configured ones. */
@@ -192,6 +195,13 @@ export class WebProvider implements DeviceProvider {
       },
       { key: WEB_PARAMS_GLOBAL, port: params.port, session: params.sessionId, args: (params.argsObject ?? null) as never },
     );
+    if (this.browserName() === 'webkit') {
+      await context.exposeBinding(CLIPBOARD_BINDING, (_source, op: 'get' | 'set', text?: string) => {
+        if (op === 'set') this.clipboardText = String(text ?? '');
+        return this.clipboardText;
+      });
+      await context.addInitScript(installClipboardStore, CLIPBOARD_BINDING);
+    }
     const page = await context.newPage();
     page.on('pageerror', (e) => {
       this.pageErrors.push(e.message);
@@ -294,6 +304,18 @@ export class WebProvider implements DeviceProvider {
       }
       case 'wheel':
         await page.mouse.move(input.x, input.y);
+        // Playwright has no wheel in mobile WebKit; a WheelEvent dispatched there scrolls the same way
+        // (WebKit acts on untrusted wheel events, findings F.3) and reaches the page's wheel listeners.
+        if (this.browserName() === 'webkit' && this.device.viewport?.isMobile === true) {
+          await page.evaluate(
+            ({ x, y, dx, dy }) => {
+              const target = document.elementFromPoint(x, y) ?? document.documentElement;
+              target.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, deltaX: dx, deltaY: dy, deltaMode: 0 }));
+            },
+            { x: input.x, y: input.y, dx: input.dx, dy: input.dy },
+          );
+          return;
+        }
         await page.mouse.wheel(input.dx, input.dy);
         return;
       case 'key':
@@ -362,11 +384,15 @@ export class WebProvider implements DeviceProvider {
       throw new QuiescoError('ACTION_NOT_SUPPORTED', `the "${permission}" permission does not exist on the web`, { action: 'setPermission', platform: 'web' });
     }
     if (this.permissionsAtStart === null) this.permissionsAtStart = [...this.permissions];
+    const before = this.permissions.includes(name);
     this.permissions = grant ? [...new Set([...this.permissions, name])] : this.permissions.filter((p) => p !== name);
     // Playwright cannot revoke a single permission: clear all, grant the rest again.
     await this.context?.clearPermissions();
     if (this.permissions.length > 0) await this.context?.grantPermissions(this.permissions);
-    return { relaunch: false };
+    // WebKit: a page keeps the geolocation decision it first got (granting or revoking later only changes
+    // permissions.query) ⇒ open the app again, data kept, as Android does on a revoke (findings F.3).
+    const relaunch = this.browserName() === 'webkit' && name === 'geolocation' && before !== grant && this.page !== null;
+    return { relaunch };
   }
 
   /** Not granted is the browser's "prompt" state: a page's next request asks again. */
@@ -413,7 +439,7 @@ export class WebProvider implements DeviceProvider {
     const ctx = page.context();
     if (this.offline) await ctx.route('**/*', this.abortRoute);
     else await ctx.unroute('**/*', this.abortRoute);
-    if ((this.device.browser ?? 'chromium') !== 'chromium') {
+    if (this.browserName() !== 'chromium') {
       await page.evaluate(setOnLineInPage, !this.offline).catch((e: unknown) => this.logger.debug(`navigator.onLine override: ${(e as Error).message}`));
       return;
     }
@@ -429,13 +455,21 @@ export class WebProvider implements DeviceProvider {
     }
   }
 
-  /** `navigator.clipboard` with the clipboard permissions granted to the page's origin (Chromium; others may refuse). */
+  /**
+   * `navigator.clipboard` with the clipboard permissions granted to the page's origin (Chromium; Firefox
+   * allows it without them). WebKit: Quiesco's clipboard (clipboard-store.ts).
+   */
   async setClipboard(text: string): Promise<void> {
+    if (this.browserName() === 'webkit') {
+      this.clipboardText = text;
+      return;
+    }
     const page = await this.clipboardPage();
     await page.evaluate((t) => navigator.clipboard.writeText(t), text);
   }
 
   async getClipboard(): Promise<string> {
+    if (this.browserName() === 'webkit') return this.clipboardText;
     const page = await this.clipboardPage();
     return page.evaluate(() => navigator.clipboard.readText());
   }
@@ -614,7 +648,7 @@ export class WebProvider implements DeviceProvider {
       });
     }
     // Firefox / WebKit have no CDP: synthetic pointer and touch events in the page (synthetic-touch.ts).
-    if ((this.device.browser ?? 'chromium') !== 'chromium') {
+    if (this.browserName() !== 'chromium') {
       await page.evaluate(playSyntheticTouches, { fingers, frames });
       return;
     }
@@ -656,6 +690,10 @@ export class WebProvider implements DeviceProvider {
     } finally {
       await cdp.detach().catch(() => undefined);
     }
+  }
+
+  private browserName(): NonNullable<WebDeviceConfig['browser']> {
+    return this.device.browser ?? 'chromium';
   }
 
   private requirePage(): Page {

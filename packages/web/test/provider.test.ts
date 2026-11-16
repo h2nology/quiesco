@@ -515,3 +515,67 @@ describe.each(['chromium', 'firefox', 'webkit'] as const)('WebProvider drag paci
     }
   });
 });
+
+// WebKit's own gaps (findings F.3). Requires `npx playwright install webkit`.
+describe('WebProvider on WebKit (real webkit)', () => {
+  const pageOf = (p: WebProvider) => (p as unknown as { page: { evaluate<T>(f: string): Promise<T> } }).page;
+
+  it("keeps the clipboard itself: the page's navigator.clipboard and copy events, the test's set / get, across relaunches", async () => {
+    const p = new WebProvider({ app: { distDir: dir }, device: { browser: 'webkit' } });
+    await p.boot();
+    await p.install();
+    try {
+      await p.launch({ port: 1, sessionId: 's' });
+      await p.setClipboard('from the test');
+      expect(await pageOf(p).evaluate('navigator.clipboard.readText()')).toBe('from the test');
+      expect(await pageOf(p).evaluate("navigator.clipboard.read().then((items) => items[0].getType('text/plain')).then((b) => b.text())")).toBe('from the test');
+      await pageOf(p).evaluate("navigator.clipboard.writeText('from the page')");
+      expect(await p.getClipboard()).toBe('from the page');
+      await pageOf(p).evaluate("navigator.clipboard.write([new ClipboardItem({ 'text/plain': new Blob(['as an item'], { type: 'text/plain' }) })])");
+      expect(await p.getClipboard()).toBe('as an item');
+      // execCommand('copy') with a handler that sets the data.
+      await pageOf(p).evaluate("document.addEventListener('copy', (e) => { e.clipboardData.setData('text/plain', 'copied'); e.preventDefault(); }, { once: true }); document.execCommand('copy')");
+      await new Promise((r) => setTimeout(r, 100));
+      expect(await p.getClipboard()).toBe('copied');
+      // Like a device's clipboard, it outlives the app.
+      await p.terminate();
+      await p.launch({ port: 1, sessionId: 's' });
+      expect(await pageOf(p).evaluate('navigator.clipboard.readText()')).toBe('copied');
+    } finally {
+      await p.shutdown();
+    }
+  });
+
+  it('opens the app again when the location permission changes (a page keeps its first decision); other changes do not', async () => {
+    const p = new WebProvider({ app: { distDir: dir }, device: { browser: 'webkit' } });
+    await p.boot();
+    await p.install();
+    try {
+      await p.grantPermissions(['location']);
+      await p.launch({ port: 1, sessionId: 's' });
+      await expect(p.setPermission('location', false)).resolves.toEqual({ relaunch: true });
+      await expect(p.setPermission('location', false)).resolves.toEqual({ relaunch: false }); // unchanged
+      await expect(p.setPermission('camera', true)).resolves.toEqual({ relaunch: false });
+      await p.launch({ port: 1, sessionId: 's' });
+      const position = "new Promise((r) => navigator.geolocation.getCurrentPosition(() => r('ok'), (e) => r('denied ' + e.code), { timeout: 3000 }))";
+      expect(await pageOf(p).evaluate(position)).toBe('denied 1');
+      await expect(p.resetPermission('location')).resolves.toEqual({ relaunch: false }); // already not granted
+    } finally {
+      await p.shutdown();
+    }
+  });
+
+  it('scrolls with a dispatched wheel event on mobile viewports (Playwright has no wheel there)', async () => {
+    const p = new WebProvider({ app: { distDir: dir }, device: { browser: 'webkit', viewport: { width: 390, height: 844, hasTouch: true, isMobile: true } } });
+    await p.boot();
+    await p.install();
+    try {
+      await p.launch({ port: 1, sessionId: 's' });
+      await p.injectInput({ kind: 'wheel', x: 100, y: 200, dx: 0, dy: 300 });
+      await new Promise((r) => setTimeout(r, 200));
+      expect(await pageOf(p).evaluate("document.getElementById('s').scrollTop")).toBeGreaterThan(0);
+    } finally {
+      await p.shutdown();
+    }
+  });
+});
