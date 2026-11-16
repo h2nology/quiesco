@@ -80,7 +80,7 @@ around a component that drops it):
 
 Anything else fails with `ACTION_NOT_SUPPORTED` naming the callbacks that were found and what was
 searched: the components going up from the target (with the props that decide a control's kind), and the
-control-shaped components inside it with why each was not taken (more than 4 levels above its element,
+control-shaped components inside it with why each was not taken (more than 8 levels above its element,
 or one of several controls). From that, move the testID, wrap the control, or use a backdoor. Setting the
 current value sends no event, and a disabled control is left alone (as with a user's attempt).
 
