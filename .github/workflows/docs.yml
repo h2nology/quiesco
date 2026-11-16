@@ -1,6 +1,7 @@
 # Documentation site check (scripts/check-docs.mjs): navigation, translations keep the English structure,
 # `mint validate` and `mint broken-links --check-anchors`. Kept out of ci.yml / `pnpm check` because it
-# downloads the Mintlify CLI.
+# downloads the Mintlify CLI. Also checks that the Claude Code plugin's references (scripts/build-plugin-refs.mjs)
+# match the docs.
 name: docs
 
 on:
@@ -9,11 +10,15 @@ on:
     paths:
       - docs/**
       - scripts/check-docs.mjs
+      - scripts/build-plugin-refs.mjs
+      - plugin/**
       - .github/workflows/docs.yml
   pull_request:
     paths:
       - docs/**
       - scripts/check-docs.mjs
+      - scripts/build-plugin-refs.mjs
+      - plugin/**
       - .github/workflows/docs.yml
   workflow_dispatch:
 
@@ -29,3 +34,5 @@ jobs:
           node-version: 24
       - name: docs check
         run: node scripts/check-docs.mjs
+      - name: plugin references
+        run: node scripts/build-plugin-refs.mjs --check
