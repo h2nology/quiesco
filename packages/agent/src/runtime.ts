@@ -51,6 +51,8 @@ import type { Clock, FetchFn, IdleTracker, TimerGlobals } from './sync';
 import { FrameStableTracker, IdleCallbackTracker, NetworkTracker, OfflineGate, ReactTracker, SyncEngine, TimerTracker, ownConnection, realClock } from './sync';
 import { AGENT_VERSION } from './version';
 
+/** How long a coordinate calibration is trusted while the window keeps its size (calibrateCoordinates). */
+const CALIBRATION_INTERVAL_MS = 1000;
 /** drag: hold before moving (long enough to start long-press-activated drags), and move duration. */
 const DRAG_HOLD_MS = 800;
 /**
@@ -306,13 +308,43 @@ export class AgentRuntime {
     return out;
   }
 
-  handle(method: string, params: unknown): Promise<unknown> {
+  async handle(method: string, params: unknown): Promise<unknown> {
     const h = (this.handlers as Record<string, ((p: unknown) => Promise<unknown>) | undefined>)[method];
-    if (h === undefined) return Promise.reject(new MethodNotFound(method));
+    if (h === undefined) throw new MethodNotFound(method);
+    await this.calibrateCoordinates();
     if (!TIMED.has(method)) return h(params ?? {});
     // Phase 6.9 timeline: how much of the call was spent waiting for idle (calls run one at a time).
     this.syncSpent = 0;
-    return h(params ?? {}).then((r) => (typeof r === 'object' && r !== null ? { ...r, syncMs: Math.round(this.syncSpent) } : r));
+    const r = await h(params ?? {});
+    return typeof r === 'object' && r !== null ? { ...r, syncMs: Math.round(this.syncSpent) } : r;
+  }
+
+  /** When calibrateCoordinates last measured, and the window size then. */
+  private calibrated: { at: number; window: string } | null = null;
+
+  /**
+   * Rects in window coordinates on every React Native version (FiberAdapter.calibrateCoordinates). The
+   * offset changes with the window (rotation) or the status bar (shown / hidden), so it is measured again
+   * when the window size changed, else at most every CALIBRATION_INTERVAL_MS: `locate` crosses to the UI
+   * thread, and before every call it made the Android suite 30% slower. Needs @quiesco/native (without it
+   * touches go through JS, in React Native's own coordinates).
+   */
+  private async calibrateCoordinates(): Promise<void> {
+    const native = this.nativeModule();
+    if (native === null) return;
+    const w = this.deps.windowInfo();
+    const window = `${w.width}x${w.height}`;
+    const now = this.clock.now();
+    if (this.calibrated !== null && this.calibrated.window === window && now - this.calibrated.at < CALIBRATION_INTERVAL_MS) return;
+    this.calibrated = { at: now, window };
+    try {
+      await this.adapter.calibrateCoordinates(async (tag) => {
+        const loc = await native.locate(tag);
+        return loc.found && typeof loc.x === 'number' && typeof loc.y === 'number' ? { x: loc.x, y: loc.y } : null;
+      });
+    } catch {
+      // keep the previous offset; the call itself reports what is wrong
+    }
   }
 
   /** Time spent in syncIfNeeded during the current timed call. */

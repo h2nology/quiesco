@@ -29,6 +29,11 @@ export interface HostPlatform {
   /** Live text of a text input host, undefined for other hosts. */
   inputValue(type: string, fiber: Fiber, props: Record<string, unknown>): string | undefined;
   measure(fiber: Fiber): Rect | null;
+  /**
+   * Native only: what `measure()` adds to React Native's coordinates to make them window coordinates
+   * (FiberAdapter.calibrateCoordinates).
+   */
+  coordinateOffset?: CoordinateOffset;
   /** React view tag of the native view (Fabric), for native touch injection. Null on web. */
   nativeTag(fiber: Fiber): number | null;
   viewport(): Viewport | null;
@@ -109,10 +114,18 @@ function focusedElement(deps: PlatformDeps): unknown {
   }
 }
 
+/** Added to a native host's measured rect; mutable, set by FiberAdapter.calibrateCoordinates. */
+export interface CoordinateOffset {
+  x: number;
+  y: number;
+}
+
 export function nativePlatform(deps: PlatformDeps): HostPlatform {
   let getPublic: ((fiber: Fiber) => unknown) | null | undefined;
+  const offset: CoordinateOffset = { x: 0, y: 0 };
   return {
     kind: 'native',
+    coordinateOffset: offset,
     testID: (p) => str(p['testID']),
     label: (p) => str(p['accessibilityLabel']) ?? str(p['aria-label']),
     role: (p) => str(p['accessibilityRole']) ?? str(p['role']),
@@ -138,7 +151,8 @@ export function nativePlatform(deps: PlatformDeps): HostPlatform {
       return str(p['text']) ?? str(p['value']) ?? str(p['defaultValue']) ?? '';
     },
     measure(fiber) {
-      return callRect(publicInstance(fiber));
+      const r = callRect(publicInstance(fiber));
+      return r === null || (offset.x === 0 && offset.y === 0) ? r : { ...r, x: r.x + offset.x, y: r.y + offset.y };
     },
     nativeTag(fiber) {
       const el = publicInstance(fiber);

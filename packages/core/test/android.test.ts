@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { AndroidProvider, devClientLaunchUrl, emulatorGpu, parseUiNodes, primaryButton } from '../src/devices/android';
+import { AndroidProvider, DEV_MENU_PREFS, DEV_MENU_PREFS_FILE, emulatorGpu, parseUiNodes, primaryButton } from '../src/devices/android';
 import type { AndroidProviderOptions } from '../src/devices/android';
 import type { Exec } from '../src/devices/exec';
 import { fakeSpawner } from './helpers/fake-child';
@@ -150,8 +150,26 @@ describe('AndroidProvider', () => {
       'adb -s emulator-5554 reverse tcp:8081 tcp:8081',
       'adb -s emulator-5554 reverse tcp:3001 tcp:3001',
       "adb -s emulator-5554 shell pm grant 'com.example.todo' android.permission.ACCESS_LOCAL_NETWORK",
+      expect.stringMatching(/^adb -s emulator-5554 shell run-as 'com\.example\.todo' sh -c 'test -f shared_prefs\/expo\.modules\.devmenu\.sharedpreferences\.xml \|\| /),
       "adb -s emulator-5554 shell am start -W -a android.intent.action.VIEW -d 'todo://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081&__expo_disable_onboarding=1&__expo_disable_fab=1&__expo_disable_auto_launch=1' --es quiescoPort 7357 --es quiescoSession 'abc-123' 'com.example.todo'",
     ]);
+  });
+
+  it('presets the dev menu settings expo-dev-menu < 58 reads (no onboarding over the app after pm clear)', async () => {
+    const { p, calls } = provider(BOOTED, { app: { package: 'com.example.todo', devClient: { scheme: 'todo' } } });
+    await p.boot();
+    await p.launch({ port: 1, sessionId: 's' });
+    const preset = calls.find((c) => c.includes('run-as')) as string;
+    const b64 = /echo (\S+) \| base64 -d/.exec(preset)?.[1] as string;
+    expect(Buffer.from(b64, 'base64').toString()).toBe(DEV_MENU_PREFS);
+    expect(DEV_MENU_PREFS).toContain('<boolean name="isOnboardingFinished" value="true" />');
+    // only when the app has none: settings the user changed stay
+    expect(preset).toContain(`test -f ${DEV_MENU_PREFS_FILE} || { mkdir -p shared_prefs && echo`);
+    // a standalone (release) app gets nothing
+    const standalone = provider(BOOTED);
+    await standalone.p.boot();
+    await standalone.p.launch({ port: 1, sessionId: 's' });
+    expect(standalone.calls.some((c) => c.includes('run-as'))).toBe(false);
   });
 
   it('a failed launch says why: the package is not installed, or the scheme does not open it (issue #34)', async () => {
@@ -245,21 +263,17 @@ describe('AndroidProvider lifecycle (Phase 6.5)', () => {
     expect(calls.at(-1)).toBe("adb -s emulator-5554 shell am start -W -n 'com.example.todo/.MainActivity' --es quiescoPort 7400 --es quiescoSession 's' --es quiescoArgs 'eyJhIjoxfQ=='");
   });
 
-  it('starts with a deep link: the intent data, or for dev clients the link with __expo_url', async () => {
+  it('starts with a deep link: the intent data, or for dev clients an extra for @quiesco/native', async () => {
     const standalone = await booted();
     await expect(standalone.p.launch({ port: 1, sessionId: 's', url: 'todo://todos/1' })).resolves.toBe('delivered');
     expect(standalone.calls.at(-1)).toBe("adb -s emulator-5554 shell am start -W -a android.intent.action.VIEW -d 'todo://todos/1' --es quiescoPort 1 --es quiescoSession 's' 'com.example.todo'");
 
+    // the dev client's own link to Metro (expo-dev-launcher < 58 cannot take a deep link with __expo_url)
     const dc = await booted([], { app: { package: 'com.example.todo', devClient: { scheme: 'todo', metroUrl: 'http://localhost:8083' } } });
-    await dc.p.launch({ port: 1, sessionId: 's', url: 'todo://todos/1?tab=a#x' });
-    expect(dc.calls.at(-1)).toContain(
-      "-d 'todo://todos/1?tab=a&__expo_url=http%3A%2F%2Flocalhost%3A8083&__expo_disable_onboarding=1&__expo_disable_fab=1&__expo_disable_auto_launch=1#x'",
+    await expect(dc.p.launch({ port: 1, sessionId: 's', url: 'todo://todos/1?tab=a#x' })).resolves.toBe('needs-native');
+    expect(dc.calls.at(-1)).toBe(
+      "adb -s emulator-5554 shell am start -W -a android.intent.action.VIEW -d 'todo://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8083&__expo_disable_onboarding=1&__expo_disable_fab=1&__expo_disable_auto_launch=1' --es quiescoPort 1 --es quiescoSession 's' --es quiescoUrl 'todo://todos/1?tab=a#x' 'com.example.todo'",
     );
-  });
-
-  it('builds dev-client launch URLs', () => {
-    expect(devClientLaunchUrl('app://p', 'http://h:1')).toBe('app://p?__expo_url=http%3A%2F%2Fh%3A1&__expo_disable_onboarding=1&__expo_disable_fab=1&__expo_disable_auto_launch=1');
-    expect(devClientLaunchUrl('app://p?', 'http://h:1')).toMatch(/^app:\/\/p\?__expo_url=/);
   });
 
   it('clears data, uninstalls, goes home and back, forwards ports', async () => {

@@ -6,7 +6,7 @@ import { defaultPlatformDeps, loadScheduler } from './default-deps';
 import type { Fiber, FiberRoot } from './fiber';
 import type { HookState } from './hook';
 import { installHook } from './hook';
-import type { HostPlatform, PlatformDeps } from './host';
+import type { CoordinateOffset, HostPlatform, PlatformDeps } from './host';
 import { nativePlatform, webPlatform } from './host';
 import type { SchedulerState } from './scheduler';
 import { patchScheduler } from './scheduler';
@@ -18,6 +18,8 @@ export { flattenStyle } from './host';
 
 /** React Native's `noTimeout` / react-dom's `noTimeout`: no pending suspended-commit timeout. */
 const NO_TIMEOUT = -1;
+/** Hosts asked for their native view before calibrateCoordinates gives up. */
+const CALIBRATION_CANDIDATES = 8;
 
 export interface FiberAdapterOptions {
   /** Where `__REACT_DEVTOOLS_GLOBAL_HOOK__` lives. Default: `globalThis`. */
@@ -120,6 +122,49 @@ export class FiberAdapter {
     const out: CompositeNode[] = [];
     for (const [start, platform] of this.scopedStartsWithPlatform()) out.push(...findHostlessComposites(start, test, viewless ? platform : null));
     return out;
+  }
+
+  /**
+   * Make `HostNode.measure()` return window coordinates on native, whatever React Native measures
+   * against. `getBoundingClientRect` adds Android's "viewport offset", which React Native 0.83 / 0.85
+   * (Expo SDK 55 / 56) take as the root view's position minus the visible display frame: in an
+   * edge-to-edge app every rect is then the status bar's height too high, while touches are injected in
+   * window coordinates (.planning/2026-11-16-expo-sdk-55-57 findings). React Native 0.86+ measures from
+   * the window in edge-to-edge apps (offset 0).
+   *
+   * `locate` gives a native view's position in the window (from @quiesco/native). The first host from the
+   * top that has a native view is measured both ways; the difference is added to every native rect from then on.
+   * Differences under half a unit are rounding and count as 0. Returns the offset in use, or null when
+   * nothing could be measured (the previous offset stays).
+   */
+  async calibrateCoordinates(locate: (tag: number) => Promise<{ x: number; y: number } | null>): Promise<CoordinateOffset | null> {
+    for (const [rendererID, roots] of this.requireHook().roots) {
+      const platform = this.platformFor(rendererID);
+      const offset = platform.coordinateOffset;
+      if (offset === undefined) continue;
+      // Breadth-first from the top: layout-only views are flattened away by Fabric and have no native view.
+      const queue: HostNode[] = [];
+      for (const root of roots) queue.push(...buildHostTree(root.current, platform));
+      for (let tried = 0; queue.length > 0 && tried < CALIBRATION_CANDIDATES; ) {
+        const node = queue.shift() as HostNode;
+        queue.push(...node.children);
+        const tag = node.nativeTag();
+        const rect = tag === null ? null : node.measure();
+        if (tag === null || rect === null) continue;
+        tried++;
+        const native = await locate(tag);
+        if (native === null) continue;
+        // measured again: a commit may have moved it while `locate` crossed to the UI thread
+        const after = node.measure();
+        if (after === null || after.x !== rect.x || after.y !== rect.y) return null;
+        const dx = native.x - (rect.x - offset.x);
+        const dy = native.y - (rect.y - offset.y);
+        offset.x = Math.abs(dx) < 0.5 ? 0 : dx;
+        offset.y = Math.abs(dy) < 0.5 ? 0 : dy;
+        return { ...offset };
+      }
+    }
+    return null;
   }
 
   /** Window size of the (first) renderer in use, in the same units as `HostNode.measure()`. */

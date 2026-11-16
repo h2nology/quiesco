@@ -17,27 +17,36 @@
  *   parameters as intent extras. The whole device command is one quoted string: the device shell would
  *   otherwise split the dev-client URL at `&`.
  * - Phase 6.5: launch arguments as `--es quiescoArgs <base64 JSON>`. A launch URL is the intent data;
- *   for dev clients it carries `__expo_url=<metro>` (expo-dev-launcher strips the `__expo_*` params and
- *   gives the app the rest, findings 6.5 spike). Background = HOME key, foreground = the launcher intent
+ *   a dev client is started with its own link to Metro instead and gets the URL as `--es quiescoUrl`,
+ *   which @quiesco/native hands to expo-linking before JS runs, as on iOS. (A deep link carrying
+ *   `__expo_url=<metro>` works only from expo-dev-launcher 58: .planning/2026-11-16-expo-sdk-55-57.)
+ *   Background = HOME key, foreground = the launcher intent
  *   (the running task is resumed, no restart).
  */
 
 /** expo-dev-launcher switches: open the app directly, without onboarding, the tools button or the dev menu. */
 const DEV_LAUNCHER_FLAGS = '__expo_disable_onboarding=1&__expo_disable_fab=1&__expo_disable_auto_launch=1';
 
-/** `url` (the app's deep link) as a dev-client launch URL that loads the bundle from `metroUrl` first. */
-export function devClientLaunchUrl(url: string, metroUrl: string): string {
-  const hash = url.indexOf('#');
-  const base = hash >= 0 ? url.slice(0, hash) : url;
-  const frag = hash >= 0 ? url.slice(hash) : '';
-  const sep = base.includes('?') ? (base.endsWith('?') || base.endsWith('&') ? '' : '&') : '?';
-  return `${base}${sep}__expo_url=${encodeURIComponent(metroUrl)}&${DEV_LAUNCHER_FLAGS}${frag}`;
-}
+/**
+ * The same switches as expo-dev-menu's own settings, for expo-dev-menu before 58 (Expo SDK 55–57), which
+ * ignores the URL flags and shows its onboarding sheet over the app after `pm clear` or a fresh install
+ * (.planning/2026-11-16-expo-sdk-55-57). Keys are DevMenuPreferences' property names; like iOS's
+ * IOS_DEV_MENU_ARGS, also no dev menu on shake (device.shake()).
+ */
+export const DEV_MENU_PREFS_FILE = 'shared_prefs/expo.modules.devmenu.sharedpreferences.xml';
+export const DEV_MENU_PREFS =
+  "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n<map>\n" +
+  '    <boolean name="isOnboardingFinished" value="true" />\n' +
+  '    <boolean name="showsAtLaunch" value="false" />\n' +
+  '    <boolean name="showFab" value="false" />\n' +
+  '    <boolean name="motionGestureEnabled" value="false" />\n' +
+  '</map>\n';
+
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { LAUNCH_PARAM_ARGS, LAUNCH_PARAM_PORT, LAUNCH_PARAM_SESSION } from '@quiesco/protocol';
+import { LAUNCH_PARAM_ARGS, LAUNCH_PARAM_PORT, LAUNCH_PARAM_SESSION, LAUNCH_PARAM_URL } from '@quiesco/protocol';
 import type { HostInput, Orientation } from '@quiesco/protocol';
 
 import type { AndroidAppConfig, AndroidDeviceConfig } from '../config.js';
@@ -501,12 +510,12 @@ export class AndroidProvider implements DeviceProvider {
     let extras = `--es ${LAUNCH_PARAM_PORT} ${params.port} --es ${LAUNCH_PARAM_SESSION} ${shq(params.sessionId)}`;
     if (params.args !== undefined) extras += ` --es ${LAUNCH_PARAM_ARGS} ${shq(params.args)}`;
     const dc = this.options.app.devClient;
+    if (dc !== undefined) await this.presetDevMenu();
     let command: string;
     if (dc !== undefined) {
       const metroUrl = dc.metroUrl ?? 'http://localhost:8081';
-      const url = params.url !== undefined
-        ? devClientLaunchUrl(params.url, metroUrl)
-        : `${dc.scheme}://expo-development-client/?url=${encodeURIComponent(metroUrl)}&${DEV_LAUNCHER_FLAGS}`;
+      const url = `${dc.scheme}://expo-development-client/?url=${encodeURIComponent(metroUrl)}&${DEV_LAUNCHER_FLAGS}`;
+      if (params.url !== undefined) extras += ` --es ${LAUNCH_PARAM_URL} ${shq(params.url)}`;
       command = `am start -W -a android.intent.action.VIEW -d ${shq(url)} ${extras} ${shq(this.pkg)}`;
     } else if (params.url !== undefined) {
       command = `am start -W -a android.intent.action.VIEW -d ${shq(params.url)} ${extras} ${shq(this.pkg)}`;
@@ -520,7 +529,18 @@ export class AndroidProvider implements DeviceProvider {
       throw await this.launchFailure((e as Error).message);
     }
     if (/Error:/.test(out)) throw await this.launchFailure(out.trim());
-    if (params.url !== undefined) return 'delivered';
+    if (params.url !== undefined) return dc !== undefined ? 'needs-native' : 'delivered';
+  }
+
+  /**
+   * Write DEV_MENU_PREFS into the app's data when it has no dev-menu settings yet (`run-as`: dev clients
+   * are debuggable). Settings the user changed are left alone; a failure only means the onboarding sheet
+   * may show, as before.
+   */
+  private async presetDevMenu(): Promise<void> {
+    const b64 = Buffer.from(DEV_MENU_PREFS).toString('base64');
+    const script = `test -f ${DEV_MENU_PREFS_FILE} || { mkdir -p shared_prefs && echo ${b64} | base64 -d > ${DEV_MENU_PREFS_FILE}; }`;
+    await this.shell(`run-as ${shq(this.pkg)} sh -c ${shq(script)}`).catch(() => undefined);
   }
 
   /**

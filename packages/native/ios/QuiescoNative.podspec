@@ -10,7 +10,9 @@ Pod::Spec.new do |s|
   s.license        = package['license']
   s.author         = 'Quiesco'
   s.homepage       = 'https://github.com/quiesco/quiesco'
-  s.platforms      = { :ios => '16.4' }
+  # 15.1: the oldest default deployment target of the supported Expo SDKs (55); autolinking skips a pod
+  # whose platform is newer than the app's, silently (.planning/2026-11-16-expo-sdk-55-57).
+  s.platforms      = { :ios => '15.1' }
   s.source         = { git: '' }
   s.static_framework = true
 
