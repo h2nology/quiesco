@@ -63,3 +63,13 @@
 ## K.A 中的发现
 - `findProps` 的 depth 数的是所有 fiber（host、Fragment、Context、memo、forwardRef 都算），所以 `INSIDE_DEPTH = 4` 在包装层多的组件库（@expo/ui：DateTimePicker → Host → DatePicker → 原生视图的包装）里很容易超过。#30 新的报告会直接显示「N levels above its element (limit 4)」；K.D 在真机上用它确认 @expo/ui 的实际层数，再决定是放宽限制还是专门识别。
 - `node.text` 同时用于 `text` 匹配和 `expectText` 的比较（`assertions/index.ts:154`，`actual` 也用它），所以 #33 没有改它，另加了 `displayText`。`expectText` 失败时的 `actual` 仍是不加空格的文本（与比较的内容一致）。
+
+## K.C 调研（LogBox）
+- RN 0.88 `Libraries/LogBox/LogBox.js`：dev 下 `clearAllLogs()` ⇒ `LogBoxData.clear()`；`ignoreAllLogs(v)` ⇒ `LogBoxData.setDisabled(v)`，注释说只关通知，未捕获错误仍全屏；非 dev 全是空函数。console.error 由 ExceptionsManager 交给 `LogBox.addConsoleLog('error', …)`。
+- Expo SDK 58 `@expo/log-box`（在 `expo/node_modules/@expo/log-box`）：`swap-rn-logbox.js` 只换掉 `LogBoxInspectorContainer`（和 notification container），`logbox-rn-polyfill.tsx` 直接 import `react-native/Libraries/LogBox/Data/LogBoxData` ⇒ 原生端 RN 的 `LogBox.clearAllLogs()` 对 Expo 的界面同样有效。
+- agent 端：console.* 由 `events.ts` 包一层，按 `logLevel`（默认 warn）作为 `log` 事件发出；host 端 `session.ts` 的 `adopt()` 只打印 `[app] …`。未捕获错误另走 `error` 事件 ⇒ APP_ERROR。
+
+## K.C 实测发现（Android，项目 A）
+- clear（默认）：场景 1 失败消息末尾是「The app logged a console.error in this scenario; the last: The screen 'login' was removed natively…」，附件有 app-errors.txt；场景 2（点屏幕底部按钮）通过。
+- keep（对照）：场景 2 的 `tap('bottom')` 没有报错，但点击落在 LogBox 的 toast 上，打开了全屏 LogBox（failure.png），taps 仍是 0，最后在 expectText 上失败。⇒ **Android 上遮挡检测没发现 LogBox toast**（issue 里 iOS 报出了 ELEMENT_OBSCURED）。默认 clear 已经避免了连锁失败，但 toast 出现在同一个场景里时仍会悄悄吃掉点击。
+- LogBox 的 Source / Call Stack 第一帧是 Quiesco 的 `events.ts:96`（agent 包的 console 包装函数），而不是 App.tsx。用户看 LogBox 时会以为错误来自 Quiesco。可以在 `withQuiesco()` 的 metro 配置里用 `symbolicator.customizeFrame` 把 @quiesco/agent 的帧折叠（collapse）掉（metro.cjs 目前没有设置 symbolicator）。

@@ -4,10 +4,10 @@
 解决 h2nology/quiesco 的 7 个 open issue（同一位用户在 0.4.0 + Expo SDK 58 + @expo/ui 上实测的反馈）。每个修复都配测试和三语文档，实跑验收后回复并关闭 issue，最后一起发下一个版本。
 
 ## Current Phase
-K.C app 错误与 LogBox
+K.D @expo/ui DateTimePicker
 
 ## Next Step
-K.C：先调研 RN 0.88 的 LogBox API 和 console.error 的转发路径，写出实施计划。
+K.D.1：在 example（或测试项目）里装 @expo/ui，在 iOS / Android 上用 K.A 的诊断看 DateTimePicker 的结构。
 
 ## 背景
 - 前置：0.4.0 已发布（`.planning/2026-11-15-issues-17-23/`）。
@@ -97,12 +97,27 @@ K.C：先调研 RN 0.88 的 LogBox API 和 console.error 的转发路径，写�
 - **Status:** complete
 
 ### K.C app 错误与 LogBox（#31）
-- [ ] 调研：RN 0.88 的 LogBox API，console.error 在 dev-client 里怎么触发 LogBox，agent 能不能拿到 LogBox
-- [ ] agent：转发 console.error 时带上标记（时间、场景），core 按场景收集；失败时把最近一条写进消息，全部放进附件
-- [ ] reset：软重置时按配置 `clear` / `ignore` / `keep` 处理 LogBox（默认 clear）
-- [ ] 配置类型 + 文档三语（config、debugging / 首次运行失败的「LogBox 盖住 app」）
-- [ ] 实测：example 里加一个会 console.error 的场景 ⇒ 消息里能看到这条错误，后面的场景不受影响（iOS / Android）
-- **Status:** pending
+分支 `fix/logbox`，叠在 `fix/init-doctor-upgrade`（PR #37）上。
+
+调研结论（写进 findings）：RN 0.88 的 dev 构建里 console.error 经 ExceptionsManager 进 `LogBox.addConsoleLog('error')` ⇒ 底部 toast；`LogBox.clearAllLogs()` = `LogBoxData.clear()`，`ignoreAllLogs()` = `LogBoxData.setDisabled()`（只关通知，未捕获错误仍会全屏）。Expo SDK 58 的 `@expo/log-box` 只替换 UI（LogBoxInspectorContainer），数据仍是 RN 的 `LogBoxData` ⇒ 从 `react-native` 调 `LogBox` 就有效。web e2e 用静态导出（非 __DEV__），没有 LogBox。
+
+实施计划：
+1. protocol `AgentConfig.logBox?: 'clear' | 'ignore' | 'keep'`；core 配置 `appErrors.logBox`（默认 `'clear'`），`toAgentConfig` 传下去。
+2. agent：`reset/logbox.native.ts`（`require('react-native').LogBox`，放在 try 里）+ `logbox.ts`（web：什么都不做）。configure 时 `'ignore'` ⇒ `ignoreAllLogs(true)`；软重置时（`'keep'` 以外）在 remount 前 `clearAllLogs()`，失败不让重置失败。
+3. core Driver：attach 时监听 `log` 事件里 level error 的条目（应用 `appErrors.ignore` 的规则），按场景收集（`startScenario` 清空，最多留 50 条）；驱动调用以 QuiescoError 失败时（APP_ERROR 除外），在消息后面加一行「这个场景里 app 记录了 N 条错误，最后一条：…」，`data.appLogErrors` 放全部；`afterScenario` 失败时把全部写进附件 `app-errors.txt`。
+4. 测试：driver（附到消息、按场景清空、ignore 规则、APP_ERROR 不重复）、session（附件）、agent（reset 调 clearAllLogs、configure 调 ignoreAllLogs、keep 不调）、config。
+5. 文档三语：api 的 config（`appErrors.logBox`）、错误消息里的 app 错误；troubleshooting（ELEMENT_OBSCURED 里加「LogBox 盖住了 app」、APP_ERROR 一节说明 console.error）。
+6. 实测：todo-app 里临时加一个先 console.error 再失败的场景，后面跟一个点底部元素的场景 ⇒ 第一个的失败消息里有这条错误，第二个通过（iOS 或 Android dev client）。
+
+- [x] 1 protocol / config（`LogBoxMode`、`appErrors.logBox`，默认 clear）
+- [x] 2 agent LogBox（`reset/logbox(.native).ts`；configure / reset；测试 2 个）
+- [x] 3 core Driver 收集与附加（`appLogErrors`、失败消息加一行、`app-errors.txt`；测试 driver 2 个、session 1 个、config 1 个）
+- [x] 4 测试；`pnpm check` exit 0（868 个测试）
+- [x] 5 文档三语（api：`appErrors.logBox`、失败消息里的 console.error；troubleshooting：新小节「LogBox 盖住了 App」#logbox、APP_ERROR）；plugin references
+- [x] 6 实测（Android，项目 A）：clear ⇒ 场景 1 的失败消息带 console.error、有 app-errors.txt，场景 2 通过；keep ⇒ 场景 2 失败（点击落到 LogBox 上，taps: 0）
+- [x] 实测中的两个新发现交 HU 决定：LogBox 帧折叠本阶段做（`withQuiesco()` 的 `symbolicator.customizeFrame`，真机确认 Source 变为 App.tsx:10:87）；Android 遮挡检测漏掉 LogBox ⇒ 新 issue #38
+- [x] HU 确认提交 / PR
+- **Status:** complete
 
 ### K.D @expo/ui DateTimePicker（#29）
 - [ ] K.D.1 调研：在 example 里装 @expo/ui，iOS spinner / inline 和 Android dialog / inline，用 `quiesco tree` 和 K.A 新的诊断看 fiber / host 结构，结果写进 findings
@@ -125,6 +140,7 @@ K.C：先调研 RN 0.88 的 LogBox API 和 console.error 的转发路径，写�
 | 2026-11-16 | D2 init 把 ID 写回 app.json | HU 选了推荐项 |
 | 2026-11-16 | D3 doctor 检查 + `init --upgrade` | HU 选的 |
 | 2026-11-16 | D6 版本号 0.4.1（虽然有新配置项，仍按补丁版本发） | HU 选的 |
+| 2026-11-16 | K.C：LogBox 帧折叠一起做；Android 遮挡检测漏掉 LogBox 另开 #38 | HU 同意推荐 |
 | 2026-11-16 | `init --upgrade` 直接改文件并逐项列出（另有 `--dry-run`）；五项都修；还要升级 Quiesco 包的版本 | HU 选的；版本升级是 HU 另外提的 |
 
 ## Errors Encountered
