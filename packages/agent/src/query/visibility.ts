@@ -77,6 +77,18 @@ export function visibleRatio(node: HostNode, viewport: Viewport | null, rect: Re
   return Math.min(1, (part.width * part.height) / (rect.width * rect.height));
 }
 
+/**
+ * The nearest ancestor (or the node itself) with an area: where an element that reports no size is drawn
+ * (issue #29: @expo/ui's views report 0 height; their Host may be 0 wide under alignItems: 'center').
+ */
+export function sizedAncestor(node: HostNode): HostNode | null {
+  for (let n: HostNode | null = node; n !== null; n = n.parent) {
+    const r = n.measure();
+    if (r !== null && r.width > 0 && r.height > 0) return n;
+  }
+  return null;
+}
+
 export function isVisible(node: HostNode, viewport: Viewport | null, rect: Rect | null = node.measure()): boolean {
   return visibleRatio(node, viewport, rect) > 0;
 }

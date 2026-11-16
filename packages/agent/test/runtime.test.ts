@@ -540,6 +540,76 @@ describe('AgentRuntime', () => {
     await expect(drive(call('action', { action: { type: 'setValue', matcher: { id: 'when', text: 'x' }, value: 1 }, mode: 'js', timeoutMs: 300 }), 400)).rejects.toMatchObject({ errorName: 'ELEMENT_NOT_FOUND' });
   });
 
+  describe("setValue on @expo/ui's DateTimePicker (issue #29)", () => {
+    function DateTimePicker() {
+      return null;
+    }
+    function Host() {
+      return null;
+    }
+    function NativePicker() {
+      return null;
+    }
+    const rect = (x: number, y: number, width: number, height: number) => ({ __rect: { x, y, width, height } });
+    const SCREEN = rect(0, 0, 400, 800);
+    /** <DateTimePicker testID> → Host → a host view → NativePicker → the native view, as @expo/ui renders it. */
+    const picker = (o: { onValueChange: () => void; hostRect: Record<string, unknown>; viewRect?: Record<string, unknown>; viewTestID?: string }) => ({
+      tag: 0,
+      type: DateTimePicker,
+      props: { testID: 'birthday-picker', value: new Date(2000, 0, 1, 9, 30), onValueChange: o.onValueChange },
+      children: [
+        {
+          tag: 0,
+          type: Host,
+          props: {},
+          children: [
+            host('ViewManagerAdapter_ExpoUI_HostView', o.hostRect, ...(o.viewRect !== undefined ? [{ tag: 0, type: NativePicker, props: { testID: o.viewTestID, selection: new Date(), onDateChange: () => {} }, children: [host('ViewManagerAdapter_ExpoUI_DatePickerView', { testID: o.viewTestID, ...o.viewRect })] }] : [])),
+          ],
+        },
+      ],
+    });
+    const setBirthday = (call: (m: string, p: unknown) => Promise<unknown>, mode: 'native' | 'js' = 'native', timeoutMs = 1000) =>
+      call('action', { action: { type: 'setValue', matcher: { id: 'birthday-picker' }, value: '2012-05-20' }, mode, timeoutMs });
+    const picked = new Date(2012, 4, 20, 9, 30);
+
+    it('iOS: the testID is on a view that reports no height; the Host around it shows it', async () => {
+      const { target, call } = setup({ platform: 'ios' });
+      const onValueChange = vi.fn();
+      sameRoot(target)(host('RCTView', SCREEN, picker({ onValueChange, hostRect: rect(16, 100, 370, 216), viewRect: rect(16, 100, 370, 0), viewTestID: 'birthday-picker' })));
+      await expect(drive(setBirthday(call))).resolves.toMatchObject({ element: { testID: 'birthday-picker' } });
+      expect(onValueChange).toHaveBeenCalledWith(expect.objectContaining({ type: 'set' }), picked);
+    });
+
+    it('Android inline under alignItems: center: the view is 0×0 and the Host 0 wide; the parent shows it', async () => {
+      const { target, call } = setup();
+      const onValueChange = vi.fn();
+      sameRoot(target)(host('RCTView', SCREEN, host('RCTView', rect(0, 200, 400, 122), picker({ onValueChange, hostRect: rect(200, 200, 0, 122), viewRect: rect(200, 200, 0, 0), viewTestID: 'birthday-picker' }))));
+      await expect(drive(setBirthday(call, 'js'))).resolves.toMatchObject({ element: { testID: 'birthday-picker' } });
+      expect(onValueChange).toHaveBeenCalledWith(expect.objectContaining({ type: 'set' }), picked);
+    });
+
+    it('Android dialog: no host has the testID and the Host is 0 high; the component is found by its own testID', async () => {
+      const { target, call } = setup();
+      const onValueChange = vi.fn();
+      sameRoot(target)(host('RCTView', SCREEN, picker({ onValueChange, hostRect: rect(16, 175, 379, 0) })));
+      await expect(drive(setBirthday(call))).resolves.toEqual({ syncMs: expect.any(Number) });
+      expect(onValueChange).toHaveBeenCalledWith(expect.objectContaining({ type: 'set' }), picked);
+    });
+
+    it('still fails where the picker is really not visible, and for a sizeless element that is no value control', async () => {
+      const { target, call } = setup({ platform: 'ios' });
+      const commit = sameRoot(target);
+      const onValueChange = vi.fn();
+      // the Host is below the window
+      commit(host('RCTView', SCREEN, picker({ onValueChange, hostRect: rect(16, 900, 370, 216), viewRect: rect(16, 900, 370, 0), viewTestID: 'birthday-picker' })));
+      await expect(drive(setBirthday(call, 'native', 300), 400)).rejects.toMatchObject({ errorName: 'ELEMENT_NOT_FOUND', message: expect.stringContaining('not visible') });
+      // a 0-high view with a testID and no control around it
+      commit(host('RCTView', SCREEN, host('RCTView', { testID: 'birthday-picker', onLayout: () => {}, ...rect(16, 100, 370, 0) })));
+      await expect(drive(setBirthday(call, 'native', 300), 400)).rejects.toMatchObject({ errorName: 'ELEMENT_NOT_FOUND', message: expect.stringContaining('it has no size (370×0)') });
+      expect(onValueChange).not.toHaveBeenCalled();
+    });
+  });
+
   it('accessibilityAction reaches an element that is not on screen; adjustSlider rejects non-sliders', async () => {
     const { target, call } = setup();
     const commit = sameRoot(target);

@@ -66,21 +66,29 @@ describe('detectControl', () => {
     expect(e.message).toContain('onLayout, onPress');
   });
 
+  it('a View with the testID around @expo/ui\'s DateTimePicker finds the picker 6 fibers above its view (issues #29, #30)', () => {
+    const picker = { value: new Date(0), onValueChange: () => {} };
+    // DateTimePicker → Host → DatePicker → … → the native view
+    const levels = [{ props: {} }, { props: { selection: new Date(0), onDateChange: () => {} }, name: 'DatePicker' }, { props: {} }, { props: {}, name: 'Host' }, { props: {} }, { props: picker, name: 'DateTimePicker' }];
+    const wrapper = node({ type: 'RCTView', testID: 'birthday-picker', children: [{ type: 'ViewManagerAdapter_ExpoUI_DatePickerView', ancestors: levels }] });
+    expect(value.detectControl(wrapper, 'ios')).toMatchObject({ kind: 'date', name: 'DateTimePicker', props: picker });
+  });
+
   it('no control found: the error lists what was searched up and inside, and why a control inside was not taken (issue #30)', () => {
     const picker = { value: new Date(0), onValueChange: () => {} };
-    // @expo/ui: DateTimePicker → Host → DatePicker → … → the native view, more than 4 fibers below the component.
-    const levels = [{ props: {} }, { props: { selection: new Date(0), onDateChange: () => {} }, name: 'DatePicker' }, { props: {} }, { props: {}, name: 'Host' }, { props: {} }, { props: picker, name: 'DateTimePicker' }];
+    const levels = [...Array.from({ length: 9 }, () => ({ props: {} })), { props: picker, name: 'DeepPicker' }];
     const row = node({
       type: 'RCTView',
       testID: 'birthday-picker',
       props: { testID: 'birthday-picker' },
       ancestors: [{ props: { value: '2012-05-20', onChange: () => {} }, name: 'BirthdayPicker' }],
-      children: [{ type: 'ViewManagerAdapter_ExpoUI_DatePickerView', ancestors: levels }],
+      children: [{ type: 'RCTView', ancestors: levels }],
     });
     const e = errorOf(() => value.detectControl(row, 'ios'));
     expect(e.errorName).toBe('ACTION_NOT_SUPPORTED');
     expect(e.message).toContain('searched up (12 levels): <RCTView testID="birthday-picker"> ← BirthdayPicker {value: string, onChange}');
-    expect(e.message).toContain('DateTimePicker {value: Date, onValueChange} (date): not taken: 6 levels above its element (limit 4)');
+    expect(e.message).toContain('searched inside (components up to 8 levels above each element):');
+    expect(e.message).toContain('DeepPicker {value: Date, onValueChange} (date): not taken: 10 levels above its element (limit 8)');
   });
 
   it('no control found: two controls inside are named, and an empty container says so (issue #30)', () => {
@@ -357,6 +365,16 @@ describe('native performer', () => {
 
   const perform = (b: NativeBridge, roots: ReturnType<typeof tree>) =>
     nativePerformer({ bridge: b, clock, roots: () => roots, viewport: () => ({ width: 400, height: 800 }), action: 'setValue', matcher: { id: 'x' }, deadline: Date.now() + 30_000 });
+
+  it('a control that reports no size (@expo/ui) is set through its callbacks, without touching it (issue #29)', async () => {
+    const b = bridge({ wheelInfo: vi.fn(async () => ({ found: false })) as never });
+    const onValueChange = vi.fn();
+    const sw = tree({ testID: 'x', tag: 7, rect: { x: 16, y: 100, width: 370, height: 0 }, owner: { value: false, onValueChange } });
+    await run(perform(b, sw).setValue(value.detectControl(sw[0]!, 'ios'), true));
+    expect(onValueChange).toHaveBeenCalledWith(true);
+    expect(b.tap).not.toHaveBeenCalled();
+    expect(b.locate).not.toHaveBeenCalled();
+  });
 
   it('switch: a real tap only when the value must change; segmented: a tap on the segment', async () => {
     const b = bridge();

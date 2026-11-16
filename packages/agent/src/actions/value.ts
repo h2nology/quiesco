@@ -60,6 +60,21 @@ function classify(p: Props): ControlKind | null {
   return null;
 }
 
+/** The props are a value control's (slider, switch, picker, segmented control, date picker). */
+export function isValueControl(p: Props): boolean {
+  return classify(p) !== null;
+}
+
+/**
+ * Issue #29: an element with no size whose component is a value control (e.g. @expo/ui's DateTimePicker,
+ * whose SwiftUI / Compose view reports 0 height to React Native while it is drawn). Not reachable by a
+ * touch: value actions on it call the control's callbacks.
+ */
+export function isSizelessControl(node: HostNode): boolean {
+  const r = node.measure();
+  return r !== null && (r.width <= 0 || r.height <= 0) && node.findProps((p) => classify(p) !== null) !== null;
+}
+
 const DATE_INPUTS: ReadonlySet<string> = new Set(['date', 'time', 'datetime-local', 'month', 'week']);
 const VALUE_INPUTS: ReadonlySet<string> = new Set([...DATE_INPUTS, 'range', 'number', 'color']);
 
@@ -131,8 +146,11 @@ export function detectControl(target: HostNode | CompositeNode, platform: string
   );
 }
 
-/** How far up from a descendant a control's component may be when searching inside a container. */
-const INSIDE_DEPTH = 4;
+/**
+ * How far up from a descendant a control's component may be when searching inside a container. Counts
+ * every fiber (memo, forwardRef, context): @expo/ui's DateTimePicker is 6 above its native view (#29, #30).
+ */
+const INSIDE_DEPTH = 8;
 /** How far the "what was searched" report looks (beyond the limits, to say why a component was not taken). */
 const REPORT_DEPTH = 12;
 
