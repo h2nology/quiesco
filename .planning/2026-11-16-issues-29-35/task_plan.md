@@ -4,10 +4,10 @@
 解决 h2nology/quiesco 的 7 个 open issue（同一位用户在 0.4.0 + Expo SDK 58 + @expo/ui 上实测的反馈）。每个修复都配测试和三语文档，实跑验收后回复并关闭 issue，最后一起发下一个版本。
 
 ## Current Phase
-K.D @expo/ui DateTimePicker
+K.E 发布
 
 ## Next Step
-K.D.1：在 example（或测试项目）里装 @expo/ui，在 iOS / Android 上用 K.A 的诊断看 DateTimePicker 的结构。
+K.E：等 PR #36→#37→#39→#40 合并；然后 CHANGELOG、三端全量 e2e、版本 0.4.1、发布、回复并关闭 #29–#35。
 
 ## 背景
 - 前置：0.4.0 已发布（`.planning/2026-11-15-issues-17-23/`）。
@@ -120,11 +120,24 @@ K.D.1：在 example（或测试项目）里装 @expo/ui，在 iOS / Android 上�
 - **Status:** complete
 
 ### K.D @expo/ui DateTimePicker（#29）
-- [ ] K.D.1 调研：在 example 里装 @expo/ui，iOS spinner / inline 和 Android dialog / inline，用 `quiesco tree` 和 K.A 新的诊断看 fiber / host 结构，结果写进 findings
-- [ ] K.D.2 按 D5 实现（visibility 回退到 Host；Android dialog 按组件 testID 找）；单元测试
-- [ ] K.D.3 example 加 @expo/ui 的日期场景，三端通过（web 上它渲染 null ⇒ 跳过或用别的方式）
-- [ ] 文档三语：value controls 表里加 @expo/ui DateTimePicker（支持状态、限制）
-- **Status:** pending
+分支 `fix/expo-ui-datepicker`，叠在 `fix/logbox`（PR #39）上。调研结果见 findings「K.D.1」。
+
+实施计划（调研后对 D5 的修正）：
+1. **带 testID 的元素尺寸为 0（iOS、Android inline）**：只对 value 操作（setValue / adjustSlider 等用 `resolveControlTarget` 的）放宽：元素面积为 0、但往上能找到值控件的组件（`findProps` 认出 date / slider / …），并且**最近一个有面积的祖先 host** 可见 ⇒ 当作可见的目标。可见性、遮挡等检查都用那个祖先。不只认 @expo/ui 的 Host（Host 本身在 alignItems:center 下也是 0 宽）。
+2. **native 模式**：目标没有面积 ⇒ 不做真实输入，走回调（和 `node === null` 一样）；结果里照常记下用的是回调。
+3. **Android dialog（testID 没传）**：现有的「组件不渲染 view」fallback（按组件自己的 testID prop / 名字找）扩展成「组件渲染的 host 都没有面积」也算（先比 testID / 名字，再测量，避免遍历时大量 measure）。
+4. #30 补充：`INSIDE_DEPTH` 从 4 提高到 8（@expo/ui 的组件在它的 host 之上 6 层），这样「testID 挂在外面 View 上」的写法（issue 里的 workaround）也能找到。
+5. 测试：agent 单元测试（三种情况 + 真正不可见的值控件仍然报错 + native 走回调）。
+6. 文档三语：value controls 表里加 `@expo/ui` 的 DateTimePicker（iOS / Android inline / Android dialog 的支持方式、web 不渲染）。
+7. 实测：项目 A，iOS spinner、iOS / Android inline、Android dialog 都 setValue 成功并且值变了。
+
+- [x] K.D.1 调研
+- [x] HU 确认方案（两点都选推荐：最近的有面积祖先；INSIDE_DEPTH 8）
+- [x] 1–4 实现（value.isSizelessControl / isValueControl、visibility.sizedAncestor、runtime resolveLoop、native.ts 走回调、findHostlessComposites 的 viewless、INSIDE_DEPTH 8）
+- [x] 5 测试；`pnpm check` exit 0（875 个测试；runtime 4 个、native performer 1 个、#30 测试改为 6 层可找到 / 10 层报错）
+- [x] 6 文档三语（value controls 表 + 新小节 `#expo-ui-date-picker`）
+- [x] 7 实测：项目 A，Android inline / dialog、iOS inline / spinner 的 setValue 都成功，值变为 2012-05-20
+- **Status:** complete
 
 ### K.E 发布
 - [ ] CHANGELOG（#33 的 text 字段变化写明）
