@@ -240,6 +240,48 @@ describe('host tree (native)', () => {
     expect(a1!.isSameElement(b1!)).toBe(false);
   });
 
+  it('calibrates native rects to window coordinates (Expo SDK 55 / 56 Android: rects a status bar too high)', async () => {
+    const { adapter, target } = setup();
+    renderWith(target, makeRoot(host('RCTView', { __rect: { x: 0, y: -24, width: 411, height: 914 } }, host('RCTView', { testID: 'b', __rect: { x: 16, y: 184, width: 48, height: 35 } }))));
+    const [root] = adapter.getHostRoots();
+    const rootTag = root!.nativeTag();
+    const locate = vi.fn(async (tag: number) => (tag === rootTag ? { x: 0, y: 0 } : null));
+    expect(await adapter.calibrateCoordinates(locate)).toEqual({ x: 0, y: 24 });
+    expect(locate).toHaveBeenCalledTimes(1);
+    const b = adapter.getHostRoots()[0]!.children[0]!;
+    expect(b.measure()).toEqual({ x: 16, y: 208, width: 48, height: 35 });
+    // calibrating again measures against React Native's own coordinates, not the corrected ones
+    expect(await adapter.calibrateCoordinates(locate)).toEqual({ x: 0, y: 24 });
+    // where React Native measures from the window (0.86+ edge-to-edge, iOS) nothing changes; rounding is not an offset
+    expect(await adapter.calibrateCoordinates(async () => ({ x: 0.3, y: -24.2 }))).toEqual({ x: 0, y: 0 });
+    expect(b.measure()).toEqual({ x: 16, y: 184, width: 48, height: 35 });
+  });
+
+  it('calibrates against the first host that has a native view (Fabric flattens layout-only views)', async () => {
+    const { adapter, target } = setup();
+    renderWith(target, makeRoot(host('RCTView', { __rect: { x: 0, y: -24, width: 411, height: 914 } }, host('RCTView', { __rect: { x: 0, y: 32, width: 411, height: 50 } }))));
+    const childTag = adapter.getHostRoots()[0]!.children[0]!.nativeTag();
+    const locate = vi.fn(async (tag: number) => (tag === childTag ? { x: 0, y: 56 } : null));
+    expect(await adapter.calibrateCoordinates(locate)).toEqual({ x: 0, y: 24 });
+    expect(locate).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the offset when no view can be located', async () => {
+    const { adapter, target } = setup();
+    renderWith(target, makeRoot(host('RCTView', { __rect: { x: 0, y: -24, width: 411, height: 914 } })));
+    await adapter.calibrateCoordinates(async () => ({ x: 0, y: 0 }));
+    expect(await adapter.calibrateCoordinates(async () => null)).toBeNull();
+    expect(adapter.getHostRoots()[0]!.measure()).toMatchObject({ y: 0 });
+  });
+
+  it('does not calibrate web rects', async () => {
+    const { adapter, target } = setup();
+    renderWith(target, makeRoot(host('div', { __rect: { x: 0, y: 5, width: 10, height: 10 } })), 'react-dom');
+    const locate = vi.fn(async () => ({ x: 0, y: 0 }));
+    expect(await adapter.calibrateCoordinates(locate)).toBeNull();
+    expect(locate).not.toHaveBeenCalled();
+  });
+
   it('measures through the public instance and returns null on failure', () => {
     const { adapter, target } = setup();
     renderWith(target, makeRoot(host('RCTView', { __rect: { x: 1, y: 2, width: 3, height: 4 } }), host('RCTView')));

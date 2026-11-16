@@ -43,6 +43,8 @@ class QuiescoNativeModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("QuiescoNative")
 
+    OnCreate { deliverLaunchUrl() }
+
     // docs/spikes/05: `am start ... --es quiescoPort <p> --es quiescoSession <id>`. The current intent may
     // have lost the extras (dev client relaunch), so fall back to what QuiescoNativePackage captured.
     Function("getLaunchParams") {
@@ -408,6 +410,33 @@ class QuiescoNativeModule : Module() {
 
   private fun clipboard(): ClipboardManager? =
     appContext.reactContext?.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+
+  /**
+   * `app.device.relaunch({ url })` with a dev client: `--es quiescoUrl <url>` becomes the URL the app was
+   * opened with. The dev client is started with its own `expo-development-client/?url=<metro>` link
+   * (expo-dev-launcher before 58 cannot take a deep link plus the bundle URL in one), so when this module is
+   * created — after the activity's listeners, before the bundle runs — the link replaces the activity
+   * intent's data, which React Native's `Linking.getInitialURL()` reads (and expo-router on Android
+   * through it), and is set as expo-linking's initial URL (`getLinkingURL()`). expo-linking is looked up at
+   * runtime: no build dependency on it.
+   */
+  private fun deliverLaunchUrl() {
+    val activity = appContext.currentActivity
+    LaunchParamsStore.capture(activity?.intent)
+    val raw = LaunchParamsStore.url ?: return
+    val uri = android.net.Uri.parse(raw)
+    activity?.intent?.let {
+      it.action = Intent.ACTION_VIEW
+      it.data = uri
+    }
+    try {
+      val companion = Class.forName("expo.modules.linking.ExpoLinkingModule").getField("Companion").get(null)
+      companion.javaClass.getMethod("setInitialURL", android.net.Uri::class.java).invoke(companion, uri)
+    } catch (_: ReflectiveOperationException) {
+      // no expo-linking: React Native's Linking has the link
+    }
+    android.util.Log.i("Quiesco", "launch URL delivered${if (activity == null) " to expo-linking only (no activity)" else ""}: $raw")
+  }
 
   private fun density(): Float = appContext.reactContext?.resources?.displayMetrics?.density ?: 1f
 

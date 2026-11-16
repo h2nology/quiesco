@@ -25,3 +25,15 @@ description: "Expo、React Native、各プラットフォームの問題のう�
 
 - 発生環境：iOS 27シミュレーター。入力の0 ms後（またはキーボードの表示中 / 高さの変化中）にキーボード外をタッチすると、アプリに届きません。300 ms後なら届きます。
 - Quiescoでの扱い：`@quiesco/native`がキーボードの通知と入力を追跡します。タッチはキーボードが400 ms静止するまで待ち（`settling`）、`native`アイドルトラッカーによって、すべての同期がこれを待ちます。待ち時間がかかるのは入力直後のステップだけです。
+
+## Expo SDK 55–56、Android：要素のrectがステータスバーの高さぶん上にずれる {#expo-sdk-55-56-android-element-rects-a-status-bars-height-too-high}
+
+- 発生環境：React Native 0.83 / 0.85（Expo SDK 55 / 56）、edge-to-edgeのアプリ（デフォルト）。
+- 何が起きるか：`getBoundingClientRect`はReact Nativeのビューポートオフセットを加えますが、これらのバージョンはそれをルートビューの位置から可視表示領域を引いた値として計算します。そのため、どのrectも画面上のビューよりステータスバーの高さぶん上になります。React Native 0.86は、edge-to-edgeのアプリではウィンドウから測ります。
+- Quiesco：呼び出しのたびに、エージェントは1つのビューのrectとウィンドウ内の位置（`@quiesco/native`から取得）を比べ、その差ですべてのrectを補正します。`attributes().rect`、`tapAt`、要素のスクリーンショット、可視判定は、どのSDKでも画面と一致します。`@quiesco/native`がない場合（jsアクション）は、rectはReact Nativeが報告する値のままです。
+
+## Xcode 27 / iOS 27でのExpo SDK 55–57 {#expo-sdk-55-57-on-xcode-27-ios-27}
+
+- ビルド：これらのSDKの一部のpodとリソースバンドルはiOS 9–13.4を宣言しており、Xcode 27がエラーにします。Podfileの`post_install`で引き上げてください。SDK 55では、expo-routerが可用性チェックなしでiOS 16のAPIを使っているため、アプリのデプロイメントターゲットも16.0に上げてください（`expo-build-properties`の`ios.deploymentTarget`）。
+- 実行：これらのSDKのアプリはiOS 27では起動直後に終了させられます（iOS 27が必須とするUISceneライフサイクルを採用していないため）。iOS 26のシミュレーターでテストしてください（`devices.ios.os`）。
+- どちらもQuiescoとは関係ありません。`@quiesco/native`自体はiOS 15.1から動きます。

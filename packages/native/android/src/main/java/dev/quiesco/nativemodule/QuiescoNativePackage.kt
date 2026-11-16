@@ -21,6 +21,9 @@ object LaunchParamsStore {
   /** Base64 of the test's launch arguments as JSON (`--es quiescoArgs`, Phase 6.5). */
   @Volatile var args: String? = null
     private set
+  /** The deep link to start with (`--es quiescoUrl`, `app.device.relaunch({ url })` with a dev client). */
+  @Volatile var url: String? = null
+    private set
 
   /** Remember the parameters of `intent` when it has them (a newer launch replaces older ones). */
   fun capture(intent: Intent?) {
@@ -28,6 +31,7 @@ object LaunchParamsStore {
     port = p
     session = intent.getStringExtra("quiescoSession")
     args = intent.getStringExtra("quiescoArgs")
+    url = intent.getStringExtra("quiescoUrl")
   }
 }
 

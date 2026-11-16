@@ -29,7 +29,7 @@ The same features, steps and `this.app` calls run on all three platforms. What d
 | `pinch`, `rotate`, `multiTouch` | several `UITouch`es in one event (needs `@quiesco/native` ≥ Phase 6.4: `multiGesture`) | multi-pointer `MotionEvent`s (same) | CDP touch events on touch viewports; desktop viewports: `ACTION_NOT_SUPPORTED` |
 | Recognizer activation compensated (`actions.gestureSlop`) | 9 pt, 7° | 26 dp, 9° | 46 px, 0° |
 | `relaunch({ args })` → `quiesco.launchArgs()` | `-quiescoArgs` launch argument (needs `@quiesco/native` ≥ Phase 6.5) | `--es quiescoArgs` extra (same) | init script |
-| `relaunch({ url })` | `-quiescoUrl`, handed to expo-linking by `@quiesco/native` before JS runs (≥ Phase 6.5; without it: opened after the launch) | intent data (dev clients: the link with `__expo_url`) | the URL's path is opened (`myapp://todos/1` → `/todos/1`) |
+| `relaunch({ url })` | `-quiescoUrl`, handed to expo-linking by `@quiesco/native` before JS runs (≥ Phase 6.5; without it: opened after the launch) | intent data; dev clients start with their own link to Metro and get `--es quiescoUrl`, which `@quiesco/native` makes the start URL before JS runs (without it: opened after the launch) | the URL's path is opened (`myapp://todos/1` → `/todos/1`) |
 | `relaunch({ clearData })` | data container emptied, UserDefaults deleted; keychain kept | `pm clear` (also revokes permissions; the config's are granted again) | a new browser context |
 | `relaunch()` keeps data | yes | yes | cookies, localStorage, IndexedDB carried over (Playwright storage state) |
 | `sendToBackground()` | home screen via `-[UIApplication suspend]` (`@quiesco/native` ≥ Phase 6.5), else the Settings app is opened | HOME key | `ACTION_NOT_SUPPORTED` |
@@ -119,6 +119,14 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
 - The app is force-stopped before it is reinstalled (Android 17 otherwise relaunches it without the
   connection parameters).
 - `ACCESS_LOCAL_NETWORK` (Android 17) is granted before launch so the app can reach the host.
+- `relaunch({ url })` with a dev client: `@quiesco/native` makes the link the activity intent's data (what
+  React Native's `Linking.getInitialURL()` and expo-router read) and expo-linking's initial URL, when its
+  module is created — before the bundle runs. It works the same on every supported Expo SDK (a deep link
+  carrying the bundle URL needs expo-dev-launcher 58).
+- Dev clients: before launching, Quiesco writes expo-dev-menu's settings (onboarding done, no menu at
+  launch, no floating button, no menu on shake) when the app has none yet, as on iOS. expo-dev-menu
+  before 58 ignores the link's `__expo_disable_*` switches and would show its onboarding over the app after
+  `pm clear` or a fresh install.
 - Ports the app calls on `localhost` (a mock backend) need `apps.android.reversePorts`.
 - `DateTimePicker` and the picker's dialog / dropdown live in separate windows that in-app touches do not
   reach: `setValue` sets them through their callbacks (the date picker by its testID, as it renders no view).

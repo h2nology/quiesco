@@ -449,7 +449,7 @@ public class QuiescoNativeModule: Module {
      * `decrement` through UIAccessibilityAction (the adjustable swipe), `magicTap` / `escape` through
      * their perform methods, any other through the view's accessibilityCustomActions (the VoiceOver
      * "Actions" rotor) at `index` — React Native lists every declared action there, named by its label
-     * (`label`, or the name when it has none).
+     * (`label`, or the name when it has none; React Native before 0.88, Expo SDK 55–57: by its name).
      */
     AsyncFunction("accessibilityAction") { (tag: Int, name: String, label: String, index: Int, _customIndex: Int, promise: Promise) in
       guard let view = QSTouchInjector.view(withReactTag: tag) else {
@@ -469,8 +469,9 @@ public class QuiescoNativeModule: Module {
         promise.resolve(["performed": view.accessibilityPerformEscape(), "via": "accessibilityPerformEscape"])
       default:
         let actions = view.accessibilityCustomActions ?? []
-        let byIndex = index >= 0 && index < actions.count && actions[index].name == label ? actions[index] : nil
-        guard let action = byIndex ?? actions.first(where: { $0.name == label }) else {
+        let named = { (a: UIAccessibilityCustomAction) in a.name == label || a.name == name }
+        let byIndex = index >= 0 && index < actions.count && named(actions[index]) ? actions[index] : nil
+        guard let action = byIndex ?? actions.first(where: { $0.name == label }) ?? actions.first(where: { $0.name == name }) else {
           promise.reject("E_NO_ACTION", "view \(tag) has no accessibility custom action \"\(label)\" (has: \(actions.map { $0.name }))")
           return
         }

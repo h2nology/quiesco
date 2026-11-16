@@ -29,7 +29,7 @@ description: "iOS、Android、Webの比較：入力、権限、システムダ�
 | `pinch`、`rotate`、`multiTouch` | 1つのイベントに複数の`UITouch`（`@quiesco/native` ≥ Phase 6.4が必要：`multiGesture`） | マルチポインターの`MotionEvent`（同じ） | タッチ対応ビューポートではCDPのタッチイベント。デスクトップのビューポートでは`ACTION_NOT_SUPPORTED` |
 | 補正するジェスチャー認識の開始量（`actions.gestureSlop`） | 9pt、7° | 26dp、9° | 46px、0° |
 | `relaunch({ args })` → `quiesco.launchArgs()` | `-quiescoArgs`起動引数（`@quiesco/native` ≥ Phase 6.5が必要） | `--es quiescoArgs` extra（同じ） | initスクリプト |
-| `relaunch({ url })` | `-quiescoUrl`。JSが動く前に`@quiesco/native`がexpo-linkingに渡す（≥ Phase 6.5。ない場合は起動後に開く） | intentのdata（dev clientでは`__expo_url`付きのリンク） | URLのパスを開く（`myapp://todos/1` → `/todos/1`） |
+| `relaunch({ url })` | `-quiescoUrl`。JSが動く前に`@quiesco/native`がexpo-linkingに渡す（≥ Phase 6.5。ない場合は起動後に開く） | intentのdata。dev clientはMetroへの自分のリンクで起動し、`--es quiescoUrl`を受け取ります。JSが動く前に`@quiesco/native`がそれを開始URLにします（ない場合は起動後に開く） | URLのパスを開く（`myapp://todos/1` → `/todos/1`） |
 | `relaunch({ clearData })` | データコンテナを空にし、UserDefaultsを削除する。キーチェーンは残す | `pm clear`（権限も取り消される。設定にある権限は再付与する） | 新しいブラウザコンテキスト |
 | `relaunch()`でデータを保持するか | する | する | Cookie、localStorage、IndexedDBを引き継ぐ（Playwrightのstorage state） |
 | `sendToBackground()` | `-[UIApplication suspend]`でホーム画面へ（`@quiesco/native` ≥ Phase 6.5）。それ以外では設定アプリを開く | HOMEキー | `ACTION_NOT_SUPPORTED` |
@@ -95,6 +95,8 @@ description: "iOS、Android、Webの比較：入力、権限、システムダ�
 - Quiescoが起動するエミュレーターはコールドブートします（`-no-snapshot-load`、約14秒）。アプリを再インストールする前に撮ったクイックブートのスナップショットがあると、起動の約30秒後にAndroidが再起動してしまうためです。
 - アプリは再インストールの前にforce-stopします（そうしないと、Android 17は接続パラメーターなしでアプリを再起動してしまいます）。
 - アプリがホストに接続できるよう、起動前に`ACCESS_LOCAL_NETWORK`（Android 17）を付与します。
+- dev clientでの`relaunch({ url })`：`@quiesco/native`は、モジュールが作成されたとき（バンドルが動く前）に、そのリンクをactivityのintentのdata（React Nativeの`Linking.getInitialURL()`とexpo-routerが読むもの）とexpo-linkingの初期URLに設定します。対応するすべてのExpo SDKで同じように動きます（バンドルURLをディープリンクに含める方法にはexpo-dev-launcher 58が必要です）。
+- dev client：起動前に、アプリにexpo-dev-menuの設定がまだなければ、Quiescoがその設定（オンボーディング完了、起動時にメニューを出さない、フローティングボタンなし、シェイクでメニューを開かない）を書き込みます。iOSと同じです。58より前のexpo-dev-menuはリンクの`__expo_disable_*`スイッチを無視し、`pm clear`や新規インストールの後にオンボーディングをアプリの上に表示してしまいます。
 - アプリが`localhost`で呼び出すポート（モックバックエンド）には`apps.android.reversePorts`が必要です。
 - `DateTimePicker`と、ピッカーのダイアログ / ドロップダウンは別ウィンドウにあり、アプリ内からのタッチは届きません。`setValue`はコールバック経由で値を設定します（日付ピッカーはビューを描画しないので、testIDで指定します）。
 - アクセシビリティアクションは、TalkBackと同じようにノード情報を読み取ってから実行します。React Nativeのデリゲートは、そこに列挙したアクションしか処理しないためです。

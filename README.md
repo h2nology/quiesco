@@ -39,7 +39,7 @@ When('they add a todo {string}', async function (this: QuiescoWorld, title: stri
 
 ## Quick start (web, about 10 minutes)
 
-Requirements: Node.js 24+, an Expo app on SDK 58 (`npx create-expo-app@latest`).
+Requirements: Node.js 24+, an Expo app on SDK 55 or later (`npx create-expo-app@latest`).
 
 ```sh
 cd my-app

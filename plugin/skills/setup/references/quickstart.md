@@ -3,7 +3,7 @@
 # Quick start (web)
 
 From a new Expo app to a passing feature in Chromium, in about 10 minutes.
-Requirements: Node.js 24+, an Expo app on SDK 58 (`npx create-expo-app@latest`).
+Requirements: Node.js 24+, an Expo app on SDK 55 or later (`npx create-expo-app@latest`).
 
 ### Step 1: Set up the project
 

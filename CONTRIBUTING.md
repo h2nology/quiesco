@@ -14,6 +14,14 @@ Changes to the agent, the native module or the config plugin: also run `pnpm che
 the `prod-strip` workflow run). End-to-end runs of the example app on all three platforms are described
 in [examples/todo-app](examples/todo-app/README.md).
 
+Supported Expo SDKs are 55–58; the example is on 58. `node scripts/sdk-compat.mjs --sdk 55` (also 56, 57,
+58) makes a copy of the example on that SDK, outside the repository (`--out`, default a temp folder), with
+this checkout's packages installed from tarballs; run its features there with the same scripts
+(`npm run build:web && npm run test:e2e:web`, `build:android` / `build:ios` with `npm run start:e2e`). The
+`sdk-compat` workflow does this on web for every SDK. Changes to the agent, the native module or the
+providers: also run one older SDK on iOS and Android. On Xcode 27, SDK 55–57 apps run on an iOS 26 simulator
+(`QUIESCO_IOS_OS=26.5`; [known issues](docs/known-issues.mdx)).
+
 Tests and steps never sleep or wait a fixed time: wait for a condition (Quiesco's sync does this for
 `this.app` calls).
 
