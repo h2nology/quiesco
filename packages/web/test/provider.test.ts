@@ -490,3 +490,28 @@ describe.each(['firefox', 'webkit'] as const)('WebProvider without CDP (real %s)
     }
   });
 });
+
+describe.each(['chromium', 'firefox', 'webkit'] as const)('WebProvider drag pacing (real %s)', (browser) => {
+  it('moves over durationMs, reaches the target, rests there, then releases', async () => {
+    const p = new WebProvider({ app: { distDir: dir }, device: { browser, viewport: { width: 390, height: 844 } } });
+    await p.boot();
+    await p.install();
+    try {
+      await p.launch({ port: 1, sessionId: 's' });
+      const page = (p as unknown as { page: { evaluate<T>(f: string): Promise<T> } }).page;
+      await page.evaluate(`window.drag = []; for (const t of ['mousedown', 'mousemove', 'mouseup']) addEventListener(t, (e) => drag.push([t, e.clientX, performance.now()]));`);
+      await p.injectInput({ kind: 'drag', from: { x: 50, y: 450 }, to: { x: 150, y: 450 }, durationMs: 300, holdMs: 0 });
+      const log = await page.evaluate<[string, number, number][]>('drag');
+      const down = log.find(([t]) => t === 'mousedown') as [string, number, number];
+      const moves = log.filter(([t, , at]) => t === 'mousemove' && at > down[2]);
+      const up = log[log.length - 1] as [string, number, number];
+      expect(up[0]).toBe('mouseup');
+      expect(moves[moves.length - 1]?.[1]).toBe(150);
+      // Spread over the duration, not one burst (WebKit), and a rest at the target before the release.
+      expect((moves[moves.length - 1]?.[2] ?? 0) - down[2]).toBeGreaterThan(250);
+      expect(up[2] - (moves[moves.length - 1]?.[2] ?? 0)).toBeGreaterThan(80);
+    } finally {
+      await p.shutdown();
+    }
+  });
+});

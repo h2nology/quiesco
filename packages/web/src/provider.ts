@@ -44,6 +44,11 @@ import type { StaticServer } from './static-server.js';
 
 const BROWSERS: Record<NonNullable<WebDeviceConfig['browser']>, BrowserType> = { chromium, firefox, webkit };
 
+/** Rest at the drop point before releasing a drag, so drop targets see the pointer arrive (as the agent's native drags). */
+const DROP_HOLD_MS = 100;
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
 const WEB_PERMISSIONS: Partial<Record<Permission, string>> = {
   camera: 'camera',
   microphone: 'microphone',
@@ -272,8 +277,18 @@ export class WebProvider implements DeviceProvider {
         await page.mouse.move(input.from.x, input.from.y);
         await page.mouse.down();
         // Press-and-hold first (long-press-activated drags), then move in small steps.
-        if (input.holdMs !== undefined && input.holdMs > 0) await new Promise((r) => setTimeout(r, input.holdMs));
-        await page.mouse.move(input.to.x, input.to.y, { steps });
+        if (input.holdMs !== undefined && input.holdMs > 0) await sleep(input.holdMs);
+        // Paced over durationMs: WebKit takes Playwright's steps as one burst (40 ms for 38 moves) and an
+        // app still catching up when the button comes up drops at the wrong place (findings F.2). Chromium
+        // waits a frame per move anyway. Then hold still at the target before releasing, as the native
+        // drags do (DROP_HOLD_MS in the agent).
+        const start = Date.now();
+        for (let k = 1; k <= steps; k++) {
+          await page.mouse.move(input.from.x + ((input.to.x - input.from.x) * k) / steps, input.from.y + ((input.to.y - input.from.y) * k) / steps);
+          const wait = start + (input.durationMs * k) / steps - Date.now();
+          if (wait > 0) await sleep(wait);
+        }
+        await sleep(DROP_HOLD_MS);
         await page.mouse.up();
         return;
       }
