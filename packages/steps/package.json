@@ -1,6 +1,6 @@
 {
   "name": "@quiesco/steps",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Optional generic cucumber steps for Quiesco (prototyping only; write business-language steps for real projects)",
   "license": "MIT",
   "author": "h2nology",
