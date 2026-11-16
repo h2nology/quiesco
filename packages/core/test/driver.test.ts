@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { Driver } from '../src/driver';
+import type { QuiescoError } from '../src/errors';
 import type { AgentConnection } from '../src/server/ws-server';
 import { QuiescoServer } from '../src/server/ws-server';
 import { AGENT_CONFIG, NO_REPLY, connectAgent } from './helpers/fake-agent';
@@ -257,6 +258,52 @@ describe('Driver', () => {
     const e = await failed;
     expect(e).toMatchObject({ errorName: 'AGENT_DISCONNECTED' });
     expect((e.stack ?? '').split('\n')[1]).toContain('tappingStep');
+  });
+
+  it("a failure names the app's last console.error of the scenario and keeps them all in data (issue #31)", async () => {
+    const { driver, agent, conn } = await setup((m) => {
+      if (m === 'action') throw { code: 1003, message: 'The element has no native view in a window (unmounted?)', data: { name: 'ELEMENT_NOT_VISIBLE' } };
+      return { root: null };
+    });
+    const logged = (n: number) => new Promise<void>((r) => {
+      let seen = 0;
+      conn.on('log', () => void (++seen === n && r()));
+    });
+    const two = logged(3);
+    agent.notify('log', { level: 'error', message: 'first error', timestamp: 1 });
+    agent.notify('log', { level: 'warn', message: 'only a warning', timestamp: 2 });
+    agent.notify('log', { level: 'error', message: "The screen 'login' was removed natively but didn't get removed from JS state.\n    at Stack", timestamp: 3 });
+    await two;
+    const e = (await driver.tap('add-student').catch((x: unknown) => x)) as QuiescoError;
+    expect(e.message).toBe(
+      "The element has no native view in a window (unmounted?)\n  The app logged 2 console.errors in this scenario; the last: The screen 'login' was removed natively but didn't get removed from JS state.",
+    );
+    expect(e.data['appLogErrors']).toEqual(['first error', "The screen 'login' was removed natively but didn't get removed from JS state.\n    at Stack"]);
+    expect((e.stack ?? '').split('\n')[0]).toBe('QuiescoError: The element has no native view in a window (unmounted?)');
+    // a new scenario starts without them
+    driver.clearAppLogErrors();
+    const again = (await driver.tap('add-student').catch((x: unknown) => x)) as QuiescoError;
+    expect(again.message).toBe('The element has no native view in a window (unmounted?)');
+  });
+
+  it('leaves ignored console.errors out, and does not add them to an APP_ERROR (issue #31)', async () => {
+    const { conn, agent } = await setup(() => ({ root: null }));
+    const d = new Driver({ provider: new FakeProvider(), connection: async () => conn, defaultTimeoutMs: 1000, ignoreAppErrors: [/^Requiring unknown module/] });
+    d.attach(conn);
+    const seen = new Promise((r) => {
+      let n = 0;
+      conn.on('log', () => void (++n === 2 && r(null)));
+    });
+    agent.notify('log', { level: 'error', message: 'Requiring unknown module "12".', timestamp: 1 });
+    agent.notify('log', { level: 'error', message: 'real one', timestamp: 2 });
+    await seen;
+    expect(d.appLogErrors).toEqual(['real one']);
+    const crashed = new Promise((r) => conn.once('appError', r));
+    agent.notify('error', { kind: 'uncaught', message: 'boom', timestamp: 3 });
+    await crashed;
+    const e = (await d.getTree().catch((x: unknown) => x)) as QuiescoError;
+    expect(e).toMatchObject({ errorName: 'APP_ERROR' });
+    expect(e.message).not.toContain('console.error');
   });
 
   it('keeps agent error codes and data', async () => {

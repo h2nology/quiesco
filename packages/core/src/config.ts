@@ -7,7 +7,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { DEFAULT_PORT, SyncDefaults } from '@quiesco/protocol';
-import type { ActionMode, AgentConfig, GestureSlop, JsonValue, LogLevel, Platform, TrackerName } from '@quiesco/protocol';
+import type { ActionMode, AgentConfig, GestureSlop, JsonValue, LogBoxMode, LogLevel, Platform, TrackerName } from '@quiesco/protocol';
 
 import { QuiescoError } from './errors.js';
 import { toMatcher, toTextMatch } from './matcher.js';
@@ -204,12 +204,20 @@ export interface QuiescoConfig {
   tags?: Partial<TagNames>;
   /**
    * App errors that must not fail the current step (they are logged as warnings instead).
-   * Matched against the error message; strings match as substrings.
+   * Matched against the error message; strings match as substrings. They are also left out of the
+   * `console.error`s a failure message lists.
    */
   appErrors?: {
     ignore?: (string | RegExp)[];
     /** Also ignore the known benign framework reports in DEFAULT_IGNORED_APP_ERRORS. Default true. */
     ignoreDefaults?: boolean;
+    /**
+     * React Native's LogBox in dev builds (issue #31). Its toast covers the bottom of the screen, so one
+     * `console.error` would make later taps there fail. `clear` (default): clear it on every soft reset;
+     * `ignore`: show no LogBox notifications at all (the errors still reach the failure message);
+     * `keep`: leave it alone.
+     */
+    logBox?: LogBoxMode;
   };
 }
 
@@ -275,6 +283,7 @@ export function toAgentConfig(config: QuiescoConfig, gestureSlop?: GestureSlop, 
     logLevel: config.logLevel ?? 'warn',
     ...(gestures !== undefined ? { gestures } : {}),
     workerIndex,
+    logBox: config.appErrors?.logBox ?? 'clear',
   };
 }
 

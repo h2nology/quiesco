@@ -11,6 +11,7 @@ const { withQuiesco, watchMode } = require('../metro.cjs') as {
   withQuiesco: <T extends object>(config: T, options?: { enabled?: boolean; env?: Record<string, string>; projectRoot?: string; artifactsDir?: string | false }) => T & {
     resolver: { resolveRequest: (ctx: unknown, name: string, platform: string | null) => unknown; blockList?: RegExp[] };
     serializer?: { getModulesRunBeforeMainModule?: (entry: string) => string[] };
+    symbolicator?: { customizeFrame?: (frame: { file?: string }) => unknown };
   };
 };
 
@@ -91,6 +92,26 @@ describe('withQuiesco: early module', () => {
     expect(original.getModulesRunBeforeMainModule()).toEqual([early, '/rn/setup-env.js']);
     const bare = withQuiesco({ projectRoot: root, resolver: {} }, { env: { EXPO_PUBLIC_QUIESCO: '1' } });
     expect(bare.serializer?.getModulesRunBeforeMainModule?.('/app/index.ts')).toEqual([early]);
+  });
+
+  it("collapses the agent's frames in LogBox stacks, on top of the config's customizeFrame (issue #31)", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'quiesco-metro-'));
+    const expoFrame = vi.fn((f: { file?: string }) => ({ collapse: f.file?.includes('/react-native/') === true }));
+    const config = withQuiesco({ projectRoot: root, resolver: {}, symbolicator: { customizeFrame: expoFrame } }, { env: { EXPO_PUBLIC_QUIESCO: '1' } });
+    const customize = config.symbolicator?.customizeFrame as (f: { file?: string }) => unknown;
+    expect(customize({ file: path.join(agentSrc, 'events.ts') })).toEqual({ collapse: true });
+    expect(customize({ file: '/app/node_modules/.pnpm/@quiesco+agent@0.4.1/node_modules/@quiesco/agent/src/events.ts' })).toEqual({ collapse: true });
+    expect(customize({ file: '/app/App.tsx' })).toEqual({ collapse: false });
+    expect(customize({ file: '/app/node_modules/react-native/Libraries/x.js' })).toEqual({ collapse: true });
+    expect(customize({})).toEqual({ collapse: false });
+    // an async upstream, and none at all
+    const asyncUp = withQuiesco({ projectRoot: root, resolver: {}, symbolicator: { customizeFrame: async () => ({ collapse: false, extra: 1 }) } }, { env: { EXPO_PUBLIC_QUIESCO: '1' } });
+    await expect(asyncUp.symbolicator?.customizeFrame?.({ file: path.join(agentSrc, 'events.ts') })).resolves.toEqual({ collapse: true, extra: 1 });
+    const bare = withQuiesco({ projectRoot: root, resolver: {} }, { env: { EXPO_PUBLIC_QUIESCO: '1' } });
+    expect(bare.symbolicator?.customizeFrame?.({ file: '/app/App.tsx' })).toBeUndefined();
+    expect(bare.symbolicator?.customizeFrame?.({ file: path.join(agentSrc, 'runtime.ts') })).toEqual({ collapse: true });
+    // production builds have no agent: the config's own is left as it is
+    expect(withQuiesco({ resolver: {}, symbolicator: { customizeFrame: expoFrame } }, { env: {} }).symbolicator?.customizeFrame).toBe(expoFrame);
   });
 
   it('leaves the serializer alone in production builds', () => {

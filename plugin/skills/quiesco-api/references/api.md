@@ -595,7 +595,8 @@ export default defineConfig({
 | `connectTimeoutMs` | `30000` | How long to wait for the app after launch |
 | `logLevel` | `warn` | App console messages forwarded to the test output (`off` to disable) |
 | `tags` | see below | Rename the scenario tags |
-| `appErrors.ignore` / `ignoreDefaults` | `[]` / `true` | App errors that only log a warning instead of failing the step |
+| `appErrors.ignore` / `ignoreDefaults` | `[]` / `true` | App errors that only log a warning instead of failing the step (also left out of the `console.error`s a failure lists) |
+| `appErrors.logBox` | `'clear'` | React Native's LogBox in dev builds: `'clear'` its logs on every soft reset, `'ignore'` them (no LogBox notifications), or `'keep'` them ([LogBox covers the app](../../debug/references/troubleshooting.md#logbox)) |
 
 The platform comes from `QUIESCO_PLATFORM` (`ios`, `android`, `web`) or `quiesco test --platform`.
 The config file is plain TypeScript, so values can come from the environment.
@@ -617,6 +618,9 @@ runs on Android only. This differs from cucumber-js `--tags`, which matches inhe
 ## Errors {#errors}
 
 Failures are `QuiescoError`s with `errorName`, a message that says what to do, and structured `data`.
+When the app logged a `console.error` during the scenario, the message ends with the last one and
+`data.appLogErrors` has them all (also attached to the failed scenario as `app-errors.txt`): it is often the
+cause.
 Their stack starts at the code that made the call (your step or driver class), without Quiesco's own or
 the WebSocket library's frames.
 

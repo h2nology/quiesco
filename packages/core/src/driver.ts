@@ -80,11 +80,15 @@ const DIALOG: unique symbol = Symbol('dialog');
 
 /** Extra wall-clock time on top of the agent-side timeout before the host gives up on a reply. */
 const HOST_MARGIN_MS = 5_000;
+/** How many of a scenario's `console.error`s the driver keeps. */
+const MAX_APP_LOG_ERRORS = 50;
 /** Upper bound of steps of scrollToEdge / scrollToIndex in the agent (each may take the call timeout). */
 const MAX_SCROLL_STEPS = 60;
 
 export class Driver {
   private readonly appErrors: AgentEvents['error'][] = [];
+  /** `console.error`s the app logged in this scenario (issue #31), oldest first, at most MAX_APP_LOG_ERRORS. */
+  private readonly logErrors: string[] = [];
   private appErrorListeners = new Set<(e: AgentEvents['error']) => void>();
   private watched: AgentConnection | null = null;
   private warnedJsMode = false;
@@ -650,11 +654,35 @@ export class Driver {
       return await run;
     } catch (e) {
       if (e instanceof QuiescoError) {
+        this.addLogErrors(e);
         withCallSite(e, site);
         this.lastFailure = e;
       }
       throw e;
     }
+  }
+
+  /** The `console.error`s the app logged since the scenario began (issue #31). */
+  get appLogErrors(): readonly string[] {
+    return this.logErrors;
+  }
+
+  /** A new scenario: forget the app's `console.error`s of the last one. */
+  clearAppLogErrors(): void {
+    this.logErrors.length = 0;
+  }
+
+  /**
+   * A failure in a scenario where the app logged errors names the last one (issue #31): it is often the
+   * cause (e.g. a navigation warning before an element disappeared), and a LogBox toast it opened may cover
+   * the screen. All of them go in `data.appLogErrors`.
+   */
+  private addLogErrors(e: QuiescoError): void {
+    const n = this.logErrors.length;
+    if (n === 0 || e.errorName === 'APP_ERROR' || e.data['appLogErrors'] !== undefined) return;
+    const last = (this.logErrors[n - 1] as string).split('\n')[0] as string;
+    e.message += `\n  The app logged ${n === 1 ? 'a console.error' : `${n} console.errors`} in this scenario; the last: ${last.length > 300 ? `${last.slice(0, 300)}…` : last}`;
+    e.data['appLogErrors'] = [...this.logErrors];
   }
 
   /** Fail as soon as the app reports an uncaught error. */
@@ -674,6 +702,12 @@ export class Driver {
   attach(conn: AgentConnection): void {
     if (this.watched === conn) return;
     this.watched = conn;
+    conn.on('log', (l) => {
+      if (this.watched !== conn || l.level !== 'error') return;
+      if (this.options.ignoreAppErrors?.some((re) => re.test(l.message)) === true) return;
+      this.logErrors.push(l.message);
+      if (this.logErrors.length > MAX_APP_LOG_ERRORS) this.logErrors.shift();
+    });
     conn.on('appError', (e) => {
       if (this.watched !== conn) return;
       if (this.options.ignoreAppErrors?.some((re) => re.test(e.message)) === true) {

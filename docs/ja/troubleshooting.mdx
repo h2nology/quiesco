@@ -39,6 +39,10 @@ frame-stableの行で、待機時間のわりにサンプリングされたフ�
 
 iOSで`(the touch would reach UIView)`と出て、`failure.png`の上部に**「Refreshing...」**バーが写っている場合、Metroが監視しているファイルが変わったためにdev clientがリロードしています。テストの実行中に何かがプロジェクト内に書き込んでいます。多くの場合、`artifacts/`以外のディレクトリに出力された成果物（同じパスを`withQuiesco(config, { artifactsDir })`に渡してMetroを再起動してください）か、独自に生成しているファイル（`resolver.blockList`に追加してください）です。並列実行では、あるワーカーのスクリーンショットが別のワーカーのタップを壊すことになります。
 
+### LogBoxがアプリを覆う {#logbox}
+
+devビルドでは、アプリの`console.error`が画面下部にLogBoxのトースト（「Console Error」、タップすると全画面のLogBox）を開き、そこをタップすると`ELEMENT_OBSCURED`で失敗するようになります。QuiescoはソフトリセットのたびにLogBoxを消す（`appErrors.logBox: 'clear'`）ので、次のシナリオはLogBoxがない状態で始まります。そのシナリオの失敗メッセージには、そのエラーが示されます（`The app logged a console.error in this scenario; the last: …`。すべては`app-errors.txt`にあります）。エラーはアプリで直してください。テスト中にLogBoxを一切表示したくない場合は、`appErrors.logBox: 'ignore'`を設定します（エラーは引き続き失敗メッセージに出ます）。LogBoxのSourceとコールスタックはアプリの行から始まります。`withQuiesco()`が、`console.*`を転送するエージェントのフレームを折りたたむためです。
+
 ## Androidで「… isn't responding」が出る（並列実行） {#android-not-responding}
 
 Quiescoが`Android showed "com.android.systemui isn't responding" over the app; Quiesco chose Wait`と警告する場合、マシンが支えきれない数のデバイスを動かしています（各ワーカーはエミュレーター1台をまるごと使います）。実行を続けられるようQuiescoがこれらのダイアログに応答しますが、ワーカー数を減らしてください（`--workers`、[parallel.md](./parallel)）。ダイアログが**テスト対象のアプリ**のもの（`<package> itself isn't responding`）であれば、Quiescoは手を出しません。アプリが固まっています。
@@ -53,7 +57,7 @@ Quiescoが`Android showed "com.android.systemui isn't responding" over the app; 
 
 ## `APP_ERROR` {#app-error}
 
-アプリで捕捉されなかったエラーは、実行中のステップを失敗させます。たいていは本物のバグです。無害だとわかっているフレームワークの報告は、`appErrors.ignore`で無視できます（[既知の問題](./known-issues)を参照）。
+アプリで捕捉されなかったエラーは、実行中のステップを失敗させます。たいていは本物のバグです。無害だとわかっているフレームワークの報告は、`appErrors.ignore`で無視できます（[既知の問題](./known-issues)を参照）。`console.error`ではステップは失敗しませんが、シナリオの中でその後に起きた失敗がそれを示します（[LogBoxがアプリを覆う](#logbox)）。
 
 ## iOS {#ios}
 

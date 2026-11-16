@@ -4,7 +4,7 @@
  * import of the app entry, so the DevTools hook and scheduler patch precede the renderer).
  */
 import { SyncDefaults, WEBVIEW_HOOK } from '@quiesco/protocol';
-import type { Direction, Edge, Point, Speed } from '@quiesco/protocol';
+import type { Direction, Edge, LogBoxMode, Point, Speed } from '@quiesco/protocol';
 import type {
   ActionSpec,
   ActionType,
@@ -43,6 +43,8 @@ import type { AppDeps } from './platform';
 import { defaultAppDeps } from './platform';
 import { NavigationReset } from './navigation';
 import { ResetManager } from './reset';
+import { appLogBox } from './reset/logbox';
+import type { LogBoxLike } from './reset/logbox';
 import { defaultStorageAdapters } from './reset/storage-defaults';
 import { describeMatcher, findAll, getTree, invisibleReason, isVisible, listElements, structureLines, summarize, toRegExp } from './query';
 import type { Clock, FetchFn, IdleTracker, TimerGlobals } from './sync';
@@ -80,6 +82,8 @@ export interface RuntimeOptions {
   trackers?: (runtime: AgentRuntime) => IdleTracker[];
   /** Built-in storage adapters (default: AsyncStorage on native, web storage on web). */
   storage?: () => StorageAdapter[];
+  /** React Native's LogBox (default: from react-native on iOS / Android, none on the web). */
+  logBox?: () => LogBoxLike | null;
 }
 
 type Handlers = { [M in keyof AgentMethods]: (params: ParamsOf<AgentMethods[M]>) => Promise<ResultOf<AgentMethods[M]>> };
@@ -125,6 +129,9 @@ export class AgentRuntime {
   private readonly hookedWebViews = new Set<number>();
   /** Original console methods, captured before the event forwarder wraps them. */
   private readonly log: (message: string) => void;
+  private readonly logBox: () => LogBoxLike | null;
+  /** This runtime turned LogBox notifications off (`appErrors.logBox: 'ignore'`). */
+  private logBoxIgnored = false;
 
   constructor(options: RuntimeOptions = {}) {
     this.global = options.globalObject ?? (globalThis as unknown as Record<string, unknown>);
@@ -139,6 +146,7 @@ export class AgentRuntime {
     this.engine.setSkipped(() => (this.deps.appState() === 'background' ? BACKGROUND_SKIPPED : NONE));
     this.engine.setBackground(() => this.deps.appState() === 'background', this.deps.onAppStateChange?.bind(this.deps));
     this.resets = new ResetManager(options.storage ?? (() => defaultStorageAdapters()));
+    this.logBox = options.logBox ?? appLogBox;
     this.events = new EventForwarder({ notify: (e, p) => this.client?.notify(e, p), target: this.global });
   }
 
@@ -258,6 +266,29 @@ export class AgentRuntime {
     this.frames?.setFrames(config.sync.stableFrames);
     this.engine.setEnabled(config.sync.trackers);
     this.events.setLevel(config.logLevel);
+    this.configureLogBox(config.logBox ?? 'keep');
+  }
+
+  /** `appErrors.logBox: 'ignore'`: no LogBox notifications (issue #31); undone when the host changes it. */
+  private configureLogBox(mode: LogBoxMode): void {
+    const ignore = mode === 'ignore';
+    if (ignore === this.logBoxIgnored) return;
+    try {
+      this.logBox()?.ignoreAllLogs(ignore);
+      this.logBoxIgnored = ignore;
+    } catch {
+      // LogBox is a dev tool: never fail the connection over it
+    }
+  }
+
+  /** Before a soft reset (unless `appErrors.logBox: 'keep'`): a LogBox toast from the last scenario would cover the app. */
+  private clearLogBox(): void {
+    if ((this.config.logBox ?? 'keep') === 'keep') return;
+    try {
+      this.logBox()?.clearAllLogs();
+    } catch {
+      // as above
+    }
   }
 
   /** Elements matching `sync.ignoreElements`, left out of the frame-stable snapshot with their subtrees. */
@@ -346,6 +377,7 @@ export class AgentRuntime {
     route: async () => ({ route: this.navigation.current() }),
     reset: async () => {
       const start = this.clock.now();
+      this.clearLogBox();
       await this.resets.run(this.remount, this.navigation.active ? () => this.navigation.restore((ms) => this.sleep(ms)) : undefined);
       await this.engine.waitForIdle({ timeoutMs: this.config.sync.timeoutMs });
       const { route, problem } = this.navigation.verify();
