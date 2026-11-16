@@ -75,6 +75,20 @@ describe('Lifecycle', () => {
     ]);
   });
 
+  it('on web, skips scenarios tagged for other browsers (devices.web.browser, default chromium)', async () => {
+    const webkit = new Lifecycle({ config: { ...config, devices: { web: { browser: 'webkit' } } }, platform: 'web', createSession: async () => fakeSession().session });
+    await webkit.beforeAll();
+    expect(webkit.runsHere(['@chromium'])).toBe(false);
+    expect(webkit.runsHere([['@chromium', '@webkit'], []])).toBe(true);
+    const chromium = new Lifecycle({ config, platform: 'web', createSession: async () => fakeSession().session });
+    await chromium.beforeAll();
+    expect(chromium.runsHere(['@chromium'])).toBe(true);
+    expect(chromium.runsHere(['@firefox'])).toBe(false);
+    const android = new Lifecycle({ config: { ...config, devices: { web: { browser: 'webkit' } } }, platform: 'android', createSession: async () => fakeSession().session });
+    await android.beforeAll();
+    expect(android.runsHere(['@chromium'])).toBe(true);
+  });
+
   it('skips the rest after 3 identical failures in a row by default, and says so (issue #9)', async () => {
     const { session, calls } = fakeSession();
     const warnings: string[] = [];

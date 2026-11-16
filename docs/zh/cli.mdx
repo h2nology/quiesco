@@ -106,7 +106,7 @@ npx quiesco doctor                 # quiesco.config.mts 中配置的所有平台
 npx quiesco doctor --platform ios
 ```
 
-检查 Node.js、Expo SDK（55 及以上）、项目配置（包、所有 Quiesco 包是否为同一版本、package.json 脚本中的每个 `quiesco <command>` 是否存在、config plugin、Metro 中的 `withQuiesco()`、agent 是否为入口的第一个 import、`<QuiescoRoot>`、配置文件）、App ID（`quiesco.config.mts` 与 `app.json` 和构建产物是否一致，以及 `init` 留下的占位符）、旧版本写入的设置（cucumber 配置中的 `paths`；step 文件导入 `.ts` 但没有 `allowImportingTsExtensions`）、平台工具（模拟器、adb 和 AVD、Playwright 的 Chromium）、App 构建和端口。每个问题都附带修复方法；旧的设置缺少的大部分内容，`npx quiesco@latest init --upgrade` 都能修好。必需的检查失败时以 1 退出；警告和提示（ℹ️，例如缺少 `e2e:build:*` 脚本）不会导致失败。
+检查 Node.js、Expo SDK（55 及以上）、项目配置（包、所有 Quiesco 包是否为同一版本、package.json 脚本中的每个 `quiesco <command>` 是否存在、config plugin、Metro 中的 `withQuiesco()`、agent 是否为入口的第一个 import、`<QuiescoRoot>`、配置文件）、App ID（`quiesco.config.mts` 与 `app.json` 和构建产物是否一致，以及 `init` 留下的占位符）、旧版本写入的设置（cucumber 配置中的 `paths`；step 文件导入 `.ts` 但没有 `allowImportingTsExtensions`）、平台工具（模拟器、adb 和 AVD、配置中的 Playwright 浏览器）、App 构建和端口。每个问题都附带修复方法；旧的设置缺少的大部分内容，`npx quiesco@latest init --upgrade` 都能修好。必需的检查失败时以 1 退出；警告和提示（ℹ️，例如缺少 `e2e:build:*` 脚本）不会导致失败。
 
 ## `quiesco tree` {#quiesco-tree}
 

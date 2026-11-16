@@ -79,7 +79,7 @@ export interface ScenarioInfo {
 
 /** Packages providing a platform's DeviceProvider, loaded at runtime (core never imports them statically). */
 const PROVIDER_PACKAGES: Partial<Record<Platform, { name: string; install: string }>> = {
-  web: { name: '@quiesco/web', install: 'npm i -D @quiesco/web playwright && npx playwright install chromium' },
+  web: { name: '@quiesco/web', install: 'npm i -D @quiesco/web playwright && npx playwright install <browser>' },
 };
 
 type ProviderModule = { createWebProvider(options: { app: unknown; device?: unknown; logger: Logger; worker?: WorkerInfo }): DeviceProvider };
@@ -101,7 +101,7 @@ export async function createProvider(platform: Platform, config: QuiescoConfig, 
         const specifier: string = pkg.name;
         mod = (await import(specifier)) as ProviderModule;
       } catch (e) {
-        throw new QuiescoError('CONFIG_ERROR', `Testing on the web needs ${pkg.name} (${(e as Error).message}). Install it: ${pkg.install}`);
+        throw new QuiescoError('CONFIG_ERROR', `Testing on the web needs ${pkg.name} (${(e as Error).message}). Install it: ${pkg.install.replace('<browser>', config.devices?.web?.browser ?? 'chromium')}`);
       }
       return mod.createWebProvider({ app, ...(config.devices?.web !== undefined ? { device: config.devices.web } : {}), logger, worker });
     }

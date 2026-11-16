@@ -3,7 +3,7 @@ title: "Quiesco"
 description: "面向 Expo App 的灰盒端到端测试，覆盖 iOS、Android 和 Web，可由 Cucumber、Jest、Vitest 或任何 Node.js 测试运行器驱动。"
 ---
 
-App 的 e2e 构建里有一个小小的 agent，它会在 App 空闲时通知测试运行器——没有待处理的网络请求、定时器、React 渲染或动画——因此测试既不用 sleep，也不用轮询。同一套测试无需修改，即可在 iOS 模拟器、Android 模拟器和 Chromium 上运行。Cucumber 有现成的适配器（`@quiesco/cucumber`），Jest 和 Vitest 也有（`@quiesco/jest`、`@quiesco/vitest`、[其他测试运行器](./runners)）。
+App 的 e2e 构建里有一个小小的 agent，它会在 App 空闲时通知测试运行器——没有待处理的网络请求、定时器、React 渲染或动画——因此测试既不用 sleep，也不用轮询。同一套测试无需修改，即可在 iOS 模拟器、Android 模拟器和浏览器（Chromium、Firefox、WebKit）中运行。Cucumber 有现成的适配器（`@quiesco/cucumber`），Jest 和 Vitest 也有（`@quiesco/jest`、`@quiesco/vitest`、[其他测试运行器](./runners)）。
 
 ```gherkin
 Scenario: A new todo appears at the top of the list

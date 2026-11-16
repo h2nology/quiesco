@@ -9,7 +9,7 @@ const viewports: Record<string, WebViewport> = {
   desktop: { width: 1280, height: 800 },
 };
 const viewportName = process.env['QUIESCO_VIEWPORT'] ?? 'mobile';
-// Browser for web runs (QUIESCO_BROWSER): Chromium is the accepted one; Firefox and WebKit are best effort.
+// Browser for web runs (QUIESCO_BROWSER): chromium (default), firefox or webkit.
 const browser = process.env['QUIESCO_BROWSER'] ?? 'chromium';
 if (browser !== 'chromium' && browser !== 'firefox' && browser !== 'webkit') throw new Error(`Unknown QUIESCO_BROWSER "${browser}" (chromium, firefox, webkit)`);
 // Metro serving the dev clients (`pnpm start:e2e`, port 8082); QUIESCO_METRO_URL points at another one.

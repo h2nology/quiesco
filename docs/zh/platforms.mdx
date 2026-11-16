@@ -7,7 +7,7 @@ description: "iOS、Android 和 Web 并列对比：输入、权限、系统弹�
 
 | | iOS | Android | Web |
 |---|---|---|---|
-| 设备 | 模拟器（`xcrun simctl`），必要时自动启动 | 模拟器或真机（`adb`）；必要时冷启动 AVD | 通过 Playwright 库驱动的 Chromium（每次启动一个新的浏览器上下文） |
+| 设备 | 模拟器（`xcrun simctl`），必要时自动启动 | 模拟器或真机（`adb`）；必要时冷启动 AVD | 通过 Playwright 库驱动的 Chromium、Firefox 或 WebKit（每次启动一个新的浏览器上下文；[浏览器](#browsers)） |
 | App 构建 | 用 `EXPO_PUBLIC_QUIESCO=1` 构建的模拟器版 `.app` | 用 `EXPO_PUBLIC_QUIESCO=1` 构建的 APK | 带 `EXPO_PUBLIC_QUIESCO=1` 的 `npx expo export --platform web`（静态输出由 Quiesco 提供服务，服务端输出用 `npx expo serve` 托管），或开发服务器 |
 | App 如何找到 host 端 | 启动参数 | intent extras | 页面中的初始化脚本 |
 | 真实输入（`native` 模式） | 合成的 `UITouch` 事件（`@quiesco/native`，私有 API，仅限 e2e 构建） | 派发到 activity 的 `MotionEvent`（`@quiesco/native`） | Playwright 触摸屏（触摸视口）或鼠标；文本通过键盘输入 |
@@ -26,7 +26,7 @@ description: "iOS、Android 和 Web 并列对比：输入、权限、系统弹�
 | 对 picker / 日期 picker 执行 `setValue` | 用手指转动滚轮（日期用 `display="spinner"`；compact / inline：回调） | 回调（下拉框和日期对话框是独立的窗口） | `<select>` / 日期输入框由 Playwright 填写；其他组件：回调 |
 | `adjustSlider` | 真实拖动，读回数值并修正 | 真实拖动，读回数值并修正 | 鼠标拖动（不读回） |
 | `accessibilityAction` | VoiceOver 路径（increment / decrement、自定义操作） | `performAccessibilityAction` | `onAccessibilityAction` |
-| `pinch`、`rotate`、`multiTouch` | 一个事件中包含多个 `UITouch`（需要 `@quiesco/native` ≥ Phase 6.4：`multiGesture`） | 多指针 `MotionEvent`（同左） | 触摸视口上用 CDP 触摸事件；桌面视口：`ACTION_NOT_SUPPORTED` |
+| `pinch`、`rotate`、`multiTouch` | 一个事件中包含多个 `UITouch`（需要 `@quiesco/native` ≥ Phase 6.4：`multiGesture`） | 多指针 `MotionEvent`（同左） | 触摸视口：CDP 触摸事件（Chromium），在页面里派发合成的 pointer / touch 事件（Firefox、WebKit）；桌面视口：`ACTION_NOT_SUPPORTED` |
 | 补偿的识别器激活阈值（`actions.gestureSlop`） | 9 pt，7° | 26 dp，9° | 46 px，0° |
 | `relaunch({ args })` → `quiesco.launchArgs()` | `-quiescoArgs` 启动参数（需要 `@quiesco/native` ≥ Phase 6.5） | `--es quiescoArgs` extra（同左） | 初始化脚本 |
 | `relaunch({ url })` | `-quiescoUrl`，由 `@quiesco/native` 在 JS 运行前交给 expo-linking（≥ Phase 6.5；否则在启动后打开） | intent data；dev client 用自己的 Metro 链接启动，并收到 `--es quiescoUrl`，由 `@quiesco/native` 在 JS 运行前把它设为启动 URL（否则在启动后打开） | 打开该 URL 的路径（`myapp://todos/1` → `/todos/1`） |
@@ -41,9 +41,9 @@ description: "iOS、Android 和 Web 并列对比：输入、权限、系统弹�
 | `setFontScale()` | `simctl ui content_size`，取最接近的 Dynamic Type 尺寸（0.823 … 3.571），实时生效 | `settings put system font_scale`，然后重新启动 App（保留数据） | `ACTION_NOT_SUPPORTED` |
 | `setLocale()` | 用 `-AppleLanguages` / `-AppleLocale` 重新启动（需要 `CFBundleLocalizations`） | 按 App 设置语言，`cmd locale set-app-locales`（Android 13+），然后重新启动 App | 使用该 locale 的新浏览器上下文（保留数据） |
 | `setLocation()` | `simctl location set`（重置：`clear`） | `adb emu geo fix`（仅限模拟器） | `context.setGeolocation` |
-| `setPermission()` | `simctl privacy grant / revoke / reset`（不支持相机 / 通知；它们的 `'reset'` 会重新安装 App）；App 保持运行 | `pm grant / revoke`（+ `clear-permission-flags`）；revoke 或 reset 会杀掉 App → 重新启动 | `grantPermissions` / `clearPermissions` |
-| `setNetwork('offline')` | 由 agent 让 App 的新连接失败；不切换设备网络（NetInfo 仍为在线） | agent，外加 `svc wifi / data disable`（NetInfo 能感知；`adb reverse` 仍可用） | agent，外加中止页面请求和 CDP `Network.overrideNetworkState`（`navigator.onLine`、`offline` / `connection` `change` 事件；Chromium） |
-| `clipboard.set()` / `get()` | App 内的 `UIPasteboard`（`@quiesco/native` ≥ Phase 6.6）；没有它时 `get` 用 `simctl pbpaste` | App 内的 `ClipboardManager`（同左；没有它则 `ACTION_NOT_SUPPORTED`） | `navigator.clipboard`（为页面授予剪贴板权限） |
+| `setPermission()` | `simctl privacy grant / revoke / reset`（不支持相机 / 通知；它们的 `'reset'` 会重新安装 App）；App 保持运行 | `pm grant / revoke`（+ `clear-permission-flags`）；revoke 或 reset 会杀掉 App → 重新启动 | `grantPermissions` / `clearPermissions`；WebKit：定位权限变化时重新启动 App（数据保留） |
+| `setNetwork('offline')` | 由 agent 让 App 的新连接失败；不切换设备网络（NetInfo 仍为在线） | agent，外加 `svc wifi / data disable`（NetInfo 能感知；`adb reverse` 仍可用） | agent，外加中止页面请求，以及 `navigator.onLine` 和 `offline` / `online` 事件（Chromium：CDP `Network.overrideNetworkState`，另有 `connection` `change`；Firefox、WebKit：在页面里设置） |
+| `clipboard.set()` / `get()` | App 内的 `UIPasteboard`（`@quiesco/native` ≥ Phase 6.6）；没有它时 `get` 用 `simctl pbpaste` | App 内的 `ClipboardManager`（同左；没有它则 `ACTION_NOT_SUPPORTED`） | `navigator.clipboard`（为页面授予剪贴板权限）；WebKit：由 Quiesco 保存的文本剪贴板 |
 | `setStatusBar()` | `simctl status_bar override`（重置：`clear`） | SystemUI 演示模式（`sysui_demo_allowed`，隐藏通知图标；重置：`exit`） | 没有状态栏：无需操作 |
 | `biometrics.enroll()` | 在模拟器中执行 `notifyutil`：`com.apple.BiometricKit.enrollmentChanged`（之后恢复为原值） | 锁屏 PIN（`locksettings set-pin`），用 `uiautomator` 操作设置中的录入流程（按位置点击按钮）并执行 `adb emu finger touch 1`；移除 PIN 时指纹也会被移除 | `ACTION_NOT_SUPPORTED` |
 | `biometrics.match()` / `fail()` | `notifyutil -p com.apple.BiometricKit_Sim.pearl.match` / `.nomatch`（Touch ID 机型用 `fingerTouch.*`） | 认证开始后（`dumpsys fingerprint`）执行 `adb emu finger touch 1` / `2` | `ACTION_NOT_SUPPORTED` |
@@ -110,11 +110,28 @@ description: "iOS、Android 和 Web 并列对比：输入、权限、系统弹�
 
 ## Web {#web}
 
-- 支持的浏览器是 Chromium；`firefox` / `webkit` 可以配置，但未经测试。
+- `devices.web.browser` 选择 Chromium（默认）、Firefox 或 WebKit；同一套 feature 在三者上都能运行（[浏览器](#browsers)）。
 - 视口来自配置（手机、平板、桌面…）；触摸视口使用触摸输入。
 - 整页加载会让 agent 重新连接；host 端会等待重连，而不会让步骤失败。
 - 只测试原生平台时不需要 Playwright；Web 提供者按需加载。
-- `setNetwork('offline')` 不使用 Playwright 的 `context.setOffline()`：它还会断掉 Quiesco 自己的 WebSocket（socket 保持打开，但收不到任何消息）。取而代之的是中止页面的请求（路由看不到 WebSocket），并用 CDP `Network.overrideNetworkState` 设置 `navigator.onLine`，同时触发真实的 `offline` / `online` 事件；吞吐量为零时还会触发 `navigator.connection` 的 `change`，这正是 NetInfo 在 Chromium 中监听的事件。离线状态下重新启动时，会先加载页面，再切换到离线。
+- `setNetwork('offline')` 不使用 Playwright 的 `context.setOffline()`：它还会断掉 Quiesco 自己的 WebSocket（socket 保持打开，但收不到任何消息）。取而代之的是中止页面的请求（路由看不到 WebSocket），并用 CDP `Network.overrideNetworkState` 设置 `navigator.onLine`，同时触发真实的 `offline` / `online` 事件；吞吐量为零时还会触发 `navigator.connection` 的 `change`，这正是 NetInfo 在 Chromium 中监听的事件。Firefox 和 WebKit 没有 CDP：改为在页面里覆盖 `navigator.onLine` 并派发 `offline` / `online`（没有 `navigator.connection` 时 NetInfo 监听的就是它们）。离线状态下重新启动时，会先加载页面，再切换到离线。
 - 读取设备状态时绝不触碰 App 自己的 `MediaQueryList`：读取 react-native-web 的 `Appearance` 所监听的那个 list 的 `matches`，会让 Chromium 跳过 change 事件，`useColorScheme()` 就永远不会更新。
 - 没有后台状态：由 Playwright 驱动的页面无论怎么尝试都保持 `visible`（前面打开另一个标签页、最小化窗口、CDP 生命周期状态，无论是否使用 Chromium 的后台相关开关）。请给涉及后台的场景加上 `@native` 标签。
 - `@react-native-community/datetimepicker` 没有 Web 实现；在 Web 上请使用 `<input type="date">`（`setValue` 会填写它）。`@react-native-segmented-control` 的 Web / Android 实现不会传递 `testID`：请把 testID 放在外层包裹的 `View` 上（`setValue` 会使用其中唯一的控件）。
+
+### 浏览器 {#browsers}
+
+同一套 feature 在三个浏览器上都能运行。下面是 Playwright 或浏览器本身有缺口、底层做法不同的地方：
+
+| | Chromium | Firefox | WebKit |
+|---|---|---|---|
+| `pinch`、`rotate`、`multiTouch`（触摸视口） | CDP `Input.dispatchTouchEvent` | 在页面里派发合成的 `PointerEvent` 和 `TouchEvent` | 同 Firefox（触点由 `document.createTouch` 创建） |
+| `setNetwork('offline')`：页面看到的 | CDP：`navigator.onLine`、`offline` / `online`、`connection` `change` | 在页面里覆盖 `navigator.onLine`，派发 `offline` / `online` | 同 Firefox |
+| App 运行中 `setPermission('location', …)` | 对已打开的页面生效 | 对已打开的页面生效 | 页面一直沿用第一次得到的授权：重新启动 App（数据保留），和 Android 撤销权限时一样 |
+| `clipboard`、`navigator.clipboard` | 系统剪贴板 | 系统剪贴板 | 由 Quiesco 保存的文本剪贴板（自动化环境下 WebKit 允许页面写剪贴板但不允许读）：页面的 `navigator.clipboard`、`copy` 事件和 `app.clipboard` 共用它；重启 App 后仍在；只支持文本，浏览器外看不到 |
+| 移动端视口（`isMobile`）上的 `swipe`、`scroll` | 鼠标滚轮 | 鼠标滚轮 | 在该点派发 `WheelEvent`（移动端 WebKit 没有鼠标滚轮） |
+
+- `drag` 和 `adjustSlider` 在所有浏览器上都按时长逐步移动指针，到终点停 100 ms 再松开（否则 WebKit 会一口气收到所有移动，落点偏移）。
+- 合成事件不是可信事件（`isTrusted` 为 false）；react-native-gesture-handler 和 react-native-web 的 responder 系统不检查它。
+- 用环境变量选择浏览器，就能在三个浏览器上各跑一遍同一套测试；只适用于部分浏览器的场景用[浏览器标签](./api#scenario-tags)（`@chromium`、`@firefox`、`@webkit`）。
+- `npx playwright install chromium firefox webkit` 安装浏览器；`npx quiesco doctor` 检查配置中的那个。

@@ -93,10 +93,10 @@ export class Lifecycle {
     return this.repeated.bailedOut;
   }
 
-  /** Whether a test with these tags (grouped outermost level first) runs on this run's platform. */
+  /** Whether a test with these tags (grouped outermost level first) runs on this run's platform (and browser, on web). */
   runsHere(tags: ScenarioTags): boolean {
     if (this.config === null || this.platform === null) throw new Error('Quiesco beforeAll did not complete');
-    return runsOnPlatform(tags, this.platform, tagNames(this.config.tags));
+    return runsOnPlatform(tags, this.platform, tagNames(this.config.tags), this.config.devices?.web?.browser ?? 'chromium');
   }
 
   /**

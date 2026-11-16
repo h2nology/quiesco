@@ -138,7 +138,16 @@ fail the step; a failure later in the scenario names it ([LogBox covers the app]
 ## Web {#web}
 
 - **`@quiesco/web` / Playwright not found:** `npm i -D @quiesco/web playwright` and
-  `npx playwright install chromium`. Native-only projects do not need them.
+  `npx playwright install chromium` (or `firefox` / `webkit`: the `devices.web.browser` you run). Native-only
+  projects do not need them.
+- **`Cannot launch webkit` / `firefox`:** that browser is not installed for this Playwright version:
+  `npx playwright install webkit`. `npx quiesco doctor` checks the configured browser.
+- **WebKit: the app starts again after `setPermission('location', …)`:** expected. A WebKit page keeps the
+  location answer it first got, so Quiesco relaunches the app (data kept) for the change to apply
+  ([browsers](./platforms#browsers)).
+- **WebKit: text copied in the app is not in the Mac's clipboard (or the other way round):** in WebKit the
+  clipboard is kept by Quiesco, text only, shared by the page and `app.clipboard`
+  ([browsers](./platforms#browsers)).
 - **The first navigation to a lazy route fails with "Requiring unknown module":** a benign Expo Router
   report that Quiesco ignores by default ([known issues](./known-issues)).
 

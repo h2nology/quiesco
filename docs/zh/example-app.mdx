@@ -63,7 +63,9 @@ mock 后端由 `features/support/mock-server.ts` 启动。用于健壮性检查�
 | `EXPO_PUBLIC_TRANSITION_MS=1000` | 屏幕转场耗时 1 s（启动 Metro 时设置） |
 | `QUIESCO_AVD=<name>` | 要使用 / 启动的 AVD |
 | `QUIESCO_IOS_DEVICE="iPhone 17"`, `QUIESCO_IOS_OS=27.0` | 要使用 / 启动的模拟器（默认：已启动的那台） |
-| `QUIESCO_ACTION_MODE=js` | 调用组件回调，而不是注入真实触摸 |
+| `QUIESCO_ACTION_MODE=js` | 调用组件回调，而不是注入真实触摸（排除 `@needs-touch` 场景） |
+| `QUIESCO_BROWSER=firefox` | Web 浏览器：`chromium`（默认）、`firefox` 或 `webkit` |
+| `QUIESCO_VIEWPORT=desktop` | Web 视口：`mobile`（默认）、`tablet` 或 `desktop`（没有触摸屏：排除 `@multi-touch` 场景） |
 
 由于 App 包含原生模块，操作使用 `native` 模式（通过 `@quiesco/native` 注入真实触摸和 IME 文本）；`QUIESCO_ACTION_MODE=js` 切换到回调模式。
 

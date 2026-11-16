@@ -3,7 +3,7 @@ title: "Jest 和 Vitest"
 description: "在 Jest 或 Vitest 中使用 Quiesco，替代 Cucumber。"
 ---
 
-`@quiesco/vitest` 和 `@quiesco/jest` 为 Vitest 和 Jest 提供的功能，与 `@quiesco/cucumber` 为Cucumber 提供的相同：整个运行共用一个会话（设备和 App），每个测试前执行重置，跳过标记为其他平台的测试（`@ios`、`@android`、`@web`、`@native`；最内层的标记生效），失败消息会列出证据文件（截图、元素树、空闲状态、日志）。
+`@quiesco/vitest` 和 `@quiesco/jest` 为 Vitest 和 Jest 提供的功能，与 `@quiesco/cucumber` 为Cucumber 提供的相同：整个运行共用一个会话（设备和 App），每个测试前执行重置，跳过标记为其他平台或浏览器的测试（`@ios`、`@android`、`@web`、`@native`、`@chromium`、`@firefox`、`@webkit`；最内层的标记生效），失败消息会列出证据文件（截图、元素树、空闲状态、日志）。
 
 ## Vitest {#vitest}
 

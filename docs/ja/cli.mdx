@@ -106,7 +106,7 @@ npx quiesco doctor                 # quiesco.config.mtsで設定したすべて�
 npx quiesco doctor --platform ios
 ```
 
-Node.js、Expo SDK（55以降）、プロジェクトのセットアップ（パッケージ、すべてのQuiescoパッケージが同じバージョンか、package.jsonのスクリプトにある`quiesco <command>`がすべて存在するか、config plugin、Metroの`withQuiesco()`、エントリーの最初のimportとしてのエージェント、`<QuiescoRoot>`、設定ファイル）、アプリID（`quiesco.config.mts`が`app.json`やビルドと一致しているか、`init`が残したプレースホルダー）、古いバージョンが書き込んだ設定（cucumberの設定の`paths`、`allowImportingTsExtensions`なしでstepファイルが`.ts`をimportしている）、プラットフォームのツール（シミュレーター、adbとAVD、PlaywrightのChromium）、アプリのビルド、ポートをチェックします。問題ごとに修正方法を示します。古いセットアップに足りないものの多くは`npx quiesco@latest init --upgrade`で直せます。必須のチェックが失敗すると終了コード1で終わります。警告と補足（ℹ️、たとえば`e2e:build:*`スクリプトがない）では失敗しません。
+Node.js、Expo SDK（55以降）、プロジェクトのセットアップ（パッケージ、すべてのQuiescoパッケージが同じバージョンか、package.jsonのスクリプトにある`quiesco <command>`がすべて存在するか、config plugin、Metroの`withQuiesco()`、エントリーの最初のimportとしてのエージェント、`<QuiescoRoot>`、設定ファイル）、アプリID（`quiesco.config.mts`が`app.json`やビルドと一致しているか、`init`が残したプレースホルダー）、古いバージョンが書き込んだ設定（cucumberの設定の`paths`、`allowImportingTsExtensions`なしでstepファイルが`.ts`をimportしている）、プラットフォームのツール（シミュレーター、adbとAVD、設定されたPlaywrightのブラウザー）、アプリのビルド、ポートをチェックします。問題ごとに修正方法を示します。古いセットアップに足りないものの多くは`npx quiesco@latest init --upgrade`で直せます。必須のチェックが失敗すると終了コード1で終わります。警告と補足（ℹ️、たとえば`e2e:build:*`スクリプトがない）では失敗しません。
 
 ## `quiesco tree` {#quiesco-tree}
 

@@ -3,7 +3,7 @@ title: "Quiesco"
 description: "Cucumber、Jest、Vitest、その他任意のNode.jsテストランナーから動かす、iOS・Android・Web向けExpoアプリのグレーボックスe2eテスト。"
 ---
 
-アプリのe2eビルドに組み込んだ小さなエージェントが、アプリがアイドルになったこと（処理中のネットワークリクエスト、タイマー、Reactのレンダリング、アニメーションがない状態）をテストランナーに伝えます。そのため、テストでスリープやポーリングをする必要がありません。同じテストを、iOSシミュレーター、Androidエミュレーター、Chromiumでそのまま実行できます。Cucumberには専用のアダプター（`@quiesco/cucumber`）があり、JestとVitestにも同様のアダプター（`@quiesco/jest`、`@quiesco/vitest`、[その他のテストランナー](./runners)）があります。
+アプリのe2eビルドに組み込んだ小さなエージェントが、アプリがアイドルになったこと（処理中のネットワークリクエスト、タイマー、Reactのレンダリング、アニメーションがない状態）をテストランナーに伝えます。そのため、テストでスリープやポーリングをする必要がありません。同じテストを、iOSシミュレーター、Androidエミュレーター、ブラウザー（Chromium、Firefox、WebKit）でそのまま実行できます。Cucumberには専用のアダプター（`@quiesco/cucumber`）があり、JestとVitestにも同様のアダプター（`@quiesco/jest`、`@quiesco/vitest`、[その他のテストランナー](./runners)）があります。
 
 ```gherkin
 Scenario: A new todo appears at the top of the list

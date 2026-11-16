@@ -33,10 +33,10 @@ describe('addEvidence', () => {
 });
 
 describe('quiesco()', () => {
-  it('runs files one at a time in one worker and declares the platform tags', () => {
+  it('runs files one at a time in one worker and declares the platform and browser tags', () => {
     const c = quiesco({ tags: { web: '@browser' }, extraTags: ['@smoke'] });
     expect(c).toMatchObject({ pool: 'forks', isolate: false, fileParallelism: false, maxWorkers: 1, testTimeout: 300_000 });
-    expect(c.tags.map((t) => t.name)).toEqual(['@ios', '@android', '@browser', '@native', '@hard-reset', '@smoke']);
+    expect(c.tags.map((t) => t.name)).toEqual(['@ios', '@android', '@browser', '@native', '@chromium', '@firefox', '@webkit', '@hard-reset', '@smoke']);
   });
 
   it('runs files in parallel on `workers` devices (Phase 6.12)', () => {

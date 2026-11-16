@@ -13,7 +13,7 @@ import { QuiescoError } from './errors.js';
 import { toMatcher, toTextMatch } from './matcher.js';
 import type { MatcherInput } from './matcher.js';
 import type { Permission } from './devices/permissions.js';
-import type { TagNames } from './tags.js';
+import type { TagNames, WebBrowser } from './tags.js';
 import type { ArtifactsConfig } from './artifacts.js';
 
 export interface AndroidAppConfig {
@@ -104,8 +104,8 @@ export interface WebViewport {
 }
 
 export interface WebDeviceConfig {
-  /** Default chromium (the only browser accepted in v1, requirements.md §11-6). */
-  browser?: 'chromium' | 'firefox' | 'webkit';
+  /** Default chromium. Browser tags (`@chromium` `@firefox` `@webkit`) pick scenarios by it. */
+  browser?: WebBrowser;
   headless?: boolean;
   /** Sizes come from the user's config; nothing is built in (§6.13). */
   viewport?: WebViewport;
@@ -200,7 +200,7 @@ export interface QuiescoConfig {
   connectTimeoutMs?: number;
   /** Minimum app console level forwarded to the host log. Default `warn`. */
   logLevel?: LogLevel | 'off';
-  /** Rename the scenario tags Quiesco reacts to (defaults: @ios @android @web @native @hard-reset). */
+  /** Rename the scenario tags Quiesco reacts to (defaults: @ios @android @web @native @chromium @firefox @webkit @hard-reset). */
   tags?: Partial<TagNames>;
   /**
    * App errors that must not fail the current step (they are logged as warnings instead).
