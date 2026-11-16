@@ -45,3 +45,8 @@
 - 项目 A 装 @expo/ui 58.0.28，重建 Android / iOS，诊断 feature 打印 query 和 setValue 错误：iOS 370×0 / 0×0，Android inline 0×0（Host 宽 0），Android dialog 没有 testID（Host 高 0）。完全复现 #29。详见 findings。
 - 写出实施计划，等 HU 确认。
 - HU 确认 K.D 方案（最近的有面积祖先；INSIDE_DEPTH 8）。实现 + 测试，`pnpm check` exit 0（875 个测试）。文档三语。实测：四种情况的 setValue 修前全部失败、修后全部成功（见 task_plan）。提交并开 PR。K.D 完成。
+
+## 2026-11-16 会话 1（续）：K.E
+- HU：按顺序合并并发布。#36 合并时删 base 分支导致 #37 被关闭，已恢复（见 Errors）；#37、#39、#40 依次合并（ac19e2e），分支已删。
+- main 上三端全量 e2e：web 79/13、iOS 86/6、Android 86/6，0 失败。main ci success。
+- 版本 0.4.1，release:check 通过，`chore(release): 0.4.1` 推送。发布说明、issue 回复的草稿在 scratchpad。下一步：HU 执行 publish。

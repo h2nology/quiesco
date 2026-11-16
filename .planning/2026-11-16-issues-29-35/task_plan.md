@@ -7,7 +7,7 @@
 K.E 发布
 
 ## Next Step
-K.E：等 PR #36→#37→#39→#40 合并；然后 CHANGELOG、三端全量 e2e、版本 0.4.1、发布、回复并关闭 #29–#35。
+请 HU 执行 `pnpm -r publish`（先 --dry-run）。
 
 ## 背景
 - 前置：0.4.0 已发布（`.planning/2026-11-15-issues-17-23/`）。
@@ -140,11 +140,18 @@ K.E：等 PR #36→#37→#39→#40 合并；然后 CHANGELOG、三端全量 e2e�
 - **Status:** complete
 
 ### K.E 发布
-- [ ] CHANGELOG（#33 的 text 字段变化写明）
-- [ ] 三端全量 e2e 验收（caffeinate）
-- [ ] 版本号改为 0.4.1，发布
-- [ ] 逐个回复并关闭 #29–#35
-- **Status:** pending
+2026-11-16 HU：按 #36 → #37 → #39 → #40 的顺序合并并发布（npm publish 照 0.4.0 的做法由 HU 执行）。
+- [x] #36 合并（merge commit ab7ec7e）。删 base 分支导致 #37 被关闭 ⇒ 推回分支、reopen、改 base 为 main（见 Errors）
+- [x] #37 合并；#39 改 base 为 main；删除远程分支 fix/error-diagnostics、fix/init-doctor-upgrade
+- [x] 等 #39 / #40 的 CI（全部 pass）
+- [x] #39 合并 → #40 改 base 为 main → #40 合并（ac19e2e）→ 删除分支
+- [x] main（ac19e2e）上：三端全量 e2e：web 79 passed / 13 skipped，iOS 86 / 6，Android 86 / 6，0 失败（与 0.4.0 相同）；main 的 ci success，prod-strip 跑着；v0.4.0 以来 native / expo-plugin 没有改动
+- [x] 版本 0.4.1（12 个 package.json + AGENT_VERSION + plugin.json），`pnpm release:check` 通过，`chore(release): 0.4.1`，推送
+- [ ] HU 执行 `pnpm -r publish`
+- [ ] tag v0.4.1；GitHub Release（草稿：scratchpad/release-0.4.1.md）
+- [ ] npm 验证：`npx quiesco@0.4.1 init`（新项目）与 `init --upgrade`
+- [ ] #29–#35 逐个回复并关闭（草稿：scratchpad/replies/29–35.md）
+- **Status:** in_progress
 
 ## Decisions Made
 | 日期 | 决定 | 依据 |
@@ -164,3 +171,4 @@ K.E：等 PR #36→#37→#39→#40 合并；然后 CHANGELOG、三端全量 e2e�
 | lint：解构剩余参数里的 `_depth` 没用到 | 1 | 改为显式构造 Control |
 | K.A 的提交信息 subject 后少了空行；改写 + force-push 被 auto mode 拒绝 | 1 | 保持原样，squash 合并时修 |
 | K.B 分支从 main 拉出，没有计划文件 | 1 | 改为叠在 fix/error-diagnostics 上 |
+| `gh pr merge 36 --delete-branch` 删掉 base 分支后，GitHub 没有把 #37 转到 main，而是关闭了 #37 | 1 | 把分支推回（0bdf523），reopen #37，`gh pr edit --base main`；之后的 PR 先改 base 再合并、最后删分支 |
