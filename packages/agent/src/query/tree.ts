@@ -52,7 +52,7 @@ export function summarize(node: HostNode, viewport: Viewport | null): ElementSum
   const kind = semanticType(node);
   const s: ElementSummary = {
     type: node.type,
-    text: node.text,
+    text: node.displayText,
     rect,
     visible: ratio > 0,
     visibleRatio: Math.round(ratio * 1000) / 1000,

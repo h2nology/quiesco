@@ -19,6 +19,11 @@ export interface HostNode {
   readonly text: string;
   /** Text directly inside this node, excluding text of child host nodes (e.g. an RCTText's own string). */
   readonly ownText: string;
+  /**
+   * `text` for people to read (summaries, error messages): separate texts are joined with a space,
+   * the runs of one text are not (`<Text>a<Text>b</Text></Text>` → `ab`). Matching uses `text`.
+   */
+  readonly displayText: string;
   /** `display: none` or `opacity: 0` on this node itself (ancestors are not considered). */
   readonly hiddenByStyle: boolean;
   /**
@@ -71,9 +76,10 @@ export interface HostNode {
   /**
    * Nearest fiber (this host, then its ancestors, at most `maxDepth` fibers up) whose props satisfy
    * `test`, with the name of its component (null for hosts and anonymous components). Used to find the
-   * component behind a control (Slider, Picker, ...) by the shape of its props.
+   * component behind a control (Slider, Picker, ...) by the shape of its props. `test` also gets the
+   * component name, so a test that never matches can list what was searched (diagnostics).
    */
-  findProps(test: (props: Readonly<Record<string, unknown>>) => boolean, maxDepth?: number): PropsRef | null;
+  findProps(test: PropsTest, maxDepth?: number): PropsRef | null;
   /** Nearest ancestor class component instance with a method `name` (e.g. ScrollView's `scrollTo`). */
   findInstance(method: string): InstanceRef | null;
 }
@@ -84,9 +90,13 @@ export interface HandlerRef {
   props: Readonly<Record<string, unknown>>;
 }
 
+export type PropsTest = (props: Readonly<Record<string, unknown>>, name: string | null, depth: number) => boolean;
+
 export interface PropsRef {
   props: Readonly<Record<string, unknown>>;
   name: string | null;
+  /** Fibers above the start (0 = the start fiber itself). */
+  depth: number;
 }
 
 /**
@@ -99,7 +109,7 @@ export interface CompositeNode {
   readonly testID: string | undefined;
   /** Whether it renders any host element. */
   readonly rendersHost: boolean;
-  findProps(test: (props: Readonly<Record<string, unknown>>) => boolean, maxDepth?: number): PropsRef | null;
+  findProps(test: PropsTest, maxDepth?: number): PropsRef | null;
 }
 
 export interface InstanceRef {

@@ -69,7 +69,7 @@ description: "this.app（Driver）、匹配器、App 内 API、配置、场景�
 | `@react-native-community/datetimepicker` | `Date` 类型的 `value` 和 `onChange` / `onValueChange` | 一个 `Date`，或本地时间字符串 `"2031-12-24"` / `"20:15"` / `"2031-12-24T20:15"`；只改变选择器负责的那部分（[日期和时间选择器](#date-and-time-pickers)） |
 | DOM `<select>`、`<input type="date" / "time" / "datetime-local" / "month" / "week" / "range" / "number">`、复选框 | 元素本身（web） | 某个选项的值或标签；一个 `Date`（按本地时间写入），或输入框自身格式的字符串 |
 
-其他控件都会以 `ACTION_NOT_SUPPORTED` 失败，并列出找到的回调。设置为当前值时不会发送事件，禁用的控件不会被改动（与用户尝试操作时一样）。
+其他控件都会以 `ACTION_NOT_SUPPORTED` 失败，并列出找到的回调和查找过的内容：从目标往上的各个组件（附带决定控件种类的 props），以及目标里面看起来像控件的组件和各自没有被采用的原因（离它的元素超过 4 层，或者里面有多个控件）。据此可以判断是移动 testID、包一层控件，还是改用 backdoor。设置为当前值时不会发送事件，禁用的控件不会被改动（与用户尝试操作时一样）。
 
 各模式下值是如何设置进去的：
 
@@ -167,7 +167,7 @@ await this.app.expect({ id: 'title' }).not.toHaveValue('');
 | `reset()` | 软重置（Quiesco 在每个场景之前都会执行） |
 | `platform` | 被测平台：`'ios'`、`'android'` 或 `'web'`。在 `QuiescoWorld` 中也可以用 `this.platform`，以及 `session.platform`（[按平台区分的步骤](./driver-pattern#per-platform-steps)） |
 
-元素摘要包含 `type`（host 组件）、`semanticType`、`testID`、`text`、`label`、`role`、`value`、`checked`、`enabled`、`focused`、`rect`、`visible`、`visibleRatio` 以及可序列化的 `props`。
+元素摘要包含 `type`（host 组件）、`semanticType`、`testID`、`text`、`label`、`role`、`value`、`checked`、`enabled`、`focused`、`rect`、`visible`、`visibleRatio` 以及可序列化的 `props`。其中的 `text`（错误消息和 `elements.json` 里也一样）在分开的文本之间加空格，例如头像、姓名和学号显示为 `张 张三 S2024001`；同一个文本里的各段仍连在一起（`<Text>a<Text>b</Text></Text>` → `ab`）。按 `text` 匹配的行为不变：比较的是不带空格的文本。
 
 ### App 生命周期（`this.app.device`）
 
@@ -494,7 +494,7 @@ export default defineConfig({
 
 ## 错误 {#errors}
 
-失败均为 `QuiescoError`，带有 `errorName`、一条说明该怎么做的消息，以及结构化的 `data`。
+失败均为 `QuiescoError`，带有 `errorName`、一条说明该怎么做的消息，以及结构化的 `data`。它的堆栈从发起调用的代码（你的 step 或 driver 类）开始，不包含 Quiesco 自身和 WebSocket 库的帧。
 
 | 错误 | 含义 |
 |---|---|

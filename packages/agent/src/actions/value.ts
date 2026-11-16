@@ -117,13 +117,15 @@ export function detectControl(target: HostNode | CompositeNode, platform: string
   // does not pass testID on, like segmented-control's JS implementation on Android / web).
   if (node !== null) {
     const inside = controlsBelow(node);
-    if (inside.length === 1) return inside[0] as Control;
+    const only = inside.length === 1 ? (inside[0] as Inside) : null;
+    if (only !== null) return { kind: only.kind, props: only.props, name: only.name, node: only.node };
   }
   const cbs = callbacks(target);
   throw unsupported(
     'setValue',
     `setValue does not know this element: no slider, switch, picker, segmented control or date picker found around it` +
-      (cbs.length > 0 ? ` (callbacks found: ${cbs.join(', ')})` : ' (it has no callbacks)'),
+      (cbs.length > 0 ? ` (callbacks found: ${cbs.join(', ')})` : ' (it has no callbacks)') +
+      searchReport(target, node),
     platform,
     'text inputs: use replaceText; other controls: tap / drag them, or call the app through a backdoor',
   );
@@ -131,32 +133,98 @@ export function detectControl(target: HostNode | CompositeNode, platform: string
 
 /** How far up from a descendant a control's component may be when searching inside a container. */
 const INSIDE_DEPTH = 4;
+/** How far the "what was searched" report looks (beyond the limits, to say why a component was not taken). */
+const REPORT_DEPTH = 12;
 
-/** The distinct controls rendered inside `node` (each reported at its first host, in render order). */
-function controlsBelow(node: HostNode): Control[] {
-  const seen = new Set<Props>();
-  const out: Control[] = [];
+interface Inside extends Control {
+  /** Fibers between the control's component and the host it was found from. */
+  depth: number;
+}
+
+/** The distinct controls rendered inside `node` whose component is at most `depth` fibers above a host (each reported once, at its nearest host, in render order). */
+function controlsBelow(node: HostNode, depth = INSIDE_DEPTH): Inside[] {
+  const byProps = new Map<Props, Inside>();
   const visit = (n: HostNode): void => {
     for (const c of n.children) {
-      const found = c.findProps((p) => classify(p) !== null, INSIDE_DEPTH);
+      const found = c.findProps((p) => classify(p) !== null, depth);
       const kind = found === null ? null : classify(found.props);
-      if (found !== null && kind !== null && isInside(found.props, node)) {
-        if (!seen.has(found.props)) {
-          seen.add(found.props);
-          out.push({ kind, props: found.props, name: found.name, node: c });
-        }
-        continue;
+      if (found !== null && kind !== null && isInside(found.props, node, depth)) {
+        const seen = byProps.get(found.props);
+        if (seen === undefined) byProps.set(found.props, { kind, props: found.props, name: found.name, node: c, depth: found.depth });
+        else if (found.depth < seen.depth) seen.depth = found.depth;
+        if (depth === INSIDE_DEPTH) continue;
       }
       visit(c);
     }
   };
   visit(node);
-  return out;
+  return [...byProps.values()];
 }
 
 /** The component with `props` is below `container`: the container itself does not see it going up. */
-function isInside(props: Props, container: HostNode): boolean {
-  return container.findProps((p) => p === props, INSIDE_DEPTH) === null;
+function isInside(props: Props, container: HostNode, depth = INSIDE_DEPTH): boolean {
+  return container.findProps((p) => p === props, depth) === null;
+}
+
+/** Props that decide a control's kind (plus testID), shown in the search report. */
+const SHAPE_PROPS = ['testID', 'value', 'values', 'selectedValue', 'minimumValue', 'maximumValue', 'selection'];
+
+function typeOf(v: unknown): string {
+  if (v instanceof Date) return 'Date';
+  if (Array.isArray(v)) return 'array';
+  if (v === null) return 'null';
+  return typeof v;
+}
+
+/** `{value: Date, onValueChange}`: the props that decide a control's kind, and the `on*` callbacks. */
+function shape(p: Props): string {
+  const parts: string[] = [];
+  for (const k of SHAPE_PROPS) {
+    if (!(k in p) || p[k] === undefined) continue;
+    parts.push(k === 'testID' && typeof p[k] === 'string' ? `testID=${p[k]}` : `${k}: ${typeOf(p[k])}`);
+  }
+  for (const [k, v] of Object.entries(p)) if (isFn(v) && /^on[A-Z]/.test(k)) parts.push(k);
+  return parts.length === 0 ? '' : ` {${parts.join(', ')}}`;
+}
+
+function hasShape(p: Props): boolean {
+  return shape(p) !== '';
+}
+
+const MAX_REPORTED = 6;
+
+/**
+ * What `detectControl` looked at (issue #30): the components going up from the target, and the
+ * control-shaped components inside it with the reason each was not taken. Tells whether to move the
+ * testID, wrap the control, or use a backdoor.
+ */
+function searchReport(target: HostNode | CompositeNode, node: HostNode | null): string {
+  const up: string[] = [];
+  if (node !== null) up.push(`<${node.type}${node.testID !== undefined ? ` testID="${node.testID}"` : ''}>`);
+  else up.push(`${(target as CompositeNode).name ?? 'component'}${shape(target.props)}`);
+  target.findProps((p, name, depth) => {
+    if (depth > 0 && (name !== null || hasShape(p))) up.push(`${name ?? '(host)'}${shape(p)}`);
+    return false;
+  }, REPORT_DEPTH);
+  const upLine = `\n  searched up (${REPORT_DEPTH} levels): ${up.slice(0, MAX_REPORTED).join(' ← ')}${up.length > MAX_REPORTED ? ' ← …' : ''}`;
+  if (node === null) return upLine;
+  const inside = controlsBelow(node, REPORT_DEPTH);
+  const near = inside.filter((c) => c.depth <= INSIDE_DEPTH);
+  const lines = inside.slice(0, MAX_REPORTED).map((c) => {
+    const why =
+      c.depth > INSIDE_DEPTH
+        ? `${c.depth} levels above its element (limit ${INSIDE_DEPTH})`
+        : near.length > 1
+          ? `one of ${near.length} controls inside; target one of them`
+          : 'its element is nested too deep in the target';
+    return `\n    ${c.name ?? '(anonymous)'}${shape(c.props)} (${c.kind}): not taken: ${why}`;
+  });
+  return (
+    upLine +
+    (inside.length === 0
+      ? `\n  searched inside: no component with a value control's props below it`
+      : `\n  searched inside (components up to ${INSIDE_DEPTH} levels above each element):${lines.join('')}${inside.length > MAX_REPORTED ? `\n    … ${inside.length - MAX_REPORTED} more` : ''}`)
+  );
 }
 
 // ---- reading controls ----

@@ -231,6 +231,34 @@ describe('Driver', () => {
     await expect(driver.getTree()).resolves.toBeNull();
   });
 
+  it("an agent error's stack starts at the caller, without core / ws / node frames (issue #32)", async () => {
+    const { driver } = await setup(() => {
+      throw { code: 1003, message: 'not visible', data: { name: 'ELEMENT_NOT_VISIBLE' } };
+    });
+    async function studentDriverStep(): Promise<void> {
+      await driver.tap('birthday-picker');
+    }
+    const e = (await studentDriverStep().catch((x: unknown) => x)) as Error;
+    const frames = (e.stack ?? '').split('\n');
+    expect(frames[0]).toBe('QuiescoError: not visible');
+    expect(frames[1]).toContain('studentDriverStep');
+    expect(frames[1]).toContain('driver.test.ts');
+    expect(e.stack).not.toMatch(/core[\\/]src[\\/]|[\\/]ws[\\/]lib|node:events/);
+  });
+
+  it('an error raised by the transport (connection dropped) carries the caller stack too (issue #32)', async () => {
+    const { driver, agent } = await setup(() => NO_REPLY);
+    async function tappingStep(): Promise<void> {
+      await driver.tap('x');
+    }
+    const failed = tappingStep().catch((x: unknown) => x as Error);
+    await expect.poll(() => agent.requests.length).toBeGreaterThan(0);
+    agent.ws.terminate();
+    const e = await failed;
+    expect(e).toMatchObject({ errorName: 'AGENT_DISCONNECTED' });
+    expect((e.stack ?? '').split('\n')[1]).toContain('tappingStep');
+  });
+
   it('keeps agent error codes and data', async () => {
     const { driver } = await setup(() => {
       throw { code: 1004, message: 'expect text failed', data: { name: 'ASSERTION_FAILED', expected: '1', actual: '0', elements: [] } };

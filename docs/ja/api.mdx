@@ -69,7 +69,7 @@ description: "this.app（Driver）、マッチャー、アプリ内API、設定�
 | `@react-native-community/datetimepicker` | `Date`型の`value`と`onChange` / `onValueChange` | `Date`、またはローカル時刻の文字列`"2031-12-24"` / `"20:15"` / `"2031-12-24T20:15"`。ピッカーが受け持つ部分だけが変わります（[日付・時刻ピッカー](#date-and-time-pickers)） |
 | DOMの`<select>`、`<input type="date" / "time" / "datetime-local" / "month" / "week" / "range" / "number">`、チェックボックス | 要素そのもの（Web） | 選択肢の値またはラベル。`Date`（ローカル時刻で書き込まれます）、または入力欄自身の文字列 |
 
-それ以外は`ACTION_NOT_SUPPORTED`で失敗し、見つかったコールバックが示されます。現在と同じ値を設定してもイベントは送られず、無効なコントロールには何もしません（ユーザーが操作しようとした場合と同じです）。
+それ以外は`ACTION_NOT_SUPPORTED`で失敗し、見つかったコールバックと探した範囲が示されます。対象から上にたどったコンポーネント（コントロールの種類を決めるpropsつき）と、対象の中にあるコントロールらしいコンポーネント、それぞれが採用されなかった理由（要素から4階層より上にある、または中に複数のコントロールがある）です。これを見て、testIDを移すか、コントロールを包むか、backdoorを使うかを決められます。現在と同じ値を設定してもイベントは送られず、無効なコントロールには何もしません（ユーザーが操作しようとした場合と同じです）。
 
 モードごとの値の入れ方：
 
@@ -168,7 +168,7 @@ await this.app.expect({ id: 'title' }).not.toHaveValue('');
 | `reset()` | ソフトリセット（Quiescoは各シナリオの前にこれを行います） |
 | `platform` | テスト対象のプラットフォーム：`'ios'`、`'android'`、`'web'`のいずれか。`QuiescoWorld`では`this.platform`、`session.platform`でも取得できます（[プラットフォームごとに異なるステップ](./driver-pattern#per-platform-steps)） |
 
-要素の概要には、`type`（ホストコンポーネント）、`semanticType`、`testID`、`text`、`label`、`role`、`value`、`checked`、`enabled`、`focused`、`rect`、`visible`、`visibleRatio`と、シリアライズ可能な`props`が含まれます。
+要素の概要には、`type`（ホストコンポーネント）、`semanticType`、`testID`、`text`、`label`、`role`、`value`、`checked`、`enabled`、`focused`、`rect`、`visible`、`visibleRatio`と、シリアライズ可能な`props`が含まれます。この`text`（エラーメッセージや`elements.json`でも同じ）は、別々のテキストの間に空白を入れます。たとえばアバター、名前、学籍番号は`张 张三 S2024001`となります。1つのテキストの中の部分はつながったままです（`<Text>a<Text>b</Text></Text>` → `ab`）。`text`での照合は変わらず、空白を入れないテキストで比べます。
 
 ### アプリのライフサイクル（`this.app.device`）
 
@@ -495,7 +495,7 @@ export default defineConfig({
 
 ## エラー {#errors}
 
-失敗は`QuiescoError`として報告されます。`errorName`、対処法を示すメッセージ、構造化された`data`を持ちます。
+失敗は`QuiescoError`として報告されます。`errorName`、対処法を示すメッセージ、構造化された`data`を持ちます。スタックは呼び出したコード（stepやdriverクラス）から始まり、Quiesco自身とWebSocketライブラリのフレームは含みません。
 
 | エラー | 意味 |
 |---|---|
