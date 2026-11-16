@@ -50,3 +50,4 @@
 - HU：按顺序合并并发布。#36 合并时删 base 分支导致 #37 被关闭，已恢复（见 Errors）；#37、#39、#40 依次合并（ac19e2e），分支已删。
 - main 上三端全量 e2e：web 79/13、iOS 86/6、Android 86/6，0 失败。main ci success。
 - 版本 0.4.1，release:check 通过，`chore(release): 0.4.1` 推送。发布说明、issue 回复的草稿在 scratchpad。下一步：HU 执行 publish。
+- HU 发布 0.4.1（12 个包）。CI 全绿。tag v0.4.1、GitHub Release。npm 验证（新项目 init、0.1.1 项目 init --upgrade + Android 运行）通过。#29–#35 回复并关闭。任务完成；剩 #38。

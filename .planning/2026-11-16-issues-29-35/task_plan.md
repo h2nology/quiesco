@@ -4,10 +4,10 @@
 解决 h2nology/quiesco 的 7 个 open issue（同一位用户在 0.4.0 + Expo SDK 58 + @expo/ui 上实测的反馈）。每个修复都配测试和三语文档，实跑验收后回复并关闭 issue，最后一起发下一个版本。
 
 ## Current Phase
-K.E 发布
+完成（0.4.1 已发布，#29–#35 已回复并关闭）
 
 ## Next Step
-请 HU 执行 `pnpm -r publish`（先 --dry-run）。
+本任务完成。后续：#38（Android 上 LogBox toast 的遮挡检测）。
 
 ## 背景
 - 前置：0.4.0 已发布（`.planning/2026-11-15-issues-17-23/`）。
@@ -147,11 +147,11 @@ K.E 发布
 - [x] #39 合并 → #40 改 base 为 main → #40 合并（ac19e2e）→ 删除分支
 - [x] main（ac19e2e）上：三端全量 e2e：web 79 passed / 13 skipped，iOS 86 / 6，Android 86 / 6，0 失败（与 0.4.0 相同）；main 的 ci success，prod-strip 跑着；v0.4.0 以来 native / expo-plugin 没有改动
 - [x] 版本 0.4.1（12 个 package.json + AGENT_VERSION + plugin.json），`pnpm release:check` 通过，`chore(release): 0.4.1`，推送
-- [ ] HU 执行 `pnpm -r publish`
-- [ ] tag v0.4.1；GitHub Release（草稿：scratchpad/release-0.4.1.md）
-- [ ] npm 验证：`npx quiesco@0.4.1 init`（新项目）与 `init --upgrade`
-- [ ] #29–#35 逐个回复并关闭（草稿：scratchpad/replies/29–35.md）
-- **Status:** in_progress
+- [x] HU 执行 `pnpm -r publish`：12 个包 0.4.1 已在 npm；main（ba11400）的 ci / docs / prod-strip 全部 success
+- [x] tag v0.4.1（ba11400）；GitHub Release「0.4.1」https://github.com/h2nology/quiesco/releases/tag/v0.4.1
+- [x] npm 验证：新空白模板 `npx quiesco@0.4.1 init` ⇒ app.json 写入 ID，doctor 通过；用 `quiesco@0.1.1 init` + 0.1.1 包的项目 ⇒ `npx quiesco@0.4.1 init --upgrade` 修好全部项，doctor 通过，Android 构建 + e2e 1 scenario passed
+- [x] #29–#35 逐个回复并关闭（COMPLETED）。剩下的 open issue：#38
+- **Status:** complete（2026-11-16）
 
 ## Decisions Made
 | 日期 | 决定 | 依据 |
