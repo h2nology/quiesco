@@ -4,10 +4,10 @@
 Android 上点击被 LogBox toast（或其他 QuiescoRoot 范围外、画在 app 上面的 RN 元素）盖住的元素时，报 ELEMENT_OBSCURED，并说明是 LogBox。配测试和三语文档，实测后回复并关闭 #38，随下一个版本发布。
 
 ## Current Phase
-L.3 收尾
+L.4 发布 0.4.2
 
 ## Next Step
-下次发布时：发布说明写进 #38 的修复（以及 #41 的文档修正），回复并关闭 #38。
+请 HU 执行 `pnpm -r publish`。
 
 ## 背景
 - 0.4.1 已发布（`.planning/2026-11-16-issues-29-35/`）；#38 是 #31 实测时发现的。
@@ -49,12 +49,23 @@ JS 层的命中测试改为看**整棵树**（不受 QuiescoRoot 范围限制）
 - [x] 提交、PR
 - [x] #41（Mintlify autopilot：文档里「超过 4 层」漏改成 8）：内容正确，但没重新生成 plugin references ⇒ docs workflow 失败。HU 选推荐：同样的修正放进 #42（f274813，含 references），#41 留言后关闭
 - [x] CI（docs / ci / prod-strip）全部通过后合并到 main（merge commit 7714354），删除分支
-- [ ] 下次发布时：发布说明写进 #38 的修复；回复并关闭 #38
+- [x] 下次发布 ⇒ HU 决定现在发 0.4.2（见 L.4）
+- **Status:** complete
+
+### L.4 发布 0.4.2
+2026-11-16 HU：现在发布，版本 0.4.2。
+- [x] main（3e63f0b）的 packages/ 与跑过三端全量 e2e 的 4e425c0 相同（之后只有文档 / 计划提交）；v0.4.1 以来 native / expo-plugin 无改动；main 的 ci / prod-strip success ⇒ 不重跑全量 e2e
+- [x] 版本 0.4.2（12 个 package.json + AGENT_VERSION + plugin.json），`release:check` 通过，`chore(release): 0.4.2` 推送
+- [ ] HU 执行 `pnpm -r publish`
+- [ ] tag v0.4.2；GitHub Release「0.4.2」
+- [ ] npm 验证
+- [ ] 回复并关闭 #38
 - **Status:** in_progress
 
 ## Decisions Made
 | 日期 | 决定 | 依据 |
 |------|------|------|
+| 2026-11-16 | 现在发布 0.4.2 | HU |
 | 2026-11-16 | 先合并到 main，不单独发版，随下个版本发布；#38 发布时再回复关闭 | HU |
 | 2026-11-16 | 先用办法 1（JS 命中测试看整棵树）修 #38 | HU 听了两种办法的利弊后选择 |
 
