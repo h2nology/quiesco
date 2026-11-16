@@ -361,7 +361,8 @@ export function nativePerformer(ctx: NativeContext): ActionPerformer {
     async setValue(control, v) {
       const node = control.node;
       const viaCallbacks = (): void => value.jsSetValue(control, v, 'native');
-      if (node === null || node.nativeTag() === null || value.isDisabledControl(control)) return viaCallbacks();
+      // A control that reports no size (@expo/ui, issue #29) cannot be reached by a touch either.
+      if (node === null || node.nativeTag() === null || value.isDisabledControl(control) || value.isSizelessControl(node)) return viaCallbacks();
       switch (control.kind) {
         case 'switch':
           if (typeof v !== 'boolean' || value.switchState(control) === v) return viaCallbacks();

@@ -73,3 +73,20 @@
 - clear（默认）：场景 1 失败消息末尾是「The app logged a console.error in this scenario; the last: The screen 'login' was removed natively…」，附件有 app-errors.txt；场景 2（点屏幕底部按钮）通过。
 - keep（对照）：场景 2 的 `tap('bottom')` 没有报错，但点击落在 LogBox 的 toast 上，打开了全屏 LogBox（failure.png），taps 仍是 0，最后在 expectText 上失败。⇒ **Android 上遮挡检测没发现 LogBox toast**（issue 里 iOS 报出了 ELEMENT_OBSCURED）。默认 clear 已经避免了连锁失败，但 toast 出现在同一个场景里时仍会悄悄吃掉点击。
 - LogBox 的 Source / Call Stack 第一帧是 Quiesco 的 `events.ts:96`（agent 包的 console 包装函数），而不是 App.tsx。用户看 LogBox 时会以为错误来自 Quiesco。可以在 `withQuiesco()` 的 metro 配置里用 `symbolicator.customizeFrame` 把 @quiesco/agent 的帧折叠（collapse）掉（metro.cjs 目前没有设置 symbolicator）。
+
+## K.D.1 调研（@expo/ui 58.0.28，项目 A，真机）
+源码（`@expo/ui/src/community/datetime-picker`）：
+- iOS（DateTimePicker.tsx）：`<Host matchContents={compact ? true : { vertical: true }}><DatePicker testID … /></Host>`，testID 给的是 SwiftUI 的 DatePicker（props：selection、onDateChange，不是 value/onChange ⇒ classify 认不出）。外层组件 DateTimePicker 的 props 有 `value: Date`、`onValueChange`、`testID`。
+- Android（DateTimePicker.android.tsx）：`presentation` 默认 `'dialog'` ⇒ `<Host><DatePickerDialog …/></Host>`，**testID 不传**；`'inline'` ⇒ `<Host matchContents vertical><DateTimePicker testID …/></Host>`。
+- web：渲染 null。
+
+实测（features/picker.feature 打印 query 结果和 setValue 的错误）：
+| 情况 | testID 所在 host | 尺寸 | 外层 Host |
+|---|---|---|---|
+| iOS spinner（父元素拉伸） | `ViewManagerAdapter_ExpoUI_DatePickerView` | 370×0 | （issue：有真实尺寸） |
+| iOS inline（父元素 alignItems:center） | 同上 | 0×0 | — |
+| Android inline（alignItems:center） | `ViewManagerAdapter_ExpoUI_DateTimePickerView` | 0×0 | `ViewManagerAdapter_ExpoUI_HostView` 宽 0、高 122 |
+| Android dialog | 无（testID 没传） | — | HostView 379×0 |
+- setValue 的错误和 issue 一致：iOS「it has no size (370×0)」；Android dialog「No element matches」；`{type:'DateTimePicker'}` ⇒ 3 个匹配（host 的 owner 名字也算）。
+- 外层 Host 在 alignItems:center 下宽度也是 0 ⇒「改用 Host 的尺寸」不够，要往上找到第一个有面积的祖先 host。
+- native 模式：`control.node === null` 或 `nativeTag() === null` ⇒ 走回调（native.ts:364），可复用。

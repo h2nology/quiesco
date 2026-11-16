@@ -67,6 +67,7 @@ description: "this.app（Driver）、マッチャー、アプリ内API、設定�
 | `@react-native-picker/picker` | `onValueChange`と`selectedValue` | 項目の値（文字列でも可）、またはそのラベル |
 | `@react-native-segmented-control/segmented-control` | `values`配列と`onChange` / `onValueChange` | セグメントの値、またはそのインデックス |
 | `@react-native-community/datetimepicker` | `Date`型の`value`と`onChange` / `onValueChange` | `Date`、またはローカル時刻の文字列`"2031-12-24"` / `"20:15"` / `"2031-12-24T20:15"`。ピッカーが受け持つ部分だけが変わります（[日付・時刻ピッカー](#date-and-time-pickers)） |
+| `@expo/ui/community/datetime-picker`（`DateTimePicker`） | `@react-native-community/datetimepicker`と同じ | 同じ（[`@expo/ui`のピッカー](#expo-ui-date-picker)） |
 | DOMの`<select>`、`<input type="date" / "time" / "datetime-local" / "month" / "week" / "range" / "number">`、チェックボックス | 要素そのもの（Web） | 選択肢の値またはラベル。`Date`（ローカル時刻で書き込まれます）、または入力欄自身の文字列 |
 
 それ以外は`ACTION_NOT_SUPPORTED`で失敗し、見つかったコールバックと探した範囲が示されます。対象から上にたどったコンポーネント（コントロールの種類を決めるpropsつき）と、対象の中にあるコントロールらしいコンポーネント、それぞれが採用されなかった理由（要素から4階層より上にある、または中に複数のコントロールがある）です。これを見て、testIDを移すか、コントロールを包むか、backdoorを使うかを決められます。現在と同じ値を設定してもイベントは送られず、無効なコントロールには何もしません（ユーザーが操作しようとした場合と同じです）。
@@ -104,6 +105,15 @@ await this.app.setValue('due-time-picker', '20:15');   // 日付をでっち上�
 `minimumDate` / `maximumDate`は結果と照合されます。文字列はデバイス上のローカル時刻なので、ホストのタイムゾーンに左右されません。`Date`はデバイスのタイムゾーンに換算されます。
 
 ピッカーの値（`expectValue`やクエリ結果の`value`）は、表示されている内容をデバイスのローカル時刻で表したものです：`"2031-12-24"`（`date`）、`"20:15"`（`time`）、`"2031-12-24T20:15"`（`datetime`、`countdown`）。秒が0でなければ`:ss`が付きます。`expectValue`はこの文字列か、これらの部分が一致する`Date`を受け付けます：`expectValue('due-time-picker', '20:15')`。Androidのダイアログはアプリが変更を処理すると消えるので、代わりにアプリが表示している内容を確認してください。
+
+##### `@expo/ui`のDateTimePicker {#expo-ui-date-picker}
+
+`@expo/ui/community/datetime-picker`（iOSではSwiftUI、AndroidではJetpack Compose）も同じ値を受け付けます。`testID`は`DateTimePicker`そのものに付けてください。
+
+- **iOS、およびAndroidの`presentation="inline"`：** `testID`が付くビューは、ピッカーが描画されていてもReact Nativeにサイズ0を報告します。Quiescoは、サイズを持つ最も近い祖先（`Host`。`alignItems: 'center'`の下で`Host`の幅が0のときはその親）で可視性を判定します。
+- **Androidのダイアログ（`presentation`の既定値）：** `testID`はどのビューにも渡されません。QuiescoはAndroidの`@react-native-community/datetimepicker`と同じく、`DateTimePicker`自身の`testID` propで見つけます。
+
+`setValue`はどのモードでもピッカーの`onValueChange` / `onChange`を呼び、ホイールは回しません。Webではこのコンポーネントは何も描画しません。
 
 `adjustSlider`は`native`モードでつまみをドラッグし、値を読み返します。つまみはタッチスロップの分だけ指に遅れて動くため、スライダーが目標位置から1ステップ（連続値スライダーでは範囲の1%）以内に収まるまで、再度ドラッグします（常に同じ向きに、助走をつけて）。Web：つまみをマウスでドラッグ。`js`：その位置に当たる値をコールバックで渡します。
 

@@ -158,7 +158,7 @@ function hasHost(first: Fiber | null): boolean {
  * Component fibers under `fiber` (pre-order) that render no host element and satisfy `test`. A match's
  * descendants are not searched: a wrapper passing its testID down to an inner component is one target.
  */
-export function findHostlessComposites(fiber: Fiber, test: (c: CompositeNode) => boolean): CompositeNode[] {
+export function findHostlessComposites(fiber: Fiber, test: (c: CompositeNode, rendersHosts: boolean) => boolean, viewless: HostPlatform | null = null): CompositeNode[] {
   const out: CompositeNode[] = [];
   const stack: Fiber[] = [];
   let f: Fiber | null = fiber.child;
@@ -166,17 +166,31 @@ export function findHostlessComposites(fiber: Fiber, test: (c: CompositeNode) =>
     if (f === null) f = stack.pop() ?? null;
     if (f === null) break;
     if (f.sibling !== null) stack.push(f.sibling);
-    if (COMPONENT_TAGS.has(f.tag) && !hasHost(f.child)) {
-      const c = new Composite(f);
-      if (test(c)) {
-        out.push(c);
-        f = null;
-        continue;
+    if (COMPONENT_TAGS.has(f.tag)) {
+      const hosts = hasHost(f.child);
+      if (!hosts || viewless !== null) {
+        const c = new Composite(f);
+        // Measured only for a component the test accepts (measuring every component would be slow).
+        if (test(c, hosts) && (!hosts || !hasSizedHost(f.child, viewless as HostPlatform))) {
+          out.push(c);
+          f = null;
+          continue;
+        }
       }
     }
     f = f.child;
   }
   return out;
+}
+
+/** Some host element under `first` (and its siblings) has an area. */
+function hasSizedHost(first: Fiber | null, platform: HostPlatform): boolean {
+  for (const f of walkSiblings(first)) {
+    if (f.tag !== WorkTag.HostComponent) continue;
+    const r = platform.measure(f);
+    if (r !== null && r.width > 0 && r.height > 0) return true;
+  }
+  return false;
 }
 
 /** Display name of a component type: function / class, forwardRef, memo. Null for anonymous ones. */

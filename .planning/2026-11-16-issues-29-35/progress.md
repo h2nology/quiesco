@@ -39,3 +39,9 @@
 - 实测：项目 A 换成本分支的包（`init --upgrade --packages ../tgz2`），App 加 log-error / bottom 按钮，features/logbox.feature；Android 上 clear 与 keep 对照：跑着。
 - 实测：clear ⇒ 1 passed / 1 failed（失败消息带 console.error，后一个场景通过）；keep ⇒ 2 failed（后一个场景的点击被 LogBox 吃掉）。两个新发现记进 findings，等 HU 决定。
 - HU：第 2 点（LogBox 帧折叠）本阶段做，第 1 点开新 issue。实现 `collapseAgentFrames`（metro.cjs），测试 1 个；真机 keep 模式截图确认 Source = App.tsx:10:87。`pnpm check` exit 0（869 个测试）。新 issue #38。提交并开 PR。K.C 完成，下一步 K.D。
+
+## 2026-11-16 会话 1（续）：K.D
+- PR #39（K.C）。分支 `fix/expo-ui-datepicker`。
+- 项目 A 装 @expo/ui 58.0.28，重建 Android / iOS，诊断 feature 打印 query 和 setValue 错误：iOS 370×0 / 0×0，Android inline 0×0（Host 宽 0），Android dialog 没有 testID（Host 高 0）。完全复现 #29。详见 findings。
+- 写出实施计划，等 HU 确认。
+- HU 确认 K.D 方案（最近的有面积祖先；INSIDE_DEPTH 8）。实现 + 测试，`pnpm check` exit 0（875 个测试）。文档三语。实测：四种情况的 setValue 修前全部失败、修后全部成功（见 task_plan）。提交并开 PR。K.D 完成。

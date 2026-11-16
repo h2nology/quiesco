@@ -67,6 +67,7 @@ description: "this.app（Driver）、匹配器、App 内 API、配置、场景�
 | `@react-native-picker/picker` | `onValueChange` 和 `selectedValue` | 某一项的值（也可以是字符串形式），或其标签 |
 | `@react-native-segmented-control/segmented-control` | `values` 数组和 `onChange` / `onValueChange` | 某一段的值，或其索引 |
 | `@react-native-community/datetimepicker` | `Date` 类型的 `value` 和 `onChange` / `onValueChange` | 一个 `Date`，或本地时间字符串 `"2031-12-24"` / `"20:15"` / `"2031-12-24T20:15"`；只改变选择器负责的那部分（[日期和时间选择器](#date-and-time-pickers)） |
+| `@expo/ui/community/datetime-picker`（`DateTimePicker`） | 与 `@react-native-community/datetimepicker` 相同 | 相同（[`@expo/ui` 的选择器](#expo-ui-date-picker)） |
 | DOM `<select>`、`<input type="date" / "time" / "datetime-local" / "month" / "week" / "range" / "number">`、复选框 | 元素本身（web） | 某个选项的值或标签；一个 `Date`（按本地时间写入），或输入框自身格式的字符串 |
 
 其他控件都会以 `ACTION_NOT_SUPPORTED` 失败，并列出找到的回调和查找过的内容：从目标往上的各个组件（附带决定控件种类的 props），以及目标里面看起来像控件的组件和各自没有被采用的原因（离它的元素超过 4 层，或者里面有多个控件）。据此可以判断是移动 testID、包一层控件，还是改用 backdoor。设置为当前值时不会发送事件，禁用的控件不会被改动（与用户尝试操作时一样）。
@@ -104,6 +105,15 @@ await this.app.setValue('due-time-picker', '20:15');   // 不必编造一个日�
 `minimumDate` / `maximumDate` 会对照结果检查。字符串是设备上的本地时间，因此不受 host 时区影响；`Date` 会换算成设备的时区。
 
 选择器的值（`expectValue`、查询结果中的 `value`）是它显示的内容，用设备上的本地时间表示：`"2031-12-24"`（`date`）、`"20:15"`（`time`）、`"2031-12-24T20:15"`（`datetime`、`countdown`），秒不为 0 时带上 `:ss`。`expectValue` 接受这样的字符串，或者一个 `Date`，这些部分一致时即匹配：`expectValue('due-time-picker', '20:15')`。Android 的对话框在 App 处理完变更后就消失了；请改为检查 App 显示的内容。
+
+##### `@expo/ui` 的 DateTimePicker {#expo-ui-date-picker}
+
+`@expo/ui/community/datetime-picker`（iOS 上是 SwiftUI，Android 上是 Jetpack Compose）接受同样的值。请把 `testID` 直接加在 `DateTimePicker` 上：
+
+- **iOS，以及 Android 的 `presentation="inline"`：** 拿到 `testID` 的那个视图向 React Native 报告的尺寸为 0，但选择器实际上是画出来的。Quiesco 会用它最近一个有尺寸的祖先（`Host`；在 `alignItems: 'center'` 下 `Host` 宽度为 0 时，用它的父元素）来判断是否可见。
+- **Android 的对话框（`presentation` 的默认值）：** `testID` 不会传给任何视图。Quiesco 会按 `DateTimePicker` 自己的 `testID` prop 找到它，和 Android 上的 `@react-native-community/datetimepicker` 一样。
+
+`setValue` 在所有模式下都调用选择器的 `onValueChange` / `onChange`，不会滚动滚轮。在 web 上这个组件什么也不渲染。
 
 `adjustSlider` 在 `native` 模式下拖动滑柄并读回值：滑柄跟随手指移动时会扣除触摸容差（touch slop），因此它会再次拖动（始终朝同一方向，并带助跑），直到滑块与目标位置相差不超过一个步长（连续滑块为范围的 1%）。Web：用鼠标拖动滑柄。`js`：通过回调设置该位置对应的值。
 

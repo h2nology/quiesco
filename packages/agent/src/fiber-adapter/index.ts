@@ -98,11 +98,14 @@ export class FiberAdapter {
 
   /**
    * Components within the scope that render no host element and satisfy `test` (value actions on e.g.
-   * Android's DateTimePicker, which renders null and opens a system dialog).
+   * Android's DateTimePicker, which renders null and opens a system dialog). With `viewless`, also
+   * components whose host elements all have no size (issue #29: @expo/ui's DateTimePicker in dialog
+   * presentation renders a 0-high Host); `test` gets `true` as second argument for those, and is asked
+   * before anything is measured.
    */
-  findHostlessComposites(test: (c: CompositeNode) => boolean): CompositeNode[] {
+  findHostlessComposites(test: (c: CompositeNode, rendersHosts: boolean) => boolean, viewless = false): CompositeNode[] {
     const out: CompositeNode[] = [];
-    for (const start of this.scopedStarts()) out.push(...findHostlessComposites(start, test));
+    for (const [start, platform] of this.scopedStartsWithPlatform()) out.push(...findHostlessComposites(start, test, viewless ? platform : null));
     return out;
   }
 
@@ -184,6 +187,18 @@ export class FiberAdapter {
       'Wrap metro.config.js with withQuiesco() from @quiesco/agent/metro (it runs the hook before React Native ' +
       'starts) and import @quiesco/agent on the first line of the app entry file.'
     );
+  }
+
+  private scopedStartsWithPlatform(): [Fiber, HostPlatform][] {
+    const out: [Fiber, HostPlatform][] = [];
+    for (const [rendererID, roots] of this.requireHook().roots) {
+      const platform = this.platformFor(rendererID);
+      for (const root of roots) {
+        const start = this.scopeType === null ? root.current : findFiberByType(root.current, this.scopeType);
+        if (start !== null) out.push([start, platform]);
+      }
+    }
+    return out;
   }
 
   private scopedStarts(): Fiber[] {

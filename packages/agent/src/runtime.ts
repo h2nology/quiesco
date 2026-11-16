@@ -46,7 +46,7 @@ import { ResetManager } from './reset';
 import { appLogBox } from './reset/logbox';
 import type { LogBoxLike } from './reset/logbox';
 import { defaultStorageAdapters } from './reset/storage-defaults';
-import { describeMatcher, findAll, getTree, invisibleReason, isVisible, listElements, structureLines, summarize, toRegExp } from './query';
+import { describeMatcher, findAll, getTree, invisibleReason, isVisible, listElements, sizedAncestor, structureLines, summarize, toRegExp } from './query';
 import type { Clock, FetchFn, IdleTracker, TimerGlobals } from './sync';
 import { FrameStableTracker, IdleCallbackTracker, NetworkTracker, OfflineGate, ReactTracker, SyncEngine, TimerTracker, ownConnection, realClock } from './sync';
 import { AGENT_VERSION } from './version';
@@ -424,20 +424,25 @@ export class AgentRuntime {
    * Such a target has no position: only value actions take it.
    */
   private resolveControlTarget(matcher: Matcher, opts: SyncOption, deadline: number): Promise<HostNode | CompositeNode> {
-    return this.resolveLoop(matcher, opts, deadline, true, () => this.hostlessMatches(matcher));
+    return this.resolveLoop(matcher, opts, deadline, true, () => this.hostlessMatches(matcher, true));
   }
 
-  /** Components without a host element matching the `id` / `type` / `index` of `matcher` (other fields: none). */
-  private hostlessMatches(matcher: Matcher): CompositeNode[] {
+  /**
+   * Components without a host element matching the `id` / `type` / `index` of `matcher` (other fields: none).
+   * `viewless`: also value controls whose host elements all have no size (issue #29: @expo/ui's
+   * DateTimePicker in dialog presentation does not pass its testID on and renders a 0-high Host).
+   */
+  private hostlessMatches(matcher: Matcher, viewless = false): CompositeNode[] {
     const { id, type, index, ...rest } = matcher;
     if (Object.keys(rest).length > 0 || (id === undefined && type === undefined)) return [];
     const idRe = id === undefined ? null : toRegExp(id);
-    const all = this.adapter.findHostlessComposites((c) => {
+    const all = this.adapter.findHostlessComposites((c, rendersHosts) => {
+      if (rendersHosts && !value.isValueControl(c.props)) return false;
       if (type !== undefined && c.name !== type) return false;
       if (idRe === null) return true;
       if (c.testID === undefined) return false;
       return typeof idRe === 'string' ? c.testID === idRe : idRe.test(c.testID);
-    });
+    }, viewless);
     if (index === undefined) return all;
     const one = all[index];
     return one === undefined ? [] : [one];
@@ -480,13 +485,16 @@ export class AgentRuntime {
           return only;
         }
       }
-      const visible = node !== undefined && (!requireVisible || isVisible(node, this.adapter.viewport()));
+      // Issue #29: a value control that reports no size (@expo/ui) is visible where it is drawn: its
+      // nearest ancestor with an area. Only for value actions (they do not touch it, see isSizelessControl).
+      const shown = node !== undefined && fallback !== null && value.isSizelessControl(node) ? (sizedAncestor(node) ?? node) : node;
+      const visible = node !== undefined && (!requireVisible || isVisible(shown as HostNode, this.adapter.viewport()));
       if (busy !== null && visible) throw busy;
       if (visible) return node;
       if (busy !== null || this.clock.now() >= deadline) {
         const target = describeMatcher(matcher);
         let message = node === undefined ? `No element matches ${target}` : `The element exists but is not visible: ${target}`;
-        const reason = node === undefined ? null : invisibleReason(node, this.adapter.viewport());
+        const reason = shown === undefined ? null : invisibleReason(shown, this.adapter.viewport());
         if (reason !== null) message += `: ${reason}`;
         message += this.whereSuffix();
         // Only a wait that had time to settle says something about the app: the last retry often has a few

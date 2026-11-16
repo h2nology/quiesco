@@ -75,6 +75,7 @@ around a component that drops it):
 | `@react-native-picker/picker` | `onValueChange` and `selectedValue` | an item's value (also as a string), or its label |
 | `@react-native-segmented-control/segmented-control` | a `values` array and `onChange` / `onValueChange` | a segment's value, or its index |
 | `@react-native-community/datetimepicker` | a `Date` `value` and `onChange` / `onValueChange` | a `Date`, or a local string `"2031-12-24"` / `"20:15"` / `"2031-12-24T20:15"`; only the picker's part changes ([date and time pickers](#date-and-time-pickers)) |
+| `@expo/ui/community/datetime-picker` (`DateTimePicker`) | the same as `@react-native-community/datetimepicker` | the same ([`@expo/ui`'s picker](#expo-ui-date-picker)) |
 | DOM `<select>`, `<input type="date" / "time" / "datetime-local" / "month" / "week" / "range" / "number">`, checkbox | the element itself (web) | an option's value or label; a `Date` (written in local time) or the input's own string |
 
 Anything else fails with `ACTION_NOT_SUPPORTED` naming the callbacks that were found and what was
@@ -125,6 +126,21 @@ A picker's value (`expectValue`, the `value` of a query) is what it shows, in lo
 `:ss` when the seconds are not 0. `expectValue` takes that string, or a `Date` that matches when those
 parts agree: `expectValue('due-time-picker', '20:15')`. Android's dialogs are gone once the app handled
 the change; check what the app shows instead.
+
+##### `@expo/ui`'s DateTimePicker {#expo-ui-date-picker}
+
+`@expo/ui/community/datetime-picker` (SwiftUI on iOS, Jetpack Compose on Android) takes the same values.
+Put the `testID` on the `DateTimePicker` itself:
+
+- **iOS, and Android with `presentation="inline"`:** the view that gets the `testID` reports no size to
+  React Native, although the picker is drawn. Quiesco checks visibility on its nearest ancestor that has a
+  size (the `Host`, or its parent when the `Host` is 0 wide under `alignItems: 'center'`).
+- **Android dialogs (the default `presentation`):** the `testID` is not passed on to any view. Quiesco finds
+  the `DateTimePicker` by its own `testID` prop, as it does for `@react-native-community/datetimepicker`
+  on Android.
+
+`setValue` calls the picker's `onValueChange` / `onChange` in every mode; it does not scroll the wheels.
+On the web the component renders nothing.
 
 `adjustSlider` drags the thumb in `native` mode and reads the value back: the thumb follows the finger
 less the touch slop, so it drags again (always one way, with a run-up) until the slider is within one
