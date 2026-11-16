@@ -258,6 +258,17 @@ describe('host tree (native)', () => {
     expect(adapter.getHostRoots().map((n) => n.testID)).toEqual(['overlay', 'app']);
   });
 
+  it('getAllHostRoots ignores the scope: what React Native draws around QuiescoRoot too (issue #38)', () => {
+    const { adapter, target } = setup();
+    const Scope = function QuiescoRoot() {};
+    renderWith(target, makeRoot(composite(Scope, host('RCTView', { testID: 'app' })), host('RCTView', { testID: 'logbox-toast' })));
+    adapter.setScope(Scope);
+    expect(adapter.getHostRoots().map((n) => n.testID)).toEqual(['app']);
+    expect(adapter.getAllHostRoots().map((n) => n.testID)).toEqual(['app', 'logbox-toast']);
+    // the same rendered elements as the scoped tree
+    expect(adapter.getAllHostRoots()[0]?.isSameElement(adapter.getHostRoots()[0]!)).toBe(true);
+  });
+
   it('gives the viewport of the renderer in use', () => {
     const { adapter, target } = setup();
     expect(adapter.viewport()).toBeNull();

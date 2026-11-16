@@ -59,7 +59,8 @@ If the frame-stable line says very few frames were sampled in the time waited, t
 A real touch would hit something else. The error names it (`obscuredBy`; on iOS the native hit chain).
 Typical causes: a dialog or sheet still open, a toast, content under a translucent navigation bar
 (iOS 26+), an element still animating into place. A software keyboard over the target is dismissed
-automatically.
+automatically. Elements React Native draws over the app outside `<QuiescoRoot>` count too: LogBox's toast
+is named as such ([below](#logbox)), anything else as "drawn over the app outside `<QuiescoRoot>`".
 
 On iOS, `(the touch would reach UIView)` with a **"Refreshing..."** bar at the top of `failure.png` is the
 dev client reloading after a file Metro watches changed. Something writes into the project while the tests
@@ -70,7 +71,8 @@ run: usually artifacts in a directory other than `artifacts/` (pass the same pat
 ### LogBox covers the app {#logbox}
 
 In a dev build, an app's `console.error` opens a LogBox toast at the bottom of the screen ("Console Error",
-or the full LogBox once tapped), and taps there then fail with `ELEMENT_OBSCURED`. Quiesco clears LogBox on
+or the full LogBox once tapped), and taps there then fail with `ELEMENT_OBSCURED` naming React Native's
+LogBox (on iOS and Android). Quiesco clears LogBox on
 every soft reset (`appErrors.logBox: 'clear'`), so the next scenario starts without it, and the failure
 message of the scenario names the error (`The app logged a console.error in this scenario; the last: …`,
 all of them in `app-errors.txt`). Fix the error in the app; to keep LogBox from showing at all while

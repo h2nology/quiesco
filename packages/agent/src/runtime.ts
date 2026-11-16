@@ -819,10 +819,12 @@ export class AgentRuntime {
   private performer(mode: ParamsOf<AgentMethods['action']>['mode'], action: ActionType, matcher: Matcher, deadline: number): ActionPerformer {
     if (mode === 'js') return jsPerformer(this.jsContext());
     const roots = (): HostNode[] => this.adapter.getHostRoots();
+    // Issue #38: what React Native draws over the app outside <QuiescoRoot> (LogBox) covers it too.
+    const hitRoots = (): HostNode[] => this.adapter.getAllHostRoots();
     const viewport = (): ReturnType<FiberAdapter['viewport']> => this.adapter.viewport();
     const bridge: NativeBridge | null = this.nativeModule();
-    if (bridge === null) return hostPerformer({ clock: this.clock, roots, viewport, matcher, deadline });
-    return nativePerformer({ bridge, clock: this.clock, roots, viewport, action, matcher, deadline });
+    if (bridge === null) return hostPerformer({ clock: this.clock, roots, hitRoots, viewport, matcher, deadline });
+    return nativePerformer({ bridge, clock: this.clock, roots, hitRoots, viewport, action, matcher, deadline });
   }
 
   /** scrollTo loops in the agent; with host-injected input it scrolls with the JS fallback instead. */

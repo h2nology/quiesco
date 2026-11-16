@@ -17,7 +17,7 @@ import { QuiescoError } from '../errors';
 import type { HostNode, Viewport } from '../fiber-adapter';
 import { describeMatcher, summarize } from '../query';
 import type { Clock } from '../sync';
-import { center, describe, hitTest, isAncestor } from './hit-test';
+import { center, describe, describeCover, hitTest, isAncestor } from './hit-test';
 import type { ActionPerformer } from './performer';
 import type { FingerPath } from './multitouch';
 import { framesForSequence, pinchGestures, rotateGesture } from './multitouch';
@@ -68,6 +68,11 @@ export interface NativeContext {
   bridge: NativeBridge;
   clock: Clock;
   roots: () => readonly HostNode[];
+  /**
+   * The whole app for the hit test, also what is drawn over it outside <QuiescoRoot> (LogBox; issue #38).
+   * Default: `roots`.
+   */
+  hitRoots?: () => readonly HostNode[];
   viewport: () => Viewport | null;
   /** The current action and its matcher, for error data. */
   action: ActionType;
@@ -190,13 +195,16 @@ export function nativePerformer(ctx: NativeContext): ActionPerformer {
       const same = loc.settling !== true && prev !== null && Math.abs(prev.x - rect.x) < 0.5 && Math.abs(prev.y - rect.y) < 0.5 && Math.abs(prev.width - rect.width) < 0.5;
       if (same || clock.now() >= ctx.deadline) {
         const reach = point !== undefined && bridge.hitAt !== undefined ? await bridge.hitAt(tag, rect.x + point.x, rect.y + point.y) : loc;
+        const js = node.measure() ?? rect;
+        const top = hitTest((ctx.hitRoots ?? ctx.roots)(), point === undefined ? center(js) : { x: js.x + point.x, y: js.y + point.y });
+        const coveredInJs = top !== null && !isAncestor(node, top);
         if (reach.windowHasFocus === false && !hitInside(node, reach.hitTags)) {
+          // Name what covers it when React knows it (LogBox's toast on iOS, issue #38); the native data stays.
+          if (coveredInJs) throw obscured(node, describeCover(top, ctx.roots()), { ...loc, ...reach });
           const what = reach.hitClass !== undefined && reach.hitClass !== '' ? ` (the touch would reach ${reach.hitClass})` : '';
           throw obscured(node, `another window or native view, e.g. a Modal, dialog or navigation bar${what}`, { ...loc, ...reach });
         }
-        const js = node.measure() ?? rect;
-        const top = hitTest(ctx.roots(), point === undefined ? center(js) : { x: js.x + point.x, y: js.y + point.y });
-        if (top !== null && !isAncestor(node, top)) throw obscured(node, describe(top));
+        if (coveredInJs) throw obscured(node, describeCover(top, ctx.roots()));
         return { tag, rect };
       }
       prev = rect;
