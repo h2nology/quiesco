@@ -77,7 +77,10 @@ around a component that drops it):
 | `@react-native-community/datetimepicker` | a `Date` `value` and `onChange` / `onValueChange` | a `Date`, or a local string `"2031-12-24"` / `"20:15"` / `"2031-12-24T20:15"`; only the picker's part changes ([date and time pickers](#date-and-time-pickers)) |
 | DOM `<select>`, `<input type="date" / "time" / "datetime-local" / "month" / "week" / "range" / "number">`, checkbox | the element itself (web) | an option's value or label; a `Date` (written in local time) or the input's own string |
 
-Anything else fails with `ACTION_NOT_SUPPORTED` naming the callbacks that were found. Setting the
+Anything else fails with `ACTION_NOT_SUPPORTED` naming the callbacks that were found and what was
+searched: the components going up from the target (with the props that decide a control's kind), and the
+control-shaped components inside it with why each was not taken (more than 4 levels above its element,
+or one of several controls). From that, move the testID, wrap the control, or use a backdoor. Setting the
 current value sends no event, and a disabled control is left alone (as with a user's attempt).
 
 How the value gets in, per mode:
@@ -212,6 +215,10 @@ with `.not`. A negated single-element assertion (`not.toHaveText`, ...) still ne
 
 An element summary has `type` (host component), `semanticType`, `testID`, `text`, `label`, `role`,
 `value`, `checked`, `enabled`, `focused`, `rect`, `visible`, `visibleRatio` and the serializable `props`.
+Its `text` (also in error messages and `elements.json`) puts a space between separate texts, e.g.
+`张 张三 S2024001` for an avatar, a name and an ID; the runs of one text stay together
+(`<Text>a<Text>b</Text></Text>` → `ab`). Matching by `text` is unchanged: it compares the text without
+the spaces.
 
 ### App lifecycle (`this.app.device`)
 
@@ -610,6 +617,8 @@ runs on Android only. This differs from cucumber-js `--tags`, which matches inhe
 ## Errors {#errors}
 
 Failures are `QuiescoError`s with `errorName`, a message that says what to do, and structured `data`.
+Their stack starts at the code that made the call (your step or driver class), without Quiesco's own or
+the WebSocket library's frames.
 
 | Error | Meaning |
 |---|---|

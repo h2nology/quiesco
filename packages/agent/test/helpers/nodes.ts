@@ -40,6 +40,7 @@ interface MutableNode extends HostNode {
   children: MutableNode[];
   text: string;
   ownText: string;
+  displayText: string;
   parent: MutableNode | null;
   rect: Rect | null;
 }
@@ -59,6 +60,7 @@ export function node(spec: NodeSpec, parent: MutableNode | null = null): Mutable
     children: [],
     ownText: spec.text ?? '',
     text: '',
+    displayText: '',
     rect: spec.rect === undefined ? { x: 0, y: 0, width: 100, height: 20 } : spec.rect,
     measure() {
       return this.rect;
@@ -83,7 +85,7 @@ export function node(spec: NodeSpec, parent: MutableNode | null = null): Mutable
         ...(spec.owner !== undefined ? [{ props: spec.owner, name: spec.ownerNames?.[0] ?? null }] : []),
         ...(spec.ancestors ?? []).map((a) => ({ props: a.props, name: a.name ?? null })),
       ];
-      for (const c of chain.slice(0, maxDepth + 1)) if (test(c.props)) return c;
+      for (const [depth, c] of chain.slice(0, maxDepth + 1).entries()) if (test(c.props, c.name, depth)) return { ...c, depth };
       return null;
     },
     findInstance: () => spec.instance ?? null,
@@ -95,6 +97,7 @@ export function node(spec: NodeSpec, parent: MutableNode | null = null): Mutable
   };
   n.children = (spec.children ?? []).map((c) => node(c, n));
   n.text = n.ownText + n.children.map((c) => c.text).join('');
+  n.displayText = [n.ownText, ...n.children.map((c) => c.displayText)].filter((t) => t !== '').join(' ');
   return n;
 }
 

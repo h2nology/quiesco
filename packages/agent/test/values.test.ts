@@ -66,9 +66,37 @@ describe('detectControl', () => {
     expect(e.message).toContain('onLayout, onPress');
   });
 
+  it('no control found: the error lists what was searched up and inside, and why a control inside was not taken (issue #30)', () => {
+    const picker = { value: new Date(0), onValueChange: () => {} };
+    // @expo/ui: DateTimePicker → Host → DatePicker → … → the native view, more than 4 fibers below the component.
+    const levels = [{ props: {} }, { props: { selection: new Date(0), onDateChange: () => {} }, name: 'DatePicker' }, { props: {} }, { props: {}, name: 'Host' }, { props: {} }, { props: picker, name: 'DateTimePicker' }];
+    const row = node({
+      type: 'RCTView',
+      testID: 'birthday-picker',
+      props: { testID: 'birthday-picker' },
+      ancestors: [{ props: { value: '2012-05-20', onChange: () => {} }, name: 'BirthdayPicker' }],
+      children: [{ type: 'ViewManagerAdapter_ExpoUI_DatePickerView', ancestors: levels }],
+    });
+    const e = errorOf(() => value.detectControl(row, 'ios'));
+    expect(e.errorName).toBe('ACTION_NOT_SUPPORTED');
+    expect(e.message).toContain('searched up (12 levels): <RCTView testID="birthday-picker"> ← BirthdayPicker {value: string, onChange}');
+    expect(e.message).toContain('DateTimePicker {value: Date, onValueChange} (date): not taken: 6 levels above its element (limit 4)');
+  });
+
+  it('no control found: two controls inside are named, and an empty container says so (issue #30)', () => {
+    const a = { value: 1, onValueChange: () => {} };
+    const b = { value: true, onValueChange: () => {} };
+    const both = node({ testID: 'settings', children: [{ ancestors: [{ props: a, name: 'Slider' }] }, { ancestors: [{ props: b, name: 'Switch' }] }] });
+    const e = errorOf(() => value.detectControl(both, 'android'));
+    expect(e.message).toContain('Slider {value: number, onValueChange} (slider): not taken: one of 2 controls inside; target one of them');
+    expect(e.message).toContain('Switch {value: boolean, onValueChange} (switch): not taken: one of 2 controls inside');
+    const empty = errorOf(() => value.detectControl(node({ testID: 'x', children: [{ text: 'hi' }] }), 'ios'));
+    expect(empty.message).toContain("searched inside: no component with a value control's props below it");
+  });
+
   it('a component without a host (Android DateTimePicker) is a control without a node', () => {
     const props = { value: new Date(0), onChange: () => {}, testID: 'when' };
-    const composite: CompositeNode = { name: 'RNDateTimePickerAndroid', props, testID: 'when', rendersHost: false, findProps: (t) => (t(props) ? { props, name: null } : null) };
+    const composite: CompositeNode = { name: 'RNDateTimePickerAndroid', props, testID: 'when', rendersHost: false, findProps: (t) => (t(props, null, 0) ? { props, name: null, depth: 0 } : null) };
     expect(value.detectControl(composite, 'android')).toMatchObject({ kind: 'date', node: null });
   });
 });

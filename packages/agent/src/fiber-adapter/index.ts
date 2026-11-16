@@ -13,7 +13,7 @@ import { patchScheduler } from './scheduler';
 import { buildHostTree, findFiberByType, findHostlessComposites } from './traverse';
 import type { AdapterDiagnostics, CompositeNode, HostNode, RendererKind, Viewport } from './types';
 
-export type { AdapterDiagnostics, CompositeNode, HandlerRef, HostNode, InstanceRef, PropsRef, RendererInfo, RendererKind, Viewport } from './types';
+export type { AdapterDiagnostics, CompositeNode, HandlerRef, HostNode, InstanceRef, PropsRef, PropsTest, RendererInfo, RendererKind, Viewport } from './types';
 export { flattenStyle } from './host';
 
 /** React Native's `noTimeout` / react-dom's `noTimeout`: no pending suspended-commit timeout. */

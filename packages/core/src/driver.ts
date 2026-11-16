@@ -30,7 +30,7 @@ import type {
   TreeNode,
 } from '@quiesco/protocol';
 
-import { QuiescoError } from './errors.js';
+import { QuiescoError, captureCallSite, withCallSite } from './errors.js';
 import { findNonJson } from './json.js';
 import type { Logger } from './logger.js';
 import { silentLogger } from './logger.js';
@@ -625,8 +625,10 @@ export class Driver {
    * the background, suspend, configure). Not part of the test API.
    */
   async request<M extends keyof AgentMethods>(method: M, params: ParamsOf<AgentMethods[M]>, timeoutMs?: number, steps = 1): Promise<ResultOf<AgentMethods[M]>> {
+    // Taken before the first await, so the test's own frames (the step, its driver class) are in it.
+    const site = captureCallSite();
     const pending = this.takeAppError();
-    if (pending !== null) throw pending;
+    if (pending !== null) throw withCallSite(pending, site);
     const send = async (): Promise<ResultOf<AgentMethods[M]>> => {
       const conn = await this.options.connection();
       this.attach(conn);
@@ -647,7 +649,10 @@ export class Driver {
     try {
       return await run;
     } catch (e) {
-      if (e instanceof QuiescoError) this.lastFailure = e;
+      if (e instanceof QuiescoError) {
+        withCallSite(e, site);
+        this.lastFailure = e;
+      }
       throw e;
     }
   }

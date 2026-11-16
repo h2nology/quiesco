@@ -19,7 +19,7 @@ export function isAncestor(a: HostNode, b: HostNode): boolean {
 
 export function describe(n: HostNode): string {
   const id = n.testID !== undefined ? ` testID="${n.testID}"` : '';
-  const text = n.text !== '' ? ` text="${n.text.slice(0, 40)}"` : '';
+  const text = n.displayText !== '' ? ` text="${n.displayText.slice(0, 40)}"` : '';
   return `<${n.type}${id}${text}>`;
 }
 

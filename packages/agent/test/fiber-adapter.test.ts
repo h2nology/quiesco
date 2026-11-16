@@ -191,6 +191,29 @@ describe('host tree (native)', () => {
     expect(card?.children[0]?.parent).toBe(card);
   });
 
+  it('display text: separate texts joined with a space, nested text runs kept together; text unchanged (issue #33)', () => {
+    const { adapter, target } = setup();
+    renderWith(
+      target,
+      makeRoot(
+        host('RCTView', { testID: 'student-row-S2024001' },
+          host('RCTView', {}, host('RCTText', {}, text('张'))),
+          host('RCTView', {},
+            host('RCTText', {}, text('张三')),
+            host('RCTText', {}, text('S2024001 · 三年二班')),
+          ),
+          composite('Text', host('RCTText', {}, text('2012年5月20日'), host('RCTVirtualText', {}, text('（14 岁）')))),
+          host('RCTView', {}),
+          host('RCTText', {}, text('›')),
+        ),
+      ),
+    );
+    const [row] = adapter.getHostRoots();
+    expect(row?.text).toBe('张张三S2024001 · 三年二班2012年5月20日（14 岁）›');
+    expect(row?.displayText).toBe('张 张三 S2024001 · 三年二班 2012年5月20日（14 岁） ›');
+    expect(row?.children[2]?.displayText).toBe('2012年5月20日（14 岁）');
+  });
+
   it('flags display:none and opacity:0 from (nested) style arrays', () => {
     const { adapter, target } = setup();
     renderWith(target, makeRoot(
@@ -263,6 +286,18 @@ describe('host tree (web: react-dom + react-native-web)', () => {
     const roots = adapter.getHostRoots();
     expect(roots).toHaveLength(1);
     expect(roots[0]).toMatchObject({ type: 'button', testID: 'go', role: 'button', label: 'Go', text: 'Go!', ownText: 'Go!', hiddenByStyle: false });
+  });
+
+  it('display text on the web: <div> texts are separate, a nested <span> continues its text (issue #33)', () => {
+    const { adapter, target } = setup();
+    renderWith(
+      target,
+      makeRoot(host('div', { 'data-testid': 'row' }, host('div', { children: 'Ann' }), host('div', {}, text('Grade '), host('span', { children: '3' })))),
+      'react-dom',
+    );
+    const [row] = adapter.getHostRoots();
+    expect(row?.text).toBe('AnnGrade 3');
+    expect(row?.displayText).toBe('Ann Grade 3');
   });
 
   it('uses the computed style for hiding and stateNode for measuring', () => {

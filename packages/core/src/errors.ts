@@ -39,3 +39,38 @@ export class QuiescoError extends Error {
     return new QuiescoError(name, error.message, data, error.code);
   }
 }
+
+/** This package's own source / build directory (frames from here are plumbing to a test author). */
+const OWN_DIR = new URL('.', import.meta.url).href;
+const OWN_PATH = decodeURIComponent(new URL('.', import.meta.url).pathname);
+
+/** A stack frame that tells a test author nothing: Quiesco's own code, the `ws` library, Node internals. */
+function isInternalFrame(frame: string): boolean {
+  return frame.includes(OWN_DIR) || frame.includes(OWN_PATH) || /[\\/]node_modules[\\/](?:\.pnpm[\\/][^\\/]+[\\/]node_modules[\\/])?ws[\\/]/.test(frame) || /\((?:node:|internal\/)|at (?:node:|internal\/)/.test(frame);
+}
+
+/**
+ * The stack of the caller, taken where a driver call starts (issue #32). Errors that arrive later (an RPC
+ * error response, a timeout, an app error) are created on a WebSocket / timer callback, whose stack
+ * has only the transport's frames; {@link withCallSite} gives them this one instead.
+ */
+export function captureCallSite(): Error {
+  const limit = Error.stackTraceLimit;
+  Error.stackTraceLimit = 50;
+  try {
+    return new Error('call site');
+  } finally {
+    Error.stackTraceLimit = limit;
+  }
+}
+
+/**
+ * Point `error`'s stack at the code that made the call: the frames of `site` without Quiesco's own,
+ * `ws`'s and Node's. Keeps the error's stack when nothing would be left (e.g. a call made by Quiesco itself).
+ */
+export function withCallSite<E extends Error>(error: E, site: Error): E {
+  const frames = (site.stack ?? '').split('\n').filter((l) => /^\s+at /.test(l) && !isInternalFrame(l));
+  if (frames.length === 0) return error;
+  Object.defineProperty(error, 'stack', { value: `${error.name}: ${error.message}\n${frames.join('\n')}`, writable: true, configurable: true });
+  return error;
+}

@@ -12,7 +12,7 @@ import type { Rect } from '@quiesco/protocol';
 import type { Fiber } from './fiber';
 import { WorkTag, isObject, walkSiblings } from './fiber';
 import type { HostPlatform } from './host';
-import type { CompositeNode, HandlerRef, HostNode, InstanceRef, PropsRef } from './types';
+import type { CompositeNode, HandlerRef, HostNode, InstanceRef, PropsRef, PropsTest } from './types';
 
 class Node implements HostNode {
   readonly type: string;
@@ -26,6 +26,7 @@ class Node implements HostNode {
   readonly children: Node[] = [];
   text = '';
   ownText = '';
+  displayText = '';
 
   constructor(
     private readonly fiber: Fiber,
@@ -97,7 +98,7 @@ class Node implements HostNode {
     return null;
   }
 
-  findProps(test: (props: Readonly<Record<string, unknown>>) => boolean, maxDepth = DEFAULT_PROPS_DEPTH): PropsRef | null {
+  findProps(test: PropsTest, maxDepth = DEFAULT_PROPS_DEPTH): PropsRef | null {
     return findPropsFrom(this.fiber, test, maxDepth);
   }
 
@@ -120,11 +121,12 @@ class Node implements HostNode {
 /** How far up `findProps` looks by default: the components wrapping a control, not the whole screen. */
 const DEFAULT_PROPS_DEPTH = 12;
 
-function findPropsFrom(start: Fiber, test: (props: Readonly<Record<string, unknown>>) => boolean, maxDepth: number): PropsRef | null {
+function findPropsFrom(start: Fiber, test: PropsTest, maxDepth: number): PropsRef | null {
   let depth = 0;
   for (let f: Fiber | null = start; f !== null && f.tag !== WorkTag.HostRoot && depth <= maxDepth; f = f.return, depth++) {
     if (f.tag === WorkTag.HostText || !isObject(f.memoizedProps)) continue;
-    if (test(f.memoizedProps)) return { props: f.memoizedProps, name: COMPONENT_TAGS.has(f.tag) ? componentName(f.type) : null };
+    const name = COMPONENT_TAGS.has(f.tag) ? componentName(f.type) : null;
+    if (test(f.memoizedProps, name, depth)) return { props: f.memoizedProps, name, depth };
   }
   return null;
 }
@@ -142,7 +144,7 @@ class Composite implements CompositeNode {
     this.rendersHost = hasHost(fiber.child);
   }
 
-  findProps(test: (props: Readonly<Record<string, unknown>>) => boolean, maxDepth = DEFAULT_PROPS_DEPTH): PropsRef | null {
+  findProps(test: PropsTest, maxDepth = DEFAULT_PROPS_DEPTH): PropsRef | null {
     return findPropsFrom(this.fiber, test, maxDepth);
   }
 }
@@ -208,48 +210,65 @@ function stringChildren(fiber: Fiber): string {
   return typeof c === 'string' || typeof c === 'number' ? String(c) : '';
 }
 
+/** Text gathered while collecting the host nodes below one parent host. */
+interface TextAcc {
+  /** All text, in render order. */
+  text: string;
+  /** Text not inside a child host. */
+  own: string;
+  /** Display text (HostNode.displayText). */
+  display: string;
+  /** The last piece added to `display` was a separate block (a host that is not an inline text run). */
+  lastBlock: boolean;
+}
+
+/** Append a piece of display text: a space between separate blocks, none inside one text. */
+function addDisplay(acc: TextAcc, piece: string, block: boolean): void {
+  if (piece === '') return;
+  acc.display = acc.display === '' ? piece : acc.display + (block || acc.lastBlock ? ' ' : '') + piece;
+  acc.lastBlock = block;
+}
+
 /**
- * Collect host nodes under `first` and its siblings into `out` (children of `parent`).
- * `viaComponent`: a component fiber lies between `parent` and `first`.
- * Returns [all text, text not inside a child host], both in render order.
+ * Collect host nodes under `first` and its siblings into `out` (children of `parent`), adding their
+ * text to `acc`. `viaComponent`: a component fiber lies between `parent` and `first`.
  */
-function collect(first: Fiber | null, parent: Node | null, platform: HostPlatform, out: Node[], viaComponent = false): [string, string] {
-  let text = '';
-  let own = '';
+function collect(first: Fiber | null, parent: Node | null, platform: HostPlatform, out: Node[], acc: TextAcc, viaComponent = false): void {
   for (let f = first; f !== null; f = f.sibling) {
     switch (f.tag) {
       case WorkTag.HostComponent: {
         const node = new Node(f, platform, parent, viaComponent);
-        const [childText, childOwn] = collect(f.child, node, platform, node.children);
         const mine = stringChildren(f);
-        node.text = mine + childText;
-        node.ownText = mine + childOwn;
+        const inner: TextAcc = { text: mine, own: mine, display: mine, lastBlock: false };
+        collect(f.child, node, platform, node.children, inner);
+        node.text = inner.text;
+        node.ownText = inner.own;
+        node.displayText = inner.display;
         out.push(node);
-        text += node.text;
+        acc.text += node.text;
+        addDisplay(acc, node.displayText, !platform.inlineText(node.type));
         break;
       }
       case WorkTag.HostText:
         if (typeof f.memoizedProps === 'string' || typeof f.memoizedProps === 'number') {
-          text += String(f.memoizedProps);
-          own += String(f.memoizedProps);
+          const t = String(f.memoizedProps);
+          acc.text += t;
+          acc.own += t;
+          addDisplay(acc, t, false);
         }
         break;
       case WorkTag.HostHoistable:
         break;
-      default: {
-        const [t, o] = collect(f.child, parent, platform, out, viaComponent || COMPONENT_TAGS.has(f.tag));
-        text += t;
-        own += o;
-      }
+      default:
+        collect(f.child, parent, platform, out, acc, viaComponent || COMPONENT_TAGS.has(f.tag));
     }
   }
-  return [text, own];
 }
 
 /** Host nodes directly below `fiber` (the fiber itself is not included). */
 export function buildHostTree(fiber: Fiber, platform: HostPlatform): HostNode[] {
   const out: Node[] = [];
-  collect(fiber.child, null, platform, out);
+  collect(fiber.child, null, platform, out, { text: '', own: '', display: '', lastBlock: false });
   return out;
 }
 

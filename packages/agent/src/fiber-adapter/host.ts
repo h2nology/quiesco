@@ -17,6 +17,11 @@ export interface HostPlatform {
   hiddenByStyle(fiber: Fiber, props: Record<string, unknown>): boolean;
   /** Whether the host clips its descendants (scroll views, `overflow` other than `visible`). */
   clipsContent(type: string, fiber: Fiber, props: Record<string, unknown>): boolean;
+  /**
+   * Whether the host is a text run nested in another text (`<Text>a<Text>b</Text></Text>`): its text
+   * continues its parent's text, while separate texts are separate blocks (display text, issue #33).
+   */
+  inlineText(type: string): boolean;
   /** Whether the host has the input focus. */
   isFocused(fiber: Fiber): boolean;
   /** Focus the host (text inputs); false when it has no way to be focused. */
@@ -116,6 +121,8 @@ export function nativePlatform(deps: PlatformDeps): HostPlatform {
       return hiddenStyle(s['display'], s['opacity']);
     },
     clipsContent: (type, _fiber, p) => NATIVE_SCROLL_HOSTS.has(type) || clips(flattenStyle(p['style'])['overflow']),
+    // <Text> inside a <Text> renders NativeVirtualText.
+    inlineText: (type) => type === 'RCTVirtualText',
     isFocused(fiber) {
       const focused = focusedElement(deps);
       return focused !== null && focused !== undefined && focused === publicInstance(fiber);
@@ -165,6 +172,8 @@ export function webPlatform(deps: PlatformDeps): HostPlatform {
     testID: (p) => str(p['data-testid']) ?? str(p['testID']),
     label: (p) => str(p['aria-label']) ?? str(p['accessibilityLabel']),
     role: (p) => str(p['role']) ?? str(p['accessibilityRole']),
+    // react-native-web renders a <Text> inside a <Text> as a <span> (a top-level one as a <div>).
+    inlineText: (type) => type === 'span',
     hiddenByStyle(fiber, p) {
       // RNW compiles StyleSheet styles to class names, so the computed style is the reliable source.
       const computed = deps.getComputedStyle?.(fiber.stateNode) ?? null;
