@@ -47,3 +47,24 @@ description: "Problems in Expo, React Native or the platforms that Quiesco works
 - Quiesco: `@quiesco/native` tracks keyboard notifications and typing; touches wait until the
   keyboard has been quiet for 400 ms (`settling`), and the `native` idle tracker makes every sync wait
   for it. Only steps right after typing pay the wait.
+
+## Expo SDK 55–56, Android: element rects a status bar's height too high {#expo-sdk-55-56-android-element-rects-a-status-bars-height-too-high}
+
+- Seen with: React Native 0.83 / 0.85 (Expo SDK 55 / 56), edge-to-edge apps (the default).
+- What happens: `getBoundingClientRect` adds React Native's viewport offset, which these versions take as
+  the root view's position minus the visible display frame, so every rect is the status bar's height
+  above the view on screen. React Native 0.86 measures from the window in edge-to-edge apps.
+- Quiesco: before each call the agent compares one view's rect with its position in the window (from
+  `@quiesco/native`) and corrects every rect by the difference: `attributes().rect`, `tapAt`, element
+  screenshots and visibility agree with what is on screen on every SDK. Without `@quiesco/native` (js
+  actions) rects stay as React Native reports them.
+
+## Expo SDK 55–57 on Xcode 27 / iOS 27 {#expo-sdk-55-57-on-xcode-27-ios-27}
+
+- Building: some pods and resource bundles of these SDKs declare iOS 9–13.4, which Xcode 27 rejects;
+  raise them in a Podfile `post_install`. On SDK 55, expo-router also uses an iOS 16 API without an
+  availability check: raise the app's deployment target to 16.0 (`expo-build-properties`:
+  `ios.deploymentTarget`).
+- Running: apps on these SDKs are terminated at launch on iOS 27 (they do not adopt the UIScene life
+  cycle, which iOS 27 requires). Test them on an iOS 26 simulator (`devices.ios.os`).
+- Neither involves Quiesco; `@quiesco/native` itself needs iOS 15.1.

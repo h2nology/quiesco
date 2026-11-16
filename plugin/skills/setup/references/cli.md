@@ -10,7 +10,8 @@ npx quiesco <command> [options]
 ## `quiesco init` {#quiesco-init}
 
 Sets Quiesco up in an Expo project. Every step reports what it did; existing files are never
-overwritten — when a file needs a change Quiesco cannot make safely, it prints what to add.
+overwritten — when a file needs a change Quiesco cannot make safely, it prints what to add. On an app below
+Expo SDK 55 it warns (Quiesco supports SDK 55 and later) and sets the project up anyway.
 
 1. Installs the packages with the project's package manager (npm, pnpm, yarn or bun, from the lock file):
    `@quiesco/agent`, `@quiesco/native` as dependencies; `quiesco`, `@quiesco/core`, `@quiesco/cucumber`,
@@ -156,7 +157,7 @@ npx quiesco doctor                 # every platform configured in quiesco.config
 npx quiesco doctor --platform ios
 ```
 
-Checks Node.js, the project setup (packages, that every Quiesco package has the same version, that
+Checks Node.js, the Expo SDK (55 or later), the project setup (packages, that every Quiesco package has the same version, that
 every `quiesco <command>` in the package.json scripts exists, config plugin, `withQuiesco()` in Metro, the agent as the
 entry's first import, `<QuiescoRoot>`, the config file), the app IDs (`quiesco.config.mts` against
 `app.json` and the builds, and placeholders left by `init`), settings older versions wrote (`paths` in the

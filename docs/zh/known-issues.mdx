@@ -25,3 +25,15 @@ description: "Expo、React Native 或各平台中，Quiesco 绕过或无法修�
 
 - 出现环境：iOS 27 模拟器。输入后 0 ms（或键盘正在出现 / 改变高度时）在键盘外的触摸不会到达 App；300 ms 后则可以。
 - Quiesco：`@quiesco/native` 会跟踪键盘通知和输入；触摸会等到键盘安静 400 ms（`settling`）之后才发出，且 `native` 空闲跟踪器会让每次同步都等待它。只有紧接在输入之后的步骤才需要付出这段等待。
+
+## Expo SDK 55–56，Android：元素的 rect 偏上一个状态栏的高度 {#expo-sdk-55-56-android-element-rects-a-status-bars-height-too-high}
+
+- 出现环境：React Native 0.83 / 0.85（Expo SDK 55 / 56），edge-to-edge 的 App（默认）。
+- 现象：`getBoundingClientRect` 会加上 React Native 的 viewport 偏移，而这些版本把它算成根视图的位置减去可见显示区域，因此每个 rect 都比屏幕上的视图高出一个状态栏的高度。React Native 0.86 在 edge-to-edge 的 App 中从窗口开始计算。
+- Quiesco：每次调用前，agent 把一个视图的 rect 和它在窗口中的位置（来自 `@quiesco/native`）比较，按差值校正所有 rect：`attributes().rect`、`tapAt`、元素截图和可见性判断在所有 SDK 上都与屏幕一致。没有 `@quiesco/native`（js 动作）时，rect 保持 React Native 报告的值。
+
+## Xcode 27 / iOS 27 上的 Expo SDK 55–57 {#expo-sdk-55-57-on-xcode-27-ios-27}
+
+- 构建：这些 SDK 的一些 pod 和资源 bundle 声明 iOS 9–13.4，Xcode 27 会拒绝；请在 Podfile 的 `post_install` 中提高它们。SDK 55 上，expo-router 还使用了 iOS 16 的 API 却没有可用性检查：把 App 的部署目标提高到 16.0（`expo-build-properties`：`ios.deploymentTarget`）。
+- 运行：这些 SDK 的 App 在 iOS 27 上启动即被终止（它们没有采用 iOS 27 要求的 UIScene 生命周期）。请在 iOS 26 模拟器上测试（`devices.ios.os`）。
+- 两者都与 Quiesco 无关；`@quiesco/native` 本身只需要 iOS 15.1。

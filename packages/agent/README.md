@@ -15,7 +15,7 @@ npm i @quiesco/agent @quiesco/native
 `npx quiesco init` sets up Metro and the entry file. In-app API (`quiesco.backdoor`, `quiesco.onReset`, …):
 [API reference](https://shift-14cc7601.mintlify.site/api).
 
-Peer dependencies: `react` >= 19.2, `react-native` >= 0.83 (New Architecture). Supported: Expo SDK 58.
+Peer dependencies: `react` >= 19.2, `react-native` >= 0.83 (New Architecture). Supported: Expo SDK 55 and later (55–58 are tested).
 
 Part of [Quiesco](https://github.com/h2nology/quiesco): gray-box end-to-end testing for Expo apps on iOS, Android and the web. Setup: `npx quiesco init` ([quick start](https://github.com/h2nology/quiesco#quick-start-web-about-10-minutes)).
 

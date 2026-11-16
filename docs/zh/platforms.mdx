@@ -29,7 +29,7 @@ description: "iOS、Android 和 Web 并列对比：输入、权限、系统弹�
 | `pinch`、`rotate`、`multiTouch` | 一个事件中包含多个 `UITouch`（需要 `@quiesco/native` ≥ Phase 6.4：`multiGesture`） | 多指针 `MotionEvent`（同左） | 触摸视口上用 CDP 触摸事件；桌面视口：`ACTION_NOT_SUPPORTED` |
 | 补偿的识别器激活阈值（`actions.gestureSlop`） | 9 pt，7° | 26 dp，9° | 46 px，0° |
 | `relaunch({ args })` → `quiesco.launchArgs()` | `-quiescoArgs` 启动参数（需要 `@quiesco/native` ≥ Phase 6.5） | `--es quiescoArgs` extra（同左） | 初始化脚本 |
-| `relaunch({ url })` | `-quiescoUrl`，由 `@quiesco/native` 在 JS 运行前交给 expo-linking（≥ Phase 6.5；否则在启动后打开） | intent data（dev client：带 `__expo_url` 的链接） | 打开该 URL 的路径（`myapp://todos/1` → `/todos/1`） |
+| `relaunch({ url })` | `-quiescoUrl`，由 `@quiesco/native` 在 JS 运行前交给 expo-linking（≥ Phase 6.5；否则在启动后打开） | intent data；dev client 用自己的 Metro 链接启动，并收到 `--es quiescoUrl`，由 `@quiesco/native` 在 JS 运行前把它设为启动 URL（否则在启动后打开） | 打开该 URL 的路径（`myapp://todos/1` → `/todos/1`） |
 | `relaunch({ clearData })` | 清空数据容器，删除 UserDefaults；保留 keychain | `pm clear`（同时撤销权限；配置中的权限会重新授予） | 新的浏览器上下文 |
 | `relaunch()` 保留数据 | 是 | 是 | 带上 cookie、localStorage、IndexedDB（Playwright storage state） |
 | `sendToBackground()` | 通过 `-[UIApplication suspend]` 回到主屏幕（`@quiesco/native` ≥ Phase 6.5），否则打开设置 App | HOME 键 | `ACTION_NOT_SUPPORTED` |
@@ -95,6 +95,8 @@ description: "iOS、Android 和 Web 并列对比：输入、权限、系统弹�
 - Quiesco 启动的模拟器会冷启动（`-no-snapshot-load`，约 14 s）：在 App 重新安装之前拍下的 quick-boot 快照会让 Android 在启动约 30 s 后重启。
 - App 在重新安装前会被 force-stop（否则 Android 17 会在没有连接参数的情况下重新启动它）。
 - `ACCESS_LOCAL_NETWORK`（Android 17）会在启动前授予，以便 App 能连接到 host 端。
+- 使用 dev client 时的 `relaunch({ url })`：`@quiesco/native` 在模块创建时（bundle 运行之前）把该链接设为 activity intent 的 data（React Native 的 `Linking.getInitialURL()` 和 expo-router 读的就是它），同时设为 expo-linking 的初始 URL。所有支持的 Expo SDK 上行为一致（把 bundle URL 带在深链接里的方式需要 expo-dev-launcher 58）。
+- dev client：启动前，如果 App 还没有 expo-dev-menu 的设置，Quiesco 会写入这些设置（引导已完成、启动时不显示菜单、不显示悬浮按钮、摇动不打开菜单），与 iOS 相同。58 之前的 expo-dev-menu 会忽略链接里的 `__expo_disable_*` 开关，在 `pm clear` 或全新安装后把引导页显示在 App 上面。
 - App 在 `localhost` 上访问的端口（mock 后端）需要配置 `apps.android.reversePorts`。
 - `DateTimePicker` 以及 picker 的对话框 / 下拉框位于独立的窗口中，App 内的触摸无法到达：`setValue` 通过它们的回调来设置（日期 picker 按 testID 定位，因为它不渲染任何视图）。
 - 无障碍操作会像 TalkBack 一样，在读取节点信息之后执行：React Native 的 delegate 只处理它在节点信息中列出的操作。

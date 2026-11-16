@@ -9,7 +9,7 @@ npx quiesco <command> [options]
 
 ## `quiesco init` {#quiesco-init}
 
-在 Expo 项目中配置 Quiesco。每一步都会报告做了什么；已有文件绝不会被覆盖——当某个文件需要 Quiesco 无法安全完成的修改时，它会打印出需要添加的内容。
+在 Expo 项目中配置 Quiesco。每一步都会报告做了什么；已有文件绝不会被覆盖——当某个文件需要 Quiesco 无法安全完成的修改时，它会打印出需要添加的内容。App 低于 Expo SDK 55 时会给出警告（Quiesco 支持 SDK 55 及以上），但仍会完成配置。
 
 1. 用项目的包管理器（根据 lock 文件判断 npm、pnpm、yarn 或 bun）安装包：`@quiesco/agent`、`@quiesco/native` 作为 dependencies；`quiesco`、`@quiesco/core`、`@quiesco/cucumber`、`@quiesco/expo-plugin`、`@cucumber/cucumber`（Web 还有 `@quiesco/web`、`playwright`）作为 dev dependencies。Quiesco 的包按运行 `init` 的 CLI 的版本安装（`npx quiesco@0.4.0 init` 安装 0.4.0），因此它写入的脚本与安装的 CLI 一致。安装后 `init` 会读回已安装的版本，有不一致时停止，并给出要运行的安装命令（例如包管理器用了缓存中过期的 registry 元数据时）。
 2. 把 `@quiesco/expo-plugin` 加到 `app.json` 的 plugins 中，并补上它缺少的 App ID：`ios.bundleIdentifier`、`android.package`（都是 `com.anonymous.<slug>`）和 `scheme`（slug），让构建出来的 App 和 `quiesco.config.mts` 指的是同一个 App。缺少这些值时，`expo prebuild` 会用自己的默认值，而 iOS 和 Android 的默认值不一样。项目用的是 `app.config.js` / `.ts` 时，改为列为需要你做的事项。
@@ -106,7 +106,7 @@ npx quiesco doctor                 # quiesco.config.mts 中配置的所有平台
 npx quiesco doctor --platform ios
 ```
 
-检查 Node.js、项目配置（包、所有 Quiesco 包是否为同一版本、package.json 脚本中的每个 `quiesco <command>` 是否存在、config plugin、Metro 中的 `withQuiesco()`、agent 是否为入口的第一个 import、`<QuiescoRoot>`、配置文件）、App ID（`quiesco.config.mts` 与 `app.json` 和构建产物是否一致，以及 `init` 留下的占位符）、旧版本写入的设置（cucumber 配置中的 `paths`；step 文件导入 `.ts` 但没有 `allowImportingTsExtensions`）、平台工具（模拟器、adb 和 AVD、Playwright 的 Chromium）、App 构建和端口。每个问题都附带修复方法；旧的设置缺少的大部分内容，`npx quiesco@latest init --upgrade` 都能修好。必需的检查失败时以 1 退出；警告和提示（ℹ️，例如缺少 `e2e:build:*` 脚本）不会导致失败。
+检查 Node.js、Expo SDK（55 及以上）、项目配置（包、所有 Quiesco 包是否为同一版本、package.json 脚本中的每个 `quiesco <command>` 是否存在、config plugin、Metro 中的 `withQuiesco()`、agent 是否为入口的第一个 import、`<QuiescoRoot>`、配置文件）、App ID（`quiesco.config.mts` 与 `app.json` 和构建产物是否一致，以及 `init` 留下的占位符）、旧版本写入的设置（cucumber 配置中的 `paths`；step 文件导入 `.ts` 但没有 `allowImportingTsExtensions`）、平台工具（模拟器、adb 和 AVD、Playwright 的 Chromium）、App 构建和端口。每个问题都附带修复方法；旧的设置缺少的大部分内容，`npx quiesco@latest init --upgrade` 都能修好。必需的检查失败时以 1 退出；警告和提示（ℹ️，例如缺少 `e2e:build:*` 脚本）不会导致失败。
 
 ## `quiesco tree` {#quiesco-tree}
 

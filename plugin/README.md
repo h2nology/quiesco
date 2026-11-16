@@ -11,7 +11,7 @@ app.
 | `writing-tests` | skill (automatic) | Business-language Gherkin, step definitions, the driver pattern, testIDs, tags, verifying a new test. Loaded when Claude writes or edits e2e tests. |
 | `failure-investigator` | agent | Reads a failed scenario's evidence (screenshot, elements, element tree, idle state, logs, timeline) and returns the cause and a fix. Used by `/quiesco:debug`, and on its own when a run fails. |
 
-Requirements: the project's own Quiesco installation (Node.js 24+, an Expo SDK 58 app). The plugin
+Requirements: the project's own Quiesco installation (Node.js 24+, an Expo SDK 55+ app). The plugin
 calls the `quiesco` CLI through `npx`; it has no hooks and no MCP server.
 
 ## Try it locally
