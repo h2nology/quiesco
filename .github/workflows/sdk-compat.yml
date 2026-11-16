@@ -1,0 +1,60 @@
+# Expo SDK compatibility (.planning/2026-11-16-expo-sdk-55-57): the example app on every supported SDK,
+# with this checkout's packages installed from tarballs (scripts/sdk-compat.mjs), type-checked and its
+# features run on web (Chromium). iOS / Android are accepted locally with the same script; native builds
+# and emulators for four SDKs would take hours here.
+name: sdk-compat
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - packages/**
+      - examples/todo-app/**
+      - scripts/sdk-compat.mjs
+      - scripts/sdk-compat/**
+      - pnpm-lock.yaml
+      - .github/workflows/sdk-compat.yml
+  workflow_dispatch:
+
+concurrency:
+  group: sdk-compat-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk: [55, 56, 57, 58]
+    name: SDK ${{ matrix.sdk }} (web)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: make the example on SDK ${{ matrix.sdk }} (build, pack, install, expo install --fix, tsc)
+        run: node scripts/sdk-compat.mjs --sdk ${{ matrix.sdk }} --out "$RUNNER_TEMP/compat" --typecheck
+      - name: install Chromium
+        working-directory: ${{ runner.temp }}/compat/sdk-${{ matrix.sdk }}
+        run: npx playwright install --with-deps chromium
+      - name: export the web app (e2e)
+        working-directory: ${{ runner.temp }}/compat/sdk-${{ matrix.sdk }}
+        run: npm run build:web
+      - name: run the features on web
+        working-directory: ${{ runner.temp }}/compat/sdk-${{ matrix.sdk }}
+        run: npm run test:e2e:web
+      - name: upload the report and evidence on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-${{ matrix.sdk }}-web
+          path: |
+            ${{ runner.temp }}/compat/sdk-${{ matrix.sdk }}/reports
+            ${{ runner.temp }}/compat/sdk-${{ matrix.sdk }}/artifacts
+          if-no-files-found: ignore

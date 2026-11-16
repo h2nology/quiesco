@@ -27,7 +27,7 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.browser } },
   },
   {
-    files: ['**/*.cjs', '**/metro.config.js', '**/app.plugin.js'],
+    files: ['**/*.cjs', '**/metro.config.js', '**/app.plugin.js', 'scripts/sdk-compat/overlays/xcode27/*.js'],
     languageOptions: { sourceType: 'commonjs' },
     rules: { '@typescript-eslint/no-require-imports': 'off' },
   },

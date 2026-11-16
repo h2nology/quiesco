@@ -42,6 +42,7 @@
     "@quiesco/ui": "workspace:*",
     "@quiesco/vitest": "workspace:*",
     "@quiesco/web": "workspace:*",
+    "@types/node": "24.19.2",
     "@types/react": "~19.3.0",
     "jest": "30.5.2",
     "playwright": "1.65.0",
