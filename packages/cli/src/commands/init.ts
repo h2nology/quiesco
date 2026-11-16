@@ -6,94 +6,17 @@
  * `--packages <dir>`: install Quiesco from the tarballs in <dir> (`pnpm pack` output) instead of the
  * npm registry, and point the packages' own @quiesco/* dependencies at those tarballs too.
  */
-import fs from 'node:fs';
 import path from 'node:path';
 
 import type { CliContext, CliPlatform } from '../context.js';
 import { PLATFORMS, takeFlag, takeOption } from '../context.js';
-import { installedVersion, isQuiescoPackage } from '../packages.js';
 import { entryFile, registeredRoot, rootSourceFiles, wrapRegisteredRoot } from '../project.js';
+import type { AppJson, InitStep, PackageJson, StepLog } from '../setup-steps.js';
+import { DEV, RUNTIME, WEB_DEV, detectPackageManager, ensureAppIds, ensureScripts, ensureTsconfig, firstScheme, installPackages, printSteps, readJson, writeJson } from '../setup-steps.js';
+import { upgradeCommand } from './upgrade.js';
 
-type PackageManager = 'npm' | 'pnpm' | 'yarn' | 'bun';
-
-interface PackageJson {
-  name?: string;
-  main?: string;
-  scripts?: Record<string, string>;
-  dependencies?: Record<string, string>;
-  devDependencies?: Record<string, string>;
-  overrides?: Record<string, string>;
-  resolutions?: Record<string, string>;
-  [key: string]: unknown;
-}
-
-interface AppJson {
-  expo?: {
-    name?: string;
-    scheme?: string | string[];
-    plugins?: unknown[];
-    ios?: { bundleIdentifier?: string };
-    android?: { package?: string };
-    [key: string]: unknown;
-  };
-}
-
-/** Installed into `dependencies`: the app bundles them (stubbed / excluded in production builds). */
-const RUNTIME = ['@quiesco/agent', '@quiesco/native'];
-/** Installed into `devDependencies`. */
-const DEV = ['quiesco', '@quiesco/core', '@quiesco/cucumber', '@quiesco/expo-plugin', '@cucumber/cucumber'];
-const WEB_DEV = ['@quiesco/web', 'playwright'];
-/** Internal packages pulled in by the ones above; only pinned when installing from tarballs. */
-const TRANSITIVE = ['@quiesco/protocol'];
-
-export function detectPackageManager(ctx: CliContext): PackageManager {
-  if (ctx.exists(path.join(ctx.cwd, 'pnpm-lock.yaml'))) return 'pnpm';
-  if (ctx.exists(path.join(ctx.cwd, 'yarn.lock'))) return 'yarn';
-  if (ctx.exists(path.join(ctx.cwd, 'bun.lock')) || ctx.exists(path.join(ctx.cwd, 'bun.lockb'))) return 'bun';
-  return 'npm';
-}
-
-/** `@quiesco/agent` → `quiesco-agent-<version>.tgz` (the file name `pnpm pack` / `npm pack` writes). */
-export function findTarballs(dir: string, names: readonly string[], list: (d: string) => string[] = (d) => fs.readdirSync(d)): Map<string, string> {
-  const files = list(dir).filter((f) => f.endsWith('.tgz'));
-  const found = new Map<string, string>();
-  for (const name of names) {
-    const base = name.replace(/^@/, '').replace('/', '-');
-    const match = files.find((f) => new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-\\d[^/]*\\.tgz$`).test(f));
-    if (match !== undefined) found.set(name, path.join(dir, match));
-  }
-  return found;
-}
-
-/** An `overrides:` block for pnpm-workspace.yaml (names and paths quoted: `@` starts no plain YAML scalar). */
-function pnpmOverrides(pins: Record<string, string>): string {
-  return `overrides:\n${Object.entries(pins).map(([n, f]) => `  ${JSON.stringify(n)}: ${JSON.stringify(f)}\n`).join('')}`;
-}
-
-function addCommand(pm: PackageManager, dev: boolean, specs: string[]): { command: string; args: string[] } {
-  switch (pm) {
-    case 'pnpm':
-      return { command: 'pnpm', args: ['add', ...(dev ? ['-D'] : []), ...specs] };
-    case 'yarn':
-      return { command: 'yarn', args: ['add', ...(dev ? ['-D'] : []), ...specs] };
-    case 'bun':
-      return { command: 'bun', args: ['add', ...(dev ? ['-d'] : []), ...specs] };
-    case 'npm':
-      return { command: 'npm', args: ['install', ...(dev ? ['--save-dev'] : []), ...specs] };
-  }
-}
-
-function readJson<T>(ctx: CliContext, file: string): T | null {
-  const text = ctx.readFile(file);
-  if (text === null) return null;
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    return null;
-  }
-}
-
-const writeJson = (ctx: CliContext, file: string, value: unknown): void => ctx.writeFile(file, `${JSON.stringify(value, null, 2)}\n`);
+export { detectPackageManager, findTarballs } from '../setup-steps.js';
+export type { InitStep } from '../setup-steps.js';
 
 const METRO_CONFIG = `// Learn more https://docs.expo.dev/guides/customizing-metro
 const { getDefaultConfig } = require('expo/metro-config');
@@ -120,7 +43,7 @@ export function iosAppName(name: string | undefined): { name: string; exact: boo
 }
 
 function quiescoConfig(app: AppJson, platforms: readonly CliPlatform[]): string {
-  const scheme = Array.isArray(app.expo?.scheme) ? app.expo?.scheme[0] : app.expo?.scheme;
+  const scheme = firstScheme(app);
   const ios = iosAppName(app.expo?.name);
   const lines = [`import { defineConfig } from '@quiesco/core';`, '', 'export default defineConfig({', '  apps: {'];
   if (platforms.includes('ios')) {
@@ -201,13 +124,8 @@ Then('the home screen is visible', async function (this: QuiescoWorld) {
 });
 `;
 
-export interface InitStep {
-  status: 'created' | 'updated' | 'skipped' | 'ran' | 'todo';
-  what: string;
-  note?: string;
-}
-
 export async function initCommand(args: readonly string[], ctx: CliContext): Promise<number> {
+  if (args.includes('--upgrade')) return upgradeCommand(args.filter((a) => a !== '--upgrade'), ctx);
   let rest = [...args];
   const platformsOpt = takeOption(rest, '--platforms');
   rest = platformsOpt.rest;
@@ -236,83 +154,20 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
       : ['ios', 'android', ...(hasWebDeps ? (['web'] as const) : [])];
 
   const steps: InitStep[] = [];
+  const log: StepLog = { ctx, steps, dryRun: false };
   const pm = detectPackageManager(ctx);
 
   // 1. Dependencies.
   const runtime = [...RUNTIME];
   const dev = [...DEV, ...(platforms.includes('web') ? WEB_DEV : [])];
-  // Issue #17: the version of this CLI, not whatever the registry metadata in the package manager's cache
-  // calls latest (a project on an older Quiesco than the scripts init writes for it).
-  let spec = (name: string): string => (isQuiescoPackage(name) ? `${name}@${ctx.version}` : name);
-  /** The version each Quiesco package must have after the install. */
-  let expected = (_name: string): string => ctx.version;
-  if (packagesOpt.value !== undefined) {
-    const dir = path.resolve(ctx.cwd, packagesOpt.value);
-    const ours = [...runtime, ...dev, ...TRANSITIVE].filter(isQuiescoPackage);
-    const tarballs = findTarballs(dir, ours);
-    const missing = ours.filter((n) => !tarballs.has(n));
-    if (missing.length > 0) {
-      ctx.err(`quiesco init: no tarball for ${missing.join(', ')} in ${dir}`);
-      return 1;
-    }
-    spec = (name) => (tarballs.has(name) ? `file:${tarballs.get(name) as string}` : name);
-    expected = (name) => /-(\d[^/]*)\.tgz$/.exec(tarballs.get(name) ?? '')?.[1] ?? ctx.version;
-    // Their own dependencies on each other ("@quiesco/protocol": "0.0.0") must resolve to the tarballs too.
-    // npm refuses an override for a package that is also a direct dependency (EOVERRIDE) and reuses the
-    // directly installed tarballs for those ranges anyway: pin only the indirect ones there. pnpm and
-    // yarn resolve every dependency on its own, so they need all of them pinned.
-    const direct = new Set([...runtime, ...dev]);
-    const pins = Object.fromEntries([...tarballs].filter(([n]) => pm !== 'npm' || !direct.has(n)).map(([n, f]) => [n, `file:${f}`]));
-    const pinned = `installing from the tarballs in ${packagesOpt.value} (${Object.keys(pins).length} indirect ${Object.keys(pins).length === 1 ? 'dependency' : 'dependencies'} pinned)`;
-    if (pm === 'pnpm') {
-      // pnpm 10+ reads overrides from pnpm-workspace.yaml only; the "pnpm" field of package.json is ignored.
-      const yamlFile = path.join(ctx.cwd, 'pnpm-workspace.yaml');
-      const yaml = ctx.readFile(yamlFile) ?? '';
-      if (/^overrides:/m.test(yaml)) {
-        ctx.err(`quiesco init: pnpm-workspace.yaml already has overrides; add these and run quiesco init again:\n${pnpmOverrides(pins)}`);
-        return 1;
-      }
-      ctx.writeFile(yamlFile, `${yaml}${yaml === '' || yaml.endsWith('\n') ? '' : '\n'}${pnpmOverrides(pins)}`);
-      steps.push({ status: 'updated', what: 'pnpm-workspace.yaml', note: pinned });
-    } else {
-      const current = readJson<PackageJson>(ctx, pkgFile) as PackageJson;
-      if (pm === 'yarn') current.resolutions = { ...current.resolutions, ...pins };
-      else current.overrides = { ...current.overrides, ...pins };
-      writeJson(ctx, pkgFile, current);
-      steps.push({ status: 'updated', what: 'package.json', note: pinned });
-    }
-  }
-  const installs = [addCommand(pm, false, runtime.map(spec)), addCommand(pm, true, dev.map(spec))];
-  for (const cmd of installs) {
-    const line = `${cmd.command} ${cmd.args.join(' ')}`;
-    if (skipInstall.present) {
-      steps.push({ status: 'todo', what: 'install', note: line });
-      continue;
-    }
-    ctx.out(`$ ${line}`);
-    const r = await ctx.exec(cmd.command, cmd.args, { cwd: ctx.cwd });
-    if (r.code !== 0) {
-      ctx.err(r.stderr.trim() || r.stdout.trim());
-      ctx.err(`quiesco init: \`${line}\` failed (exit ${r.code}).`);
-      return 1;
-    }
-    steps.push({ status: 'ran', what: 'install', note: line });
-  }
-  if (!skipInstall.present) {
-    const ours = [...runtime, ...dev].filter(isQuiescoPackage);
-    const wrong = ours.map((name) => ({ name, want: expected(name), got: installedVersion(ctx, name) })).filter((p) => p.got !== p.want);
-    if (wrong.length > 0) {
-      ctx.err(`quiesco init: the installed Quiesco packages are not the version that was asked for:`);
-      for (const p of wrong) ctx.err(`  ${p.name}: ${p.got ?? 'not found in node_modules'} (wanted ${p.want})`);
-      ctx.err('All Quiesco packages must have the same version as the CLI that writes the project files. The');
-      ctx.err("package manager may have used stale registry metadata from its cache, or held a new release back");
-      ctx.err('(pnpm minimumReleaseAge). Install them again with the version given:');
-      for (const cmd of [addCommand(pm, false, runtime.map(spec)), addCommand(pm, true, dev.filter(isQuiescoPackage).map(spec))]) ctx.err(`  ${cmd.command} ${cmd.args.join(' ')}`);
-      ctx.err('then run quiesco init again.');
-      return 1;
-    }
-    steps.push({ status: 'ran', what: 'versions', note: `${ours.length} Quiesco packages at ${[...new Set(ours.map(expected))].join(', ')}` });
-  }
+  const installed = await installPackages(log, {
+    pm,
+    runtime,
+    dev,
+    ...(packagesOpt.value !== undefined ? { packagesDir: packagesOpt.value } : {}),
+    skipInstall: skipInstall.present,
+  });
+  if (!installed) return 1;
 
   // 2. Config plugin in app.json.
   const appFile = path.join(ctx.cwd, 'app.json');
@@ -329,6 +184,9 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
   } else {
     steps.push({ status: 'todo', what: 'app config', note: 'add "@quiesco/expo-plugin" to the plugins of your app config' });
   }
+
+  // 2b. App IDs (issue #34): app.json without them builds an app with Expo's defaults, not the config's.
+  const appWithIds = ensureAppIds(log, platforms);
 
   // 3. Metro.
   const metro = ['metro.config.js', 'metro.config.cjs', 'metro.config.mjs', 'metro.config.ts'].map((f) => path.join(ctx.cwd, f)).find((f) => ctx.exists(f));
@@ -399,7 +257,7 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
     ctx.writeFile(path.join(ctx.cwd, rel), content);
     steps.push({ status: 'created', what: rel, note });
   };
-  write('quiesco.config.mts', quiescoConfig(app, platforms), `apps: ${platforms.join(', ')}`, ['quiesco.config.ts', 'quiesco.config.mts', 'quiesco.config.js', 'quiesco.config.mjs']);
+  write('quiesco.config.mts', quiescoConfig(appWithIds, platforms), `apps: ${platforms.join(', ')}`, ['quiesco.config.ts', 'quiesco.config.mts', 'quiesco.config.js', 'quiesco.config.mjs']);
   write('cucumber.mjs', CUCUMBER_CONFIG, 'step files and format (features/**/*.feature by default)', ['cucumber.mjs', 'cucumber.js', 'cucumber.cjs', 'cucumber.json', 'cucumber.yaml', 'cucumber.yml']);
   write('features/package.json', '{ "type": "module" }\n', 'step files are ES modules');
   write('features/support/quiesco.ts', SUPPORT, 'this.app and the lifecycle hooks');
@@ -407,46 +265,12 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
   write('features/step_definitions/app.steps.ts', STEPS, 'its step');
 
   // 5b. tsconfig.json (issue #21): step files import each other with .ts (Node's type stripping needs it).
-  const tsconfigFile = path.join(ctx.cwd, 'tsconfig.json');
-  const tsconfigText = ctx.readFile(tsconfigFile);
-  if (tsconfigText !== null) {
-    let tsconfig: { compilerOptions?: Record<string, unknown> } | null;
-    try {
-      tsconfig = JSON.parse(tsconfigText) as { compilerOptions?: Record<string, unknown> };
-    } catch {
-      tsconfig = null; // comments or trailing commas: leave the file to the user
-    }
-    if (tsconfig?.compilerOptions?.['allowImportingTsExtensions'] === true) {
-      steps.push({ status: 'skipped', what: 'tsconfig.json', note: 'already allows .ts imports' });
-    } else if (tsconfig === null || typeof tsconfig !== 'object' || Array.isArray(tsconfig)) {
-      steps.push({ status: 'todo', what: 'tsconfig.json', note: 'add "allowImportingTsExtensions": true to compilerOptions (step files import each other with .ts)' });
-    } else {
-      tsconfig.compilerOptions = { ...tsconfig.compilerOptions, allowImportingTsExtensions: true };
-      writeJson(ctx, tsconfigFile, tsconfig);
-      steps.push({ status: 'updated', what: 'tsconfig.json', note: 'allowImportingTsExtensions: step files import each other with .ts' });
-    }
-  }
+  ensureTsconfig(log);
 
   // 6. Scripts.
-  const scripts = { ...(latest.scripts ?? {}) };
-  const wanted: Record<string, string> = {
-    'e2e:start': 'EXPO_PUBLIC_QUIESCO=1 expo start',
-    ...(platforms.includes('web') ? { 'e2e:web': 'EXPO_PUBLIC_QUIESCO=1 expo export --platform web && quiesco test --platform web' } : {}),
-    ...(platforms.includes('android') ? { 'e2e:build:android': 'quiesco build android', 'e2e:android': 'quiesco test --platform android' } : {}),
-    ...(platforms.includes('ios') ? { 'e2e:build:ios': 'quiesco build ios', 'e2e:ios': 'quiesco test --platform ios' } : {}),
-  };
-  const added = Object.keys(wanted).filter((k) => scripts[k] === undefined);
-  if (added.length > 0) {
-    for (const k of added) scripts[k] = wanted[k] as string;
-    const now = readJson<PackageJson>(ctx, pkgFile) as PackageJson;
-    now.scripts = scripts;
-    writeJson(ctx, pkgFile, now);
-    steps.push({ status: 'updated', what: 'package.json', note: `scripts: ${added.join(', ')}` });
-  }
+  ensureScripts(log, platforms);
 
-  const icon = { created: '+', updated: '~', skipped: '=', ran: '$', todo: '!' } as const;
-  ctx.out('');
-  for (const s of steps) ctx.out(`${icon[s.status]} ${s.what}${s.note !== undefined ? ` — ${s.note}` : ''}`);
+  printSteps(ctx, steps);
   ctx.out('');
   ctx.out('Next:');
   const next: string[] = [];

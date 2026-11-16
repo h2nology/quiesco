@@ -16,6 +16,8 @@ export const HELP = `Usage: quiesco <command> [options]
 Commands:
   init     Set Quiesco up in this Expo project (dependencies, config plugin, Metro, entry, config, features)
              --platforms ios,android,web   --packages <dir> (install from tarballs)   --skip-install
+             --upgrade: bring a project set up by an older version to this one (packages, config, files)
+               --dry-run (list the changes only)
   build    Build the app for e2e tests (prebuild + xcodebuild / gradle) into apps.<platform>.binaryPath
              ios|android   --force (also when the native inputs did not change)
   test     Run the tests with cucumber-js (or --runner jest|vitest); other arguments go to the runner unchanged

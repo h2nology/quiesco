@@ -513,9 +513,37 @@ export class AndroidProvider implements DeviceProvider {
     } else {
       command = `am start -W -n ${shq(`${this.pkg}/${this.activity}`)} ${extras}`;
     }
-    const out = await this.shell(command);
-    if (/Error:/.test(out)) throw new QuiescoError('DEVICE_ERROR', `am start failed: ${out.trim()}`);
+    let out: string;
+    try {
+      out = await this.shell(command);
+    } catch (e) {
+      throw await this.launchFailure((e as Error).message);
+    }
+    if (/Error:/.test(out)) throw await this.launchFailure(out.trim());
     if (params.url !== undefined) return 'delivered';
+  }
+
+  /**
+   * Why `am start` failed, in words (issue #34): the package is not installed (the build has another
+   * applicationId than apps.android.package), or the dev client's scheme does not open it.
+   */
+  private async launchFailure(detail: string): Promise<QuiescoError> {
+    const installed = (await this.shell(`pm path ${shq(this.pkg)}`).catch(() => '')).includes('package:');
+    const scheme = this.options.app.devClient?.scheme;
+    let cause: string | undefined;
+    if (!installed) {
+      cause =
+        `${this.pkg} (apps.android.package) is not installed on ${this.serial ?? 'the device'}. The app at apps.android.binaryPath may have ` +
+        'another applicationId: expo prebuild takes it from expo.android.package in app.json. npx quiesco doctor compares them.';
+    } else if (scheme !== undefined) {
+      const resolved = await this.shell(`cmd package resolve-activity --brief -a android.intent.action.VIEW -d ${shq(`${scheme}://expo-development-client`)} ${shq(this.pkg)}`).catch(() => '');
+      if (!resolved.includes(`${this.pkg}/`)) {
+        cause =
+          `${this.pkg} is installed but does not open ${scheme}:// links. devClient.scheme must be one of the app's schemes ` +
+          '(expo.scheme in app.json, then build again), and the app must be a development build (expo-dev-client).';
+      }
+    }
+    return new QuiescoError('DEVICE_ERROR', `The app could not be started${cause !== undefined ? `: ${cause}` : ''}\n  am start: ${detail}`, { package: this.pkg, installed });
   }
 
   private get activity(): string {

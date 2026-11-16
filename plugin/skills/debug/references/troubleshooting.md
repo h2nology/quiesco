@@ -112,6 +112,11 @@ reports can be ignored with `appErrors.ignore` (see [known issues](./known-issue
   "Cold Boot Now" once.
 - **"Activity class does not exist" right after boot:** the user was not unlocked yet; Quiesco waits for
   it, but a device stuck in that state needs `adb reboot`.
+- **"The app could not be started" (`am start` failed):** the message says whether the package
+  (`apps.android.package`) is installed and whether the dev client's scheme opens it. Usually the build has
+  other IDs than `quiesco.config.mts`: Expo's prebuild takes them from `app.json`, and uses its own defaults
+  when they are missing there. `npx quiesco doctor` compares them; `npx quiesco@latest init --upgrade`
+  writes missing IDs into `app.json` and the config. Then build again.
 - **A permission is not granted:** Android grants only permissions declared in the manifest
   (`expo.android.permissions`).
 - **No software keyboard appears:** emulators usually have a hardware keyboard. See
@@ -127,8 +132,10 @@ reports can be ignored with `appErrors.ignore` (see [known issues](./known-issue
 ## `unknown command` or mixed Quiesco versions {#quiesco-versions}
 
 Quiesco's packages (`quiesco`, `@quiesco/*`) are released together and only work at the same version.
-`npx quiesco doctor` checks this and the commands your scripts use. To upgrade, install the same version
-of every Quiesco package in one command, e.g. `pnpm add -D quiesco@0.4.0 @quiesco/core@0.4.0 …`.
+`npx quiesco doctor` checks this and the commands your scripts use. To upgrade, run
+`npx quiesco@latest init --upgrade` ([upgrading a project](../../setup/references/cli.md#quiesco-init-upgrade)): it installs every
+Quiesco package at that version and updates the files older versions wrote. Or install the same version of
+every Quiesco package in one command yourself, e.g. `pnpm add -D quiesco@0.4.0 @quiesco/core@0.4.0 …`.
 
 - **`^0.x` does not reach the next minor:** `^0.3.0` allows 0.3.x but not 0.4.0. Upgrade explicitly.
 - **pnpm's `minimumReleaseAge`:** by default pnpm 12 skips versions published less than a day ago when

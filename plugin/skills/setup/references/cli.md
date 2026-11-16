@@ -19,7 +19,10 @@ overwritten — when a file needs a change Quiesco cannot make safely, it prints
    (`npx quiesco@0.4.0 init` installs 0.4.0), so the scripts it writes match the installed CLI. After the
    install, `init` reads the installed versions back and stops with the install commands to run when one
    differs (for example when the package manager resolved from stale registry metadata).
-2. Adds `@quiesco/expo-plugin` to the plugins in `app.json`.
+2. Adds `@quiesco/expo-plugin` to the plugins in `app.json`, and the app IDs it lacks: `ios.bundleIdentifier`,
+   `android.package` (both `com.anonymous.<slug>`) and `scheme` (the slug), so the build and
+   `quiesco.config.mts` name the same app. Without them, `expo prebuild` picks its own defaults, which differ
+   between iOS and Android. With an `app.config.js` / `.ts` it lists them as a step for you instead.
 3. Creates `metro.config.js` with `withQuiesco()` (or explains how to wrap an existing one).
 4. Makes `@quiesco/agent` the first import of the entry file. Expo Router apps get an `index.ts`
    (`import '@quiesco/agent'; import 'expo-router/entry';`) and `"main": "index.ts"`. When the entry
@@ -35,8 +38,32 @@ overwritten — when a file needs a change Quiesco cannot make safely, it prints
 | `--platforms ios,android,web` | Platforms to set up. Default: iOS and Android, plus web when `react-native-web` is installed |
 | `--packages <dir>` | Install Quiesco from the `.tgz` files in `<dir>` (`pnpm pack` output) and pin their dependencies on each other to them |
 | `--skip-install` | Only print the install commands |
+| `--upgrade` | Bring a project set up by an older version to this one ([upgrading](#quiesco-init-upgrade)) |
+| `--dry-run` | With `--upgrade`: list the changes without making them |
 
 What `init` leaves to you: test ids, and wrapping the root layout in `<QuiescoRoot>` in Expo Router apps (and other entries it cannot change safely); `init` lists what is left.
+
+### Upgrading a project {#quiesco-init-upgrade}
+
+```sh
+npx quiesco@latest init --upgrade            # or quiesco@0.4.1 for a given version
+npx quiesco@latest init --upgrade --dry-run  # only list the changes
+```
+
+Brings a project set up by an older `quiesco init` to the version of the CLI that runs it:
+
+1. Installs every Quiesco package at that version, also ones `init` does not add (such as `@quiesco/steps`),
+   and reads the versions back as `init` does. `@cucumber/cucumber` and `playwright` are left alone.
+2. Removes `paths: ['features/**/*.feature']` from the cucumber config. Older versions wrote it; with it,
+   `quiesco test features/x.feature` ran every feature.
+3. Adds `"allowImportingTsExtensions": true` to `tsconfig.json`.
+4. Writes the app IDs `app.json` lacks (as in step 2 above) and replaces the `// TODO: expo.…` placeholders
+   in `quiesco.config.mts` with them.
+5. Adds the missing `e2e:*` scripts, and wraps `registerRootComponent(App)` in `<QuiescoRoot>`.
+
+Each change is listed. What it cannot change safely (`paths` you set yourself, a `tsconfig.json` with
+comments, an `app.config.js` / `.ts`) is listed with what to do. Running it again changes nothing. The
+platforms come from `quiesco.config.mts` (or `--platforms`). Run `npx quiesco doctor` afterwards.
 
 ## `quiesco build` {#quiesco-build}
 
@@ -131,9 +158,12 @@ npx quiesco doctor --platform ios
 
 Checks Node.js, the project setup (packages, that every Quiesco package has the same version, that
 every `quiesco <command>` in the package.json scripts exists, config plugin, `withQuiesco()` in Metro, the agent as the
-entry's first import, `<QuiescoRoot>`, the config file), the platform tools (simulators, adb and AVDs,
-Playwright's Chromium), the app builds and the port. Each problem comes with the fix. Exits with 1 when a
-required check fails; warnings do not fail.
+entry's first import, `<QuiescoRoot>`, the config file), the app IDs (`quiesco.config.mts` against
+`app.json` and the builds, and placeholders left by `init`), settings older versions wrote (`paths` in the
+cucumber config; `.ts` imports in step files without `allowImportingTsExtensions`), the platform tools
+(simulators, adb and AVDs, Playwright's Chromium), the app builds and the port. Each problem comes with the
+fix; most of what an older setup lacks is fixed by `npx quiesco@latest init --upgrade`. Exits with 1 when a
+required check fails; warnings and notes (ℹ️, such as a missing `e2e:build:*` script) do not fail.
 
 ## `quiesco tree` {#quiesco-tree}
 

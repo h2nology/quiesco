@@ -154,6 +154,28 @@ describe('AndroidProvider', () => {
     ]);
   });
 
+  it('a failed launch says why: the package is not installed, or the scheme does not open it (issue #34)', async () => {
+    const devClient = { app: { package: 'com.example.app', devClient: { scheme: 'myapp' } } };
+    const amFails: [RegExp, Error] = [/shell am start/, new Error("Command failed: adb shell am start … 'com.example.app'")];
+    const missing = provider([...BOOTED, amFails, [/shell pm path 'com\.example\.app'/, new Error('exit 1')]], devClient);
+    await missing.p.boot();
+    const e1 = await missing.p.launch({ port: 1, sessionId: 's' }).catch((e: unknown) => e as Error);
+    expect(e1.message).toMatch(/^The app could not be started: com\.example\.app \(apps\.android\.package\) is not installed on emulator-5554\. The app at apps\.android\.binaryPath may have another applicationId[\s\S]*npx quiesco doctor[\s\S]*\n {2}am start: Command failed/);
+    expect(e1).toMatchObject({ errorName: 'DEVICE_ERROR', data: { package: 'com.example.app', installed: false } });
+
+    const noScheme = provider([...BOOTED, amFails, [/shell pm path 'com\.example\.app'/, 'package:/data/app/base.apk\n'], [/resolve-activity/, 'No activity found\n']], devClient);
+    await noScheme.p.boot();
+    const e2 = await noScheme.p.launch({ port: 1, sessionId: 's' }).catch((e: unknown) => e as Error);
+    expect(e2.message).toMatch(/com\.example\.app is installed but does not open myapp:\/\/ links/);
+    expect(noScheme.calls).toContain("adb -s emulator-5554 shell cmd package resolve-activity --brief -a android.intent.action.VIEW -d 'myapp://expo-development-client' 'com.example.app'");
+
+    // "Error:" in am start's output (exit 0) gets the same diagnosis; a resolving scheme adds no cause
+    const other = provider([...BOOTED, [/shell am start/, 'Error: Activity not started\n'], [/shell pm path 'com\.example\.app'/, 'package:/x.apk\n'], [/resolve-activity/, 'priority=0\ncom.example.app/.MainActivity\n']], devClient);
+    await other.p.boot();
+    const e3 = await other.p.launch({ port: 1, sessionId: 's' }).catch((e: unknown) => e as Error);
+    expect(e3.message).toBe('The app could not be started\n  am start: Error: Activity not started');
+  });
+
   it('launches a standalone build by activity and ignores a failing local-network grant', async () => {
     const { p, calls } = provider([...BOOTED, [/ACCESS_LOCAL_NETWORK/, new Error('Unknown permission')]]);
     await p.boot();
