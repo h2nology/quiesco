@@ -30,7 +30,13 @@ describe('quiesco init', () => {
     expect(config).toContain("web: { distDir: 'dist' }");
     expect(config).toContain("// sync: { ignoreElements: ['logo-glow'] },");
     expect(config).toContain("devClient: { scheme: 'myapp'");
-    expect(config).toContain("package: 'com.example.app', // TODO: expo.android.package");
+    // app.json had no IDs: init wrote them there and uses the same values here (issue #34)
+    expect(config).toContain("package: 'com.anonymous.myapp',\n");
+    expect(config).toContain("bundleId: 'com.anonymous.myapp',\n");
+    expect(config).not.toContain('TODO: expo.');
+    const appJson = JSON.parse(ctx.file('app.json') as string).expo;
+    expect(appJson).toMatchObject({ scheme: 'myapp', ios: { bundleIdentifier: 'com.anonymous.myapp' }, android: { package: 'com.anonymous.myapp' } });
+    expect(ctx.lines.join('\n')).toMatch(/~ app\.json — set ios\.bundleIdentifier "com\.anonymous\.myapp", android\.package "com\.anonymous\.myapp"/);
     // expo prebuild names the Xcode project after expo.name ("my-app" ⇒ myapp.app)
     expect(config).toContain("binaryPath: 'ios/build/Build/Products/Debug-iphonesimulator/myapp.app',\n");
     // no `paths`: cucumber-js merges it with the paths given on the command line (issue #8)
@@ -219,6 +225,38 @@ describe('quiesco init', () => {
     expect(err).toMatch(/pnpm add -D quiesco@9\.9\.9 @quiesco\/core@9\.9\.9 @quiesco\/cucumber@9\.9\.9 @quiesco\/expo-plugin@9\.9\.9\n/);
     // nothing else was written: the project is not set up against the wrong version
     expect(ctx.file('quiesco.config.mts')).toBeNull();
+  });
+
+  it('writes app IDs that app.json lacks from the slug, and the scheme for Android (issue #34)', async () => {
+    const ctx = fakeContext();
+    ctx.put('package.json', JSON.stringify({ name: 'quiesco-test-03', dependencies: { expo: '~58.0.25' } }));
+    ctx.put('app.json', JSON.stringify({ expo: { name: 'quiesco-test-03', slug: 'quiesco-test-03', ios: { supportsTablet: true } } }));
+    ctx.put('App.tsx', 'export default function App() { return null; }\n');
+    expect(await main(['init', '--skip-install', '--platforms', 'ios,android'], ctx)).toBe(0);
+    const expo = JSON.parse(ctx.file('app.json') as string).expo;
+    // the Android package Expo's prebuild would derive; iOS gets the same (prebuild keeps the hyphens there)
+    expect(expo).toMatchObject({ scheme: 'quiesco-test-03', ios: { supportsTablet: true, bundleIdentifier: 'com.anonymous.quiescotest03' }, android: { package: 'com.anonymous.quiescotest03' } });
+    const config = ctx.file('quiesco.config.mts') as string;
+    expect(config).toContain("devClient: { scheme: 'quiesco-test-03', metroUrl: 'http://localhost:8081' },\n");
+    expect(config).not.toContain('com.example.app');
+  });
+
+  it('keeps existing IDs, and leaves a dynamic app config alone with the placeholders as a todo (issue #34)', async () => {
+    const ctx = fakeContext();
+    freshExpoApp(ctx);
+    ctx.put('app.json', JSON.stringify({ expo: { name: 'my-app', scheme: ['one', 'two'], ios: { bundleIdentifier: 'jp.example.ios' }, android: { package: 'jp.example.droid' } } }));
+    await main(['init', '--skip-install', '--platforms', 'ios,android'], ctx);
+    expect(ctx.lines.join('\n')).toMatch(/= app IDs — app\.json has them/);
+    expect(ctx.file('quiesco.config.mts')).toContain("package: 'jp.example.droid',\n");
+
+    const dyn = fakeContext();
+    freshExpoApp(dyn);
+    dyn.put('app.config.ts', 'export default ({ config }) => config;\n');
+    dyn.put('app.json', JSON.stringify({ expo: { name: 'my-app' } }));
+    await main(['init', '--skip-install', '--platforms', 'android'], dyn);
+    expect(JSON.parse(dyn.file('app.json') as string).expo.android).toBeUndefined();
+    expect(dyn.lines.join('\n')).toMatch(/! app IDs — set expo\.android\.package, expo\.scheme in app\.config\.ts/);
+    expect(dyn.file('quiesco.config.mts')).toContain('// TODO: expo.android.package');
   });
 
   it('matches tarball names exactly (quiesco vs quiesco-agent)', () => {

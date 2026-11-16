@@ -12,7 +12,7 @@ npx quiesco <command> [options]
 ExpoプロジェクトにQuiescoをセットアップします。各手順で何をしたかを報告します。既存のファイルは決して上書きしません。Quiescoが安全に変更できないファイルについては、追加すべき内容を表示します。
 
 1. プロジェクトのパッケージマネージャー（ロックファイルから判断したnpm、pnpm、yarn、bunのいずれか）でパッケージをインストールします。`@quiesco/agent`と`@quiesco/native`はdependenciesに、`quiesco`、`@quiesco/core`、`@quiesco/cucumber`、`@quiesco/expo-plugin`、`@cucumber/cucumber`（Web向けには`@quiesco/web`と`playwright`も）はdevDependenciesに入ります。Quiescoのパッケージは`init`を実行したCLIと同じバージョンでインストールします（`npx quiesco@0.4.0 init`なら0.4.0）。そのため、書き込むスクリプトとインストールされたCLIが一致します。インストール後、`init`はインストールされたバージョンを読み直し、食い違いがあれば実行すべきインストールコマンドを示して停止します（パッケージマネージャーがキャッシュの古いレジストリ情報を使った場合など）。
-2. `app.json`のpluginsに`@quiesco/expo-plugin`を追加します。
+2. `app.json`のpluginsに`@quiesco/expo-plugin`を追加し、足りないアプリIDも書き込みます。`ios.bundleIdentifier`、`android.package`（どちらも`com.anonymous.<slug>`）と`scheme`（slug）です。これでビルドされるアプリと`quiesco.config.mts`が同じアプリを指します。これらがないと`expo prebuild`は独自の既定値を使い、その値はiOSとAndroidで異なります。`app.config.js` / `.ts`を使っているプロジェクトでは、書き込まずに自分で行う作業として示します。
 3. `withQuiesco()`を使った`metro.config.js`を作成します（既存のものがあれば、ラップする方法を説明します）。
 4. エントリーファイルの最初のimportを`@quiesco/agent`にします。Expo Routerのアプリには`index.ts`（`import '@quiesco/agent'; import 'expo-router/entry';`）と`"main": "index.ts"`を用意します。エントリーがローカルのコンポーネントを登録している場合（ブランクテンプレートのような`registerRootComponent(App)`）は、`init`がエントリーでそのコンポーネントを`<QuiescoRoot>`でラップします。
 5. `quiesco.config.mts`（バンドルID、パッケージ名、スキームは`app.json`から取得）、`cucumber.mjs`、`features/support/quiesco.ts`、ステップ付きの最初のfeature、`e2e:*`スクリプトを書き出し、`tsconfig.json`に`"allowImportingTsExtensions": true`を追加します（stepファイル同士は`.ts`付きでimportします。[stepファイルはコンパイルされない](./driver-pattern#type-stripping)を参照）。
@@ -22,8 +22,27 @@ ExpoプロジェクトにQuiescoをセットアップします。各手順で何
 | `--platforms ios,android,web` | セットアップするプラットフォーム。デフォルトはiOSとAndroidで、`react-native-web`がインストールされていればWebも加わります |
 | `--packages <dir>` | `<dir>`内の`.tgz`ファイル（`pnpm pack`の出力）からQuiescoをインストールし、パッケージ間の依存もそれらに固定します |
 | `--skip-install` | インストールコマンドを表示するだけにします |
+| `--upgrade` | 古いバージョンでセットアップしたプロジェクトをこのバージョンに上げます（[プロジェクトのアップグレード](#quiesco-init-upgrade)） |
+| `--dry-run` | `--upgrade`と一緒に使い、変更内容を示すだけで変更はしません |
 
 `init`が行わず、自分で行う作業：テストIDの付与と、Expo Routerアプリ（および安全に変更できないその他のエントリー）でルートレイアウトを`<QuiescoRoot>`でラップすること。残った作業は`init`が一覧で示します。
+
+### プロジェクトのアップグレード {#quiesco-init-upgrade}
+
+```sh
+npx quiesco@latest init --upgrade            # バージョンを指定するならquiesco@0.4.1
+npx quiesco@latest init --upgrade --dry-run  # 変更内容を示すだけ
+```
+
+古い`quiesco init`でセットアップしたプロジェクトを、実行したCLIのバージョンに上げます。
+
+1. すべてのQuiescoパッケージをそのバージョンでインストールします。`init`が追加しないパッケージ（`@quiesco/steps`など）も対象です。`init`と同じく、インストール後にバージョンを読み戻して確かめます。`@cucumber/cucumber`と`playwright`には触れません。
+2. cucumberの設定から`paths: ['features/**/*.feature']`を削除します。古いバージョンが書き込んでいた行で、これがあると`quiesco test features/x.feature`がすべてのfeatureを実行していました。
+3. `tsconfig.json`に`"allowImportingTsExtensions": true`を追加します。
+4. `app.json`に足りないアプリIDを書き込み（上の手順2と同じ）、`quiesco.config.mts`の`// TODO: expo.…`のプレースホルダーをその値に置き換えます。
+5. 足りない`e2e:*`スクリプトを追加し、`registerRootComponent(App)`を`<QuiescoRoot>`でラップします。
+
+変更はすべて一覧で示します。安全に変更できないもの（自分で設定した`paths`、コメント入りの`tsconfig.json`、`app.config.js` / `.ts`）は、対処法と一緒に示します。もう一度実行しても何も変わりません。プラットフォームは`quiesco.config.mts`（または`--platforms`）から決まります。実行後は`npx quiesco doctor`を実行してください。
 
 ## `quiesco build` {#quiesco-build}
 
@@ -87,7 +106,7 @@ npx quiesco doctor                 # quiesco.config.mtsで設定したすべて�
 npx quiesco doctor --platform ios
 ```
 
-Node.js、プロジェクトのセットアップ（パッケージ、すべてのQuiescoパッケージが同じバージョンか、package.jsonのスクリプトにある`quiesco <command>`がすべて存在するか、config plugin、Metroの`withQuiesco()`、エントリーの最初のimportとしてのエージェント、`<QuiescoRoot>`、設定ファイル）、プラットフォームのツール（シミュレーター、adbとAVD、PlaywrightのChromium）、アプリのビルド、ポートをチェックします。問題ごとに修正方法を示します。必須のチェックが失敗すると終了コード1で終わります。警告では失敗しません。
+Node.js、プロジェクトのセットアップ（パッケージ、すべてのQuiescoパッケージが同じバージョンか、package.jsonのスクリプトにある`quiesco <command>`がすべて存在するか、config plugin、Metroの`withQuiesco()`、エントリーの最初のimportとしてのエージェント、`<QuiescoRoot>`、設定ファイル）、アプリID（`quiesco.config.mts`が`app.json`やビルドと一致しているか、`init`が残したプレースホルダー）、古いバージョンが書き込んだ設定（cucumberの設定の`paths`、`allowImportingTsExtensions`なしでstepファイルが`.ts`をimportしている）、プラットフォームのツール（シミュレーター、adbとAVD、PlaywrightのChromium）、アプリのビルド、ポートをチェックします。問題ごとに修正方法を示します。古いセットアップに足りないものの多くは`npx quiesco@latest init --upgrade`で直せます。必須のチェックが失敗すると終了コード1で終わります。警告と補足（ℹ️、たとえば`e2e:build:*`スクリプトがない）では失敗しません。
 
 ## `quiesco tree` {#quiesco-tree}
 

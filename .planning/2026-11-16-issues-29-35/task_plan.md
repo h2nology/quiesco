@@ -4,10 +4,10 @@
 解决 h2nology/quiesco 的 7 个 open issue（同一位用户在 0.4.0 + Expo SDK 58 + @expo/ui 上实测的反馈）。每个修复都配测试和三语文档，实跑验收后回复并关闭 issue，最后一起发下一个版本。
 
 ## Current Phase
-K.B init / doctor
+K.C app 错误与 LogBox
 
 ## Next Step
-K.B：先给出实施计划（init --upgrade 的范围、app.json 写回的细节），然后从 #35 的 doctor 检查做起。
+K.C：先调研 RN 0.88 的 LogBox API 和 console.error 的转发路径，写出实施计划。
 
 ## 背景
 - 前置：0.4.0 已发布（`.planning/2026-11-15-issues-17-23/`）。
@@ -58,14 +58,43 @@ K.B：先给出实施计划（init --upgrade 的范围、app.json 写回的细�
 - **Status:** complete
 
 ### K.B init / doctor（#35、#34）
-- [ ] #35 doctor 加「cucumber.mjs paths」「tsconfig allowImportingTsExtensions」「e2e build scripts」三项检查；测试
-- [ ] #35 `init --upgrade`：只修 doctor 认得的旧版问题（删掉 cucumber.mjs 的 paths、tsconfig 加上 allowImportingTsExtensions、补上缺的 e2e 脚本），改之前列出要改的内容，已经是新的就不动（幂等）；doctor 的修法里提示可以用它；测试（每一项、幂等、不认识的文件格式就跳过并说明原因）
-- [ ] #34 init：app.json 没有 ID 时写回（按 D2），config 里用同样的值；有 app.config.* 时不能改 ⇒ 输出下一步要做什么
-- [ ] #34 doctor：config 和 app.json 的 ID / scheme 是否一致，有没有 TODO 占位符；构建产物存在时比对 applicationId / CFBundleIdentifier / URL scheme
-- [ ] #34 `android.ts` 的 `am start` 失败时，查包有没有安装，并给出原因和修法
-- [ ] 实测：新建空白模板项目，init → doctor → build android → e2e:android 一路通过
-- [ ] 文档三语：cli.mdx（init 步骤、doctor 检查项）、troubleshooting
-- **Status:** pending
+分支 `fix/init-doctor-upgrade`，叠在 `fix/error-diagnostics`（PR #36）上面：计划文件只在那个分支里。
+
+2026-11-16 HU 对 `init --upgrade` 的决定：
+- 直接改文件，并逐项列出改了什么；`--dry-run` 只列出不改。
+- 修这些项：cucumber 配置里旧的 `paths` 行；tsconfig 的 `allowImportingTsExtensions`；app.json 的 ID 和 config 里的 TODO 占位符；缺的 `e2e:*` 脚本；`<QuiescoRoot>`。
+- **另外要能升级版本**：用 0.1.0 init 过的项目，执行 `npx quiesco@latest init --upgrade` 就把所有 Quiesco 包装成这个 CLI 的版本（和 init 一样带版本号安装、装完读回校验）。
+
+实施计划：
+1. 重构 `init.ts`：把安装与校验、tsconfig、脚本、app ID 这几步抽成函数（新模块 `packages/cli/src/setup-steps.ts`），init 和 upgrade 共用；每步都支持 dry-run（只返回 InitStep，不写文件也不执行命令）。
+2. `init --upgrade [--dry-run] [--skip-install] [--platforms …]`（新文件 `commands/upgrade.ts`，init 看到 `--upgrade` 就交给它）：
+   - 平台：优先用 `--platforms`，否则读 quiesco.config 的 apps；读不到就报错退出。
+   - 版本：重装 Quiesco 包到 CLI 的版本（package.json 里已有的 + 必需的；`@cucumber/cucumber`、`playwright` 不动），装完读回校验；已经是这个版本就跳过安装。
+   - 文件：cucumber 配置里原样的 `paths: ['features/**/*.feature'],` 行就删掉，别的 paths 只提示；tsconfig 能解析就加上，不能就提示；app.json 缺 ID 就写回，再把 config 里 init 生成的占位行（`'com.example.app', // TODO: expo.…`、`'myapp' … // TODO: expo.scheme`）换成同样的值；补缺的 e2e 脚本；入口是 registerRootComponent(App) 时包上 `<QuiescoRoot>`。
+   - 不新建 features/ 里的文件，不改 metro / 入口的 agent import（这些在 doctor 里已有检查和修法）。
+   - 重复执行结果不变（第二次全部是 skipped）。
+3. init（新项目）的 #34：app.json 有 `expo` 但缺 ID ⇒ 写回 `ios.bundleIdentifier`（选了 ios 时）、`android.package` 和 `scheme`（选了 android 时）。ID 用 `com.anonymous.<slug 去掉非字母数字，小写>`（和 Expo prebuild 给 Android 的默认值一样），scheme 用 slug（只留合法字符）；以数字开头就加前缀 `app`。有 app.config.* 时不改 app.json，写占位符并列为下一步（和现在一样）。
+4. doctor：
+   - #35「cucumber paths」：cucumber 配置设了 `paths` ⇒ warn。
+   - #35「tsconfig」：缺 `allowImportingTsExtensions`（文本匹配，带注释的也能查），且 features/ 里有 `from './x.ts'` 这种相对 .ts 导入 ⇒ fail；没有这种导入 ⇒ 不报。
+   - #35「scripts」：config 里有某平台、但缺 `e2e:build:<平台>` 脚本 ⇒ 加一个 `info` 级别（CheckStatus 新增 info，不算 warn、不算 fail）。
+   - #34「app IDs」：config 的 bundleId / package / devClient.scheme 与 app.json 比，不一致 ⇒ fail；app.json 缺这个值 ⇒ fail（说明 build 会用 Expo 的默认值）；config 文件里还有 `// TODO: expo.` ⇒ fail；有 app.config.* ⇒ warn（查不了）。构建产物存在时再比：Android 读 `android/app/build.gradle` 的 applicationId 和 AndroidManifest 里的 scheme；iOS 在 macOS 上用 `plutil` 读 binaryPath 里 Info.plist 的 CFBundleIdentifier。
+   - 修法里都提示可以用 `npx quiesco@latest init --upgrade`。
+5. core `android.ts`：`am start` 失败时用 `pm path <pkg>` 查包有没有装；没装 ⇒ 说明 binaryPath 的 applicationId 可能和 apps.android.package 不同、建议跑 doctor；装了但用 devClient ⇒ 用 `cmd package resolve-activity` 查 scheme 能不能打开这个包，打不开就说 scheme 没注册。
+6. 测试：init.test、新的 upgrade.test、doctor.test、android.test。
+7. 文档三语：cli.mdx（init 第几步写 ID、`--upgrade`、doctor 新检查）、troubleshooting（升级旧项目；Android 启动失败）。
+8. 实测：新建空白模板项目，用本分支的包跑 init → doctor → build android → e2e:android；再用 0.1.x 风格的旧文件跑 `init --upgrade` ⇒ doctor 通过。
+
+- [x] 1 重构 setup-steps（`packages/cli/src/setup-steps.ts`；init.ts 改用它）
+- [x] 2 init --upgrade（`commands/upgrade.ts`；测试 6 个：升级、再次执行不变、--dry-run、改不了的项、平台来源、经由 init 进入）
+- [x] 3 init 写回 app.json 的 ID（测试 2 个 + 改了原有测试的期望值）
+- [x] 4 doctor 新检查（cucumber paths warn、tsconfig fail、build scripts info、app IDs：占位符 / 与 app.json 比 / 与构建产物比；版本不一致的修法里也提示 `init --upgrade`）；测试 5 个
+- [x] 5 android am start 诊断（`launchFailure`：`pm path` + `cmd package resolve-activity`）；测试 1 个（3 种情况）
+- [x] 6 测试；`pnpm check` exit 0（862 个测试）
+- [x] 7 文档三语（cli.mdx：init 第 2 步、`--upgrade` / `--dry-run`、新小节「升级项目」、doctor；troubleshooting：Android 启动失败、升级）；docs:check；plugin references
+- [x] 8 实测：A（新项目 init）和 B（0.1.1 项目 upgrade）都通过 doctor，Android 构建 + e2e 各 1 scenario passed；am start 诊断两种情况在真机上都确认
+- [x] HU 确认提交 / PR（PR base 为 fix/error-diagnostics）
+- **Status:** complete
 
 ### K.C app 错误与 LogBox（#31）
 - [ ] 调研：RN 0.88 的 LogBox API，console.error 在 dev-client 里怎么触发 LogBox，agent 能不能拿到 LogBox
@@ -96,6 +125,7 @@ K.B：先给出实施计划（init --upgrade 的范围、app.json 写回的细�
 | 2026-11-16 | D2 init 把 ID 写回 app.json | HU 选了推荐项 |
 | 2026-11-16 | D3 doctor 检查 + `init --upgrade` | HU 选的 |
 | 2026-11-16 | D6 版本号 0.4.1（虽然有新配置项，仍按补丁版本发） | HU 选的 |
+| 2026-11-16 | `init --upgrade` 直接改文件并逐项列出（另有 `--dry-run`）；五项都修；还要升级 Quiesco 包的版本 | HU 选的；版本升级是 HU 另外提的 |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -103,3 +133,5 @@ K.B：先给出实施计划（init --upgrade 的范围、app.json 写回的细�
 | 想用 AGENT_TIMEOUT 测 #32，但 host 有 5s 余量（HOST_MARGIN_MS），测试超时 | 1 | 改为让 agent 断线（AGENT_DISCONNECTED） |
 | `git checkout .planning/.active_plan` 把 init-session 改好的指针还原了 | 1 | 用 set-active-plan.sh 重新指向本计划 |
 | lint：解构剩余参数里的 `_depth` 没用到 | 1 | 改为显式构造 Control |
+| K.A 的提交信息 subject 后少了空行；改写 + force-push 被 auto mode 拒绝 | 1 | 保持原样，squash 合并时修 |
+| K.B 分支从 main 拉出，没有计划文件 | 1 | 改为叠在 fix/error-diagnostics 上 |

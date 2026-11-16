@@ -18,3 +18,16 @@
 - web 全量 e2e：跑着。
 - web 全量 e2e：92 scenarios（79 passed, 13 skipped），0 失败。下一步：等 HU 确认提交 / PR。
 - HU 确认后提交并开 PR。K.A 完成，下一步是 K.B。
+
+## 2026-11-16 会话 1（续）：K.B
+- K.A 提交并开了 PR #36。提交信息的 subject 后少了空行；想改写后 force-push，被 auto mode 拒绝 ⇒ 保持原样，squash 合并时可以修。
+- 分支 `fix/init-doctor-upgrade`，叠在 `fix/error-diagnostics` 上（计划文件只在那里）。
+- HU 决定：upgrade 直接改并列出（另有 --dry-run）；五项都修；还要能升级包的版本（`npx quiesco@latest init --upgrade`）。实施计划写进 task_plan.md。
+- K.B 代码：setup-steps.ts（init 的几步抽出来）、upgrade.ts（`init --upgrade`，含版本升级）、init 写回 app.json 的 ID、doctor 新检查（cucumber paths / tsconfig / build scripts info / app IDs）、android 启动失败的诊断。`pnpm check` exit 0（862 个测试）。文档三语 + plugin references。
+- 实测（scratchpad/kb，本分支打包的 tarball）：
+  - A：create-expo-app blank-typescript（app.json 没有 ID，和 issue 一样）→ init ⇒ app.json 写入 com.anonymous.qtnew / scheme qt-new，config 里没有占位符 → doctor 通过（app IDs ✅）→ e2e:build:android BUILD SUCCESSFUL → e2e:android 1 scenario passed。
+  - B：同一模板 + 已发布的 `quiesco@0.1.1 init`，装 0.1.1 的包 ⇒ 0.1.1 的 doctor 通过（重现 #35）；本分支 doctor 报 cucumber paths ⚠️、<QuiescoRoot> ❌、app IDs 占位符 ❌、build scripts ℹ️。`init --upgrade --dry-run` 没有改动任何文件（git status 为空）；`init --upgrade --packages` ⇒ 6 个包升到 0.4.0、删 paths、tsconfig、app.json ID、替换占位符、补脚本、包上 QuiescoRoot；再执行一次全部是 `=`、git status 为空；doctor 通过。B 的 Android 构建和 e2e：跑着。
+- B：e2e:build:android → e2e:android 1 scenario passed。
+- am start 诊断（A，临时改 config）：package 写成 com.example.app ⇒「is installed but does not open qt-new:// links」（模拟器上确实有以前测试留下的 com.example.app）；写成不存在的 com.anonymous.nothere ⇒「is not installed on emulator-5554 … npx quiesco doctor compares them」。config 已还原。
+- K.B 实测完成。下一步：等 HU 确认提交 / PR。
+- HU 确认后提交并开 PR（base fix/error-diagnostics）。K.B 完成，下一步 K.C。HU 要求以后用中文交流（已记入 memory）。

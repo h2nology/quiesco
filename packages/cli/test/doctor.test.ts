@@ -125,6 +125,85 @@ describe('quiesco doctor', () => {
     expect(await root({ 'App.jsx': '<QuiescoRoot>' }, 'expo/AppEntry')).toMatchObject({ status: 'ok', detail: 'in App.jsx' });
   });
 
+  it('flags what older inits wrote: paths in the cucumber config, .ts imports without allowImportingTsExtensions (issue #35)', async () => {
+    const { ctx } = setUpProject();
+    ctx.put('cucumber.mjs', "export default {\n  paths: ['features/**/*.feature'],\n};\n");
+    ctx.put('tsconfig.json', '{\n  // comments are fine\n  "extends": "expo/tsconfig.base"\n}\n');
+    ctx.put('features/step_definitions/students.steps.ts', "import { StudentDriver } from '../support/student-driver.ts';\n");
+    const byName = Object.fromEntries((await runChecks(ctx, 'web', deps())).map((r) => [r.name, r]));
+    expect(byName['cucumber paths']).toMatchObject({ status: 'warn', detail: 'cucumber.mjs sets paths', fix: expect.stringMatching(/runs every feature[\s\S]*init --upgrade/) });
+    expect(byName['tsconfig']).toMatchObject({ status: 'fail', detail: expect.stringContaining('features/step_definitions/students.steps.ts imports a .ts file'), fix: expect.stringContaining('TS5097') });
+
+    // fixed (or nothing imports .ts): no report
+    ctx.put('cucumber.mjs', "export default { format: ['progress'] };\n");
+    ctx.put('tsconfig.json', '{ "compilerOptions": { "allowImportingTsExtensions": true } }');
+    const names = (await runChecks(ctx, 'web', deps())).map((r) => r.name);
+    expect(names).not.toContain('cucumber paths');
+    expect(names).not.toContain('tsconfig');
+    ctx.put('tsconfig.json', '{}');
+    ctx.put('features/step_definitions/students.steps.ts', "import { Given } from '@cucumber/cucumber';\n");
+    expect((await runChecks(ctx, 'web', deps())).map((r) => r.name)).not.toContain('tsconfig');
+  });
+
+  it('notes a native platform without a build script, as info that neither warns nor fails (issue #35)', async () => {
+    const { ctx } = setUpProject();
+    ctx.put('app.json', JSON.stringify({ expo: { scheme: 'qt', ios: { bundleIdentifier: 'com.anonymous.qt' }, android: { package: 'com.anonymous.qt' } } }));
+    const nativeConfig = deps({ loadConfig: async () => ({ apps: { ios: { bundleId: 'com.anonymous.qt' }, android: { package: 'com.anonymous.qt', devClient: { scheme: 'qt' } } } }) });
+    const results = await runChecks(ctx, undefined, nativeConfig);
+    expect(results.filter((r) => r.name === 'build scripts').map((r) => [r.status, r.detail])).toEqual([
+      ['info', 'no script runs quiesco build ios'],
+      ['info', 'no script runs quiesco build android'],
+    ]);
+    const pkg = JSON.parse(ctx.file('package.json') as string);
+    pkg.scripts = { 'e2e:build:ios': 'quiesco build ios', 'build:droid': 'npx quiesco build android --force' };
+    ctx.put('package.json', JSON.stringify(pkg));
+    expect((await runChecks(ctx, undefined, nativeConfig)).map((r) => r.name)).not.toContain('build scripts');
+  });
+
+  describe('app IDs (issue #34)', () => {
+    const native = (android: Record<string, unknown> = { package: 'com.anonymous.qt', devClient: { scheme: 'qt' } }, ios: Record<string, unknown> = { bundleId: 'com.anonymous.qt' }) =>
+      deps({ loadConfig: async () => ({ apps: { ios, android } }) as never });
+    const appIds = async (ctx: FakeContext, d: DoctorDeps) => (await runChecks(ctx, 'web', d)).filter((r) => /app ID/.test(r.name));
+
+    it('fails on the placeholders init wrote, naming them', async () => {
+      const { ctx } = setUpProject();
+      ctx.put('quiesco.config.mts', "      package: 'com.example.app', // TODO: expo.android.package\n      devClient: { scheme: 'myapp' }, // TODO: expo.scheme\n");
+      expect(await appIds(ctx, native({ package: 'com.example.app', devClient: { scheme: 'myapp' } }))).toEqual([
+        expect.objectContaining({ name: 'app IDs', status: 'fail', detail: "quiesco.config.mts still has init's placeholders (TODO: expo.android.package, expo.scheme)", fix: expect.stringContaining('init --upgrade') }),
+      ]);
+    });
+
+    it('compares quiesco.config with app.json: missing, different, the same', async () => {
+      const { ctx } = setUpProject();
+      ctx.put('app.json', JSON.stringify({ expo: { scheme: 'other', ios: { bundleIdentifier: 'com.anonymous.qt' } } }));
+      const [r] = await appIds(ctx, native());
+      expect(r).toMatchObject({ status: 'fail' });
+      expect(r?.detail).toBe("app.json has no expo.android.package (the build gets Expo's default, not com.anonymous.qt); devClient.scheme is qt, app.json expo.scheme is other");
+      ctx.put('app.json', JSON.stringify({ expo: { scheme: ['qt', 'x'], ios: { bundleIdentifier: 'com.anonymous.qt' }, android: { package: 'com.anonymous.qt' } } }));
+      expect(await appIds(ctx, native())).toEqual([expect.objectContaining({ status: 'ok', detail: 'quiesco.config matches app.json' })]);
+      ctx.put('app.config.js', 'module.exports = {};\n');
+      expect(await appIds(ctx, native())).toEqual([expect.objectContaining({ status: 'warn', detail: 'app.config.js found; cannot compare the app IDs with it' })]);
+    });
+
+    it('compares the builds: prebuilt android project, iOS Info.plist', async () => {
+      const { ctx } = setUpProject();
+      ctx.put('app.json', JSON.stringify({ expo: { scheme: 'qt', ios: { bundleIdentifier: 'com.anonymous.qt' }, android: { package: 'com.anonymous.qt' } } }));
+      ctx.put('android/app/build.gradle', "android {\n    defaultConfig {\n        applicationId 'com.anonymous.old'\n    }\n}\n");
+      ctx.put('android/app/src/main/AndroidManifest.xml', '<data android:scheme="exp+qt"/>');
+      ctx.put('ios/build/Q.app/Info.plist', '');
+      const plutil = { ...ctx, exec: async (c: string, a: readonly string[]) => (c === 'plutil' ? { code: 0, stdout: 'com.anonymous.quiesco-test\n', stderr: '' } : ctx.exec(c, a)) };
+      const results = (await runChecks(plutil, 'web', native(undefined, { bundleId: 'com.anonymous.qt', binaryPath: 'ios/build/Q.app' }))).filter((r) => /app ID/.test(r.name));
+      expect(results.map((r) => [r.name, r.status, r.detail])).toEqual([
+        ['app IDs', 'ok', 'quiesco.config matches app.json'],
+        ['Android: app ID', 'fail', 'android/app/build.gradle has applicationId com.anonymous.old; AndroidManifest.xml registers no qt:// scheme (quiesco.config: com.anonymous.qt, qt://)'],
+        ['iOS: app ID', 'fail', 'ios/build/Q.app is com.anonymous.quiesco-test (quiesco.config: com.anonymous.qt)'],
+      ]);
+      ctx.put('android/app/build.gradle', 'applicationId "com.anonymous.qt"\n');
+      ctx.put('android/app/src/main/AndroidManifest.xml', '<data android:scheme="qt"/>');
+      expect((await runChecks(ctx, 'web', native())).map((r) => r.name)).not.toContain('Android: app ID');
+    });
+  });
+
   it('checks Android tools and the build, and a busy port', async () => {
     const ctx = fakeContext((command, args) => {
       if (command === 'adb' && args[0] === 'version') return { stdout: 'Android Debug Bridge version 1.0.41' };

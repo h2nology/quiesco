@@ -3,6 +3,7 @@
  * project's Quiesco setup. Every check says what is wrong and how to fix it; exit code 1 when a check
  * fails (warnings do not fail).
  */
+import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 
@@ -14,7 +15,8 @@ import { PLATFORMS, parsePlatform, takeOption } from '../context.js';
 import { CLI_COMMANDS, installedVersion, isQuiescoPackage, scriptCommands } from '../packages.js';
 import { rootSourceFiles } from '../project.js';
 
-export type CheckStatus = 'ok' | 'warn' | 'fail';
+/** `info`: worth knowing, nothing is wrong (counted neither as a warning nor as a failure). */
+export type CheckStatus = 'ok' | 'info' | 'warn' | 'fail';
 
 export interface CheckResult {
   name: string;
@@ -29,7 +31,9 @@ export interface DoctorDeps {
 }
 
 const MIN_NODE_MAJOR = 24;
-const ICON: Record<CheckStatus, string> = { ok: '✅', warn: '⚠️ ', fail: '❌' };
+const ICON: Record<CheckStatus, string> = { ok: '✅', info: 'ℹ️ ', warn: '⚠️ ', fail: '❌' };
+/** How the fixes for older setups end (issues #34, #35). */
+const UPGRADE_HINT = 'npx quiesco@latest init --upgrade fixes this';
 
 interface PackageJson {
   main?: string;
@@ -87,6 +91,7 @@ function projectChecks(ctx: CliContext): CheckResult[] {
   );
 
   results.push(...versionChecks(ctx, pkg));
+  results.push(...legacyChecks(ctx));
 
   const appJson = readJson<{ expo?: { plugins?: unknown[] } }>(ctx, path.join(ctx.cwd, 'app.json'));
   const plugins = appJson?.expo?.plugins ?? [];
@@ -157,7 +162,7 @@ function versionChecks(ctx: CliContext, pkg: PackageJson): CheckResult[] {
       name: 'Quiesco versions',
       status: 'fail',
       detail: `different versions: ${list}`,
-      fix: `Quiesco's packages are released together and only work with the same version. Install one version of all of them, e.g. ${names.map((n) => `${n}@${newest}`).join(' ')}.`,
+      fix: `Quiesco's packages are released together and only work with the same version. Install one version of all of them, e.g. ${names.map((n) => `${n}@${newest}`).join(' ')}, or upgrade them all with npx quiesco@latest init --upgrade.`,
     });
   } else {
     project = versions[0] as string;
@@ -168,7 +173,7 @@ function versionChecks(ctx: CliContext, pkg: PackageJson): CheckResult[] {
             name: 'Quiesco versions',
             status: 'warn',
             detail: `the project has ${project}; this doctor is ${ctx.version}`,
-            fix: "Run the project's own CLI (npx quiesco doctor in the project directory), or upgrade the project's Quiesco packages to the same version.",
+            fix: "Run the project's own CLI (npx quiesco doctor in the project directory), or upgrade the project with npx quiesco@latest init --upgrade.",
           },
     );
   }
@@ -180,6 +185,140 @@ function versionChecks(ctx: CliContext, pkg: PackageJson): CheckResult[] {
       detail: unknown.map((c) => `"${c.script}" runs \`quiesco ${c.command}\``).join(', '),
       fix: `quiesco ${ctx.version} has no such command (it has ${CLI_COMMANDS.join(', ')}). ${project !== undefined && project !== ctx.version ? `The project has Quiesco ${project}; upgrade it, or ` : ''}Fix the script.`,
     });
+  }
+  return results;
+}
+
+const CUCUMBER_FILES = ['cucumber.mjs', 'cucumber.js', 'cucumber.cjs', 'cucumber.json', 'cucumber.yaml', 'cucumber.yml'];
+const CONFIG_FILES = ['quiesco.config.mts', 'quiesco.config.ts', 'quiesco.config.mjs', 'quiesco.config.js'];
+const DYNAMIC_APP_CONFIGS = ['app.config.ts', 'app.config.js', 'app.config.mjs', 'app.config.cjs'];
+
+/** The first step / support file under features/ that imports a relative .ts file, or null. */
+function tsImport(ctx: CliContext): string | null {
+  const dir = path.join(ctx.cwd, 'features');
+  let files: string[];
+  try {
+    files = (fs.readdirSync(dir, { recursive: true }) as string[]).filter((f) => /\.[cm]?tsx?$/.test(f) && !f.split(path.sep).includes('node_modules'));
+  } catch {
+    return null;
+  }
+  const relTs = /(?:from\s+|import\s*\(?\s*)['"]\.{1,2}\/[^'"]+\.[cm]?tsx?['"]/;
+  return files.find((f) => relTs.test(ctx.readFile(path.join(dir, f)) ?? '')) ?? null;
+}
+
+/**
+ * Issue #35: files written by older inits that the current one writes differently. Reported only when
+ * something is wrong.
+ */
+function legacyChecks(ctx: CliContext): CheckResult[] {
+  const results: CheckResult[] = [];
+  const cucumber = CUCUMBER_FILES.find((f) => ctx.exists(path.join(ctx.cwd, f)));
+  if (cucumber !== undefined && /\bpaths\b["']?\s*:/.test(ctx.readFile(path.join(ctx.cwd, cucumber)) ?? '')) {
+    results.push({
+      name: 'cucumber paths',
+      status: 'warn',
+      detail: `${cucumber} sets paths`,
+      fix: `cucumber-js adds them to the files given on the command line, so quiesco test features/x.feature runs every feature. Remove the line (features/**/*.feature is the default); ${UPGRADE_HINT}.`,
+    });
+  }
+  const tsconfig = ctx.readFile(path.join(ctx.cwd, 'tsconfig.json'));
+  if (tsconfig !== null && !/"allowImportingTsExtensions"\s*:\s*true/.test(tsconfig)) {
+    const importer = tsImport(ctx);
+    if (importer !== null) {
+      results.push({
+        name: 'tsconfig',
+        status: 'fail',
+        detail: `features/${importer} imports a .ts file, and tsconfig.json does not set allowImportingTsExtensions`,
+        fix: `Add "allowImportingTsExtensions": true to compilerOptions: tsc fails with TS5097 without it (step files must name the .ts file for Node's type stripping); ${UPGRADE_HINT}.`,
+      });
+    }
+  }
+  return results;
+}
+
+/** e2e builds have a script for each native platform in the config (older inits did not write them). */
+function buildScriptChecks(pkg: PackageJson | null, config: QuiescoConfig): CheckResult[] {
+  const scripts = Object.values(pkg?.scripts ?? {});
+  return (['ios', 'android'] as const)
+    .filter((p) => config.apps[p] !== undefined && !scripts.some((s) => new RegExp(`\\bquiesco build ${p}\\b`).test(s)))
+    .map((p) => ({
+      name: 'build scripts',
+      status: 'info' as const,
+      detail: `no script runs quiesco build ${p}`,
+      fix: `Add "e2e:build:${p}": "quiesco build ${p}" to package.json (or run npx quiesco build ${p}); ${UPGRADE_HINT}.`,
+    }));
+}
+
+interface AppJsonIds {
+  expo?: { scheme?: string | string[]; ios?: { bundleIdentifier?: string }; android?: { package?: string } };
+}
+
+/**
+ * Issue #34: quiesco.config names the app that the build makes. Compared with app.json (what expo prebuild
+ * uses) and, when they exist, with the prebuilt Android project and the iOS build. Placeholders left by
+ * init fail.
+ */
+async function appIdChecks(ctx: CliContext, config: QuiescoConfig): Promise<CheckResult[]> {
+  const { ios, android } = config.apps;
+  if (ios === undefined && android === undefined) return [];
+  const configFile = CONFIG_FILES.find((f) => ctx.exists(path.join(ctx.cwd, f)));
+  const todos = [...((configFile !== undefined ? ctx.readFile(path.join(ctx.cwd, configFile)) : null) ?? '').matchAll(/\/\/ TODO: (expo\.[\w.]+)/g)].map((m) => m[1] as string);
+  if (todos.length > 0) {
+    return [
+      {
+        name: 'app IDs',
+        status: 'fail',
+        detail: `${configFile as string} still has init's placeholders (TODO: ${todos.join(', ')})`,
+        fix: `Set the IDs in app.json (expo.ios.bundleIdentifier, expo.android.package, expo.scheme) and the same values in quiesco.config; ${UPGRADE_HINT}.`,
+      },
+    ];
+  }
+  const dynamic = DYNAMIC_APP_CONFIGS.find((f) => ctx.exists(path.join(ctx.cwd, f)));
+  const results: CheckResult[] = [];
+  if (dynamic !== undefined) {
+    results.push({ name: 'app IDs', status: 'warn', detail: `${dynamic} found; cannot compare the app IDs with it`, fix: 'Make sure apps.ios.bundleId, apps.android.package and devClient.scheme are the values your app config sets.' });
+  } else {
+    const expo = readJson<AppJsonIds>(ctx, path.join(ctx.cwd, 'app.json'))?.expo ?? {};
+    const schemes = expo.scheme === undefined ? [] : Array.isArray(expo.scheme) ? expo.scheme : [expo.scheme];
+    const problems: string[] = [];
+    const compare = (what: string, want: string, have: string | undefined): void => {
+      if (have === undefined) problems.push(`app.json has no expo.${what} (the build gets Expo's default, not ${want})`);
+      else if (have !== want) problems.push(`quiesco.config has ${want}, app.json expo.${what} is ${have}`);
+    };
+    if (ios !== undefined) compare('ios.bundleIdentifier', ios.bundleId, expo.ios?.bundleIdentifier);
+    if (android !== undefined) compare('android.package', android.package, expo.android?.package);
+    const scheme = android?.devClient?.scheme;
+    if (scheme !== undefined && !schemes.includes(scheme)) {
+      problems.push(schemes.length === 0 ? `app.json has no expo.scheme (the dev client cannot be opened with ${scheme}://)` : `devClient.scheme is ${scheme}, app.json expo.scheme is ${schemes.join(', ')}`);
+    }
+    results.push(
+      problems.length === 0
+        ? { name: 'app IDs', status: 'ok', detail: 'quiesco.config matches app.json' }
+        : { name: 'app IDs', status: 'fail', detail: problems.join('; '), fix: 'Use the same IDs in app.json and quiesco.config, then build again (npx quiesco build ios / android).' },
+    );
+  }
+  // The builds: an app built before the IDs changed is another app.
+  if (android !== undefined) {
+    const gradle = ctx.readFile(path.join(ctx.cwd, 'android/app/build.gradle'));
+    const built = gradle === null ? undefined : /applicationId\s*(?:=\s*)?['"]([^'"]+)['"]/.exec(gradle)?.[1];
+    const manifest = ctx.readFile(path.join(ctx.cwd, 'android/app/src/main/AndroidManifest.xml'));
+    const scheme = android.devClient?.scheme;
+    const wrong: string[] = [];
+    if (built !== undefined && built !== android.package) wrong.push(`android/app/build.gradle has applicationId ${built}`);
+    if (scheme !== undefined && manifest !== null && !manifest.includes(`android:scheme="${scheme}"`)) wrong.push(`AndroidManifest.xml registers no ${scheme}:// scheme`);
+    if (wrong.length > 0) {
+      results.push({ name: 'Android: app ID', status: 'fail', detail: `${wrong.join('; ')} (quiesco.config: ${android.package}${scheme !== undefined ? `, ${scheme}://` : ''})`, fix: 'Build again once app.json has the IDs quiesco.config names: npx quiesco build android (it runs expo prebuild with app.json).' });
+    }
+  }
+  if (ios?.binaryPath !== undefined && ctx.platform === 'darwin') {
+    const plist = path.join(path.resolve(ctx.cwd, ios.binaryPath), 'Info.plist');
+    if (ctx.exists(plist)) {
+      const r = await ctx.exec('plutil', ['-extract', 'CFBundleIdentifier', 'raw', plist]);
+      const built = r.code === 0 ? r.stdout.trim() : '';
+      if (built !== '' && built !== ios.bundleId) {
+        results.push({ name: 'iOS: app ID', status: 'fail', detail: `${ios.binaryPath} is ${built} (quiesco.config: ${ios.bundleId})`, fix: 'Build again once app.json has the ID quiesco.config names: npx quiesco build ios.' });
+      }
+    }
   }
   return results;
 }
@@ -340,6 +479,8 @@ export async function runChecks(ctx: CliContext, only: CliPlatform | undefined, 
   try {
     config = await deps.loadConfig(ctx.cwd);
     results.push({ name: 'quiesco.config', status: 'ok', detail: `apps: ${Object.keys(config.apps).join(', ') || 'none'}` });
+    results.push(...(await appIdChecks(ctx, config)));
+    results.push(...buildScriptChecks(readJson<PackageJson>(ctx, path.join(ctx.cwd, 'package.json')), config));
   } catch (e) {
     results.push({ name: 'quiesco.config', status: 'fail', detail: (e as Error).message.split('\n')[0] ?? '', fix: 'Create quiesco.config.mts (npx quiesco init writes one).' });
   }

@@ -66,6 +66,7 @@ Quiescoが`Android showed "com.android.systemui isn't responding" over the app; 
 - **すべてが遅く、Macのファンが回り、`qemu-system`がCPUを400%使う：** エミュレーターがCPUでレンダリングしています（`lavapipe` / `swiftshader`。AVDの`hardware-qemu.ini`にある`hw.gpu.mode`を参照）。macOSでは、`auto`に設定されたAVDに対してエミュレーターが`lavapipe`を選びます。そのためQuiescoはmacOSでは`-gpu host`を付けてエミュレーターを起動し、CPUでレンダリングしているエミュレーターを再利用するときは警告を出します。そのエミュレーターを`-gpu host`付きで再起動してください（またはQuiescoに起動させてください）。このようなエミュレーターが2台あると、Androidのsystem serverが1分ほど固まり、watchdogによって再起動されることがあります。
 - **起動の約30秒後にエミュレーターが再起動する：** クイックブートのスナップショットが古くなっています。Quiescoは自分で起動するエミュレーターをコールドブートしますが、Android Studioから起動したエミュレーターはスナップショットを読み込むことがあります。一度「Cold Boot Now」を使ってください。
 - **起動直後に「Activity class does not exist」が出る：** ユーザーのロックがまだ解除されていません。Quiescoはこれを待ちますが、その状態から抜け出せないデバイスには`adb reboot`が必要です。
+- **「The app could not be started」（`am start`が失敗する）：** パッケージ（`apps.android.package`）がインストールされているか、dev clientのschemeでそれが開けるかをメッセージが示します。多くの場合、ビルドされたアプリのIDが`quiesco.config.mts`と違います。ExpoのprebuildはIDを`app.json`から取り、そこにないときは独自の既定値を使います。`npx quiesco doctor`が両者を比べ、`npx quiesco@latest init --upgrade`が足りないIDを`app.json`と設定に書き込みます。そのあとビルドし直してください。
 - **権限が付与されない：** Androidはマニフェストで宣言された権限（`expo.android.permissions`）しか付与しません。
 - **ソフトウェアキーボードが表示されない：** エミュレーターには通常ハードウェアキーボードがあります。[プラットフォームの違い](./platforms#android)を参照してください。
 
@@ -76,7 +77,7 @@ Quiescoが`Android showed "com.android.systemui isn't responding" over the app; 
 
 ## `unknown command`、またはQuiescoのバージョンが揃っていない {#quiesco-versions}
 
-Quiescoのパッケージ（`quiesco`、`@quiesco/*`）はまとめてリリースされ、同じバージョン同士でしか動きません。`npx quiesco doctor`がこれと、スクリプトで使っているコマンドをチェックします。アップグレードするときは、すべてのQuiescoパッケージを1つのコマンドで同じバージョンにします（例：`pnpm add -D quiesco@0.4.0 @quiesco/core@0.4.0 …`）。
+Quiescoのパッケージ（`quiesco`、`@quiesco/*`）はまとめてリリースされ、同じバージョン同士でしか動きません。`npx quiesco doctor`がこれと、スクリプトで使っているコマンドをチェックします。アップグレードするときは`npx quiesco@latest init --upgrade`を実行します（[プロジェクトのアップグレード](./cli#quiesco-init-upgrade)）。すべてのQuiescoパッケージをそのバージョンにし、古いバージョンが書き込んだファイルも更新します。自分で1つのコマンドを使い、すべてのQuiescoパッケージを同じバージョンにしてもかまいません（例：`pnpm add -D quiesco@0.4.0 @quiesco/core@0.4.0 …`）。
 
 - **`^0.x`は次のminorに上がらない：** `^0.3.0`は0.3.xを許しますが、0.4.0は許しません。明示的にアップグレードしてください。
 - **pnpmの`minimumReleaseAge`：** pnpm 12はデフォルトで、バージョン範囲や`latest`を解決するときに公開から1日未満のバージョンを飛ばし、古いバージョンを選びます。リリース当日に`pnpm add -D quiesco`を実行すると、1つ前のバージョンが入ります。正確なバージョン（`quiesco init`が使う`quiesco@0.4.0`の形）はインストールされ、`pnpm-workspace.yaml`の`minimumReleaseAgeExclude`に追加されます。`minimumReleaseAge`を自分で設定すると、pnpmは先に確認するようになります（このとき`minimumReleaseAgeStrict`のデフォルトは`true`）。
