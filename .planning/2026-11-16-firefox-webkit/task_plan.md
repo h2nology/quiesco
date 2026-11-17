@@ -4,10 +4,10 @@
 Firefox、WebKit 与 Chromium 一起作为 Web 端的正式验收对象（HU 2026-11-16）：Chromium 才有的能力在其他浏览器上尽量给出替代实现，确实做不到的报 `ACTION_NOT_SUPPORTED` 并说明原因（不再漏出 Playwright 原始错误）；修掉 WebKit 下拖动类动作的 bug；新增浏览器标签；doctor / init / 文档三语写明各浏览器的支持程度；CI Web 矩阵加 Firefox、WebKit。
 
 ## Current Phase
-F.4 完成（分支 `feat/firefox-webkit`）：浏览器标签、示例自动排除、doctor 按配置的浏览器检查、文档三语
+全部完成（分支 `feat/firefox-webkit`）：三浏览器 × 两视口、iOS、Android 全量都是 0 失败
 
 ## Next Step
-F.5：三浏览器 × 两视口验收；改了 core（tags / lifecycle / session），iOS / Android 跑一次全量；CI 矩阵。
+等 HU 决定 push / PR（CI 上首跑 Linux 的 Firefox / WebKit 时留意）。
 
 ## 背景
 - 原计划 `.planning/2026-11-07-quiesco/` §11-6（HU 2026-11-08）：第一版只验收 Chromium；provider 可配 `firefox` / `webkit`，但从没实跑过。`requirements.md:46`：Firefox、WebKit 尽力支持。
@@ -81,11 +81,11 @@ F.5：三浏览器 × 两视口验收；改了 core（tags / lifecycle / session
 - **Status:** complete
 
 ### F.5 验收
-- [ ] 三个浏览器 × 手机 / 桌面视口全量 0 失败（不支持的项按标签跳过）
-- [ ] Chromium 结果不变（79 / 13）；iOS / Android 不受影响（只改 web 包时不跑原生全量，改了 core / agent 则跑）
-- [ ] `pnpm check`、`docs:check`
-- [ ] CI 矩阵加 Firefox、WebKit（SDK 58 各一格）
-- **Status:** pending
+- [x] 三个浏览器 × 手机 / 桌面视口全量 0 失败：手机 79 / 13，桌面 74 / 12（`@multi-touch` 由 cucumber.mjs 排除），三者相同
+- [x] Chromium 结果不变（79 / 13）；改了 core ⇒ 原生全量：Android（Medium_Phone_API_37.0）86 / 6，iOS（iPhone 17、iOS 27.0）86 / 6，都 0 失败
+- [x] `pnpm check` 902、`docs:check`（F.4 时）；F.5 只改了 CI 配置
+- [x] CI：ci.yml 单元测试步骤装 chromium firefox webkit（provider.test 有真实 Firefox / WebKit 用例，只装 Chromium 会失败）；sdk-compat 矩阵加 `browser` 维度，SDK 58 × firefox / webkit 两格（`QUIESCO_BROWSER`），artifact 名带浏览器
+- **Status:** complete
 
 ## Decisions Made
 | 日期 | 决定 | 依据 |
