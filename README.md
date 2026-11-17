@@ -1,4 +1,9 @@
-# Quiesco
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo/logo-dark.svg">
+    <img src="docs/logo/logo.svg" alt="Quiesco" height="52">
+  </picture>
+</h1>
 
 Gray-box end-to-end testing for Expo apps on **iOS, Android and the web**, driven by **Cucumber**,
 **Jest**, **Vitest** or any other Node.js test runner.
