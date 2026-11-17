@@ -4,10 +4,10 @@
 Firefox、WebKit 与 Chromium 一起作为 Web 端的正式验收对象（HU 2026-11-16）：Chromium 才有的能力在其他浏览器上尽量给出替代实现，确实做不到的报 `ACTION_NOT_SUPPORTED` 并说明原因（不再漏出 Playwright 原始错误）；修掉 WebKit 下拖动类动作的 bug；新增浏览器标签；doctor / init / 文档三语写明各浏览器的支持程度；CI Web 矩阵加 Firefox、WebKit。
 
 ## Current Phase
-全部完成（分支 `feat/firefox-webkit`）：三浏览器 × 两视口、iOS、Android 全量都是 0 失败
+全部完成，已合并到 main：三浏览器 × 两视口、iOS、Android 全量都是 0 失败
 
 ## Next Step
-等 HU 决定 push / PR（CI 上首跑 Linux 的 Firefox / WebKit 时留意）。
+无。已合并到 main（8d92cb6，HU 2026-11-17 要求直接合并）；CI 首跑全部通过：ci、docs、prod-strip、sdk-compat 6 格（SDK 55–58 Chromium，SDK 58 Firefox / WebKit）。
 
 ## 背景
 - 原计划 `.planning/2026-11-07-quiesco/` §11-6（HU 2026-11-08）：第一版只验收 Chromium；provider 可配 `firefox` / `webkit`，但从没实跑过。`requirements.md:46`：Firefox、WebKit 尽力支持。

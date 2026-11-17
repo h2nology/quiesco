@@ -14,3 +14,6 @@
 - F.3（2026-11-17）：WebKit 定位权限变化时重启 App；剪贴板由 Quiesco 保存（clipboard-store.ts）；移动端 WebKit 用合成 WheelEvent。测试 +3；pnpm check 899。全量：手机视口三浏览器 79 / 13 / 0；桌面视口（not @multi-touch）三者 74 / 12 / 0。下一步 F.4。
 - F.4：浏览器标签（core tags + Lifecycle 取 devices.web.browser）；示例 cucumber.mjs 按视口 / 档位自动排除 @multi-touch / @needs-touch；doctor 与安装提示按配置的浏览器；文档三语 + plugin references。pnpm check 902；docs:check ok；WebKit 桌面视口全量 74 / 12 / 0。下一步 F.5。
 - F.5：Web 三浏览器 × 两视口全量 0 失败（手机 79 / 13，桌面 74 / 12）；Android、iOS 全量 86 / 6，0 失败。CI：单元测试装三个浏览器；sdk-compat 加 SDK 58 × Firefox / WebKit。全部完成。
+
+## 2026-11-17
+- HU 要求直接合并：`--no-ff` 合并到 main（8d92cb6）并推送。CI 首跑全部通过（ci 2m42s；sdk-compat 6 格含 SDK 58 Firefox / WebKit；docs；prod-strip）。
