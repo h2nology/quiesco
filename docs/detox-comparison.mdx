@@ -99,7 +99,7 @@ supports it on that platform only.
 |---|---|---|---|---|---|---|
 | `system.element(by.system.label)` (experimental) | **iOS** | `device.system.tap` / `expectVisible` / `allowPermission` / `denyPermission` | ✓ (XCUITest runner) | ✓ (uiautomator) | ✓ (JS dialogs) | system: 拒绝通知权限; 取消网页的确认对话框 |
 | `web.element(by.web.*)`: tap / typeText / replaceText / runScript / getText | both (several Android issues) | `webview(m).element({ css \| xpath \| id \| text })`: tap / type / replaceText / scrollIntoView / expect* / runScript / url / title | ✓ | ✓ | ✓ (iframe) | webview (6 scenarios) |
-| Pilot (LLM-driven steps) | — | **Deferred** (Phase 6.14, see Gaps) | — | — | — | — |
+| Pilot (LLM-driven steps) | — | **Not planned** (see Gaps): the [Claude Code plugin](https://github.com/h2nology/quiesco/tree/main/plugin) uses an LLM while tests are written and debugged, and leaves plain step code | — | — | — | — |
 
 ## Running tests {#running-tests}
 
@@ -171,7 +171,15 @@ Deferred (2026-11-14), not built yet:
 
 - **Real devices (Phase 6.13):** Android devices over adb and iOS devices are not verified; run on
   simulators, emulators and Chromium.
-- **LLM-driven steps (Phase 6.14, Detox Pilot):** not offered; write steps against the Driver API.
+
+Not planned:
+
+- **LLM-driven steps (Detox Pilot):** Quiesco does not call an LLM while tests run: a step that asks a
+  model on every run is slower, costs an API key in CI and may pass one run and fail the next, which is
+  what waiting for an idle app is meant to remove. The LLM belongs where the test is written instead: the
+  [Claude Code plugin](https://github.com/h2nology/quiesco/tree/main/plugin) turns a requirement into Gherkin and steps against the Driver API (finding
+  testIDs with `npx quiesco tree`), and `/quiesco:debug` reads a failure's evidence and fixes the test.
+  What it leaves is ordinary, deterministic step code.
 
 ## Results {#results}
 

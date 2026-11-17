@@ -95,7 +95,7 @@ description: "与 Detox 20.51.4 的逐项对比。"
 |---|---|---|---|---|---|---|
 | `system.element(by.system.label)`（实验性） | **iOS** | `device.system.tap` / `expectVisible` / `allowPermission` / `denyPermission` | ✓（XCUITest runner） | ✓（uiautomator） | ✓（JS 对话框） | system: 拒绝通知权限; 取消网页的确认对话框 |
 | `web.element(by.web.*)`：tap / typeText / replaceText / runScript / getText | 两者（Android 上有若干 issue） | `webview(m).element({ css \| xpath \| id \| text })`：tap / type / replaceText / scrollIntoView / expect* / runScript / url / title | ✓ | ✓ | ✓（iframe） | webview（6 个场景） |
-| Pilot（LLM 驱动的步骤） | — | **推迟**（Phase 6.14，见「缺口」） | — | — | — | — |
+| Pilot（LLM 驱动的步骤） | — | **不计划提供**（见「缺口」）：[Claude Code 插件](https://github.com/h2nology/quiesco/tree/main/plugin)在编写和调试测试时使用 LLM，留下的是普通的 step 代码 | — | — | — | — |
 
 ## 运行测试 {#running-tests}
 
@@ -162,7 +162,10 @@ Detox 中只在一个平台上可用的功能，以及 Quiesco 在多少个平�
 推迟（2026-11-14），尚未实现：
 
 - **真机（Phase 6.13）：** 通过 adb 连接的 Android 设备和 iOS 设备尚未验证；请在模拟器和 Chromium 上运行。
-- **LLM 驱动的步骤（Phase 6.14，Detox Pilot）：** 不提供；请基于 Driver API 编写步骤。
+
+不计划提供：
+
+- **LLM 驱动的步骤（Detox Pilot）：** Quiesco 不在测试运行时调用 LLM：每次运行都询问模型的步骤更慢，CI 里需要 API key 并产生费用，而且可能这次通过、下次失败——这正是等待 App 空闲所要消除的。LLM 应该用在编写测试的时候：[Claude Code 插件](https://github.com/h2nology/quiesco/tree/main/plugin)把需求转成 Gherkin 和基于 Driver API 的 step（用 `npx quiesco tree` 查找 testID），`/quiesco:debug` 读取失败的证据并修复测试。它留下的是普通的、确定性的 step 代码。
 
 ## 结果 {#results}
 

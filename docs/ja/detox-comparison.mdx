@@ -95,7 +95,7 @@ description: "Detox 20.51.4との項目別の比較。"
 |---|---|---|---|---|---|---|
 | `system.element(by.system.label)`（実験的） | **iOS** | `device.system.tap` / `expectVisible` / `allowPermission` / `denyPermission` | ✓（XCUITestランナー） | ✓（uiautomator） | ✓（JSのダイアログ） | system: 拒绝通知权限; 取消网页的确认对话框 |
 | `web.element(by.web.*)`：tap / typeText / replaceText / runScript / getText | 両方（Androidで複数の問題あり） | `webview(m).element({ css \| xpath \| id \| text })`：tap / type / replaceText / scrollIntoView / expect* / runScript / url / title | ✓ | ✓ | ✓（iframe） | webview（6シナリオ） |
-| Pilot（LLMが駆動するステップ） | — | **延期**（Phase 6.14、「未対応の項目」を参照） | — | — | — | — |
+| Pilot（LLMが駆動するステップ） | — | **予定なし**（「未対応の項目」を参照）：[Claude Codeプラグイン](https://github.com/h2nology/quiesco/tree/main/plugin)はテストを書くときとデバッグするときにLLMを使い、普通のステップのコードを残します | — | — | — | — |
 
 ## テストの実行 {#running-tests}
 
@@ -162,7 +162,10 @@ Detoxで1つのプラットフォームでしか使えない項目と、Quiesco�
 延期したもの（2026-11-14）で、まだ作っていないもの：
 
 - **実機（Phase 6.13）：** adb経由のAndroid実機とiOS実機は検証していません。シミュレーター、エミュレーター、Chromiumで実行してください。
-- **LLMが駆動するステップ（Phase 6.14、Detox Pilot）：** 提供していません。Driver APIに対してステップを書いてください。
+
+予定していないもの：
+
+- **LLMが駆動するステップ（Detox Pilot）：** Quiescoはテストの実行中にLLMを呼び出しません。実行のたびにモデルに問い合わせるステップは遅く、CIではAPIキーと費用が必要になり、ある実行では通って次の実行では失敗することがあります。これは、アプリのアイドルを待つことでなくそうとしているものです。LLMはテストを書く段階で使います。[Claude Codeプラグイン](https://github.com/h2nology/quiesco/tree/main/plugin)は要件をGherkinとDriver APIに対するステップに変換し（testIDは`npx quiesco tree`で探します）、`/quiesco:debug`は失敗の証跡を読んでテストを直します。残るのは普通の、決定的なステップのコードです。
 
 ## 結果 {#results}
 

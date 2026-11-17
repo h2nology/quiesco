@@ -289,7 +289,7 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
     - 恢复时：① 查上面 3 个失败（Android 指纹、iOS 通知打开、iOS WebView 迟到结果）；② 重跑正式基准 Android ×5 / iOS ×20 / Web ×5（`bench-6.12d/all.sh`，脚本里的路径是 scratchpad，需改成本目录）；③ 三端串行回归；④ 写 docs/benchmarks.md「Phase 6.12」（与串行耗时对比）；⑤ 提交批次 D；⑥ 勾选 6.12。
     - 暂停时的现场：模拟器（Android / iOS）和 Metro 已全部关闭（HU 2026-11-13）；恢复时先启动 Metro（示例 `expo start --dev-client`，8082），设备由 Quiesco 按需启动。
 - [ ] 6.13 【暂缓，HU 2026-11-14】真机：Android 真机（adb，无 emulator 专属命令时逐项降级并报 ACTION_NOT_SUPPORTED + 原因）；iOS 真机（devicectl 安装 / 启动 / 传参、签名配置、网络连接改为局域网或 USB 转发，spike 先行）；**需要 HU 提供并连接真机**，验收前暂停确认
-- [ ] 6.14 【暂缓，HU 2026-11-14】LLM 驱动（对标 Detox Pilot）：`app.ai.perform('…')` / `app.ai.expect('…')`，以元素树 + 截图为上下文、Driver API 为工具；实现前先读 claude-api 技能确认当前模型与 SDK 用法；结果可「固化」为普通 step 代码（Detox 没有）；默认关闭，需配置 API key
+- [x] 6.14 【关闭，不实现，HU 2026-11-17：Claude Code 插件已在编写 / 调试测试时用 LLM，产出确定性代码；运行时调用 LLM 与「等空闲、不靠运气」相冲突，另需 API key 与费用。docs/detox-comparison 三语改为「不计划提供」并指向插件】LLM 驱动（对标 Detox Pilot）：`app.ai.perform('…')` / `app.ai.expect('…')`，以元素树 + 截图为上下文、Driver API 为工具；实现前先读 claude-api 技能确认当前模型与 SDK 用法；结果可「固化」为普通 step 代码（Detox 没有）；默认关闭，需配置 API key
 - **验收**：对照表中 Detox 的每一项都有对应能力（或写明替代方案）；示例 App 新 features 在 iOS / Android / Chromium 通过；Detox 单平台独占项在 Quiesco 中至少两端可用
 - **验收结果（2026-11-14）：** ① 对照表（docs/detox-comparison.md）每项都有对应能力或写明替代方案，Pilot 和真机写为 Deferred；② 三端全量串行（HEAD，caffeinate）iOS 80/80（4m26s）、Android 81/81（5m03s）、Web 73/73（1m27s），pnpm check 675 测试通过；③ Detox 单平台独占 14 项中 11 项至少两端可用，clearKeychain / reverseTcpPort / sendUserActivity 按「不适用」处理（HU 确认）
 - **Status:** complete（2026-11-14；6.13、6.14 暂缓）
@@ -380,6 +380,7 @@ examples/todo-app/{app/**, mock-server/**, features/**, quiesco.config.ts, metro
 | 示例 App Web 用 `web.output: 'static'`；三视口尺寸写在 quiesco.config（`QUIESCO_VIEWPORT`）；`QUIESCO_WEB_URL` 切换开发服务器 | §11-7、§6.13 |
 | Phase 6 对标 Detox 20.51.4，单平台独占能力尽量三端实现 | HU 2026-11-08：功能比 Detox 全、体验比 Detox 好 |
 | 重新做并行（6.12）、做真机（6.13）与 LLM 驱动（6.14）；iOS 系统弹窗先 spike | HU 2026-11-08 |
+| 6.14 LLM 驱动关闭不实现，由 Claude Code 插件替代（写测试 / 调试时用 LLM） | HU 2026-11-17 |
 | 可见判定加入祖先滚动容器裁剪，默认生效 | HU 2026-11-09（6.1）：滚出容器但仍在窗口内的元素不应算可见 |
 | 新增链式断言 `app.expect(t)[.not].toBeXxx()`，与 `expectXxx` 共用实现 | HU 2026-11-09（6.1）：便于从 Detox 迁移 |
 | 多宿主控件（如 RNW Switch = 外层 div + 内部 input）：父宿主渲染时直接创建、语义类型相同的子宿主是「部件」，不单独参与 `type` 匹配；控件的 checked / value / enabled / 焦点 / label 从部件读取 | 6.1 Web 实测：一个 Switch 被数成 2 个，状态与 aria-label 在内部 input 上；「直接创建」由 fiber-adapter 按 work tag 判定（不受压缩影响） |
