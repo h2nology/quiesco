@@ -467,7 +467,7 @@ export default defineConfig({
 | `devices.android.avd` / `serial` | 正在运行的设备 | 使用哪个模拟器 / 设备；AVD 未运行时会（冷）启动 |
 | `devices.android.gpu` | AVD 自身的模式；macOS 上 `auto` → `host` | Quiesco 启动的模拟器的 `-gpu`。在 macOS 上，模拟器会把 `auto` 变成 `lavapipe`，一个 CPU 渲染器（每个空闲模拟器约占 4 个核心） |
 | `devices.*.shutdown` | `false` | 运行结束时关闭由 Quiesco 启动的设备 |
-| `devices.web.browser` / `headless` / `viewport` | `chromium`，headless | 浏览器和屏幕尺寸（没有内置预设） |
+| `devices.web.browser` / `headless` / `viewport` | `chromium`，headless | 浏览器（`chromium`、`firefox` 或 `webkit`；[差异](./platforms#browsers)）和屏幕尺寸（没有内置预设） |
 | `permissions` | `[]` | 启动前授予：`camera`、`microphone`、`location`、`notifications`、`contacts`、`photos`、`calendar`（[各平台情况](./platforms#permissions)） |
 | `sync.timeoutMs` | `10000` | 一次调用等待空闲的时长 |
 | `sync.timerThresholdMs` | `1500` | 延迟不超过此值的定时器会让 App 保持忙碌 |
@@ -497,11 +497,12 @@ export default defineConfig({
 |---|---|
 | `@ios`、`@android`、`@web` | 只在这些平台上运行该场景（多个标签：任一平台即可） |
 | `@native` | 仅限 iOS 和 Android |
+| `@chromium`、`@firefox`、`@webkit` | 在 Web 上只在这些浏览器中运行该场景（`devices.web.browser`）；iOS 和 Android 忽略它们 |
 | `@hard-reset` | 在该场景之前重新启动 App，而不是软重置 |
 
-没有标签的场景在所有平台上运行。用 `tags: { web: '@browser' }` 重命名标签。
+没有标签的场景在所有平台上运行。用 `tags: { web: '@browser', webkit: '@safari' }` 重命名标签。
 
-平台标签可以放在 feature、`Rule`、场景或 `Examples` 块上；由最内层的标签决定。在标记为 `@native` 的 feature 中，没有标签的场景在 iOS 和 Android 上运行，标记为 `@android` 的场景只在 Android 上运行。这与 cucumber-js 的 `--tags` 不同，后者也会匹配继承来的标签。
+平台标签可以放在 feature、`Rule`、场景或 `Examples` 块上；由最内层的标签决定。在标记为 `@native` 的 feature 中，没有标签的场景在 iOS 和 Android 上运行，标记为 `@android` 的场景只在 Android 上运行。浏览器标签按同样的规则判定，与平台标签互不影响：`@web @webkit` 只在 Web 的 WebKit 中运行，`@chromium` feature 里标记为 `@firefox` 的场景只在 Firefox 中运行。这与 cucumber-js 的 `--tags` 不同，后者也会匹配继承来的标签。
 
 ## 错误 {#errors}
 

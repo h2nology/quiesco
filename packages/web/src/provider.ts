@@ -39,9 +39,16 @@ export function webPathFor(url: string): string {
 
 import { isServerExport, startExpoServer } from './expo-server.js';
 import { startStaticServer } from './static-server.js';
+import { playSyntheticTouches } from './synthetic-touch.js';
+import { CLIPBOARD_BINDING, installClipboardStore } from './clipboard-store.js';
 import type { StaticServer } from './static-server.js';
 
 const BROWSERS: Record<NonNullable<WebDeviceConfig['browser']>, BrowserType> = { chromium, firefox, webkit };
+
+/** Rest at the drop point before releasing a drag, so drop targets see the pointer arrive (as the agent's native drags). */
+const DROP_HOLD_MS = 100;
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 const WEB_PERMISSIONS: Partial<Record<Permission, string>> = {
   camera: 'camera',
@@ -49,6 +56,18 @@ const WEB_PERMISSIONS: Partial<Record<Permission, string>> = {
   location: 'geolocation',
   notifications: 'notifications',
 };
+
+/**
+ * Runs in the page (Firefox / WebKit, no CDP): `navigator.onLine` reports `onLine`, and window gets an
+ * `online` / `offline` event when that changes. Online again removes the override (the browser's own
+ * value shows through).
+ */
+export function setOnLineInPage(onLine: boolean): void {
+  const before = navigator.onLine;
+  if (onLine) delete (navigator as { onLine?: boolean }).onLine;
+  else Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false });
+  if (navigator.onLine !== before) window.dispatchEvent(new Event(navigator.onLine ? 'online' : 'offline'));
+}
 
 /** Ids of a JS dialog's parts in systemNodes(). */
 export const DIALOG_MESSAGE = 'dialog.message';
@@ -98,8 +117,10 @@ export class WebProvider implements DeviceProvider {
   private geolocation: { latitude: number; longitude: number } | null = null;
   private colorScheme: ColorScheme | null = null;
   private locale: string | null = null;
-  /** setNetwork('offline'): requests aborted, and (Chromium) `navigator.onLine` false; see applyNetwork. */
+  /** setNetwork('offline'): requests aborted and `navigator.onLine` false; see setNetwork. */
   private offline = false;
+  /** WebKit only: the clipboard (clipboard-store.ts), one per provider like a device's, kept across relaunches. */
+  private clipboardText = '';
   private networkCdp: CDPSession | null = null;
   private readonly abortRoute = (route: Route): Promise<void> => route.abort('internetdisconnected');
   /** Permissions granted at runtime beyond / revoked from the configured ones. */
@@ -174,6 +195,13 @@ export class WebProvider implements DeviceProvider {
       },
       { key: WEB_PARAMS_GLOBAL, port: params.port, session: params.sessionId, args: (params.argsObject ?? null) as never },
     );
+    if (this.browserName() === 'webkit') {
+      await context.exposeBinding(CLIPBOARD_BINDING, (_source, op: 'get' | 'set', text?: string) => {
+        if (op === 'set') this.clipboardText = String(text ?? '');
+        return this.clipboardText;
+      });
+      await context.addInitScript(installClipboardStore, CLIPBOARD_BINDING);
+    }
     const page = await context.newPage();
     page.on('pageerror', (e) => {
       this.pageErrors.push(e.message);
@@ -259,13 +287,35 @@ export class WebProvider implements DeviceProvider {
         await page.mouse.move(input.from.x, input.from.y);
         await page.mouse.down();
         // Press-and-hold first (long-press-activated drags), then move in small steps.
-        if (input.holdMs !== undefined && input.holdMs > 0) await new Promise((r) => setTimeout(r, input.holdMs));
-        await page.mouse.move(input.to.x, input.to.y, { steps });
+        if (input.holdMs !== undefined && input.holdMs > 0) await sleep(input.holdMs);
+        // Paced over durationMs: WebKit takes Playwright's steps as one burst (40 ms for 38 moves) and an
+        // app still catching up when the button comes up drops at the wrong place (findings F.2). Chromium
+        // waits a frame per move anyway. Then hold still at the target before releasing, as the native
+        // drags do (DROP_HOLD_MS in the agent).
+        const start = Date.now();
+        for (let k = 1; k <= steps; k++) {
+          await page.mouse.move(input.from.x + ((input.to.x - input.from.x) * k) / steps, input.from.y + ((input.to.y - input.from.y) * k) / steps);
+          const wait = start + (input.durationMs * k) / steps - Date.now();
+          if (wait > 0) await sleep(wait);
+        }
+        await sleep(DROP_HOLD_MS);
         await page.mouse.up();
         return;
       }
       case 'wheel':
         await page.mouse.move(input.x, input.y);
+        // Playwright has no wheel in mobile WebKit; a WheelEvent dispatched there scrolls the same way
+        // (WebKit acts on untrusted wheel events, findings F.3) and reaches the page's wheel listeners.
+        if (this.browserName() === 'webkit' && this.device.viewport?.isMobile === true) {
+          await page.evaluate(
+            ({ x, y, dx, dy }) => {
+              const target = document.elementFromPoint(x, y) ?? document.documentElement;
+              target.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, deltaX: dx, deltaY: dy, deltaMode: 0 }));
+            },
+            { x: input.x, y: input.y, dx: input.dx, dy: input.dy },
+          );
+          return;
+        }
         await page.mouse.wheel(input.dx, input.dy);
         return;
       case 'key':
@@ -334,11 +384,15 @@ export class WebProvider implements DeviceProvider {
       throw new QuiescoError('ACTION_NOT_SUPPORTED', `the "${permission}" permission does not exist on the web`, { action: 'setPermission', platform: 'web' });
     }
     if (this.permissionsAtStart === null) this.permissionsAtStart = [...this.permissions];
+    const before = this.permissions.includes(name);
     this.permissions = grant ? [...new Set([...this.permissions, name])] : this.permissions.filter((p) => p !== name);
     // Playwright cannot revoke a single permission: clear all, grant the rest again.
     await this.context?.clearPermissions();
     if (this.permissions.length > 0) await this.context?.grantPermissions(this.permissions);
-    return { relaunch: false };
+    // WebKit: a page keeps the geolocation decision it first got (granting or revoking later only changes
+    // permissions.query) ⇒ open the app again, data kept, as Android does on a revoke (findings F.3).
+    const relaunch = this.browserName() === 'webkit' && name === 'geolocation' && before !== grant && this.page !== null;
+    return { relaunch };
   }
 
   /** Not granted is the browser's "prompt" state: a page's next request asks again. */
@@ -367,6 +421,9 @@ export class WebProvider implements DeviceProvider {
    * Offline: every request of the page is aborted (`net::ERR_INTERNET_DISCONNECTED`) and, on Chromium,
    * `navigator.onLine` turns false with real `offline` and `navigator.connection` `change` events (CDP
    * `Network.overrideNetworkState`).
+   * Firefox and WebKit have no CDP: `navigator.onLine` is overridden in the page and `offline` / `online`
+   * fired on window — what NetInfo listens to there (no `navigator.connection` in those browsers). A
+   * launch while offline applies it after loading, as on Chromium.
    * Not `context.setOffline()`: it also stops Quiesco's own WebSocket (messages no longer arrive; checked
    * in Phase 6.6). Request routes do not see WebSockets, so the connection keeps working; the agent fails
    * the app's new WebSockets.
@@ -382,8 +439,8 @@ export class WebProvider implements DeviceProvider {
     const ctx = page.context();
     if (this.offline) await ctx.route('**/*', this.abortRoute);
     else await ctx.unroute('**/*', this.abortRoute);
-    if ((this.device.browser ?? 'chromium') !== 'chromium') {
-      if (this.offline) this.logger.warn(`setNetwork('offline'): ${this.device.browser ?? ''} cannot report navigator.onLine === false (Chromium only); requests fail all the same`);
+    if (this.browserName() !== 'chromium') {
+      await page.evaluate(setOnLineInPage, !this.offline).catch((e: unknown) => this.logger.debug(`navigator.onLine override: ${(e as Error).message}`));
       return;
     }
     // The override lasts while its CDP session is attached: keep it until online.
@@ -398,13 +455,21 @@ export class WebProvider implements DeviceProvider {
     }
   }
 
-  /** `navigator.clipboard` with the clipboard permissions granted to the page's origin (Chromium; others may refuse). */
+  /**
+   * `navigator.clipboard` with the clipboard permissions granted to the page's origin (Chromium; Firefox
+   * allows it without them). WebKit: Quiesco's clipboard (clipboard-store.ts).
+   */
   async setClipboard(text: string): Promise<void> {
+    if (this.browserName() === 'webkit') {
+      this.clipboardText = text;
+      return;
+    }
     const page = await this.clipboardPage();
     await page.evaluate((t) => navigator.clipboard.writeText(t), text);
   }
 
   async getClipboard(): Promise<string> {
+    if (this.browserName() === 'webkit') return this.clipboardText;
     const page = await this.clipboardPage();
     return page.evaluate(() => navigator.clipboard.readText());
   }
@@ -582,6 +647,11 @@ export class WebProvider implements DeviceProvider {
         hint: 'run the scenario with a viewport that has hasTouch: true (phone / tablet), or tag it for touch platforms only',
       });
     }
+    // Firefox / WebKit have no CDP: synthetic pointer and touch events in the page (synthetic-touch.ts).
+    if (this.browserName() !== 'chromium') {
+      await page.evaluate(playSyntheticTouches, { fingers, frames });
+      return;
+    }
     const cdp = await page.context().newCDPSession(page);
     const stride = 1 + 3 * fingers;
     const down = new Map<number, { x: number; y: number }>();
@@ -620,6 +690,10 @@ export class WebProvider implements DeviceProvider {
     } finally {
       await cdp.detach().catch(() => undefined);
     }
+  }
+
+  private browserName(): NonNullable<WebDeviceConfig['browser']> {
+    return this.device.browser ?? 'chromium';
   }
 
   private requirePage(): Page {

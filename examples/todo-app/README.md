@@ -70,7 +70,9 @@ The mock backend is started by `features/support/mock-server.ts`. Knobs for robu
 | `EXPO_PUBLIC_TRANSITION_MS=1000` | screen transitions take 1 s (set when starting Metro) |
 | `QUIESCO_AVD=<name>` | AVD to use / boot |
 | `QUIESCO_IOS_DEVICE="iPhone 17"`, `QUIESCO_IOS_OS=27.0` | simulator to use / boot (default: the booted one) |
-| `QUIESCO_ACTION_MODE=js` | call component callbacks instead of injecting real touches |
+| `QUIESCO_ACTION_MODE=js` | call component callbacks instead of injecting real touches (`@needs-touch` scenarios are left out) |
+| `QUIESCO_BROWSER=firefox` | web browser: `chromium` (default), `firefox` or `webkit` |
+| `QUIESCO_VIEWPORT=desktop` | web viewport: `mobile` (default), `tablet` or `desktop` (no touch screen: `@multi-touch` scenarios are left out) |
 
 Actions use the `native` mode (real touches and IME text through `@quiesco/native`) because the app
 includes the native module; `QUIESCO_ACTION_MODE=js` switches to callback mode.

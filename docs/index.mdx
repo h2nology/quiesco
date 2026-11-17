@@ -5,7 +5,7 @@ description: "Gray-box end-to-end testing for Expo apps on iOS, Android and the 
 
 A small agent inside the e2e build of your app tells the test runner when the app is idle — no pending
 network requests, timers, React renders or animations — so tests never sleep and never poll. The same
-tests run unchanged on an iOS simulator, an Android emulator and Chromium. Cucumber gets a ready-made
+tests run unchanged on an iOS simulator, an Android emulator and in the browser (Chromium, Firefox, WebKit). Cucumber gets a ready-made
 adapter (`@quiesco/cucumber`), and so do Jest and Vitest (`@quiesco/jest`, `@quiesco/vitest`,
 [other test runners](./runners)).
 

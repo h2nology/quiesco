@@ -76,7 +76,10 @@ Quiescoが`Android showed "com.android.systemui isn't responding" over the app; 
 
 ## Web {#web}
 
-- **`@quiesco/web` / Playwrightが見つからない：** `npm i -D @quiesco/web playwright`と`npx playwright install chromium`を実行してください。ネイティブのみのプロジェクトでは不要です。
+- **`@quiesco/web` / Playwrightが見つからない：** `npm i -D @quiesco/web playwright`と`npx playwright install chromium`（または`firefox` / `webkit`：実行する`devices.web.browser`）を実行してください。ネイティブのみのプロジェクトでは不要です。
+- **`Cannot launch webkit` / `firefox`：** 使っているPlaywrightのバージョンに対応するそのブラウザーがインストールされていません：`npx playwright install webkit`。`npx quiesco doctor`は設定されたブラウザーをチェックします。
+- **WebKit：`setPermission('location', …)`のあとでアプリが再起動した：** 想定どおりの動作です。WebKitのページは最初に得た位置情報の許可を使い続けるため、Quiescoは変更を反映するためにアプリを再起動します（データは保持。[ブラウザー](./platforms#browsers)）。
+- **WebKit：アプリでコピーしたテキストがMacのクリップボードにない（またはその逆）：** WebKitではクリップボードをQuiescoが保持します。テキストのみで、ページと`app.clipboard`で共有されます（[ブラウザー](./platforms#browsers)）。
 - **遅延ロードするルートへの最初の遷移が「Requiring unknown module」で失敗する：** Expo Routerの無害な報告で、Quiescoはデフォルトで無視します（[既知の問題](./known-issues)）。
 
 ## `unknown command`、またはQuiescoのバージョンが揃っていない {#quiesco-versions}

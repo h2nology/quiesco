@@ -1,7 +1,7 @@
 # Expo SDK compatibility (.planning/2026-11-16-expo-sdk-55-57): the example app on every supported SDK,
 # with this checkout's packages installed from tarballs (scripts/sdk-compat.mjs), type-checked and its
-# features run on web (Chromium). iOS / Android are accepted locally with the same script; native builds
-# and emulators for four SDKs would take hours here.
+# features run on web (Chromium; Firefox and WebKit on the newest SDK). iOS / Android are accepted locally
+# with the same script; native builds and emulators for four SDKs would take hours here.
 name: sdk-compat
 
 on:
@@ -27,7 +27,11 @@ jobs:
       fail-fast: false
       matrix:
         sdk: [55, 56, 57, 58]
-    name: SDK ${{ matrix.sdk }} (web)
+        browser: [chromium]
+        include:
+          - { sdk: 58, browser: firefox }
+          - { sdk: 58, browser: webkit }
+    name: SDK ${{ matrix.sdk }} (web, ${{ matrix.browser }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -40,20 +44,22 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: make the example on SDK ${{ matrix.sdk }} (build, pack, install, expo install --fix, tsc)
         run: node scripts/sdk-compat.mjs --sdk ${{ matrix.sdk }} --out "$RUNNER_TEMP/compat" --typecheck
-      - name: install Chromium
+      - name: install ${{ matrix.browser }}
         working-directory: ${{ runner.temp }}/compat/sdk-${{ matrix.sdk }}
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps ${{ matrix.browser }}
       - name: export the web app (e2e)
         working-directory: ${{ runner.temp }}/compat/sdk-${{ matrix.sdk }}
         run: npm run build:web
       - name: run the features on web
         working-directory: ${{ runner.temp }}/compat/sdk-${{ matrix.sdk }}
+        env:
+          QUIESCO_BROWSER: ${{ matrix.browser }}
         run: npm run test:e2e:web
       - name: upload the report and evidence on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: sdk-${{ matrix.sdk }}-web
+          name: sdk-${{ matrix.sdk }}-web-${{ matrix.browser }}
           path: |
             ${{ runner.temp }}/compat/sdk-${{ matrix.sdk }}/reports
             ${{ runner.temp }}/compat/sdk-${{ matrix.sdk }}/artifacts

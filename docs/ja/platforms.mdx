@@ -7,7 +7,7 @@ description: "iOS、Android、Webの比較：入力、権限、システムダ�
 
 | | iOS | Android | Web |
 |---|---|---|---|
-| デバイス | シミュレーター（`xcrun simctl`）。必要なら起動する | エミュレーターまたは実機（`adb`）。必要ならAVDをコールドブートする | Playwrightライブラリ経由のChromium（起動ごとに新しいブラウザコンテキスト） |
+| デバイス | シミュレーター（`xcrun simctl`）。必要なら起動する | エミュレーターまたは実機（`adb`）。必要ならAVDをコールドブートする | Playwrightライブラリ経由のChromium、Firefox、WebKit（起動ごとに新しいブラウザコンテキスト。[ブラウザー](#browsers)） |
 | アプリのビルド | `EXPO_PUBLIC_QUIESCO=1`付きで作ったシミュレーター用の`.app` | `EXPO_PUBLIC_QUIESCO=1`付きで作ったAPK | `EXPO_PUBLIC_QUIESCO=1`付きの`npx expo export --platform web`（static出力はQuiescoが配信し、server出力は`npx expo serve`でホストする）、または開発サーバー |
 | アプリがホストを見つける方法 | 起動引数 | intentのextra | ページ内のinitスクリプト |
 | 実際の入力（`native`モード） | 合成した`UITouch`イベント（`@quiesco/native`、プライベートAPI、e2eビルドのみ） | Activityにディスパッチする`MotionEvent`（`@quiesco/native`） | Playwrightのタッチスクリーン（タッチ対応のビューポート）またはマウス。テキストはキーボードで入力 |
@@ -26,7 +26,7 @@ description: "iOS、Android、Webの比較：入力、権限、システムダ�
 | ピッカー / 日付ピッカーへの`setValue` | 指でホイールを回す（日付は`display="spinner"`。compact / inlineはコールバック） | コールバック（ドロップダウンと日付ダイアログは別ウィンドウ） | `<select>` / 日付入力はPlaywrightで入力。それ以外のコンポーネントはコールバック |
 | `adjustSlider` | 実際にドラッグし、値を読み戻して補正する | 実際にドラッグし、値を読み戻して補正する | マウスでのドラッグ（読み戻しなし） |
 | `accessibilityAction` | VoiceOverの経路（increment / decrement、カスタムアクション） | `performAccessibilityAction` | `onAccessibilityAction` |
-| `pinch`、`rotate`、`multiTouch` | 1つのイベントに複数の`UITouch`（`@quiesco/native` ≥ Phase 6.4が必要：`multiGesture`） | マルチポインターの`MotionEvent`（同じ） | タッチ対応ビューポートではCDPのタッチイベント。デスクトップのビューポートでは`ACTION_NOT_SUPPORTED` |
+| `pinch`、`rotate`、`multiTouch` | 1つのイベントに複数の`UITouch`（`@quiesco/native` ≥ Phase 6.4が必要：`multiGesture`） | マルチポインターの`MotionEvent`（同じ） | タッチ対応ビューポートでは、CDPのタッチイベント（Chromium）、ページ内で発生させる合成のpointer / touchイベント（Firefox、WebKit）。デスクトップのビューポートでは`ACTION_NOT_SUPPORTED` |
 | 補正するジェスチャー認識の開始量（`actions.gestureSlop`） | 9pt、7° | 26dp、9° | 46px、0° |
 | `relaunch({ args })` → `quiesco.launchArgs()` | `-quiescoArgs`起動引数（`@quiesco/native` ≥ Phase 6.5が必要） | `--es quiescoArgs` extra（同じ） | initスクリプト |
 | `relaunch({ url })` | `-quiescoUrl`。JSが動く前に`@quiesco/native`がexpo-linkingに渡す（≥ Phase 6.5。ない場合は起動後に開く） | intentのdata。dev clientはMetroへの自分のリンクで起動し、`--es quiescoUrl`を受け取ります。JSが動く前に`@quiesco/native`がそれを開始URLにします（ない場合は起動後に開く） | URLのパスを開く（`myapp://todos/1` → `/todos/1`） |
@@ -41,9 +41,9 @@ description: "iOS、Android、Webの比較：入力、権限、システムダ�
 | `setFontScale()` | `simctl ui content_size`。最も近いDynamic Typeのサイズ（0.823 … 3.571）に、実行中のまま反映 | `settings put system font_scale`の後、アプリを再起動する（データは保持） | `ACTION_NOT_SUPPORTED` |
 | `setLocale()` | `-AppleLanguages` / `-AppleLocale`付きで再起動（`CFBundleLocalizations`が必要） | アプリ別の言語設定、`cmd locale set-app-locales`（Android 13以降）の後、アプリを再起動する | そのロケールで新しいブラウザコンテキスト（データは保持） |
 | `setLocation()` | `simctl location set`（リセット：`clear`） | `adb emu geo fix`（エミュレーターのみ） | `context.setGeolocation` |
-| `setPermission()` | `simctl privacy grant / revoke / reset`（カメラ / 通知は不可。これらの`'reset'`はアプリを再インストールする）。アプリは動いたまま | `pm grant / revoke`（+ `clear-permission-flags`）。revokeやresetでアプリが終了する → 再起動する | `grantPermissions` / `clearPermissions` |
-| `setNetwork('offline')` | エージェントがアプリの新しい接続を失敗させる。デバイスの切り替えはない（NetInfoはオンラインのまま） | エージェント、加えて`svc wifi / data disable`（NetInfoも検知する。`adb reverse`は動き続ける） | エージェント、加えてページのリクエストの中断とCDPの`Network.overrideNetworkState`（`navigator.onLine`、`offline` / `connection`の`change`イベント。Chromium） |
-| `clipboard.set()` / `get()` | アプリ内の`UIPasteboard`（`@quiesco/native` ≥ Phase 6.6）。ない場合の`get`は`simctl pbpaste` | アプリ内の`ClipboardManager`（同じ。ない場合は`ACTION_NOT_SUPPORTED`） | `navigator.clipboard`（ページにクリップボードの権限を付与） |
+| `setPermission()` | `simctl privacy grant / revoke / reset`（カメラ / 通知は不可。これらの`'reset'`はアプリを再インストールする）。アプリは動いたまま | `pm grant / revoke`（+ `clear-permission-flags`）。revokeやresetでアプリが終了する → 再起動する | `grantPermissions` / `clearPermissions`。WebKitでは位置情報の権限が変わるとアプリを再起動する（データは保持） |
+| `setNetwork('offline')` | エージェントがアプリの新しい接続を失敗させる。デバイスの切り替えはない（NetInfoはオンラインのまま） | エージェント、加えて`svc wifi / data disable`（NetInfoも検知する。`adb reverse`は動き続ける） | エージェント、加えてページのリクエストの中断と、`navigator.onLine`および`offline` / `online`イベント（Chromium：CDPの`Network.overrideNetworkState`、`connection`の`change`も発生。Firefox、WebKit：ページ内で設定） |
+| `clipboard.set()` / `get()` | アプリ内の`UIPasteboard`（`@quiesco/native` ≥ Phase 6.6）。ない場合の`get`は`simctl pbpaste` | アプリ内の`ClipboardManager`（同じ。ない場合は`ACTION_NOT_SUPPORTED`） | `navigator.clipboard`（ページにクリップボードの権限を付与）。WebKitではQuiescoが保持するテキストのクリップボード |
 | `setStatusBar()` | `simctl status_bar override`（リセット：`clear`） | SystemUIのデモモード（`sysui_demo_allowed`、通知アイコンは非表示。リセット：`exit`） | ステータスバーがないので何もしない |
 | `biometrics.enroll()` | シミュレーター内の`notifyutil`：`com.apple.BiometricKit.enrollmentChanged`（元の値に戻す） | 画面ロックのPIN（`locksettings set-pin`）、`uiautomator`で設定アプリの登録画面を操作（ボタンは位置で指定）し、`adb emu finger touch 1`。PINを外すと指紋も削除される | `ACTION_NOT_SUPPORTED` |
 | `biometrics.match()` / `fail()` | `notifyutil -p com.apple.BiometricKit_Sim.pearl.match` / `.nomatch`（Touch IDの機種では`fingerTouch.*`） | 認証が始まってから（`dumpsys fingerprint`）、`adb emu finger touch 1` / `2` | `ACTION_NOT_SUPPORTED` |
@@ -110,11 +110,28 @@ description: "iOS、Android、Webの比較：入力、権限、システムダ�
 
 ## Web {#web}
 
-- サポート対象のブラウザはChromiumです。`firefox` / `webkit`も設定できますが、テストはしていません。
+- `devices.web.browser`でChromium（デフォルト）、Firefox、WebKitを選びます。3つとも同じfeatureを実行できます（[ブラウザー](#browsers)）。
 - ビューポートは設定から取ります（スマートフォン、タブレット、デスクトップ…）。タッチ対応のビューポートではタッチで入力します。
 - ページ全体を読み込み直すとエージェントは再接続します。ホストはステップを失敗させずにそれを待ちます。
 - ネイティブのプラットフォームだけをテストする場合、Playwrightは不要です。Webのプロバイダーは必要になったときに読み込まれます。
-- `setNetwork('offline')`はPlaywrightの`context.setOffline()`を使いません。これを使うと、Quiesco自身のWebSocketも止まってしまう（ソケットは開いたままなのにメッセージが届かない）ためです。代わりに、ページのリクエストを中断し（ルートからはWebSocketが見えません）、CDPの`Network.overrideNetworkState`で`navigator.onLine`を設定して、実際の`offline` / `online`イベントを発生させます。スループットをゼロにすると`navigator.connection`の`change`も発生します。これはChromiumでNetInfoが監視しているイベントです。オフライン中に再起動すると、まずページを読み込んでからオフラインにします。
+- `setNetwork('offline')`はPlaywrightの`context.setOffline()`を使いません。これを使うと、Quiesco自身のWebSocketも止まってしまう（ソケットは開いたままなのにメッセージが届かない）ためです。代わりに、ページのリクエストを中断し（ルートからはWebSocketが見えません）、CDPの`Network.overrideNetworkState`で`navigator.onLine`を設定して、実際の`offline` / `online`イベントを発生させます。スループットをゼロにすると`navigator.connection`の`change`も発生します。これはChromiumでNetInfoが監視しているイベントです。FirefoxとWebKitにはCDPがないため、ページ内で`navigator.onLine`を上書きし、`offline` / `online`を発生させます（`navigator.connection`がないとき、NetInfoはこれらを監視します）。オフライン中に再起動すると、まずページを読み込んでからオフラインにします。
 - デバイスの状態を読み戻すとき、アプリ自身の`MediaQueryList`には一切触れません。react-native-webの`Appearance`が監視しているリストの`matches`を読むと、Chromiumが変更イベントを省略してしまい、`useColorScheme()`が更新されなくなるためです。
 - バックグラウンド状態はありません。Playwrightが操作するページは、何を試しても（別のタブを前面に出す、ウィンドウを最小化する、CDPのライフサイクル状態、Chromiumのバックグラウンド関連のスイッチの有無）`visible`のままです。バックグラウンドのシナリオには`@native`タグを付けてください。
 - `@react-native-community/datetimepicker`にはWebの実装がありません。Webでは`<input type="date">`を使ってください（`setValue`で入力できます）。`@react-native-segmented-control`のWeb / Androidの実装は`testID`を引き渡しません。testIDはラップする`View`に付けてください（`setValue`はその中にある1つのコントロールを使います）。
+
+### ブラウザー {#browsers}
+
+同じfeatureを3つのブラウザーすべてで実行できます。Playwrightやブラウザー自体に足りない部分があり、内部の仕組みが異なる点は次のとおりです。
+
+| | Chromium | Firefox | WebKit |
+|---|---|---|---|
+| `pinch`、`rotate`、`multiTouch`（タッチ対応ビューポート） | CDPの`Input.dispatchTouchEvent` | ページ内で合成の`PointerEvent`と`TouchEvent`を発生させる | Firefoxと同じ（タッチは`document.createTouch`で作成） |
+| `setNetwork('offline')`：ページから見えるもの | CDP：`navigator.onLine`、`offline` / `online`、`connection`の`change` | ページ内で`navigator.onLine`を上書きし、`offline` / `online`を発生させる | Firefoxと同じ |
+| アプリの実行中の`setPermission('location', …)` | 開いているページに反映される | 開いているページに反映される | ページは最初に得た許可を使い続ける：アプリを再起動する（データは保持）。Androidで権限を取り消したときと同じ |
+| `clipboard`、`navigator.clipboard` | システムのクリップボード | システムのクリップボード | Quiescoが保持するテキストのクリップボード（自動化環境のWebKitでは、ページはクリップボードに書き込めても読み取れない）：ページの`navigator.clipboard`と`copy`イベント、`app.clipboard`で共有する。アプリを再起動しても残る。テキストのみで、ブラウザーの外からは見えない |
+| モバイルのビューポート（`isMobile`）での`swipe`、`scroll` | マウスホイール | マウスホイール | その位置で`WheelEvent`を発生させる（モバイルのWebKitにはマウスホイールがない） |
+
+- `drag`と`adjustSlider`は、どのブラウザーでも所要時間に合わせてポインターを少しずつ動かし、終点で100 ms止まってから離します（そうしないと、WebKitではすべての移動が一度に届き、ずれた位置で離されます）。
+- 合成イベントは信頼されたイベントではありません（`isTrusted`はfalse）。react-native-gesture-handlerとreact-native-webのレスポンダーシステムはこれを確認しません。
+- 環境変数でブラウザーを選べば、同じテストを各ブラウザーで実行できます。一部のブラウザーでしか意味のないシナリオには[ブラウザータグ](./api#scenario-tags)（`@chromium`、`@firefox`、`@webkit`）を付けてください。
+- ブラウザーは`npx playwright install chromium firefox webkit`でインストールします。`npx quiesco doctor`は設定されたブラウザーをチェックします。

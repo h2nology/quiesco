@@ -32,7 +32,26 @@ const PAGE = `<!doctype html><html><body style="margin:0">
   for (const type of ['touchstart', 'touchmove', 'touchend']) {
     document.getElementById('t').addEventListener(type, (e) => touchLog.push(type + ':' + e.touches.length));
   }
+  // Like react-native-gesture-handler on the web: capture each touch pointer, count the active ones.
+  window.pointerLog = [];
+  window.pointerErrors = [];
+  const t = document.getElementById('t');
+  const active = new Set();
+  const onPointer = (e) => {
+    if (e.pointerType !== 'touch') return;
+    try {
+      if (e.type === 'pointerdown') { e.target.setPointerCapture(e.pointerId); active.add(e.pointerId); }
+      if (e.type === 'pointerup') { e.target.releasePointerCapture(e.pointerId); active.delete(e.pointerId); }
+    } catch (err) { pointerErrors.push(err.name); }
+    const last = pointerLog[pointerLog.length - 1];
+    const entry = e.type.slice(7) + ':' + active.size;
+    if (!(e.type === 'pointermove' && last === entry)) pointerLog.push(entry);
+  };
+  for (const type of ['pointerdown', 'pointermove', 'pointerup']) t.addEventListener(type, onPointer);
 </script></body></html>`;
+
+/** Pointer events of the two-finger frames below, as the page sees them (active touch pointers after each). */
+const MULTI_TOUCH_POINTERS = ['down:1', 'down:2', 'move:2', 'up:1', 'up:0'];
 
 let dir: string;
 let provider: WebProvider;
@@ -116,6 +135,8 @@ describe('WebProvider (real Chromium)', () => {
     const page = (touch as unknown as { page: { evaluate(f: string): Promise<string[]> } }).page;
     // CDP reports each changed point as its own DOM event, as a touch screen does.
     expect(await page.evaluate('touchLog')).toEqual(['touchstart:1', 'touchstart:2', 'touchmove:2', 'touchend:1', 'touchend:0']);
+    expect(await page.evaluate('pointerLog')).toEqual(MULTI_TOUCH_POINTERS);
+    expect(await page.evaluate('pointerErrors')).toEqual([]);
     await touch.shutdown();
   });
 
@@ -403,5 +424,158 @@ describe('webPathFor', () => {
     expect(webPathFor('/a/b')).toBe('/a/b');
     expect(webPathFor('https://example.com/x')).toBe('https://example.com/x');
     expect(webPathFor('relative/path')).toBe('/relative/path');
+  });
+});
+
+// Firefox and WebKit have no CDP: the same frames as synthetic events in the page (synthetic-touch.ts).
+// Requires `npx playwright install firefox webkit`.
+
+describe.each(['firefox', 'webkit'] as const)('WebProvider without CDP (real %s)', (browser) => {
+  it('plays the frames as the same touch and pointer events as Chromium, captures included', async () => {
+    const frames = [0, 1, 50, 450, 1, 150, 450, 16, 1, 60, 450, 1, 150, 450, 32, 1, 60, 450, 0, 0, 0, 48, 0, 0, 0, 0, 0, 0];
+    const touch = new WebProvider({ app: { distDir: dir }, device: { browser, viewport: { width: 390, height: 844, hasTouch: true, isMobile: browser !== 'firefox' } } });
+    await touch.boot();
+    await touch.install();
+    try {
+      await touch.launch({ port: 1, sessionId: 's' });
+      await touch.injectInput({ kind: 'touches', fingers: 2, frames });
+      const page = (touch as unknown as { page: { evaluate(f: string): Promise<unknown> } }).page;
+      expect(await page.evaluate('touchLog')).toEqual(['touchstart:1', 'touchstart:2', 'touchmove:2', 'touchend:1', 'touchend:0']);
+      expect(await page.evaluate('pointerLog')).toEqual(MULTI_TOUCH_POINTERS);
+      expect(await page.evaluate('pointerErrors')).toEqual([]);
+      // The page's own capture methods are back afterwards.
+      expect(await page.evaluate('Element.prototype.setPointerCapture.toString().includes("[native code]")')).toBe(true);
+    } finally {
+      await touch.shutdown();
+    }
+  });
+
+  it('offline: requests fail, navigator.onLine is false with offline / online events, also after a relaunch; the WebSocket keeps working', async () => {
+    const echo = new WebSocketServer({ port: 0, host: '127.0.0.1' });
+    echo.on('connection', (ws) => ws.on('message', (m) => ws.send(`echo:${String(m)}`)));
+    await new Promise((r) => echo.once('listening', r));
+    const port = (echo.address() as AddressInfo).port;
+    const p = new WebProvider({ app: { distDir: dir }, device: { browser } });
+    await p.boot();
+    await p.install();
+    const page = () => (p as unknown as { page: { evaluate<T>(f: string): Promise<T> } }).page;
+    const connect = () => page().evaluate(`new Promise((r) => { window.sock = new WebSocket('ws://localhost:${port}'); sock.onopen = r; })`);
+    const probe = () =>
+      page().evaluate<[boolean, string, string]>(`(async () => {
+        const fetched = await fetch(location.href, { cache: 'no-store' }).then(() => 'ok', () => 'failed');
+        const echoed = await new Promise((r) => { window.sock.onmessage = (e) => r(e.data); window.sock.send('ping'); });
+        return [navigator.onLine, fetched, echoed];
+      })()`);
+    try {
+      await p.launch({ port, sessionId: 's' });
+      await page().evaluate(`window.events = []; addEventListener('offline', () => events.push('offline')); addEventListener('online', () => events.push('online'));`);
+      await connect();
+      await p.setNetwork(true);
+      expect(await probe()).toEqual([false, 'failed', 'echo:ping']);
+      await p.setNetwork(false);
+      expect(await probe()).toEqual([true, 'ok', 'echo:ping']);
+      expect(await page().evaluate('events')).toEqual(['offline', 'online']);
+
+      // A relaunch while offline loads the page, then goes offline (as on Chromium).
+      await p.setNetwork(true);
+      await p.terminate({ keepData: true });
+      await p.launch({ port, sessionId: 's' });
+      await connect();
+      expect(await probe()).toEqual([false, 'failed', 'echo:ping']);
+      await p.resetDeviceState();
+      expect(await probe()).toEqual([true, 'ok', 'echo:ping']);
+    } finally {
+      await p.shutdown();
+      echo.close();
+    }
+  });
+});
+
+describe.each(['chromium', 'firefox', 'webkit'] as const)('WebProvider drag pacing (real %s)', (browser) => {
+  it('moves over durationMs, reaches the target, rests there, then releases', async () => {
+    const p = new WebProvider({ app: { distDir: dir }, device: { browser, viewport: { width: 390, height: 844 } } });
+    await p.boot();
+    await p.install();
+    try {
+      await p.launch({ port: 1, sessionId: 's' });
+      const page = (p as unknown as { page: { evaluate<T>(f: string): Promise<T> } }).page;
+      await page.evaluate(`window.drag = []; for (const t of ['mousedown', 'mousemove', 'mouseup']) addEventListener(t, (e) => drag.push([t, e.clientX, performance.now()]));`);
+      await p.injectInput({ kind: 'drag', from: { x: 50, y: 450 }, to: { x: 150, y: 450 }, durationMs: 300, holdMs: 0 });
+      const log = await page.evaluate<[string, number, number][]>('drag');
+      const down = log.find(([t]) => t === 'mousedown') as [string, number, number];
+      const moves = log.filter(([t, , at]) => t === 'mousemove' && at > down[2]);
+      const up = log[log.length - 1] as [string, number, number];
+      expect(up[0]).toBe('mouseup');
+      expect(moves[moves.length - 1]?.[1]).toBe(150);
+      // Spread over the duration, not one burst (WebKit), and a rest at the target before the release.
+      expect((moves[moves.length - 1]?.[2] ?? 0) - down[2]).toBeGreaterThan(250);
+      expect(up[2] - (moves[moves.length - 1]?.[2] ?? 0)).toBeGreaterThan(80);
+    } finally {
+      await p.shutdown();
+    }
+  });
+});
+
+// WebKit's own gaps (findings F.3). Requires `npx playwright install webkit`.
+describe('WebProvider on WebKit (real webkit)', () => {
+  const pageOf = (p: WebProvider) => (p as unknown as { page: { evaluate<T>(f: string): Promise<T> } }).page;
+
+  it("keeps the clipboard itself: the page's navigator.clipboard and copy events, the test's set / get, across relaunches", async () => {
+    const p = new WebProvider({ app: { distDir: dir }, device: { browser: 'webkit' } });
+    await p.boot();
+    await p.install();
+    try {
+      await p.launch({ port: 1, sessionId: 's' });
+      await p.setClipboard('from the test');
+      expect(await pageOf(p).evaluate('navigator.clipboard.readText()')).toBe('from the test');
+      expect(await pageOf(p).evaluate("navigator.clipboard.read().then((items) => items[0].getType('text/plain')).then((b) => b.text())")).toBe('from the test');
+      await pageOf(p).evaluate("navigator.clipboard.writeText('from the page')");
+      expect(await p.getClipboard()).toBe('from the page');
+      await pageOf(p).evaluate("navigator.clipboard.write([new ClipboardItem({ 'text/plain': new Blob(['as an item'], { type: 'text/plain' }) })])");
+      expect(await p.getClipboard()).toBe('as an item');
+      // execCommand('copy') with a handler that sets the data.
+      await pageOf(p).evaluate("document.addEventListener('copy', (e) => { e.clipboardData.setData('text/plain', 'copied'); e.preventDefault(); }, { once: true }); document.execCommand('copy')");
+      await new Promise((r) => setTimeout(r, 100));
+      expect(await p.getClipboard()).toBe('copied');
+      // Like a device's clipboard, it outlives the app.
+      await p.terminate();
+      await p.launch({ port: 1, sessionId: 's' });
+      expect(await pageOf(p).evaluate('navigator.clipboard.readText()')).toBe('copied');
+    } finally {
+      await p.shutdown();
+    }
+  });
+
+  it('opens the app again when the location permission changes (a page keeps its first decision); other changes do not', async () => {
+    const p = new WebProvider({ app: { distDir: dir }, device: { browser: 'webkit' } });
+    await p.boot();
+    await p.install();
+    try {
+      await p.grantPermissions(['location']);
+      await p.launch({ port: 1, sessionId: 's' });
+      await expect(p.setPermission('location', false)).resolves.toEqual({ relaunch: true });
+      await expect(p.setPermission('location', false)).resolves.toEqual({ relaunch: false }); // unchanged
+      await expect(p.setPermission('camera', true)).resolves.toEqual({ relaunch: false });
+      await p.launch({ port: 1, sessionId: 's' });
+      const position = "new Promise((r) => navigator.geolocation.getCurrentPosition(() => r('ok'), (e) => r('denied ' + e.code), { timeout: 3000 }))";
+      expect(await pageOf(p).evaluate(position)).toBe('denied 1');
+      await expect(p.resetPermission('location')).resolves.toEqual({ relaunch: false }); // already not granted
+    } finally {
+      await p.shutdown();
+    }
+  });
+
+  it('scrolls with a dispatched wheel event on mobile viewports (Playwright has no wheel there)', async () => {
+    const p = new WebProvider({ app: { distDir: dir }, device: { browser: 'webkit', viewport: { width: 390, height: 844, hasTouch: true, isMobile: true } } });
+    await p.boot();
+    await p.install();
+    try {
+      await p.launch({ port: 1, sessionId: 's' });
+      await p.injectInput({ kind: 'wheel', x: 100, y: 200, dx: 0, dy: 300 });
+      await new Promise((r) => setTimeout(r, 200));
+      expect(await pageOf(p).evaluate("document.getElementById('s').scrollTop")).toBeGreaterThan(0);
+    } finally {
+      await p.shutdown();
+    }
   });
 });

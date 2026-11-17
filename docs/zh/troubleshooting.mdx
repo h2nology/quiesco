@@ -76,7 +76,10 @@ App 中未捕获的错误会让当前步骤失败——这通常是真正的 bug
 
 ## Web {#web}
 
-- **找不到 `@quiesco/web` / Playwright：** 执行 `npm i -D @quiesco/web playwright` 和 `npx playwright install chromium`。纯原生项目不需要它们。
+- **找不到 `@quiesco/web` / Playwright：** 执行 `npm i -D @quiesco/web playwright` 和 `npx playwright install chromium`（或 `firefox` / `webkit`：你运行的 `devices.web.browser`）。纯原生项目不需要它们。
+- **`Cannot launch webkit` / `firefox`：** 当前 Playwright 版本对应的这个浏览器没有安装：`npx playwright install webkit`。`npx quiesco doctor` 会检查配置中的浏览器。
+- **WebKit：`setPermission('location', …)` 之后 App 重新启动了：** 这是预期行为。WebKit 页面一直沿用第一次得到的定位授权，所以 Quiesco 重新启动 App（数据保留）让变化生效（[浏览器](./platforms#browsers)）。
+- **WebKit：在 App 里复制的文字不在 Mac 的剪贴板里（反之亦然）：** WebKit 上的剪贴板由 Quiesco 保存，只支持文本，由页面和 `app.clipboard` 共用（[浏览器](./platforms#browsers)）。
 - **首次导航到懒加载路由时失败，报 "Requiring unknown module"：** 这是 Expo Router 的无害报错，Quiesco 默认会忽略（[已知问题](./known-issues)）。
 
 ## `unknown command` 或 Quiesco 版本不一致 {#quiesco-versions}

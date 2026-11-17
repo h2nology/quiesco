@@ -7,7 +7,7 @@ The same features, steps and `this.app` calls run on all three platforms. What d
 
 | | iOS | Android | Web |
 |---|---|---|---|
-| Device | Simulator (`xcrun simctl`), booted if needed | Emulator or device (`adb`); an AVD is booted cold if needed | Chromium through the Playwright library (a new browser context per launch) |
+| Device | Simulator (`xcrun simctl`), booted if needed | Emulator or device (`adb`); an AVD is booted cold if needed | Chromium, Firefox or WebKit through the Playwright library (a new browser context per launch; [browsers](#browsers)) |
 | App build | `.app` for the simulator, made with `EXPO_PUBLIC_QUIESCO=1` | APK made with `EXPO_PUBLIC_QUIESCO=1` | `npx expo export --platform web` with `EXPO_PUBLIC_QUIESCO=1` (static output served by Quiesco, server output hosted with `npx expo serve`), or a dev server |
 | How the app finds the host | launch arguments | intent extras | an init script in the page |
 | Real input (`native` mode) | synthesized `UITouch` events (`@quiesco/native`, private API, e2e builds only) | `MotionEvent`s dispatched to the activity (`@quiesco/native`) | Playwright touchscreen (touch viewports) or mouse; text with the keyboard |
@@ -26,7 +26,7 @@ The same features, steps and `this.app` calls run on all three platforms. What d
 | `setValue` on a picker / date picker | wheels turned by a finger (`display="spinner"` for dates; compact / inline: callbacks) | callbacks (dropdowns and date dialogs are separate windows) | `<select>` / date inputs filled by Playwright; other components: callbacks |
 | `adjustSlider` | real drag, read back and corrected | real drag, read back and corrected | mouse drag (not read back) |
 | `accessibilityAction` | VoiceOver paths (increment / decrement, custom actions) | `performAccessibilityAction` | `onAccessibilityAction` |
-| `pinch`, `rotate`, `multiTouch` | several `UITouch`es in one event (needs `@quiesco/native` ≥ Phase 6.4: `multiGesture`) | multi-pointer `MotionEvent`s (same) | CDP touch events on touch viewports; desktop viewports: `ACTION_NOT_SUPPORTED` |
+| `pinch`, `rotate`, `multiTouch` | several `UITouch`es in one event (needs `@quiesco/native` ≥ Phase 6.4: `multiGesture`) | multi-pointer `MotionEvent`s (same) | touch viewports: CDP touch events (Chromium), synthetic pointer and touch events in the page (Firefox, WebKit); desktop viewports: `ACTION_NOT_SUPPORTED` |
 | Recognizer activation compensated (`actions.gestureSlop`) | 9 pt, 7° | 26 dp, 9° | 46 px, 0° |
 | `relaunch({ args })` → `quiesco.launchArgs()` | `-quiescoArgs` launch argument (needs `@quiesco/native` ≥ Phase 6.5) | `--es quiescoArgs` extra (same) | init script |
 | `relaunch({ url })` | `-quiescoUrl`, handed to expo-linking by `@quiesco/native` before JS runs (≥ Phase 6.5; without it: opened after the launch) | intent data; dev clients start with their own link to Metro and get `--es quiescoUrl`, which `@quiesco/native` makes the start URL before JS runs (without it: opened after the launch) | the URL's path is opened (`myapp://todos/1` → `/todos/1`) |
@@ -41,9 +41,9 @@ The same features, steps and `this.app` calls run on all three platforms. What d
 | `setFontScale()` | `simctl ui content_size`, nearest Dynamic Type size (0.823 … 3.571), live | `settings put system font_scale`, then the app is started again (data kept) | `ACTION_NOT_SUPPORTED` |
 | `setLocale()` | relaunch with `-AppleLanguages` / `-AppleLocale` (needs `CFBundleLocalizations`) | per-app language, `cmd locale set-app-locales` (Android 13+), then the app is started again | a new browser context with that locale (data kept) |
 | `setLocation()` | `simctl location set` (reset: `clear`) | `adb emu geo fix` (emulators only) | `context.setGeolocation` |
-| `setPermission()` | `simctl privacy grant / revoke / reset` (no camera / notifications; their `'reset'` reinstalls the app); the app keeps running | `pm grant / revoke` (+ `clear-permission-flags`); a revoke or reset kills the app → started again | `grantPermissions` / `clearPermissions` |
-| `setNetwork('offline')` | the agent fails the app's new connections; no device switch (NetInfo stays online) | the agent, plus `svc wifi / data disable` (NetInfo sees it; `adb reverse` keeps working) | the agent, plus aborted page requests and CDP `Network.overrideNetworkState` (`navigator.onLine`, `offline` / `connection` `change` events; Chromium) |
-| `clipboard.set()` / `get()` | `UIPasteboard` in the app (`@quiesco/native` ≥ Phase 6.6); `get` without it: `simctl pbpaste` | `ClipboardManager` in the app (same; without it `ACTION_NOT_SUPPORTED`) | `navigator.clipboard` (clipboard permissions granted to the page) |
+| `setPermission()` | `simctl privacy grant / revoke / reset` (no camera / notifications; their `'reset'` reinstalls the app); the app keeps running | `pm grant / revoke` (+ `clear-permission-flags`); a revoke or reset kills the app → started again | `grantPermissions` / `clearPermissions`; WebKit: a location change relaunches the app (data kept) |
+| `setNetwork('offline')` | the agent fails the app's new connections; no device switch (NetInfo stays online) | the agent, plus `svc wifi / data disable` (NetInfo sees it; `adb reverse` keeps working) | the agent, plus aborted page requests and `navigator.onLine` with `offline` / `online` events (Chromium: CDP `Network.overrideNetworkState`, also `connection` `change`; Firefox, WebKit: set in the page) |
+| `clipboard.set()` / `get()` | `UIPasteboard` in the app (`@quiesco/native` ≥ Phase 6.6); `get` without it: `simctl pbpaste` | `ClipboardManager` in the app (same; without it `ACTION_NOT_SUPPORTED`) | `navigator.clipboard` (clipboard permissions granted to the page); WebKit: a text clipboard kept by Quiesco |
 | `setStatusBar()` | `simctl status_bar override` (reset: `clear`) | SystemUI demo mode (`sysui_demo_allowed`, notification icons hidden; reset: `exit`) | no status bar: nothing to do |
 | `biometrics.enroll()` | `notifyutil` in the simulator: `com.apple.BiometricKit.enrollmentChanged` (restored to the previous value) | screen-lock PIN (`locksettings set-pin`), Settings' enrollment driven with `uiautomator` (buttons by position) and `adb emu finger touch 1`; removing the PIN removes the fingerprint | `ACTION_NOT_SUPPORTED` |
 | `biometrics.match()` / `fail()` | `notifyutil -p com.apple.BiometricKit_Sim.pearl.match` / `.nomatch` (and `fingerTouch.*` for Touch ID models) | `adb emu finger touch 1` / `2`, once the authentication has started (`dumpsys fingerprint`) | `ACTION_NOT_SUPPORTED` |
@@ -154,7 +154,8 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
 
 ## Web {#web}
 
-- Chromium is the supported browser; `firefox` / `webkit` can be configured but are not tested.
+- `devices.web.browser` picks Chromium (default), Firefox or WebKit; all three run the same features
+  ([browsers](#browsers)).
 - Viewports come from the config (phone, tablet, desktop…); touch viewports get touch input.
 - A full page load reconnects the agent; the host waits for it without failing the step.
 - Testing only native platforms does not require Playwright; the web provider is loaded on demand.
@@ -162,7 +163,9 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
   WebSocket (the socket stays open but no message arrives). Instead the page's requests are aborted
   (routes do not see WebSockets) and CDP `Network.overrideNetworkState` sets `navigator.onLine` with real
   `offline` / `online` events; zero throughput also fires `navigator.connection`'s `change`, the event
-  NetInfo listens to in Chromium. A relaunch while offline loads the page first, then goes offline.
+  NetInfo listens to in Chromium. Firefox and WebKit have no CDP: there `navigator.onLine` is overridden
+  in the page and `offline` / `online` are dispatched (what NetInfo listens to without
+  `navigator.connection`). A relaunch while offline loads the page first, then goes offline.
 - Device-state read-backs never touch the app's own `MediaQueryList`: reading `matches` on the list that
   react-native-web's `Appearance` listens to makes Chromium skip the change event, and
   `useColorScheme()` would never update.
@@ -172,3 +175,25 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
 - `@react-native-community/datetimepicker` has no web implementation; use `<input type="date">` there
   (`setValue` fills it). `@react-native-segmented-control`'s web / Android implementation does not pass
   `testID` on: put the testID on a wrapping `View` (`setValue` uses the single control inside it).
+
+### Browsers {#browsers}
+
+The same features run in all three. What differs underneath, where Playwright or the browser leaves a gap:
+
+| | Chromium | Firefox | WebKit |
+|---|---|---|---|
+| `pinch`, `rotate`, `multiTouch` (touch viewports) | CDP `Input.dispatchTouchEvent` | synthetic `PointerEvent`s and `TouchEvent`s dispatched in the page | same as Firefox (touches made with `document.createTouch`) |
+| `setNetwork('offline')`: what the page sees | CDP: `navigator.onLine`, `offline` / `online`, `connection` `change` | `navigator.onLine` overridden in the page, `offline` / `online` | same as Firefox |
+| `setPermission('location', …)` while the app runs | applies to the open page | applies to the open page | a page keeps the answer it first got: the app is relaunched (data kept), as Android does on a revoke |
+| `clipboard`, `navigator.clipboard` | the system clipboard | the system clipboard | a text clipboard kept by Quiesco (under automation WebKit lets a page write the clipboard but not read it): the page's `navigator.clipboard` and `copy` events and `app.clipboard` share it; it survives relaunches; text only, not visible outside the browser |
+| `swipe`, `scroll` on a mobile viewport (`isMobile`) | mouse wheel | mouse wheel | a `WheelEvent` dispatched at the point (mobile WebKit has no mouse wheel) |
+
+- `drag` and `adjustSlider` move the pointer step by step over their duration and rest 100 ms before the
+  release, in every browser (WebKit would otherwise get all moves at once and drop at the wrong place).
+- Synthetic events are not trusted (`isTrusted` is false); react-native-gesture-handler and
+  react-native-web's responder system do not look at it.
+- Pick the browser with an environment variable to run the same suite in each, and use
+  [browser tags](./api.md#scenario-tags) (`@chromium`, `@firefox`, `@webkit`) for scenarios that only make
+  sense in some of them.
+- `npx playwright install chromium firefox webkit` installs the browsers; `npx quiesco doctor` checks the
+  configured one.

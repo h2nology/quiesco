@@ -63,7 +63,9 @@ eas build --profile e2e --platform android
 | `EXPO_PUBLIC_TRANSITION_MS=1000` | 画面遷移に1秒かかる（Metroの起動時に設定する） |
 | `QUIESCO_AVD=<name>` | 使用 / 起動するAVD |
 | `QUIESCO_IOS_DEVICE="iPhone 17"`, `QUIESCO_IOS_OS=27.0` | 使用 / 起動するシミュレーター（デフォルトは起動中のもの） |
-| `QUIESCO_ACTION_MODE=js` | 実際のタッチを注入する代わりに、コンポーネントのコールバックを呼び出す |
+| `QUIESCO_ACTION_MODE=js` | 実際のタッチを注入する代わりに、コンポーネントのコールバックを呼び出す（`@needs-touch`のシナリオは除外） |
+| `QUIESCO_BROWSER=firefox` | Webのブラウザー：`chromium`（デフォルト）、`firefox`、`webkit` |
+| `QUIESCO_VIEWPORT=desktop` | Webのビューポート：`mobile`（デフォルト）、`tablet`、`desktop`（タッチスクリーンがないため`@multi-touch`のシナリオは除外） |
 
 アプリにネイティブモジュールが含まれているため、アクションは`native`モード（`@quiesco/native`による実際のタッチとIMEでのテキスト入力）を使います。`QUIESCO_ACTION_MODE=js`でコールバックモードに切り替わります。
 

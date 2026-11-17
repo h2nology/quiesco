@@ -81,6 +81,15 @@ describe('quiesco doctor', () => {
     expect(out).toMatch(/All required checks passed/);
   });
 
+  it('checks the browser the config runs (devices.web.browser)', async () => {
+    const { ctx } = setUpProject();
+    const scripts: string[] = [];
+    const missing = { ...ctx, exec: async (c: string, a: readonly string[]) => (c === 'node' ? (scripts.push(a[2] as string), { code: 0, stdout: '/nowhere/webkit', stderr: '' }) : ctx.exec(c, a)) };
+    const results = await runChecks(missing, 'web', deps({ loadConfig: async () => ({ apps: { web: { distDir: 'dist' } }, devices: { web: { browser: 'webkit' } } }) }));
+    expect(scripts[0]).toMatch(/pw\.webkit\.executablePath\(\)/);
+    expect(results.find((r) => r.name.startsWith('Web: '))).toMatchObject({ name: 'Web: WebKit', status: 'fail', detail: 'Playwright webkit is not installed', fix: 'npx playwright install webkit' });
+  });
+
   it('checks that the Quiesco packages have one version and the scripts name existing commands (issue #17)', async () => {
     const check = async (versions: Record<string, string>, scripts: Record<string, string> = {}, extra: Record<string, string> = {}) => {
       const { ctx } = setUpProject();

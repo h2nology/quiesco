@@ -592,7 +592,7 @@ export default defineConfig({
 | `devices.android.avd` / `serial` | a running device | Which emulator / device; the AVD is booted (cold) if not running |
 | `devices.android.gpu` | the AVD's mode; `auto` → `host` on macOS | `-gpu` of the emulators Quiesco boots. On macOS the emulator turns `auto` into `lavapipe`, a CPU renderer (~4 cores per idle emulator) |
 | `devices.*.shutdown` | `false` | Shut down a device Quiesco booted when the run ends |
-| `devices.web.browser` / `headless` / `viewport` | `chromium`, headless | Browser and screen size (nothing is built in) |
+| `devices.web.browser` / `headless` / `viewport` | `chromium`, headless | Browser (`chromium`, `firefox` or `webkit`; [differences](./platforms.md#browsers)) and screen size (nothing is built in) |
 | `permissions` | `[]` | Granted before launch: `camera`, `microphone`, `location`, `notifications`, `contacts`, `photos`, `calendar` ([per platform](./platforms.md#permissions)) |
 | `sync.timeoutMs` | `10000` | How long a call waits for idle |
 | `sync.timerThresholdMs` | `1500` | Timers up to this delay keep the app busy |
@@ -623,13 +623,16 @@ The config file is plain TypeScript, so values can come from the environment.
 |---|---|
 | `@ios`, `@android`, `@web` | Run the scenario only on these platforms (several tags: any of them) |
 | `@native` | iOS and Android only |
+| `@chromium`, `@firefox`, `@webkit` | On the web, run the scenario only in these browsers (`devices.web.browser`); iOS and Android ignore them |
 | `@hard-reset` | Relaunch the app before this scenario instead of the soft reset |
 
-Untagged scenarios run everywhere. Rename them with `tags: { web: '@browser' }`.
+Untagged scenarios run everywhere. Rename them with `tags: { web: '@browser', webkit: '@safari' }`.
 
 Platform tags can sit on the feature, a `Rule`, the scenario or an `Examples` block; the innermost one decides.
 In a feature tagged `@native`, an untagged scenario runs on iOS and Android, and a scenario tagged `@android`
-runs on Android only. This differs from cucumber-js `--tags`, which matches inherited tags too.
+runs on Android only. Browser tags follow the same rule, apart from the platform tags: `@web @webkit` runs
+on the web in WebKit only, and a scenario tagged `@firefox` in a `@chromium` feature runs in Firefox only.
+This differs from cucumber-js `--tags`, which matches inherited tags too.
 
 ## Errors {#errors}
 

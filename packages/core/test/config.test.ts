@@ -117,6 +117,20 @@ describe('tags', async () => {
     expect(flattenTags([['@native'], [], ['@android', '@hard-reset']])).toEqual(['@native', '@android', '@hard-reset']);
     expect(flattenTags(['@web'])).toEqual(['@web']);
   });
+  it('browser tags restrict web only; the innermost level with a browser tag decides', () => {
+    expect(runsOnPlatform(['@webkit'], 'web', undefined, 'webkit')).toBe(true);
+    expect(runsOnPlatform(['@webkit'], 'web', undefined, 'chromium')).toBe(false);
+    expect(runsOnPlatform(['@chromium', '@firefox'], 'web', undefined, 'firefox')).toBe(true);
+    expect(runsOnPlatform(['@webkit'], 'ios', undefined, 'chromium')).toBe(true); // native ignores them
+    expect(runsOnPlatform(['@webkit'], 'web')).toBe(true); // no browser known
+    // decided apart from platform tags
+    expect(runsOnPlatform(['@android', '@webkit'], 'web', undefined, 'webkit')).toBe(false);
+    expect(runsOnPlatform([['@web'], [], ['@firefox']], 'web', undefined, 'firefox')).toBe(true);
+    expect(runsOnPlatform([['@chromium'], [], ['@webkit']], 'web', undefined, 'chromium')).toBe(false);
+    expect(runsOnPlatform([['@chromium'], [], ['@ios']], 'web', undefined, 'chromium')).toBe(false);
+    expect(runsOnPlatform([['@chromium'], [], ['@smoke']], 'web', undefined, 'webkit')).toBe(false);
+    expect(runsOnPlatform(['@safari'], 'web', tagNames({ webkit: '@safari' }), 'webkit')).toBe(true);
+  });
   it('tag names are configurable', () => {
     const names = tagNames({ web: '@browser' });
     expect(runsOnPlatform(['@browser'], 'web', names)).toBe(true);

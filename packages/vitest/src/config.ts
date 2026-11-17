@@ -9,7 +9,7 @@
  * - `isolate: false`: a worker keeps its session (the device and the app) across test files (findings
  *   6.10 batch B). `workers` (default 1) worker processes run files in parallel, each on its own device
  *   (Phase 6.12): `quiesco({ workers: 2 })`, or `--fileParallelism --maxWorkers 2` on the command line.
- * - The platform tags are declared, so `test(name, { tags: ['@ios'] }, …)` is accepted.
+ * - The platform and browser tags are declared, so `test(name, { tags: ['@ios'] }, …)` is accepted.
  * - `testTimeout`: the first test also waits for the session (booting a device can take minutes).
  * - `quiescoPlugin()` (in `plugins`) sends the run's progress to `quiesco test` / `quiesco ui`.
  */
@@ -31,7 +31,7 @@ export interface QuiescoVitestOptions {
 
 export function quiesco(options: QuiescoVitestOptions = {}) {
   const names = { ...DEFAULT_TAGS, ...options.tags };
-  const declared = [...new Set([names.ios, names.android, names.web, names.native, names.hardReset, ...(options.extraTags ?? [])])];
+  const declared = [...new Set([names.ios, names.android, names.web, names.native, names.chromium, names.firefox, names.webkit, names.hardReset, ...(options.extraTags ?? [])])];
   return {
     pool: 'forks' as const,
     isolate: false,

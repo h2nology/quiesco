@@ -162,7 +162,7 @@ every `quiesco <command>` in the package.json scripts exists, config plugin, `wi
 entry's first import, `<QuiescoRoot>`, the config file), the app IDs (`quiesco.config.mts` against
 `app.json` and the builds, and placeholders left by `init`), settings older versions wrote (`paths` in the
 cucumber config; `.ts` imports in step files without `allowImportingTsExtensions`), the platform tools
-(simulators, adb and AVDs, Playwright's Chromium), the app builds and the port. Each problem comes with the
+(simulators, adb and AVDs, the configured Playwright browser), the app builds and the port. Each problem comes with the
 fix; most of what an older setup lacks is fixed by `npx quiesco@latest init --upgrade`. Exits with 1 when a
 required check fails; warnings and notes (ℹ️, such as a missing `e2e:build:*` script) do not fail.
 

@@ -19,7 +19,7 @@ export { attachToRunningApp } from './attach.js';
 export { REUSED_DEV_SERVER_ENV } from './bundle-check.js';
 export type { AttachOptions, AttachedApp } from './attach.js';
 export { DEFAULT_TAGS, flattenTags, runsOnPlatform, tagNames } from './tags.js';
-export type { ScenarioTags, TagNames } from './tags.js';
+export type { ScenarioTags, TagNames, WebBrowser } from './tags.js';
 export type { Evidence, ScenarioInfo, SessionOptions } from './session.js';
 export { AndroidProvider } from './devices/android.js';
 export { IosProvider, IOS_DEV_MENU_ARGS } from './devices/ios.js';

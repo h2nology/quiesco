@@ -3,15 +3,23 @@
  * - Platform tags: a scenario carrying any of them runs only on the listed platforms
  *   (`@native` = ios + android). Untagged scenarios run everywhere. When several Gherkin levels carry
  *   platform tags (feature, rule, scenario, examples), the innermost one decides.
+ * - Browser tags (`@chromium` `@firefox` `@webkit`): on web, a scenario carrying any of them runs only
+ *   in the listed browsers (`devices.web.browser`); iOS and Android ignore them. Same innermost-level
+ *   rule, decided apart from the platform tags (`@web @webkit` = web, WebKit only).
  * - Hard reset tag: relaunch the app instead of a soft reset.
  */
 import type { Platform } from '@quiesco/protocol';
+
+export type WebBrowser = 'chromium' | 'firefox' | 'webkit';
 
 export interface TagNames {
   ios: string;
   android: string;
   web: string;
   native: string;
+  chromium: string;
+  firefox: string;
+  webkit: string;
   hardReset: string;
 }
 
@@ -21,7 +29,7 @@ export interface TagNames {
  */
 export type ScenarioTags = readonly string[] | readonly (readonly string[])[];
 
-export const DEFAULT_TAGS: TagNames = { ios: '@ios', android: '@android', web: '@web', native: '@native', hardReset: '@hard-reset' };
+export const DEFAULT_TAGS: TagNames = { ios: '@ios', android: '@android', web: '@web', native: '@native', chromium: '@chromium', firefox: '@firefox', webkit: '@webkit', hardReset: '@hard-reset' };
 
 export function tagNames(overrides: Partial<TagNames> = {}): TagNames {
   return { ...DEFAULT_TAGS, ...overrides };
@@ -48,16 +56,26 @@ function platformsOf(tags: readonly string[], names: TagNames): Set<Platform> {
   return allowed;
 }
 
+function browsersOf(tags: readonly string[], names: TagNames): Set<WebBrowser> {
+  return new Set((['chromium', 'firefox', 'webkit'] as const).filter((b) => tags.includes(names[b])));
+}
+
+/** The innermost level whose `pick` is not empty decides whether `value` is in it; none means yes. */
+function innermost<T>(tags: ScenarioTags, pick: (level: readonly string[]) => Set<T>, value: T): boolean {
+  const levels = isLeveled(tags) ? tags : [tags as readonly string[]];
+  for (let i = levels.length - 1; i >= 0; i--) {
+    const allowed = pick(levels[i] ?? []);
+    if (allowed.size > 0) return allowed.has(value);
+  }
+  return true;
+}
+
 /**
  * Whether a scenario with `tags` runs on `platform`: the innermost level with a platform tag decides
  * (a `@android` scenario in a `@native` feature runs on Android only); no platform tag at any level
- * means everywhere.
+ * means everywhere. On web with `browser` given, the innermost level with a browser tag decides too.
  */
-export function runsOnPlatform(tags: ScenarioTags, platform: Platform, names: TagNames = DEFAULT_TAGS): boolean {
-  const levels = isLeveled(tags) ? tags : [tags as readonly string[]];
-  for (let i = levels.length - 1; i >= 0; i--) {
-    const allowed = platformsOf(levels[i] ?? [], names);
-    if (allowed.size > 0) return allowed.has(platform);
-  }
-  return true;
+export function runsOnPlatform(tags: ScenarioTags, platform: Platform, names: TagNames = DEFAULT_TAGS, browser?: WebBrowser): boolean {
+  if (!innermost(tags, (level) => platformsOf(level, names), platform)) return false;
+  return platform !== 'web' || browser === undefined || innermost(tags, (level) => browsersOf(level, names), browser);
 }

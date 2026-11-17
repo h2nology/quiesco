@@ -423,9 +423,12 @@ async function platformChecks(ctx: CliContext, platform: CliPlatform, config: Qu
     }
   }
   if (platform === 'web') {
+    // The browser the config runs (devices.web.browser), as Playwright names it.
+    const browser = config?.devices?.web?.browser ?? 'chromium';
+    const label = `Web: ${{ chromium: 'Chromium', firefox: 'Firefox', webkit: 'WebKit' }[browser]}`;
     const probe = await ctx.exec(
       'node',
-      ['--input-type=module', '-e', "const { chromium } = await import('playwright'); await import('@quiesco/web'); console.log(chromium.executablePath());"],
+      ['--input-type=module', '-e', `const pw = await import('playwright'); await import('@quiesco/web'); console.log(pw.${browser}.executablePath());`],
       { cwd: ctx.cwd },
     );
     if (probe.code !== 0) {
@@ -434,8 +437,8 @@ async function platformChecks(ctx: CliContext, platform: CliPlatform, config: Qu
       const exe = probe.stdout.trim();
       out.push(
         ctx.exists(exe)
-          ? { name: 'Web: Chromium', status: 'ok', detail: exe }
-          : { name: 'Web: Chromium', status: 'fail', detail: 'Playwright Chromium is not installed', fix: 'npx playwright install chromium' },
+          ? { name: label, status: 'ok', detail: exe }
+          : { name: label, status: 'fail', detail: `Playwright ${browser} is not installed`, fix: `npx playwright install ${browser}` },
       );
     }
     const dist = config?.apps.web?.distDir;

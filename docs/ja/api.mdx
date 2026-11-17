@@ -468,7 +468,7 @@ export default defineConfig({
 | `devices.android.avd` / `serial` | 実行中のデバイス | どのエミュレーター / デバイスを使うか。AVDが実行中でなければ（コールドブートで）起動します |
 | `devices.android.gpu` | AVDのモード。macOSでは`auto` → `host` | Quiescoが起動するエミュレーターの`-gpu`。macOSではエミュレーターが`auto`を`lavapipe`（CPUレンダラー。アイドル状態のエミュレーター1台あたり約4コア）に変えてしまいます |
 | `devices.*.shutdown` | `false` | Quiescoが起動したデバイスを、実行終了時にシャットダウンする |
-| `devices.web.browser` / `headless` / `viewport` | `chromium`、ヘッドレス | ブラウザーと画面サイズ（組み込みのプリセットはありません） |
+| `devices.web.browser` / `headless` / `viewport` | `chromium`、ヘッドレス | ブラウザー（`chromium`、`firefox`、`webkit`。[違い](./platforms#browsers)）と画面サイズ（組み込みのプリセットはありません） |
 | `permissions` | `[]` | 起動前に付与する権限：`camera`、`microphone`、`location`、`notifications`、`contacts`、`photos`、`calendar`（[プラットフォームごと](./platforms#permissions)） |
 | `sync.timeoutMs` | `10000` | 呼び出しがアイドルを待つ時間 |
 | `sync.timerThresholdMs` | `1500` | 遅延がこの値以下のタイマーはアプリをビジーにする |
@@ -498,11 +498,12 @@ export default defineConfig({
 |---|---|
 | `@ios`、`@android`、`@web` | シナリオをこれらのプラットフォームでだけ実行する（複数のタグはいずれか一つに該当すれば実行） |
 | `@native` | iOSとAndroidのみ |
+| `@chromium`、`@firefox`、`@webkit` | Webでは、シナリオをこれらのブラウザーでだけ実行する（`devices.web.browser`）。iOSとAndroidでは無視される |
 | `@hard-reset` | このシナリオの前に、ソフトリセットの代わりにアプリを再起動する |
 
-タグのないシナリオはどこでも実行されます。名前を変えるには`tags: { web: '@browser' }`とします。
+タグのないシナリオはどこでも実行されます。名前を変えるには`tags: { web: '@browser', webkit: '@safari' }`とします。
 
-プラットフォームタグは、feature、`Rule`、シナリオ、`Examples`ブロックのどこにでも付けられ、最も内側のタグが判定に使われます。`@native`タグの付いたfeatureでは、タグのないシナリオはiOSとAndroidで実行され、`@android`タグの付いたシナリオはAndroidでだけ実行されます。継承したタグにもマッチするcucumber-jsの`--tags`とは、この点が異なります。
+プラットフォームタグは、feature、`Rule`、シナリオ、`Examples`ブロックのどこにでも付けられ、最も内側のタグが判定に使われます。`@native`タグの付いたfeatureでは、タグのないシナリオはiOSとAndroidで実行され、`@android`タグの付いたシナリオはAndroidでだけ実行されます。ブラウザータグも同じ規則で、プラットフォームタグとは別に判定されます。`@web @webkit`はWebのWebKitでだけ実行され、`@chromium`のfeature内で`@firefox`タグの付いたシナリオはFirefoxでだけ実行されます。継承したタグにもマッチするcucumber-jsの`--tags`とは、この点が異なります。
 
 ## エラー {#errors}
 
