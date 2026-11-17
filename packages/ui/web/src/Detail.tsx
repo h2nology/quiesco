@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ClientMessage, RunTarget } from '../../src/messages';
 import type { UiData } from './connection';
-import { Alert, Device, Rerun, StatusDot } from './icons';
+import { Alert, Device, Rerun } from './icons';
 import { useI18n } from './i18n';
 import type { Translate } from './i18n';
 import { STATUS_KEY, allTests, formatMs } from './model';
@@ -69,8 +69,8 @@ export function Detail({ data, selected }: Props) {
       <div className="detail-head">
         <div className="grow" style={{ display: 'flex', flexDirection: 'column', gap: 6, flexBasis: 300 }}>
           <div className="row wrap muted" style={{ fontSize: 12 }}>
-            <span className="status-pill" style={{ background: pillBg, color: pillFg, padding: '2px 9px', fontSize: 12 }}>
-              <StatusDot status={status} size={14} />
+            <span className="status-pill" style={{ background: pillBg, color: pillFg, padding: '3px 10px' }}>
+              <span className={`pill-dot${status === 'running' ? ' pulse' : ''}`} aria-hidden="true" />
               {t(STATUS_KEY[status])}
             </span>
             <span className="mono">{`${ref.file}${ref.line !== undefined ? `:${ref.line}` : ''}`}</span>

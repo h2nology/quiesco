@@ -7,7 +7,7 @@ import type { UiData } from './connection';
 import { Detail } from './Detail';
 import { LOCALES, useI18n } from './i18n';
 import type { Locale, Translate } from './i18n';
-import { Device, Globe, Logo, Moon, Play, Search, Spinner, Stop, Sun, Check, X, Skip } from './icons';
+import { Device, Globe, Lockup, Moon, Play, Search, Spinner, Stop, Sun } from './icons';
 import { allTests, formatMs } from './model';
 import type { Filter, Sort } from './model';
 import { TestTree } from './TestTree';
@@ -107,12 +107,7 @@ export function App() {
       </a>
       <header className="header">
         <div className="row">
-          <div className="logo" aria-hidden="true">
-            <Logo size={16} />
-          </div>
-          <span className="display" style={{ fontWeight: 700, fontSize: 16 }}>
-            Quiesco
-          </span>
+          <Lockup />
           {info !== null && <span className="pill">{`${info.project} · ${info.runner} · ${info.platform}`}</span>}
         </div>
         <div className="search">
@@ -183,7 +178,7 @@ function Connection({ status, t }: { status: UiData['status']; t: Translate }) {
   const label = status === 'open' ? t('connected') : status === 'connecting' ? t('connecting') : t('disconnected');
   return (
     <span className="row muted" style={{ fontSize: 12, gap: 6, padding: '0 6px' }}>
-      <span className={status === 'open' ? 'pulse' : ''} aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 999, background: color }} />
+      <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 999, background: color }} />
       {label}
     </span>
   );
@@ -254,15 +249,15 @@ function ProgressBand({ data, t }: { data: UiData; t: Translate }) {
         <div className="grow" />
         <div className="row wrap">
           <span className="status-pill" style={{ background: 'var(--passed-soft)', color: 'var(--passed)' }}>
-            <Check size={13} strokeWidth={3} />
+            <span className="pill-dot" aria-hidden="true" />
             {t('nPassed', { n: c.passed })}
           </span>
           <span className="status-pill" style={{ background: 'var(--failed-soft)', color: 'var(--failed)' }}>
-            <X size={13} strokeWidth={3} />
+            <span className="pill-dot" aria-hidden="true" />
             {t('nFailed', { n: c.failed })}
           </span>
           <span className="status-pill" style={{ background: 'var(--skipped-soft)', color: 'var(--skipped)' }}>
-            <Skip size={13} strokeWidth={3} />
+            <span className="pill-dot" aria-hidden="true" />
             {t('nSkipped', { n: skipped })}
           </span>
         </div>

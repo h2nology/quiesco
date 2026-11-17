@@ -8,6 +8,8 @@ colors:
   primary-hover: "#00258a"
   signal: "#6f86ff"
   signal-hover: "#8c9eff"
+  primary-dark: "#4a66f0"
+  primary-dark-hover: "#4560ec"
   # Light theme neutrals
   ink: "#0c0f1a"
   ink-muted: "#555c6e"
@@ -171,15 +173,15 @@ components:
     backgroundColor: "{colors.primary-hover}"
     textColor: "{colors.surface}"
   button-primary-dark:
-    backgroundColor: "{colors.signal}"
-    textColor: "{colors.canvas-dark}"
+    backgroundColor: "{colors.primary-dark}"
+    textColor: "{colors.surface}"
     typography: "{typography.label-md}"
     rounded: "{rounded.md}"
     height: "{spacing.control-md}"
     padding: 14px
   button-primary-dark-hover:
-    backgroundColor: "{colors.signal-hover}"
-    textColor: "{colors.canvas-dark}"
+    backgroundColor: "{colors.primary-dark-hover}"
+    textColor: "{colors.surface}"
   button-secondary:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
@@ -220,6 +222,9 @@ components:
   link-dark:
     backgroundColor: "{colors.surface-dark}"
     textColor: "{colors.signal}"
+  link-dark-hover:
+    backgroundColor: "{colors.surface-dark}"
+    textColor: "{colors.signal-hover}"
   list-row:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
@@ -355,7 +360,8 @@ Logo files live in `docs/logo/`. The mark is an ink ring with a dot in Signal bl
 The palette is two neutrals (ink and paper) and one blue, used at two strengths. Status colours are separate and only ever mean test results.
 
 - **Klein (`primary`, #002fa7):** International Klein Blue. The interactive colour in the light theme: primary buttons, links, the running state, selection. Deep enough to carry white text (10.7:1).
-- **Signal (`signal`, #6f86ff):** Klein lifted for dark backgrounds. It is the logo dot in both themes, and in the dark theme it replaces Klein for every interactive element. On light backgrounds use it only for the logo dot and focus rings, never for text (3.2:1 on white).
+- **Signal (`signal`, #6f86ff):** Klein lifted for dark backgrounds. It is the logo dot in both themes, and in the dark theme it replaces Klein for links, selection, the running state and focus. It never carries white text (3.2:1), and on light backgrounds it is used only for the logo dot and focus rings, never for text (3.2:1 on white).
+- **Klein Dark (`primary-dark`, #4a66f0):** The fill of primary buttons in the dark theme, so they keep white labels like the light theme (4.7:1). Hover goes one step deeper (`primary-dark-hover`, #4560ec).
 - **Ink (`ink`, #0c0f1a):** A near-black with a trace of blue. All text, the logo ring, the app icon tile.
 - **Ink Muted (`ink-muted`, #555c6e):** Secondary text, metadata, durations, file paths.
 - **Canvas / Surface (`canvas` #f5f6f8, `surface` #ffffff):** The page sits on a faint cool grey; panels and cards are white. `surface-sunken` (#f0f2f5) is for code, inputs on cards and hovered rows.
@@ -418,7 +424,7 @@ Icons are 16px or 20px line icons with a 1.5px stroke and square ends, matching 
 
 ## Components
 
-- **Buttons:** Primary is Klein with white text in light, Signal with canvas-dark text in dark; one per view, for the main action (Run). Secondary is a surface button with a 1px line border. Icon buttons are square at the control height. Hover darkens or lightens one step; pressed adds nothing extra; disabled is 50% opacity.
+- **Buttons:** Primary is always a filled blue with a white label: Klein in light, Klein Dark in dark; one per view, for the main action (Run). Secondary is a surface button with a 1px line border. Icon buttons are square at the control height. Hover darkens or lightens one step; pressed adds nothing extra; disabled is 50% opacity.
 - **Inputs:** Same height and radius as buttons, 1px line border, Signal focus ring. Search fields carry a leading icon and a trailing keyboard hint in a `kbd`.
 - **List rows (test tree):** 32px rows, 6px radius, no borders between rows. Hover uses `surface-sunken`; the selected row uses the running soft blue. Each row starts with a status dot.
 - **Status:** An 8px dot for dense lists and a pill (dot plus label) for headers and summaries. Running dots may pulse slowly (1.6s ease-in-out opacity); nothing else animates.
