@@ -3,7 +3,21 @@ name: ci
 on:
   push:
     branches: [main]
+    # Docs, the Claude Code plugin, plans and the top-level .md files alone need no build or unit tests
+    # (package READMEs stay: @quiesco/steps tests its README's table).
+    paths-ignore:
+      - docs/**
+      - plugin/**
+      - .planning/**
+      - '*.md'
   pull_request:
+    # Docs, the Claude Code plugin, plans and the top-level .md files alone need no build or unit tests
+    # (package READMEs stay: @quiesco/steps tests its README's table).
+    paths-ignore:
+      - docs/**
+      - plugin/**
+      - .planning/**
+      - '*.md'
 
 jobs:
   check:
