@@ -1,6 +1,5 @@
-import '@fontsource-variable/dm-sans';
-import '@fontsource-variable/jetbrains-mono';
-import '@fontsource-variable/space-grotesk';
+import '@fontsource-variable/geist';
+import '@fontsource-variable/geist-mono';
 import './styles.css';
 
 import { StrictMode } from 'react';
