@@ -6,6 +6,17 @@ name: prod-strip
 on:
   push:
     branches: [main]
+    # Same paths as pull requests: a change to docs or plans alone does not run this.
+    paths:
+      - packages/agent/**
+      - packages/native/**
+      - packages/expo-plugin/**
+      - packages/protocol/**
+      - examples/todo-app/**
+      - scripts/check-prod-strip.mjs
+      - scripts/prod-strip/**
+      - pnpm-lock.yaml
+      - .github/workflows/prod-strip.yml
   pull_request:
     paths:
       - packages/agent/**

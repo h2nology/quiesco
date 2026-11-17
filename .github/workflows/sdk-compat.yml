@@ -7,6 +7,14 @@ name: sdk-compat
 on:
   push:
     branches: [main]
+    # Same paths as pull requests: a change to docs or plans alone does not run this.
+    paths:
+      - packages/**
+      - examples/todo-app/**
+      - scripts/sdk-compat.mjs
+      - scripts/sdk-compat/**
+      - pnpm-lock.yaml
+      - .github/workflows/sdk-compat.yml
   pull_request:
     paths:
       - packages/**
