@@ -57,7 +57,7 @@ Quiescoが`Android showed "com.android.systemui isn't responding" over the app; 
 
 ## `APP_ERROR` {#app-error}
 
-アプリで捕捉されなかったエラーは、実行中のステップを失敗させます。たいていは本物のバグです。無害だとわかっているフレームワークの報告は、`appErrors.ignore`で無視できます（[既知の問題](./known-issues)を参照）。`console.error`ではステップは失敗しませんが、シナリオの中でその後に起きた失敗がそれを示します（[LogBoxがアプリを覆う](#logbox)）。
+アプリで捕捉されなかったエラーは、実行中のステップを失敗させます。たいていは本物のバグです。無害だとわかっているフレームワークの報告は、`appErrors.ignore`で無視できます（[設定](./api#configuration)）。`console.error`ではステップは失敗しませんが、シナリオの中でその後に起きた失敗がそれを示します（[LogBoxがアプリを覆う](#logbox)）。
 
 ## iOS {#ios}
 
@@ -80,7 +80,7 @@ Quiescoが`Android showed "com.android.systemui isn't responding" over the app; 
 - **`Cannot launch webkit` / `firefox`：** 使っているPlaywrightのバージョンに対応するそのブラウザーがインストールされていません：`npx playwright install webkit`。`npx quiesco doctor`は設定されたブラウザーをチェックします。
 - **WebKit：`setPermission('location', …)`のあとでアプリが再起動した：** 想定どおりの動作です。WebKitのページは最初に得た位置情報の許可を使い続けるため、Quiescoは変更を反映するためにアプリを再起動します（データは保持。[ブラウザー](./platforms#browsers)）。
 - **WebKit：アプリでコピーしたテキストがMacのクリップボードにない（またはその逆）：** WebKitではクリップボードをQuiescoが保持します。テキストのみで、ページと`app.clipboard`で共有されます（[ブラウザー](./platforms#browsers)）。
-- **遅延ロードするルートへの最初の遷移が「Requiring unknown module」で失敗する：** Expo Routerの無害な報告で、Quiescoはデフォルトで無視します（[既知の問題](./known-issues)）。
+- **遅延ロードするルートへの最初の遷移が「Requiring unknown module」で失敗する：** Expo Routerの無害な報告で、Quiescoはデフォルトで無視します。
 
 ## `unknown command`、またはQuiescoのバージョンが揃っていない {#quiesco-versions}
 

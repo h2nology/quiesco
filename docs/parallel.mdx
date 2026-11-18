@@ -1,19 +1,36 @@
 ---
 title: "Parallel runs"
-description: "A device, port and artifacts directory per worker, with cucumber-js, Jest and Vitest."
+description: "A device, port and artifacts directory per worker, with Vitest, Jest and cucumber-js."
 ---
 
 Quiesco runs tests on several devices at once: every **worker** of the test runner gets a device (or a
-browser), a Quiesco server port and an artifacts directory of its own. The same features run unchanged.
+browser), a Quiesco server port and an artifacts directory of its own. The same tests run unchanged.
 
-```sh
-npx quiesco test --platform ios --workers 2                    # cucumber-js --parallel 2
-npx quiesco test --platform android --runner jest --workers 2  # jest --maxWorkers 2
-npx quiesco test --platform web --runner vitest --workers 3    # vitest --fileParallelism --maxWorkers 3
+<CodeGroup>
+```sh pnpm
+pnpm exec quiesco test --platform web --runner vitest --workers 3    # vitest --fileParallelism --maxWorkers 3
+pnpm exec quiesco test --platform android --runner jest --workers 2  # jest --maxWorkers 2
+pnpm exec quiesco test --platform ios --runner cucumber --workers 2  # cucumber-js --parallel 2
 ```
+```sh npm
+npx quiesco test --platform web --runner vitest --workers 3    # vitest --fileParallelism --maxWorkers 3
+npx quiesco test --platform android --runner jest --workers 2  # jest --maxWorkers 2
+npx quiesco test --platform ios --runner cucumber --workers 2  # cucumber-js --parallel 2
+```
+```sh bun
+bunx quiesco test --platform web --runner vitest --workers 3    # vitest --fileParallelism --maxWorkers 3
+bunx quiesco test --platform android --runner jest --workers 2  # jest --maxWorkers 2
+bunx quiesco test --platform ios --runner cucumber --workers 2  # cucumber-js --parallel 2
+```
+```sh yarn
+yarn quiesco test --platform web --runner vitest --workers 3    # vitest --fileParallelism --maxWorkers 3
+yarn quiesco test --platform android --runner jest --workers 2  # jest --maxWorkers 2
+yarn quiesco test --platform ios --runner cucumber --workers 2  # cucumber-js --parallel 2
+```
+</CodeGroup>
 
-The runners' own flags work too: `cucumber-js --parallel 2`, `jest --maxWorkers 2`, or
-`quiesco({ workers: 2 })` / `vitest --fileParallelism --maxWorkers 2` for Vitest.
+The runners' own flags work too: `quiesco({ workers: 2 })` / `vitest --fileParallelism --maxWorkers 2` for
+Vitest, `jest --maxWorkers 2`, `cucumber-js --parallel 2`.
 
 ## Which device each worker uses {#which-device-each-worker-uses}
 
@@ -78,13 +95,11 @@ dialog for the app under test is left alone: the app itself hung, and the test f
 
 ## Runners {#runners}
 
-- **cucumber-js**: `--parallel N` runs N worker threads; each has its own session.
+- **Vitest**: `quiesco({ workers: N })` from `@quiesco/vitest/config` (`fileParallelism`, `maxWorkers`,
+  `isolate: false`): every worker keeps its session across the files it runs.
 - **Jest**: `maxWorkers: N` (the example reads `QUIESCO_WORKERS`). Every worker process has its own session.
   Jest ends workers without waiting for asynchronous cleanup, so Quiesco closes the session when Jest asks
   the worker to end and kills what is left synchronously; `globalTeardown` (the preset's, or yours calling
   `@quiesco/jest/teardown`) sweeps anything a worker could not. Jest may still run a fast suite in band
   (one process): that is worker 0 alone.
-- **Vitest**: `quiesco({ workers: N })` from `@quiesco/vitest/config` (`fileParallelism`, `maxWorkers`,
-  `isolate: false`): every worker keeps its session across the files it runs.
-
-Measurements: [benchmarks.md](./benchmarks#phase-612-parallel-runs).
+- **cucumber-js**: `--parallel N` runs N worker threads; each has its own session.

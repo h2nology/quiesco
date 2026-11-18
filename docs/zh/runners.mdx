@@ -1,16 +1,43 @@
 ---
-title: "Jest 和 Vitest"
-description: "在 Jest 或 Vitest 中使用 Quiesco，替代 Cucumber。"
+title: "测试运行器"
+description: "Vitest（推荐）、Jest 或 Cucumber：整个运行共用一个会话，每个测试前重置，失败时留下证据。"
 ---
 
-`@quiesco/vitest` 和 `@quiesco/jest` 为 Vitest 和 Jest 提供的功能，与 `@quiesco/cucumber` 为Cucumber 提供的相同：整个运行共用一个会话（设备和 App），每个测试前执行重置，跳过标记为其他平台或浏览器的测试（`@ios`、`@android`、`@web`、`@native`、`@chromium`、`@firefox`、`@webkit`；最内层的标记生效），失败消息会列出证据文件（截图、元素树、空闲状态、日志）。
+Quiesco 通过你的测试运行器驱动 App。有三个运行器提供现成的集成，用法都一样：整个运行共用一个会话（设备和 App），每个测试前执行重置，跳过标记为其他平台或浏览器的测试（`@ios`、`@android`、`@web`、`@native`、`@chromium`、`@firefox`、`@webkit`；最内层的标记生效），失败消息会列出证据文件（截图、元素树、空闲状态、日志）。
+
+| 运行器 | 包 | 测试 | App |
+|---|---|---|---|
+| **Vitest**（推荐） | `@quiesco/vitest` | TypeScript，`test(…)` | `app` fixture |
+| Jest | `@quiesco/jest` | JavaScript，`test(…)` | 全局 `quiesco.app` |
+| Cucumber | `@quiesco/cucumber` | Gherkin feature 和步骤定义 | 步骤中的 `this.app` |
+
+## 选择运行器 {#choosing}
+
+`quiesco init` 会询问使用哪个运行器（默认选中 Vitest；在 CI 中不询问，直接用 Vitest），并且只安装该运行器的包、配置和第一个测试。想跳过询问直接指定：
+
+<CodeGroup>
+```sh pnpm
+pnpm dlx quiesco init --runner vitest  # 或 jest、cucumber
+```
+```sh npm
+npx quiesco init --runner vitest     # 或 jest、cucumber
+```
+```sh bun
+bunx quiesco init --runner vitest    # 或 jest、cucumber
+```
+```sh yarn
+yarn dlx quiesco init --runner vitest  # 或 jest、cucumber
+```
+</CodeGroup>
+
+之后 `quiesco test`、`quiesco ui` 和 `quiesco list` 会使用已安装了 Quiesco 包的那个运行器，因此不需要 `--runner`。如果安装了多个（或一个都没有），则与 Quiesco 0.6 及更早版本一样使用 Cucumber；用 `--runner` 可以指定其他运行器。
 
 ## Vitest {#vitest}
 
-`app` 是一个测试 fixture：
+`app` 是一个测试 fixture。`quiesco init --runner vitest` 会写入配置（`vitest.config.mts`）和第一个测试（`e2e/app.test.ts`）：
 
 ```ts
-// vitest.config.ts
+// vitest.config.mts
 import { quiesco, quiescoPlugin } from '@quiesco/vitest/config';
 import { defineConfig } from 'vitest/config';
 export default defineConfig({ plugins: [quiescoPlugin()], test: { ...quiesco(), include: ['e2e/**/*.test.ts'] } });
@@ -31,10 +58,10 @@ test('Android only', { tags: ['@android'] }, async ({ app }) => { /* … */ });
 
 ## Jest {#jest}
 
-一个 preset；测试通过全局变量 `quiesco` 访问 App：
+一个 preset；测试通过全局变量 `quiesco` 访问 App。`quiesco init --runner jest` 会写入配置（`jest.config.cjs`）和第一个测试（`e2e/app.test.js`）：
 
 ```js
-// jest.config.js
+// jest.config.cjs
 module.exports = { preset: '@quiesco/jest', maxWorkers: 1, testTimeout: 120_000 }; // maxWorkers: N = N 台设备
 
 // e2e/todo.test.js
@@ -45,6 +72,26 @@ test('a new todo appears at the top @ios', async () => {
 
 平台标签写在测试或 `describe` 的标题中（Jest 没有测试选项）。preset 还会加上把运行进度发给 `quiesco test` 和 `quiesco ui` 的 reporter。如果配置里有自己的 `reporters`，会替换 preset 的：请在其中加上 `'@quiesco/jest/reporter'`（与 `'default'` 并列）。
 
+## Cucumber {#cucumber}
+
+用 Gherkin 编写 feature，步骤通过 `this.app` 访问 App：
+
+```gherkin
+Scenario: A new todo appears at the top of the list
+  When they add a todo "Buy milk"
+  Then the first todo is "Buy milk"
+```
+
+```ts
+When('they add a todo {string}', async function (this: QuiescoWorld, title: string) {
+  await this.app.tap('add-todo');                 // 等待 App 空闲，然后点击
+  await this.app.type('todo-title', title);
+  await this.app.tap({ role: 'button', text: 'Save' });
+});
+```
+
+`quiesco init --runner cucumber` 会写入 `cucumber.mjs`、`features/support/quiesco.ts`（World 和生命周期钩子），以及第一个 feature 及其步骤。在 `this.app` 之上编写业务语言步骤见 [Driver 模式](./driver-pattern)；用于原型验证的通用步骤见[通用步骤](./steps)。
+
 ## 运行 {#running}
 
-两者都用 `npx quiesco test --platform ios --runner vitest|jest` 运行，也可以用 [`quiesco ui`](./ui) 在浏览器中运行。示例都在[examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e) 中；详情见[不使用 Cucumber 时如何使用 Quiesco](./api#using-quiesco-without-cucumber)，多台设备同时运行见[并行运行](./parallel)。
+用 `npx quiesco test --platform ios` 运行测试（要使用已安装之外的运行器，加 `--runner vitest|jest|cucumber`），也可以用 [`quiesco ui`](./ui) 在浏览器中运行。三种示例都在 [examples/todo-app](https://github.com/h2nology/quiesco/tree/main/examples/todo-app) 中；详情见 [Vitest、Jest 和其他运行器](./api#using-quiesco-without-cucumber)，多台设备同时运行见[并行运行](./parallel)。

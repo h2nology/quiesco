@@ -3,23 +3,45 @@ title: "CLI"
 description: "quiescoコマンド：init、build、test、ui、list、devices、doctor、treeと、そのすべてのオプション。"
 ---
 
-```sh
+<CodeGroup>
+```sh pnpm
+pnpm exec quiesco <command> [options]
+```
+```sh npm
 npx quiesco <command> [options]
 ```
+```sh bun
+bunx quiesco <command> [options]
+```
+```sh yarn
+yarn quiesco <command> [options]
+```
+</CodeGroup>
 
 ## `quiesco init` {#quiesco-init}
 
 ExpoプロジェクトにQuiescoをセットアップします。各手順で何をしたかを報告します。既存のファイルは決して上書きしません。Quiescoが安全に変更できないファイルについては、追加すべき内容を表示します。Expo SDK 55より古いアプリでは警告を表示します（QuiescoはSDK 55以降に対応）が、セットアップは行います。
 
-1. プロジェクトのパッケージマネージャー（ロックファイルから判断したnpm、pnpm、yarn、bunのいずれか）でパッケージをインストールします。`@quiesco/agent`と`@quiesco/native`はdependenciesに、`quiesco`、`@quiesco/core`、`@quiesco/cucumber`、`@quiesco/expo-plugin`、`@cucumber/cucumber`（Web向けには`@quiesco/web`と`playwright`も）はdevDependenciesに入ります。Quiescoのパッケージは`init`を実行したCLIと同じバージョンでインストールします（`npx quiesco@0.4.0 init`なら0.4.0）。そのため、書き込むスクリプトとインストールされたCLIが一致します。インストール後、`init`はインストールされたバージョンを読み直し、食い違いがあれば実行すべきインストールコマンドを示して停止します（パッケージマネージャーがキャッシュの古いレジストリ情報を使った場合など）。
+最初に、どのテストランナーを使うかを尋ねます。Vitest（選択済み）、Jest、Cucumberのいずれかです（[テストランナー](./runners)）。`--runner`を付けるとあらかじめ答えたことになり、ターミナルに誰もいない場合（CI）はVitestを使います。
+
+1. プロジェクトのパッケージマネージャー（ロックファイルから判断したnpm、pnpm、yarn、bunのいずれか）でパッケージをインストールします。`@quiesco/agent`と`@quiesco/native`はdependenciesに、`quiesco`、`@quiesco/core`、`@quiesco/expo-plugin`、ランナーのパッケージ（`@quiesco/vitest`と`vitest`、`@quiesco/jest`と`jest`、または`@quiesco/cucumber`と`@cucumber/cucumber`）、Web向けの`@quiesco/web`と`playwright`はdevDependenciesに入ります。Quiescoのパッケージは`init`を実行したCLIと同じバージョンでインストールします（`npx quiesco@0.4.0 init`なら0.4.0）。そのため、書き込むスクリプトとインストールされたCLIが一致します。インストール後、`init`はインストールされたバージョンを読み直し、食い違いがあれば実行すべきインストールコマンドを示して停止します（パッケージマネージャーがキャッシュの古いレジストリ情報を使った場合など）。
 2. `app.json`のpluginsに`@quiesco/expo-plugin`を追加し、足りないアプリIDも書き込みます。`ios.bundleIdentifier`、`android.package`（どちらも`com.anonymous.<slug>`）と`scheme`（slug）です。これでビルドされるアプリと`quiesco.config.mts`が同じアプリを指します。これらがないと`expo prebuild`は独自の既定値を使い、その値はiOSとAndroidで異なります。`app.config.js` / `.ts`を使っているプロジェクトでは、書き込まずに自分で行う作業として示します。
 3. `withQuiesco()`を使った`metro.config.js`を作成します（既存のものがあれば、ラップする方法を説明します）。
 4. エントリーファイルの最初のimportを`@quiesco/agent`にします。Expo Routerのアプリには`index.ts`（`import '@quiesco/agent'; import 'expo-router/entry';`）と`"main": "index.ts"`を用意します。エントリーがローカルのコンポーネントを登録している場合（ブランクテンプレートのような`registerRootComponent(App)`）は、`init`がエントリーでそのコンポーネントを`<QuiescoRoot>`でラップします。
-5. `quiesco.config.mts`（バンドルID、パッケージ名、スキームは`app.json`から取得）、`cucumber.mjs`、`features/support/quiesco.ts`、ステップ付きの最初のfeature、`e2e:*`スクリプトを書き出し、`tsconfig.json`に`"allowImportingTsExtensions": true`を追加します（stepファイル同士は`.ts`付きでimportします。[stepファイルはコンパイルされない](./driver-pattern#type-stripping)を参照）。
+5. `quiesco.config.mts`（バンドルID、パッケージ名、スキームは`app.json`から取得）、ランナーの設定と最初のテスト、`e2e:*`スクリプトを書き出します。
+
+   | ランナー | ファイル |
+   |---|---|
+   | Vitest | `vitest.config.mts`、`e2e/app.test.ts` |
+   | Jest | `jest.config.cjs`、`e2e/app.test.js` |
+   | Cucumber | `cucumber.mjs`、`features/support/quiesco.ts`、ステップ付きの`features/app.feature`。さらに`tsconfig.json`に`"allowImportingTsExtensions": true`（stepファイル同士は`.ts`付きでimportします。[stepファイルはコンパイルされない](./driver-pattern#type-stripping)を参照） |
+
+   プロジェクトにすでにVitestやJestの設定（ユニットテスト用）がある場合、それには手を付けません。Quiescoの設定はその隣に`vitest.e2e.config.mts` / `jest.e2e.config.cjs`として置き、`e2e:*`スクリプトはその名前を`--config`で渡します。
 
 | オプション | |
 |---|---|
 | `--platforms ios,android,web` | セットアップするプラットフォーム。デフォルトはiOSとAndroidで、`react-native-web`がインストールされていればWebも加わります |
+| `--runner vitest\|jest\|cucumber` | 質問せずにセットアップするテストランナー。デフォルトはターミナルで尋ねます（Vitestが選択済み）。CIではVitest |
 | `--packages <dir>` | `<dir>`内の`.tgz`ファイル（`pnpm pack`の出力）からQuiescoをインストールし、パッケージ間の依存もそれらに固定します |
 | `--skip-install` | インストールコマンドを表示するだけにします |
 | `--upgrade` | 古いバージョンでセットアップしたプロジェクトをこのバージョンに上げます（[プロジェクトのアップグレード](#quiesco-init-upgrade)） |
@@ -29,14 +51,28 @@ ExpoプロジェクトにQuiescoをセットアップします。各手順で何
 
 ### プロジェクトのアップグレード {#quiesco-init-upgrade}
 
-```sh
+<CodeGroup>
+```sh pnpm
+pnpm dlx quiesco@latest init --upgrade            # バージョンを指定するならquiesco@0.4.1
+pnpm dlx quiesco@latest init --upgrade --dry-run  # 変更内容を示すだけ
+```
+```sh npm
 npx quiesco@latest init --upgrade            # バージョンを指定するならquiesco@0.4.1
 npx quiesco@latest init --upgrade --dry-run  # 変更内容を示すだけ
 ```
+```sh bun
+bunx quiesco@latest init --upgrade            # バージョンを指定するならquiesco@0.4.1
+bunx quiesco@latest init --upgrade --dry-run  # 変更内容を示すだけ
+```
+```sh yarn
+yarn dlx quiesco@latest init --upgrade            # バージョンを指定するならquiesco@0.4.1
+yarn dlx quiesco@latest init --upgrade --dry-run  # 変更内容を示すだけ
+```
+</CodeGroup>
 
 古い`quiesco init`でセットアップしたプロジェクトを、実行したCLIのバージョンに上げます。
 
-1. すべてのQuiescoパッケージをそのバージョンでインストールします。`init`が追加しないパッケージ（`@quiesco/steps`など）も対象です。`init`と同じく、インストール後にバージョンを読み戻して確かめます。`@cucumber/cucumber`と`playwright`には触れません。
+1. すべてのQuiescoパッケージをそのバージョンでインストールします。`init`が追加しないパッケージ（`@quiesco/steps`など）も対象です。`init`と同じく、インストール後にバージョンを読み戻して確かめます。ランナー本体（`vitest`、`jest`、`@cucumber/cucumber`）と`playwright`には触れません。
 2. cucumberの設定から`paths: ['features/**/*.feature']`を削除します。古いバージョンが書き込んでいた行で、これがあると`quiesco test features/x.feature`がすべてのfeatureを実行していました。
 3. `tsconfig.json`に`"allowImportingTsExtensions": true`を追加します。
 4. `app.json`に足りないアプリIDを書き込み（上の手順2と同じ）、`quiesco.config.mts`の`// TODO: expo.…`のプレースホルダーをその値に置き換えます。
@@ -46,75 +82,194 @@ npx quiesco@latest init --upgrade --dry-run  # 変更内容を示すだけ
 
 ## `quiesco build` {#quiesco-build}
 
-```sh
+<CodeGroup>
+```sh pnpm
+pnpm exec quiesco build ios
+pnpm exec quiesco build android --force
+```
+```sh npm
 npx quiesco build ios
 npx quiesco build android --force
 ```
+```sh bun
+bunx quiesco build ios
+bunx quiesco build android --force
+```
+```sh yarn
+yarn quiesco build ios
+yarn quiesco build android --force
+```
+</CodeGroup>
 
 e2eアプリをビルドし（`EXPO_PUBLIC_QUIESCO=1`付きの`expo prebuild`の後、シミュレーター向けの`xcodebuild`、または`gradlew assembleDebug` / `assembleRelease`）、`apps.<platform>.binaryPath`に書き出します。iOSでは、derived dataのパス、構成、スキームをそのパス（`<dir>/Build/Products/<Configuration>-iphonesimulator/<Name>.app`）から読み取ります。前回からアプリの設定と依存関係（インストール済みのバージョンを含む）が変わっておらず、ビルドが残っていれば、Debugビルドは省略します。`--force`を付けると必ずビルドします。ReleaseビルドはJSバンドルを含むため、常にビルドします。
 
 ## `quiesco test` {#quiesco-test}
 
-```sh
+<CodeGroup>
+```sh pnpm
+pnpm exec quiesco test --platform web
+pnpm exec quiesco test --platform android e2e/login.test.ts
+pnpm exec quiesco test --platform ios --config vitest.e2e.config.mts
+pnpm exec quiesco test --platform web --runner cucumber --tags @smoke features/login.feature
+pnpm exec quiesco test --platform web -- --testNamePattern todo
+pnpm exec quiesco test --help
+```
+```sh npm
 npx quiesco test --platform web
-npx quiesco test --platform android --tags @smoke features/login.feature
-npx quiesco test --platform ios --runner vitest --config vitest.e2e.config.mts
-npx quiesco test --platform web --runner jest e2e/todo.test.js
-npx quiesco test --platform web -- --tags @debug
+npx quiesco test --platform android e2e/login.test.ts
+npx quiesco test --platform ios --config vitest.e2e.config.mts
+npx quiesco test --platform web --runner cucumber --tags @smoke features/login.feature
+npx quiesco test --platform web -- --testNamePattern todo
 npx quiesco test --help
 ```
+```sh bun
+bunx quiesco test --platform web
+bunx quiesco test --platform android e2e/login.test.ts
+bunx quiesco test --platform ios --config vitest.e2e.config.mts
+bunx quiesco test --platform web --runner cucumber --tags @smoke features/login.feature
+bunx quiesco test --platform web -- --testNamePattern todo
+bunx quiesco test --help
+```
+```sh yarn
+yarn quiesco test --platform web
+yarn quiesco test --platform android e2e/login.test.ts
+yarn quiesco test --platform ios --config vitest.e2e.config.mts
+yarn quiesco test --platform web --runner cucumber --tags @smoke features/login.feature
+yarn quiesco test --platform web -- --testNamePattern todo
+yarn quiesco test --help
+```
+</CodeGroup>
 
-`QUIESCO_PLATFORM`を設定し、プロジェクトのテストランナーを実行します。ランナーは`cucumber-js`（デフォルト）、`jest`、`vitest run`のいずれかで（`--runner`）、それ以外の引数はすべてそのままランナーに渡します。`--`より後ろの引数もランナーに渡し、`--`自体は取り除きます。そのため、その後ろに書いたQuiescoのオプション名はランナーのものとして扱われます（`quiesco test -- --help`はランナーのヘルプを表示します）。`--workers N`はN個のワーカーを、それぞれ専用のデバイスで実行します（[parallel.md](./parallel)）。cucumber-jsでは`--parallel N`、Jestでは`--maxWorkers N`、Vitestでは`--fileParallelism --maxWorkers N`に変換されます（ランナー自身のフラグも使えます）。
+`QUIESCO_PLATFORM`を設定し、プロジェクトのテストランナーを実行します。ランナーは`vitest run`、`jest`、`cucumber-js`のいずれかで、それ以外の引数はすべてそのままランナーに渡します。`--runner vitest|jest|cucumber`を指定しなければ、Quiescoのパッケージ（`@quiesco/vitest`、`@quiesco/jest`、`@quiesco/cucumber`）がインストールされているランナーを実行します。複数インストールされている場合や1つもない場合は`cucumber-js`です。`--`より後ろの引数もランナーに渡し、`--`自体は取り除きます。そのため、その後ろに書いたQuiescoのオプション名はランナーのものとして扱われます（`quiesco test -- --help`はランナーのヘルプを表示します）。`--workers N`はN個のワーカーを、それぞれ専用のデバイスで実行します（[parallel.md](./parallel)）。cucumber-jsでは`--parallel N`、Jestでは`--maxWorkers N`、Vitestでは`--fileParallelism --maxWorkers N`に変換されます（ランナー自身のフラグも使えます）。
 
-ターミナルでは、ランナーの出力がその上に流れていく間、最終行に進捗バーを表示し続けます。完了数 / 総数、成功・失敗・スキップの件数、経過時間、実行中のテスト（ワーカーが複数あるときはデバイスごと）です。進捗はランナーが送ります。cucumber-jsには`quiesco test`が`@quiesco/cucumber`のフォーマッターを自動で追加し、Vitestには`quiescoPlugin()`が必要で、Jestではプリセットが用意します（[Jest と Vitest](./runners)）。送られてこない場合は、終了時に何を追加すればよいかを表示します。`--no-progress`または`QUIESCO_PROGRESS=0`で進捗バーを消せます。CIや、出力がターミナルでない場合も表示しません。終了コードはランナーのものです。
+ターミナルでは、ランナーの出力がその上に流れていく間、最終行に進捗バーを表示し続けます。完了数 / 総数、成功・失敗・スキップの件数、経過時間、実行中のテスト（ワーカーが複数あるときはデバイスごと）です。進捗はランナーが送ります。cucumber-jsには`quiesco test`が`@quiesco/cucumber`のフォーマッターを自動で追加し、Vitestには`quiescoPlugin()`が必要で、Jestではプリセットが用意します（[テストランナー](./runners)）。送られてこない場合は、終了時に何を追加すればよいかを表示します。`--no-progress`または`QUIESCO_PROGRESS=0`で進捗バーを消せます。CIや、出力がターミナルでない場合も表示しません。終了コードはランナーのものです。
 
-アプリがMetroからJSを読み込み（`devClient.metroUrl`、または`apps.web.url`）、そこで何も応答しない場合、`quiesco test`は`EXPO_PUBLIC_QUIESCO=1`付きでMetroを起動し（`npx expo start --port <port>`、出力は`artifacts/metro.log`）、準備ができるまで待ち、ランナーが終わると停止します（Ctrl-Cのときも）。すでに動いているMetroはそのまま使います。設定の`devServer`でコマンドとタイムアウトを変えたり、この動作を止めたり（`autoStart: false`）できます。ランナーを直接実行した場合（`npx cucumber-js`）はMetroを起動しません。
+アプリがMetroからJSを読み込み（`devClient.metroUrl`、または`apps.web.url`）、そこで何も応答しない場合、`quiesco test`は`EXPO_PUBLIC_QUIESCO=1`付きでMetroを起動し（`npx expo start --port <port>`、出力は`artifacts/metro.log`）、準備ができるまで待ち、ランナーが終わると停止します（Ctrl-Cのときも）。すでに動いているMetroはそのまま使います。設定の`devServer`でコマンドとタイムアウトを変えたり、この動作を止めたり（`autoStart: false`）できます。ランナーを直接実行した場合（`npx vitest run`）はMetroを起動しません。
 
 ## `quiesco ui` {#quiesco-ui}
 
-```sh
+<CodeGroup>
+```sh pnpm
+pnpm exec quiesco ui --platform web
+pnpm exec quiesco ui --platform ios --config vitest.e2e.config.mts --port 5173
+pnpm exec quiesco ui --help
+```
+```sh npm
 npx quiesco ui --platform web
-npx quiesco ui --platform ios --runner vitest --config vitest.e2e.config.mts --port 5173
+npx quiesco ui --platform ios --config vitest.e2e.config.mts --port 5173
 npx quiesco ui --help
 ```
+```sh bun
+bunx quiesco ui --platform web
+bunx quiesco ui --platform ios --config vitest.e2e.config.mts --port 5173
+bunx quiesco ui --help
+```
+```sh yarn
+yarn quiesco ui --platform web
+yarn quiesco ui --platform ios --config vitest.e2e.config.mts --port 5173
+yarn quiesco ui --help
+```
+</CodeGroup>
 
 [テスト UI](./ui)をブラウザで開きます。プロジェクトのテストを一覧し、クリックだけですべて / ファイル単位 / 1件のテストを実行でき、進捗と、失敗およびその証拠をリアルタイムで確認できます。プロジェクトに`@quiesco/ui`が必要です。`--platform`、`--runner`、`--workers`、ランナーの引数は`quiesco test`と同じです。`--port N`でポートを指定し、`--no-open`ではブラウザを開きません。起動中はMetroを動かしたままにします。Ctrl-Cで停止します。
 
 ## `quiesco list` {#quiesco-list}
 
-```sh
-npx quiesco list
-npx quiesco list features/login.feature
-npx quiesco list --runner vitest --config vitest.e2e.config.mts --json
+<CodeGroup>
+```sh pnpm
+pnpm exec quiesco list
+pnpm exec quiesco list e2e/login.test.ts
+pnpm exec quiesco list --runner cucumber features/login.feature --json
 ```
+```sh npm
+npx quiesco list
+npx quiesco list e2e/login.test.ts
+npx quiesco list --runner cucumber features/login.feature --json
+```
+```sh bun
+bunx quiesco list
+bunx quiesco list e2e/login.test.ts
+bunx quiesco list --runner cucumber features/login.feature --json
+```
+```sh yarn
+yarn quiesco list
+yarn quiesco list e2e/login.test.ts
+yarn quiesco list --runner cucumber features/login.feature --json
+```
+</CodeGroup>
 
-ランナーが実行するテストを、ファイルごとに行番号付きで一覧します。テストは実行せず、デバイスも起動しません。cucumber-jsはフォーマットを外したドライランを行い（レポートファイルはそのまま）、Vitestはテストファイルを解析し、JestはQuiescoのテスト環境とプロジェクトのglobal setupを使わずにテストを収集します（setup filesは実行されます）。`--json`は、進捗バーとテスト UIが使うテストIDを含む一覧を出力します。何も一覧できなかった場合の終了コードは1です。
+ランナー（`quiesco test`と同じランナー）が実行するテストを、ファイルごとに行番号付きで一覧します。テストは実行せず、デバイスも起動しません。cucumber-jsはフォーマットを外したドライランを行い（レポートファイルはそのまま）、Vitestはテストファイルを解析し、JestはQuiescoのテスト環境とプロジェクトのglobal setupを使わずにテストを収集します（setup filesは実行されます）。`--json`は、進捗バーとテスト UIが使うテストIDを含む一覧を出力します。何も一覧できなかった場合の終了コードは1です。
 
 ## `quiesco devices` {#quiesco-devices}
 
-```sh
+<CodeGroup>
+```sh pnpm
+pnpm exec quiesco devices          # Quiescoが並列ワーカー用に作成したシミュレーター / AVD
+pnpm exec quiesco devices --prune  # それらをシャットダウンして削除する
+```
+```sh npm
 npx quiesco devices            # Quiescoが並列ワーカー用に作成したシミュレーター / AVD
 npx quiesco devices --prune    # それらをシャットダウンして削除する
 ```
+```sh bun
+bunx quiesco devices           # Quiescoが並列ワーカー用に作成したシミュレーター / AVD
+bunx quiesco devices --prune   # それらをシャットダウンして削除する
+```
+```sh yarn
+yarn quiesco devices           # Quiescoが並列ワーカー用に作成したシミュレーター / AVD
+yarn quiesco devices --prune   # それらをシャットダウンして削除する
+```
+</CodeGroup>
 
 `"<name> (Quiesco N)"`シミュレーターと`<avd>_quiesco_N` AVDを一覧表示します（起動中のものには`[running]`が付きます）。`--prune`はそれらを削除します。次の並列実行で再作成されます。自分で用意したデバイスには一切触れません。
 
 ## `quiesco doctor` {#quiesco-doctor}
 
-```sh
+<CodeGroup>
+```sh pnpm
+pnpm exec quiesco doctor           # quiesco.config.mtsで設定したすべてのプラットフォーム
+pnpm exec quiesco doctor --platform ios
+```
+```sh npm
 npx quiesco doctor                 # quiesco.config.mtsで設定したすべてのプラットフォーム
 npx quiesco doctor --platform ios
 ```
+```sh bun
+bunx quiesco doctor                # quiesco.config.mtsで設定したすべてのプラットフォーム
+bunx quiesco doctor --platform ios
+```
+```sh yarn
+yarn quiesco doctor                # quiesco.config.mtsで設定したすべてのプラットフォーム
+yarn quiesco doctor --platform ios
+```
+</CodeGroup>
 
 Node.js、Expo SDK（55以降）、プロジェクトのセットアップ（パッケージ、すべてのQuiescoパッケージが同じバージョンか、package.jsonのスクリプトにある`quiesco <command>`がすべて存在するか、config plugin、Metroの`withQuiesco()`、エントリーの最初のimportとしてのエージェント、`<QuiescoRoot>`、設定ファイル）、アプリID（`quiesco.config.mts`が`app.json`やビルドと一致しているか、`init`が残したプレースホルダー）、古いバージョンが書き込んだ設定（cucumberの設定の`paths`、`allowImportingTsExtensions`なしでstepファイルが`.ts`をimportしている）、プラットフォームのツール（シミュレーター、adbとAVD、設定されたPlaywrightのブラウザー）、アプリのビルド、ポートをチェックします。問題ごとに修正方法を示します。古いセットアップに足りないものの多くは`npx quiesco@latest init --upgrade`で直せます。必須のチェックが失敗すると終了コード1で終わります。警告と補足（ℹ️、たとえば`e2e:build:*`スクリプトがない）では失敗しません。
 
 ## `quiesco tree` {#quiesco-tree}
 
-```sh
+<CodeGroup>
+```sh pnpm
+pnpm exec quiesco tree             # 実行中のアプリに接続する
+pnpm exec quiesco tree --launch --platform android
+pnpm exec quiesco tree --json > tree.json
+```
+```sh npm
 npx quiesco tree                   # 実行中のアプリに接続する
 npx quiesco tree --launch --platform android
 npx quiesco tree --json > tree.json
 ```
+```sh bun
+bunx quiesco tree                  # 実行中のアプリに接続する
+bunx quiesco tree --launch --platform android
+bunx quiesco tree --json > tree.json
+```
+```sh yarn
+yarn quiesco tree                  # 実行中のアプリに接続する
+yarn quiesco tree --launch --platform android
+yarn quiesco tree --json > tree.json
+```
+</CodeGroup>
 
 アプリが表示している画面の要素ツリーを、要素ごとに型、`#testID`、テキスト、`[role]`付きで出力します。ステップで使うマッチャーを探すのに役立ちます。
 

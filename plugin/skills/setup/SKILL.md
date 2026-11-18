@@ -34,11 +34,14 @@ Web needs `react-native-web`; offer `npx expo install react-native-web react-dom
 ## 3. Run init and finish what it leaves
 
 ```sh
-npx quiesco init --platforms web,ios      # the chosen platforms, comma-separated
+npx quiesco init --platforms web,ios --runner vitest   # the chosen platforms, comma-separated
 ```
 
-`init` installs the packages, adds the config plugin, `withQuiesco()` in `metro.config.js`, the agent as
-the entry's first import, `quiesco.config.mts`, `cucumber.mjs`, a first feature and `e2e:*` scripts. It
+Pass `--runner` (`vitest`, the recommended default; `jest`; or `cucumber`, which the user picks when they want
+Gherkin features): without it `init` asks at the terminal, which a non-interactive shell cannot answer (it
+then takes Vitest). `init` installs the packages, adds the config plugin, `withQuiesco()` in
+`metro.config.js`, the agent as the entry's first import, `quiesco.config.mts`, the runner's config with a
+first test (`e2e/app.test.ts` for Vitest, `features/app.feature` for Cucumber) and `e2e:*` scripts. It
 never overwrites files; it prints what it could not change. Read its output and do each remaining item:
 
 - **`<QuiescoRoot>`** — in Expo Router apps wrap the root layout's returned tree
@@ -46,7 +49,7 @@ never overwrites files; it prints what it could not change. Read its output and 
   never connects.
 - **An existing `metro.config.js`** — wrap its export:
   `const { withQuiesco } = require('@quiesco/agent/metro'); module.exports = withQuiesco(config);`
-- **The first feature's testID** — open `features/app.feature` (or the generated test) to see which
+- **The first test's testID** — open the generated test (`e2e/app.test.ts`, or `features/app.feature`) to see which
   testID it expects, and put that `testID` on the home screen's root view.
 
 Tell the user which app files were edited. Edit only what Quiesco needs.

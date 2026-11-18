@@ -54,7 +54,6 @@ For each distinct failure, launch the plugin's agent with the Agent tool,
 the failed call and error from the script, the platform, the feature or test file and scenario name,
 the step definition / driver files involved if known, and these documentation paths (the agent cannot
 resolve the plugin root itself): `${CLAUDE_PLUGIN_ROOT}/skills/debug/references/troubleshooting.md`,
-`${CLAUDE_PLUGIN_ROOT}/skills/debug/references/known-issues.md`,
 `${CLAUDE_PLUGIN_ROOT}/skills/quiesco-api/references/sync.md`,
 `${CLAUDE_PLUGIN_ROOT}/skills/quiesco-api/references/api.md`. Launch independent investigations in parallel
 (at most three). The agent reads `failure.png`, `elements.json`, `element-tree.json`, `idle-state.json`,
@@ -74,8 +73,7 @@ step, `BACKDOOR_NOT_REGISTERED` listing the registered names) does not need the 
 | Real app bug | `APP_ERROR` from app code, a React render loop, an assertion showing wrong behavior | Report it as a bug; do not change the test to pass |
 | Environment | `CONNECT_TIMEOUT`, old bundle, mixed versions, starved emulator, Metro started without `EXPO_PUBLIC_QUIESCO=1` | Run `npx quiesco doctor`, fix the setup, restart Metro / rebuild |
 
-Error-by-error guidance: `references/troubleshooting.md`; framework issues with known workarounds:
-`references/known-issues.md`; tracker-by-tracker `SYNC_TIMEOUT` fixes:
+Error-by-error guidance: `references/troubleshooting.md`; tracker-by-tracker `SYNC_TIMEOUT` fixes:
 `${CLAUDE_PLUGIN_ROOT}/skills/quiesco-api/references/sync.md`.
 
 ## 4. Fix
@@ -116,6 +114,5 @@ result. List every file changed, separating test code from app code.
 - **`scripts/find-failures.mjs`** — summary of a run's failures from the artifacts directory
   (`--run <name>` for another run, `--list-runs` to list them).
 - **`references/troubleshooting.md`** — failures by symptom and error name, per platform.
-- **`references/known-issues.md`** — known framework issues and their workarounds.
 - **`${CLAUDE_PLUGIN_ROOT}/skills/quiesco-api/references/api.md`** — "Errors" and "Artifacts" sections:
   every error name and every evidence file.

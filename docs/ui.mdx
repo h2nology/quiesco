@@ -9,11 +9,28 @@ and the evidence Quiesco saved at a failure (screenshot, element tree, idle stat
 
 ## Starting {#starting}
 
-```sh
+<CodeGroup>
+```sh pnpm
+pnpm add -D @quiesco/ui
+pnpm exec quiesco ui --platform web
+pnpm exec quiesco ui --platform ios --config vitest.e2e.config.mts
+```
+```sh npm
 npm i -D @quiesco/ui
 npx quiesco ui --platform web
-npx quiesco ui --platform ios --runner vitest --config vitest.e2e.config.mts
+npx quiesco ui --platform ios --config vitest.e2e.config.mts
 ```
+```sh bun
+bun add -d @quiesco/ui
+bunx quiesco ui --platform web
+bunx quiesco ui --platform ios --config vitest.e2e.config.mts
+```
+```sh yarn
+yarn add -D @quiesco/ui
+yarn quiesco ui --platform web
+yarn quiesco ui --platform ios --config vitest.e2e.config.mts
+```
+</CodeGroup>
 
 It prints the page's address and opens it (`--no-open` does not). `--platform`, `--runner`, `--workers` and
 the runner's own arguments mean what they mean for [`quiesco test`](./cli#quiesco-test); the runner's
@@ -21,8 +38,8 @@ arguments are used for every run and for listing the tests. `--port N` chooses t
 one). Ctrl-C stops it.
 
 While it runs, the Metro dev server stays up, so a run started from the page does not wait for it. The
-runner must send its progress, as for the [progress bar](./cli#quiesco-test): cucumber-js needs nothing,
-Vitest needs `quiescoPlugin()` and Jest the preset's reporter ([Jest and Vitest](./runners)).
+runner must send its progress, as for the [progress bar](./cli#quiesco-test): Vitest needs
+`quiescoPlugin()`, Jest the preset's reporter and cucumber-js nothing ([test runners](./runners)).
 
 ## The page {#the-page}
 

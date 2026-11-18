@@ -1,19 +1,39 @@
 <!-- Generated from docs/runners.mdx by scripts/build-plugin-refs.mjs — do not edit. -->
 
-# Jest and Vitest
+# Test runners
 
-Use Quiesco from Jest or Vitest instead of Cucumber.
-`@quiesco/vitest` and `@quiesco/jest` do for Vitest and Jest what `@quiesco/cucumber` does for
-Cucumber: one session (device and app) for the whole run, a reset before every test, tests tagged for
+Vitest (recommended), Jest or Cucumber: one session for the run, a reset before every test, evidence on failure.
+Quiesco drives the app from your test runner. Three have ready-made integrations, and they all work the
+same way: one session (device and app) for the whole run, a reset before every test, tests tagged for
 another platform or browser skipped (`@ios`, `@android`, `@web`, `@native`, `@chromium`, `@firefox`, `@webkit`; the innermost level wins), and a
 failure's message lists the evidence files (screenshot, element tree, idle state, logs).
 
+| Runner | Package | Tests | The app |
+|---|---|---|---|
+| **Vitest** (recommended) | `@quiesco/vitest` | TypeScript, `test(…)` | the `app` fixture |
+| Jest | `@quiesco/jest` | JavaScript, `test(…)` | the global `quiesco.app` |
+| Cucumber | `@quiesco/cucumber` | Gherkin features and step definitions | `this.app` in steps |
+
+## Choosing one {#choosing}
+
+`quiesco init` asks which runner to use (Vitest is preselected; in CI it takes Vitest without asking) and
+installs only that runner's packages, its config and a first test. To choose without the question:
+
+```sh
+npx quiesco init --runner vitest     # or jest, cucumber
+```
+
+`quiesco test`, `quiesco ui` and `quiesco list` then use the runner whose Quiesco package is installed, so
+`--runner` is not needed. When several are installed (or none), they use Cucumber, as Quiesco 0.6 and
+earlier did; `--runner` picks another.
+
 ## Vitest {#vitest}
 
-`app` is a test fixture:
+`app` is a test fixture. `quiesco init --runner vitest` writes the config (`vitest.config.mts`) and a first
+test (`e2e/app.test.ts`):
 
 ```ts
-// vitest.config.ts
+// vitest.config.mts
 import { quiesco, quiescoPlugin } from '@quiesco/vitest/config';
 import { defineConfig } from 'vitest/config';
 export default defineConfig({ plugins: [quiescoPlugin()], test: { ...quiesco(), include: ['e2e/**/*.test.ts'] } });
@@ -37,10 +57,11 @@ your own reporters.
 
 ## Jest {#jest}
 
-A preset; tests reach the app through the global `quiesco`:
+A preset; tests reach the app through the global `quiesco`. `quiesco init --runner jest` writes the config
+(`jest.config.cjs`) and a first test (`e2e/app.test.js`):
 
 ```js
-// jest.config.js
+// jest.config.cjs
 module.exports = { preset: '@quiesco/jest', maxWorkers: 1, testTimeout: 120_000 }; // maxWorkers: N = N devices
 
 // e2e/todo.test.js
@@ -53,10 +74,32 @@ Platform tags go in test or `describe` titles (Jest has no test options). The pr
 that sends the run's progress to `quiesco test` and `quiesco ui`. A config with its own `reporters` replaces
 the preset's: add `'@quiesco/jest/reporter'` there (next to `'default'`).
 
+## Cucumber {#cucumber}
+
+Features in Gherkin, steps that reach the app through `this.app`:
+
+```gherkin
+Scenario: A new todo appears at the top of the list
+  When they add a todo "Buy milk"
+  Then the first todo is "Buy milk"
+```
+
+```ts
+When('they add a todo {string}', async function (this: QuiescoWorld, title: string) {
+  await this.app.tap('add-todo');                 // waits until the app is idle, then taps
+  await this.app.type('todo-title', title);
+  await this.app.tap({ role: 'button', text: 'Save' });
+});
+```
+
+`quiesco init --runner cucumber` writes `cucumber.mjs`, `features/support/quiesco.ts` (the World and the
+lifecycle hooks) and a first feature with its step. Business-language steps on top of `this.app` are in
+[the driver pattern](../../writing-tests/references/driver-pattern.md); generic steps for prototyping in [generic steps](../../writing-tests/references/steps.md).
+
 ## Running {#running}
 
-Run either with `npx quiesco test --platform ios --runner vitest|jest`, or from the browser with
-[`quiesco ui`](https://shift-14cc7601.mintlify.site/ui). Both are in
-[examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e); details in
-[using Quiesco without Cucumber](./api.md#using-quiesco-without-cucumber), several devices at once in
+Run the tests with `npx quiesco test --platform ios` (`--runner vitest|jest|cucumber` to choose another than
+the installed one), or from the browser with [`quiesco ui`](https://shift-14cc7601.mintlify.site/ui). All three are in
+[examples/todo-app](https://github.com/h2nology/quiesco/tree/main/examples/todo-app); details in
+[Vitest, Jest and other runners](./api.md#using-quiesco-without-cucumber), several devices at once in
 [parallel runs](./parallel.md).

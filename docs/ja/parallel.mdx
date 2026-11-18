@@ -1,17 +1,34 @@
 ---
 title: "並列実行"
-description: "cucumber-js、Jest、Vitestで、ワーカーごとにデバイス、ポート、成果物ディレクトリを割り当てます。"
+description: "Vitest、Jest、cucumber-jsで、ワーカーごとにデバイス、ポート、成果物ディレクトリを割り当てます。"
 ---
 
-Quiescoは複数のデバイスで同時にテストを実行できます。テストランナーの各**ワーカー**は、専用のデバイス（またはブラウザ）、Quiescoサーバーのポート、成果物ディレクトリを持ちます。featureは変更せずにそのまま動きます。
+Quiescoは複数のデバイスで同時にテストを実行できます。テストランナーの各**ワーカー**は、専用のデバイス（またはブラウザ）、Quiescoサーバーのポート、成果物ディレクトリを持ちます。同じテストが変更なしでそのまま動きます。
 
-```sh
-npx quiesco test --platform ios --workers 2                    # cucumber-js --parallel 2
-npx quiesco test --platform android --runner jest --workers 2  # jest --maxWorkers 2
-npx quiesco test --platform web --runner vitest --workers 3    # vitest --fileParallelism --maxWorkers 3
+<CodeGroup>
+```sh pnpm
+pnpm exec quiesco test --platform web --runner vitest --workers 3    # vitest --fileParallelism --maxWorkers 3
+pnpm exec quiesco test --platform android --runner jest --workers 2  # jest --maxWorkers 2
+pnpm exec quiesco test --platform ios --runner cucumber --workers 2  # cucumber-js --parallel 2
 ```
+```sh npm
+npx quiesco test --platform web --runner vitest --workers 3    # vitest --fileParallelism --maxWorkers 3
+npx quiesco test --platform android --runner jest --workers 2  # jest --maxWorkers 2
+npx quiesco test --platform ios --runner cucumber --workers 2  # cucumber-js --parallel 2
+```
+```sh bun
+bunx quiesco test --platform web --runner vitest --workers 3    # vitest --fileParallelism --maxWorkers 3
+bunx quiesco test --platform android --runner jest --workers 2  # jest --maxWorkers 2
+bunx quiesco test --platform ios --runner cucumber --workers 2  # cucumber-js --parallel 2
+```
+```sh yarn
+yarn quiesco test --platform web --runner vitest --workers 3    # vitest --fileParallelism --maxWorkers 3
+yarn quiesco test --platform android --runner jest --workers 2  # jest --maxWorkers 2
+yarn quiesco test --platform ios --runner cucumber --workers 2  # cucumber-js --parallel 2
+```
+</CodeGroup>
 
-ランナー自身のフラグも使えます。`cucumber-js --parallel 2`、`jest --maxWorkers 2`、Vitestなら`quiesco({ workers: 2 })` / `vitest --fileParallelism --maxWorkers 2`です。
+ランナー自身のフラグも使えます。Vitestなら`quiesco({ workers: 2 })` / `vitest --fileParallelism --maxWorkers 2`、`jest --maxWorkers 2`、`cucumber-js --parallel 2`です。
 
 ## 各ワーカーが使うデバイス {#which-device-each-worker-uses}
 
@@ -54,8 +71,6 @@ Quiesco自身は、ワーカーNにサーバーポート`server.port + N`（デ�
 
 ## ランナー {#runners}
 
-- **cucumber-js**：`--parallel N`でN個のワーカースレッドを動かします。各スレッドが専用のセッションを持ちます。
-- **Jest**：`maxWorkers: N`（サンプルは`QUIESCO_WORKERS`を読み取ります）。ワーカープロセスごとに専用のセッションを持ちます。Jestは非同期のクリーンアップを待たずにワーカーを終了させるため、QuiescoはJestがワーカーに終了を求めた時点でセッションを閉じ、残ったものを同期的に終了させます。ワーカーが片付けられなかったものは`globalTeardown`（プリセットのもの、または`@quiesco/jest/teardown`を呼ぶ独自のもの）が掃除します。それでもJestは短いスイートをインバンド（1プロセス）で実行することがあり、その場合はワーカー0だけになります。
 - **Vitest**：`@quiesco/vitest/config`の`quiesco({ workers: N })`（`fileParallelism`、`maxWorkers`、`isolate: false`）。各ワーカーは、実行するファイルをまたいでセッションを保持します。
-
-計測結果：[benchmarks.md](./benchmarks#phase-612-parallel-runs)。
+- **Jest**：`maxWorkers: N`（サンプルは`QUIESCO_WORKERS`を読み取ります）。ワーカープロセスごとに専用のセッションを持ちます。Jestは非同期のクリーンアップを待たずにワーカーを終了させるため、QuiescoはJestがワーカーに終了を求めた時点でセッションを閉じ、残ったものを同期的に終了させます。ワーカーが片付けられなかったものは`globalTeardown`（プリセットのもの、または`@quiesco/jest/teardown`を呼ぶ独自のもの）が掃除します。それでもJestは短いスイートをインバンド（1プロセス）で実行することがあり、その場合はワーカー0だけになります。
+- **cucumber-js**：`--parallel N`でN個のワーカースレッドを動かします。各スレッドが専用のセッションを持ちます。

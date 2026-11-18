@@ -9,11 +9,12 @@ this.app (the Driver), matchers, the in-app API, configuration, scenario tags, e
 - [Configuration (`quiesco.config.ts`)](#configuration)
 - [Scenario tags](#scenario-tags)
 - [Errors](#errors)
-- [Using Quiesco without Cucumber](#using-quiesco-without-cucumber) — Jest, Vitest and other runners
+- [Vitest, Jest and other runners](#using-quiesco-without-cucumber)
 
 ## Driver (`this.app`) {#driver-thisapp}
 
-In step definitions `this.app` is the `Driver` of the current session (`@quiesco/core`). Every call is
+The `Driver` of the current session (`@quiesco/core`) is the `app` fixture in Vitest tests, the global
+`quiesco.app` in Jest and `this.app` in Cucumber steps; the examples on this page write `this.app`. Every call is
 `async`, waits for the app to be idle first (see [synchronization](./sync.md)) and, for actions, again
 after it. Nothing in a step needs to wait or sleep.
 
@@ -685,10 +686,10 @@ Policies: `none`, `failing` (recorded for every scenario, kept when it fails) or
 through the session: `session.startScenario({ name })` before `beforeScenario`, then
 `session.afterScenario({ failed })` returns the attachments and files.
 
-## Using Quiesco without Cucumber {#using-quiesco-without-cucumber}
+## Vitest, Jest and other runners {#using-quiesco-without-cucumber}
 
-**Jest and Vitest** have adapters, `@quiesco/jest` and `@quiesco/vitest` (examples in the
-[README](./runners.md) and
+**Vitest and Jest** have adapters, `@quiesco/vitest` and `@quiesco/jest` (examples in
+[test runners](./runners.md) and
 [examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e)). They behave like the Cucumber one:
 
 | | Vitest (`@quiesco/vitest`) | Jest (`@quiesco/jest`) |

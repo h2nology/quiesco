@@ -7,15 +7,32 @@ description: "用 quiesco ui 在浏览器里运行测试并实时查看：进度
 
 ## 启动 {#starting}
 
-```sh
+<CodeGroup>
+```sh pnpm
+pnpm add -D @quiesco/ui
+pnpm exec quiesco ui --platform web
+pnpm exec quiesco ui --platform ios --config vitest.e2e.config.mts
+```
+```sh npm
 npm i -D @quiesco/ui
 npx quiesco ui --platform web
-npx quiesco ui --platform ios --runner vitest --config vitest.e2e.config.mts
+npx quiesco ui --platform ios --config vitest.e2e.config.mts
 ```
+```sh bun
+bun add -d @quiesco/ui
+bunx quiesco ui --platform web
+bunx quiesco ui --platform ios --config vitest.e2e.config.mts
+```
+```sh yarn
+yarn add -D @quiesco/ui
+yarn quiesco ui --platform web
+yarn quiesco ui --platform ios --config vitest.e2e.config.mts
+```
+</CodeGroup>
 
 它会打印页面地址并自动打开（`--no-open` 则不打开）。`--platform`、`--runner`、`--workers` 以及运行器自己的参数，含义和 [`quiesco test`](./cli#quiesco-test) 相同；运行器的参数用于每次运行，也用于列出测试。`--port N` 指定端口（默认使用空闲端口）。按 Ctrl-C 停止。
 
-运行期间 Metro 开发服务器一直保持启动，所以从页面发起的运行不必等待它。运行器需要发送运行进度，这一点和[进度条](./cli#quiesco-test)相同：cucumber-js 无需任何设置，Vitest 需要 `quiescoPlugin()`，Jest 需要 preset 自带的 reporter（[Jest 与 Vitest](./runners)）。
+运行期间 Metro 开发服务器一直保持启动，所以从页面发起的运行不必等待它。运行器需要发送运行进度，这一点和[进度条](./cli#quiesco-test)相同：Vitest 需要 `quiescoPlugin()`，Jest 需要 preset 自带的 reporter，cucumber-js 无需任何设置（[测试运行器](./runners)）。
 
 ## 页面 {#the-page}
 

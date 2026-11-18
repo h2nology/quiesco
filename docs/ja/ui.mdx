@@ -7,15 +7,32 @@ description: "quiesco ui でブラウザからテストを実行し、進捗・�
 
 ## 起動 {#starting}
 
-```sh
+<CodeGroup>
+```sh pnpm
+pnpm add -D @quiesco/ui
+pnpm exec quiesco ui --platform web
+pnpm exec quiesco ui --platform ios --config vitest.e2e.config.mts
+```
+```sh npm
 npm i -D @quiesco/ui
 npx quiesco ui --platform web
-npx quiesco ui --platform ios --runner vitest --config vitest.e2e.config.mts
+npx quiesco ui --platform ios --config vitest.e2e.config.mts
 ```
+```sh bun
+bun add -d @quiesco/ui
+bunx quiesco ui --platform web
+bunx quiesco ui --platform ios --config vitest.e2e.config.mts
+```
+```sh yarn
+yarn add -D @quiesco/ui
+yarn quiesco ui --platform web
+yarn quiesco ui --platform ios --config vitest.e2e.config.mts
+```
+</CodeGroup>
 
 ページのアドレスを表示し、ブラウザで開きます（`--no-open`を付けると開きません）。`--platform`、`--runner`、`--workers`、ランナー自身の引数の意味は[`quiesco test`](./cli#quiesco-test)と同じです。ランナーの引数は毎回の実行とテストの一覧の両方に使われます。`--port N`でポートを指定します（デフォルトは空いているポート）。Ctrl-Cで停止します。
 
-起動している間はMetro開発サーバーを動かしたままにするので、ページから始めた実行がその起動を待つことはありません。ランナーは[進捗バー](./cli#quiesco-test)と同じく進捗を送る必要があります。cucumber-jsは設定不要、Vitestは`quiescoPlugin()`、Jestはプリセットのレポーターが必要です（[Jest と Vitest](./runners)）。
+起動している間はMetro開発サーバーを動かしたままにするので、ページから始めた実行がその起動を待つことはありません。ランナーは[進捗バー](./cli#quiesco-test)と同じく進捗を送る必要があります。Vitestは`quiescoPlugin()`、Jestはプリセットのレポーターが必要で、cucumber-jsは設定不要です（[テストランナー](./runners)）。
 
 ## ページ {#the-page}
 

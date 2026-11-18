@@ -9,11 +9,11 @@ description: "this.app（Driver）、マッチャー、アプリ内API、設定�
 - [設定（`quiesco.config.ts`）](#configuration)
 - [シナリオタグ](#scenario-tags)
 - [エラー](#errors)
-- [CucumberなしでQuiescoを使う](#using-quiesco-without-cucumber)：Jest、Vitest、その他のランナー
+- [Vitest、Jestとその他のランナー](#using-quiesco-without-cucumber)
 
 ## Driver（`this.app`） {#driver-thisapp}
 
-ステップ定義の中で、`this.app`は現在のセッションの`Driver`です（`@quiesco/core`）。すべての呼び出しは`async`で、まずアプリがアイドルになるのを待ち（[同期](./sync)を参照）、アクションの場合は実行後にもう一度待ちます。ステップの中で待機やsleepを書く必要はありません。
+現在のセッションの`Driver`（`@quiesco/core`）は、Vitestのテストでは`app`フィクスチャー、Jestではグローバルの`quiesco.app`、Cucumberのステップでは`this.app`です。このページの例では`this.app`と書きます。すべての呼び出しは`async`で、まずアプリがアイドルになるのを待ち（[同期](./sync)を参照）、アクションの場合は実行後にもう一度待ちます。ステップの中で待機やsleepを書く必要はありません。
 
 すべての呼び出しは、省略可能な最後の引数を受け取ります。
 
@@ -547,9 +547,9 @@ export default defineConfig({
 
 ポリシー：`none`、`failing`（すべてのシナリオで記録し、失敗したときに残す）、または`all`。デフォルト：videoは`none`（録画はどのシナリオでも少しコストがかかります。CIではオンにしてください）、logsとtimelineは`failing`。`QUIESCO_ARTIFACTS=all`（または`failing`、`none`）で、1回の実行に限り3つすべてを設定できます。他のランナーもセッションを通じて同じ仕組みを使います：`beforeScenario`の前に`session.startScenario({ name })`を呼び、`session.afterScenario({ failed })`が添付とファイルを返します。
 
-## CucumberなしでQuiescoを使う {#using-quiesco-without-cucumber}
+## Vitest、Jestとその他のランナー {#using-quiesco-without-cucumber}
 
-**JestとVitest**にはアダプター`@quiesco/jest`と`@quiesco/vitest`があります（サンプルは[README](./runners)と[examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e)にあります）。動作はCucumber用のものと同じです。
+**VitestとJest**にはアダプター`@quiesco/vitest`と`@quiesco/jest`があります（サンプルは[テストランナー](./runners)と[examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e)にあります）。動作はCucumber用のものと同じです。
 
 | | Vitest（`@quiesco/vitest`） | Jest（`@quiesco/jest`） |
 |---|---|---|

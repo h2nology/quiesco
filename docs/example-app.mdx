@@ -1,6 +1,6 @@
 ---
 title: "Example app"
-description: "The todo app in the repository: e2e runs on all three platforms, parallel runs, EAS builds, the production-strip check and benchmarks."
+description: "The todo app in the repository: e2e runs on all three platforms, parallel runs, EAS builds, the production-strip check and the benchmark."
 ---
 
 [`examples/todo-app`](https://github.com/h2nology/quiesco/tree/main/examples/todo-app) is an Expo SDK 58 + Expo Router app used to accept Quiesco (requirements.md §9): login, todo list, new-todo
@@ -100,7 +100,7 @@ is why `--allow-clean` is required when `android/` / `ios/` exist. CI runs it in
 pnpm bench:android        # 20 iterations: soft reset, tap incl. sync, full suite (native and js)
 ```
 
-The output is a Markdown section for [benchmarks](./benchmarks).
+The output is a Markdown section with the timings.
 
 ## How the app integrates Quiesco {#how-the-app-integrates-quiesco}
 

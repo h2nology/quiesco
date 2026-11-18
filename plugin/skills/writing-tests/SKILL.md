@@ -10,8 +10,8 @@ Driver. For exact API signatures, consult the `quiesco-api` skill and its refere
 
 ## Before writing
 
-1. **Detect the runner.** `cucumber.mjs` / `cucumber.js` / `@cucumber/cucumber` → Cucumber (the
-   default); `@quiesco/vitest` → Vitest; `@quiesco/jest` → Jest. Follow the existing layout
+1. **Detect the runner.** `@quiesco/vitest` → Vitest (what `quiesco init` recommends); `@quiesco/jest` →
+   Jest; `@quiesco/cucumber` / `cucumber.mjs` → Cucumber. Follow the existing layout
    (`features/step_definitions/`, `features/support/`, or `e2e/*.test.ts`).
 2. **Read the existing steps and drivers** before adding new ones. Reuse a step whose wording already
    fits; a near-duplicate step with different wording splits the vocabulary. Grep step patterns:
@@ -83,7 +83,7 @@ go into `describe` / test titles (`test('… @ios', …)`). Jest uses the global
 
 1. Cucumber: `npx cucumber-js --dry-run` loads every step file without a device and catches undefined
    steps, import mistakes and unsupported TypeScript in seconds. Vitest / Jest: `npx quiesco list`
-   (add `--runner vitest|jest --config …` as the project's scripts do).
+   (add `--runner …` when several runners are installed, and `--config …` as the project's scripts do).
 2. Run only the new test on the cheapest available platform, normally web:
    `npx quiesco test --platform web features/todo.feature` (or `--tags @wip`, or the test file for
    Vitest / Jest). Prefer the project's `e2e:*` package.json script when it builds the web export first.

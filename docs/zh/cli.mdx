@@ -3,23 +3,45 @@ title: "CLI"
 description: "quiesco 命令：init、build、test、ui、list、devices、doctor 和 tree，以及全部选项。"
 ---
 
-```sh
+<CodeGroup>
+```sh pnpm
+pnpm exec quiesco <command> [options]
+```
+```sh npm
 npx quiesco <command> [options]
 ```
+```sh bun
+bunx quiesco <command> [options]
+```
+```sh yarn
+yarn quiesco <command> [options]
+```
+</CodeGroup>
 
 ## `quiesco init` {#quiesco-init}
 
 在 Expo 项目中配置 Quiesco。每一步都会报告做了什么；已有文件绝不会被覆盖——当某个文件需要 Quiesco 无法安全完成的修改时，它会打印出需要添加的内容。App 低于 Expo SDK 55 时会给出警告（Quiesco 支持 SDK 55 及以上），但仍会完成配置。
 
-1. 用项目的包管理器（根据 lock 文件判断 npm、pnpm、yarn 或 bun）安装包：`@quiesco/agent`、`@quiesco/native` 作为 dependencies；`quiesco`、`@quiesco/core`、`@quiesco/cucumber`、`@quiesco/expo-plugin`、`@cucumber/cucumber`（Web 还有 `@quiesco/web`、`playwright`）作为 dev dependencies。Quiesco 的包按运行 `init` 的 CLI 的版本安装（`npx quiesco@0.4.0 init` 安装 0.4.0），因此它写入的脚本与安装的 CLI 一致。安装后 `init` 会读回已安装的版本，有不一致时停止，并给出要运行的安装命令（例如包管理器用了缓存中过期的 registry 元数据时）。
+它首先会询问使用哪个测试运行器：Vitest（默认选中）、Jest 或 Cucumber（[测试运行器](./runners)）。`--runner` 可以预先给出答案；终端前没有人时（CI），直接使用 Vitest。
+
+1. 用项目的包管理器（根据 lock 文件判断 npm、pnpm、yarn 或 bun）安装包：`@quiesco/agent`、`@quiesco/native` 作为 dependencies；`quiesco`、`@quiesco/core`、`@quiesco/expo-plugin`、运行器的包（`@quiesco/vitest` 和 `vitest`、`@quiesco/jest` 和 `jest`，或 `@quiesco/cucumber` 和 `@cucumber/cucumber`），以及 Web 用的 `@quiesco/web`、`playwright` 作为 dev dependencies。Quiesco 的包按运行 `init` 的 CLI 的版本安装（`npx quiesco@0.4.0 init` 安装 0.4.0），因此它写入的脚本与安装的 CLI 一致。安装后 `init` 会读回已安装的版本，有不一致时停止，并给出要运行的安装命令（例如包管理器用了缓存中过期的 registry 元数据时）。
 2. 把 `@quiesco/expo-plugin` 加到 `app.json` 的 plugins 中，并补上它缺少的 App ID：`ios.bundleIdentifier`、`android.package`（都是 `com.anonymous.<slug>`）和 `scheme`（slug），让构建出来的 App 和 `quiesco.config.mts` 指的是同一个 App。缺少这些值时，`expo prebuild` 会用自己的默认值，而 iOS 和 Android 的默认值不一样。项目用的是 `app.config.js` / `.ts` 时，改为列为需要你做的事项。
 3. 创建带有 `withQuiesco()` 的 `metro.config.js`（或说明如何包装已有的配置）。
 4. 让 `@quiesco/agent` 成为入口文件的第一个 import。Expo Router App 会得到一个 `index.ts`（`import '@quiesco/agent'; import 'expo-router/entry';`）以及 `"main": "index.ts"`。如果入口注册的是本地组件（`registerRootComponent(App)`，空白模板就是这样），`init` 还会在入口中用 `<QuiescoRoot>` 包裹该组件。
-5. 写入 `quiesco.config.mts`（bundle id、package 和 scheme 取自 `app.json`）、`cucumber.mjs`、`features/support/quiesco.ts`、第一个 feature 及其步骤，以及 `e2e:*` 脚本；并在 `tsconfig.json` 中加上 `"allowImportingTsExtensions": true`（step 文件之间用 `.ts` 导入，见 [step 文件不会被编译](./driver-pattern#type-stripping)）。
+5. 写入 `quiesco.config.mts`（bundle id、package 和 scheme 取自 `app.json`）、运行器的配置和第一个测试，以及 `e2e:*` 脚本：
+
+   | 运行器 | 文件 |
+   |---|---|
+   | Vitest | `vitest.config.mts`、`e2e/app.test.ts` |
+   | Jest | `jest.config.cjs`、`e2e/app.test.js` |
+   | Cucumber | `cucumber.mjs`、`features/support/quiesco.ts`、`features/app.feature` 及其步骤；并在 `tsconfig.json` 中加上 `"allowImportingTsExtensions": true`（step 文件之间用 `.ts` 导入，见 [step 文件不会被编译](./driver-pattern#type-stripping)） |
+
+   如果项目已经有 Vitest 或 Jest 配置（单元测试用的），会原样保留：Quiesco 的配置放在它旁边，命名为 `vitest.e2e.config.mts` / `jest.e2e.config.cjs`，`e2e:*` 脚本会用 `--config` 传入这个文件名。
 
 | 选项 | |
 |---|---|
 | `--platforms ios,android,web` | 要配置的平台。默认：iOS 和 Android，安装了 `react-native-web` 时再加上 Web |
+| `--runner vitest\|jest\|cucumber` | 要配置的测试运行器，不再询问。默认：在终端中询问（默认选中 Vitest）；CI 中用 Vitest |
 | `--packages <dir>` | 从 `<dir>` 中的 `.tgz` 文件（`pnpm pack` 的输出）安装 Quiesco，并把它们之间的相互依赖固定到这些文件 |
 | `--skip-install` | 只打印安装命令 |
 | `--upgrade` | 把用旧版本设置的项目升级到这个版本（[升级项目](#quiesco-init-upgrade)） |
@@ -29,14 +51,28 @@ npx quiesco <command> [options]
 
 ### 升级项目 {#quiesco-init-upgrade}
 
-```sh
+<CodeGroup>
+```sh pnpm
+pnpm dlx quiesco@latest init --upgrade            # 指定版本时用 quiesco@0.4.1
+pnpm dlx quiesco@latest init --upgrade --dry-run  # 只列出改动
+```
+```sh npm
 npx quiesco@latest init --upgrade            # 指定版本时用 quiesco@0.4.1
 npx quiesco@latest init --upgrade --dry-run  # 只列出改动
 ```
+```sh bun
+bunx quiesco@latest init --upgrade            # 指定版本时用 quiesco@0.4.1
+bunx quiesco@latest init --upgrade --dry-run  # 只列出改动
+```
+```sh yarn
+yarn dlx quiesco@latest init --upgrade            # 指定版本时用 quiesco@0.4.1
+yarn dlx quiesco@latest init --upgrade --dry-run  # 只列出改动
+```
+</CodeGroup>
 
 把用旧版 `quiesco init` 设置的项目升级到执行它的 CLI 的版本：
 
-1. 把所有 Quiesco 包装成这个版本，包括 `init` 不会添加的包（例如 `@quiesco/steps`），并像 `init` 一样在安装后读回版本进行确认。`@cucumber/cucumber` 和 `playwright` 不动。
+1. 把所有 Quiesco 包装成这个版本，包括 `init` 不会添加的包（例如 `@quiesco/steps`），并像 `init` 一样在安装后读回版本进行确认。运行器本身（`vitest`、`jest`、`@cucumber/cucumber`）和 `playwright` 不动。
 2. 删除 cucumber 配置里的 `paths: ['features/**/*.feature']`。旧版本会写入这一行；有了它，`quiesco test features/x.feature` 会运行所有 feature。
 3. 在 `tsconfig.json` 中加上 `"allowImportingTsExtensions": true`。
 4. 把 `app.json` 缺少的 App ID 写进去（与上面第 2 步相同），并用这些值替换 `quiesco.config.mts` 里的 `// TODO: expo.…` 占位符。
@@ -46,75 +82,194 @@ npx quiesco@latest init --upgrade --dry-run  # 只列出改动
 
 ## `quiesco build` {#quiesco-build}
 
-```sh
+<CodeGroup>
+```sh pnpm
+pnpm exec quiesco build ios
+pnpm exec quiesco build android --force
+```
+```sh npm
 npx quiesco build ios
 npx quiesco build android --force
 ```
+```sh bun
+bunx quiesco build ios
+bunx quiesco build android --force
+```
+```sh yarn
+yarn quiesco build ios
+yarn quiesco build android --force
+```
+</CodeGroup>
 
 构建 e2e App（以 `EXPO_PUBLIC_QUIESCO=1` 运行 `expo prebuild`，然后是面向模拟器的 `xcodebuild`，或 `gradlew assembleDebug` / `assembleRelease`），并写到 `apps.<platform>.binaryPath`。在 iOS 上，derived data 路径、构建配置和 scheme 都从这个路径（`<dir>/Build/Products/<Configuration>-iphonesimulator/<Name>.app`）中读取。如果自上次构建以来 App 配置和依赖（含已安装的版本）都没有变化，并且构建产物还在，会跳过 Debug 构建；加 `--force` 则总是构建。Release 构建包含 JS bundle，总是会构建。
 
 ## `quiesco test` {#quiesco-test}
 
-```sh
+<CodeGroup>
+```sh pnpm
+pnpm exec quiesco test --platform web
+pnpm exec quiesco test --platform android e2e/login.test.ts
+pnpm exec quiesco test --platform ios --config vitest.e2e.config.mts
+pnpm exec quiesco test --platform web --runner cucumber --tags @smoke features/login.feature
+pnpm exec quiesco test --platform web -- --testNamePattern todo
+pnpm exec quiesco test --help
+```
+```sh npm
 npx quiesco test --platform web
-npx quiesco test --platform android --tags @smoke features/login.feature
-npx quiesco test --platform ios --runner vitest --config vitest.e2e.config.mts
-npx quiesco test --platform web --runner jest e2e/todo.test.js
-npx quiesco test --platform web -- --tags @debug
+npx quiesco test --platform android e2e/login.test.ts
+npx quiesco test --platform ios --config vitest.e2e.config.mts
+npx quiesco test --platform web --runner cucumber --tags @smoke features/login.feature
+npx quiesco test --platform web -- --testNamePattern todo
 npx quiesco test --help
 ```
+```sh bun
+bunx quiesco test --platform web
+bunx quiesco test --platform android e2e/login.test.ts
+bunx quiesco test --platform ios --config vitest.e2e.config.mts
+bunx quiesco test --platform web --runner cucumber --tags @smoke features/login.feature
+bunx quiesco test --platform web -- --testNamePattern todo
+bunx quiesco test --help
+```
+```sh yarn
+yarn quiesco test --platform web
+yarn quiesco test --platform android e2e/login.test.ts
+yarn quiesco test --platform ios --config vitest.e2e.config.mts
+yarn quiesco test --platform web --runner cucumber --tags @smoke features/login.feature
+yarn quiesco test --platform web -- --testNamePattern todo
+yarn quiesco test --help
+```
+</CodeGroup>
 
-设置 `QUIESCO_PLATFORM` 并运行项目的测试运行器——`cucumber-js`（默认）、`jest` 或 `vitest run`（`--runner`）；其余参数原样传给它。`--` 之后的参数也传给运行器，`--` 本身会被去掉，因此写在它之后的 Quiesco 选项名归运行器所有（`quiesco test -- --help` 显示运行器的帮助）。`--workers N` 运行 N 个 worker，每个使用自己的设备（[parallel.md](./parallel)）：对 cucumber-js 会变成 `--parallel N`，对 Jest 是 `--maxWorkers N`，对 Vitest 是 `--fileParallelism --maxWorkers N`（运行器自身的参数同样有效）。
+设置 `QUIESCO_PLATFORM` 并运行项目的测试运行器——`vitest run`、`jest` 或 `cucumber-js`；其余参数原样传给它。不加 `--runner vitest|jest|cucumber` 时，运行已安装了 Quiesco 包（`@quiesco/vitest`、`@quiesco/jest`、`@quiesco/cucumber`）的那个运行器；装了多个或一个都没装时，运行 `cucumber-js`。`--` 之后的参数也传给运行器，`--` 本身会被去掉，因此写在它之后的 Quiesco 选项名归运行器所有（`quiesco test -- --help` 显示运行器的帮助）。`--workers N` 运行 N 个 worker，每个使用自己的设备（[parallel.md](./parallel)）：对 cucumber-js 会变成 `--parallel N`，对 Jest 是 `--maxWorkers N`，对 Vitest 是 `--fileParallelism --maxWorkers N`（运行器自身的参数同样有效）。
 
-在终端中，运行器的输出照常向上滚动，最后一行始终显示进度条：已完成 / 总数、通过、失败与跳过的数量、已用时间，以及当前正在运行的测试（有多个 worker 时每台设备一个）。进度由运行器发送：`quiesco test` 会自动为 cucumber-js 加上 `@quiesco/cucumber` 的 formatter，Vitest 需要 `quiescoPlugin()`，Jest 由 preset 提供（[Jest 与 Vitest](./runners)）；没有接入时，运行结束会提示需要添加什么。`--no-progress` 或 `QUIESCO_PROGRESS=0` 可以关闭进度条；在 CI 中以及输出不是终端时它也会关闭。退出码就是运行器的退出码。
+在终端中，运行器的输出照常向上滚动，最后一行始终显示进度条：已完成 / 总数、通过、失败与跳过的数量、已用时间，以及当前正在运行的测试（有多个 worker 时每台设备一个）。进度由运行器发送：`quiesco test` 会自动为 cucumber-js 加上 `@quiesco/cucumber` 的 formatter，Vitest 需要 `quiescoPlugin()`，Jest 由 preset 提供（[测试运行器](./runners)）；没有接入时，运行结束会提示需要添加什么。`--no-progress` 或 `QUIESCO_PROGRESS=0` 可以关闭进度条；在 CI 中以及输出不是终端时它也会关闭。退出码就是运行器的退出码。
 
-当 App 从 Metro 加载 JS（`devClient.metroUrl`，或 `apps.web.url`）而那里没有响应时，`quiesco test` 会以 `EXPO_PUBLIC_QUIESCO=1` 启动 Metro（`npx expo start --port <port>`，输出写到 `artifacts/metro.log`），等待它就绪，并在运行器结束时（包括 Ctrl-C）停止它。已经在运行的 Metro 会直接使用。配置中的 `devServer` 可以修改命令和超时时间，或关闭这一行为（`autoStart: false`）。直接运行运行器（`npx cucumber-js`）时不会启动 Metro。
+当 App 从 Metro 加载 JS（`devClient.metroUrl`，或 `apps.web.url`）而那里没有响应时，`quiesco test` 会以 `EXPO_PUBLIC_QUIESCO=1` 启动 Metro（`npx expo start --port <port>`，输出写到 `artifacts/metro.log`），等待它就绪，并在运行器结束时（包括 Ctrl-C）停止它。已经在运行的 Metro 会直接使用。配置中的 `devServer` 可以修改命令和超时时间，或关闭这一行为（`autoStart: false`）。直接运行运行器（`npx vitest run`）时不会启动 Metro。
 
 ## `quiesco ui` {#quiesco-ui}
 
-```sh
+<CodeGroup>
+```sh pnpm
+pnpm exec quiesco ui --platform web
+pnpm exec quiesco ui --platform ios --config vitest.e2e.config.mts --port 5173
+pnpm exec quiesco ui --help
+```
+```sh npm
 npx quiesco ui --platform web
-npx quiesco ui --platform ios --runner vitest --config vitest.e2e.config.mts --port 5173
+npx quiesco ui --platform ios --config vitest.e2e.config.mts --port 5173
 npx quiesco ui --help
 ```
+```sh bun
+bunx quiesco ui --platform web
+bunx quiesco ui --platform ios --config vitest.e2e.config.mts --port 5173
+bunx quiesco ui --help
+```
+```sh yarn
+yarn quiesco ui --platform web
+yarn quiesco ui --platform ios --config vitest.e2e.config.mts --port 5173
+yarn quiesco ui --help
+```
+</CodeGroup>
 
 在浏览器中打开[测试 UI](./ui)：项目里的测试、点一下即可运行全部 / 某个文件 / 单个测试、实时进度，以及失败和对应的证据。需要在项目中安装 `@quiesco/ui`。`--platform`、`--runner`、`--workers` 和运行器的参数与 `quiesco test` 相同；`--port N` 指定端口，`--no-open` 不自动打开浏览器。运行期间 Metro 保持启动；按 Ctrl-C 停止。
 
 ## `quiesco list` {#quiesco-list}
 
-```sh
-npx quiesco list
-npx quiesco list features/login.feature
-npx quiesco list --runner vitest --config vitest.e2e.config.mts --json
+<CodeGroup>
+```sh pnpm
+pnpm exec quiesco list
+pnpm exec quiesco list e2e/login.test.ts
+pnpm exec quiesco list --runner cucumber features/login.feature --json
 ```
+```sh npm
+npx quiesco list
+npx quiesco list e2e/login.test.ts
+npx quiesco list --runner cucumber features/login.feature --json
+```
+```sh bun
+bunx quiesco list
+bunx quiesco list e2e/login.test.ts
+bunx quiesco list --runner cucumber features/login.feature --json
+```
+```sh yarn
+yarn quiesco list
+yarn quiesco list e2e/login.test.ts
+yarn quiesco list --runner cucumber features/login.feature --json
+```
+</CodeGroup>
 
-按文件列出运行器将会运行的测试及其行号，既不运行测试，也不启动设备。cucumber-js 会做一次去掉报告格式的 dry run（报告文件保持不变），Vitest 会解析测试文件，Jest 会在不使用 Quiesco 测试环境和项目 global setup 的情况下收集测试（setup files 仍会运行）。`--json` 输出列表，其中的测试 id 与进度条和测试 UI 使用的一致。什么都无法列出时，退出码为 1。
+按文件列出运行器（与 `quiesco test` 使用的相同）将会运行的测试及其行号，既不运行测试，也不启动设备。cucumber-js 会做一次去掉报告格式的 dry run（报告文件保持不变），Vitest 会解析测试文件，Jest 会在不使用 Quiesco 测试环境和项目 global setup 的情况下收集测试（setup files 仍会运行）。`--json` 输出列表，其中的测试 id 与进度条和测试 UI 使用的一致。什么都无法列出时，退出码为 1。
 
 ## `quiesco devices` {#quiesco-devices}
 
-```sh
+<CodeGroup>
+```sh pnpm
+pnpm exec quiesco devices          # Quiesco 为并行 worker 创建的模拟器 / AVD
+pnpm exec quiesco devices --prune  # 关闭并删除它们
+```
+```sh npm
 npx quiesco devices            # Quiesco 为并行 worker 创建的模拟器 / AVD
 npx quiesco devices --prune    # 关闭并删除它们
 ```
+```sh bun
+bunx quiesco devices           # Quiesco 为并行 worker 创建的模拟器 / AVD
+bunx quiesco devices --prune   # 关闭并删除它们
+```
+```sh yarn
+yarn quiesco devices           # Quiesco 为并行 worker 创建的模拟器 / AVD
+yarn quiesco devices --prune   # 关闭并删除它们
+```
+</CodeGroup>
 
 列出 `"<name> (Quiesco N)"` 模拟器和 `<avd>_quiesco_N` AVD（正在运行的会标注 `[running]`）；`--prune` 删除它们。下次并行运行时会重新创建；你自己的设备永远不会被动到。
 
 ## `quiesco doctor` {#quiesco-doctor}
 
-```sh
+<CodeGroup>
+```sh pnpm
+pnpm exec quiesco doctor           # quiesco.config.mts 中配置的所有平台
+pnpm exec quiesco doctor --platform ios
+```
+```sh npm
 npx quiesco doctor                 # quiesco.config.mts 中配置的所有平台
 npx quiesco doctor --platform ios
 ```
+```sh bun
+bunx quiesco doctor                # quiesco.config.mts 中配置的所有平台
+bunx quiesco doctor --platform ios
+```
+```sh yarn
+yarn quiesco doctor                # quiesco.config.mts 中配置的所有平台
+yarn quiesco doctor --platform ios
+```
+</CodeGroup>
 
 检查 Node.js、Expo SDK（55 及以上）、项目配置（包、所有 Quiesco 包是否为同一版本、package.json 脚本中的每个 `quiesco <command>` 是否存在、config plugin、Metro 中的 `withQuiesco()`、agent 是否为入口的第一个 import、`<QuiescoRoot>`、配置文件）、App ID（`quiesco.config.mts` 与 `app.json` 和构建产物是否一致，以及 `init` 留下的占位符）、旧版本写入的设置（cucumber 配置中的 `paths`；step 文件导入 `.ts` 但没有 `allowImportingTsExtensions`）、平台工具（模拟器、adb 和 AVD、配置中的 Playwright 浏览器）、App 构建和端口。每个问题都附带修复方法；旧的设置缺少的大部分内容，`npx quiesco@latest init --upgrade` 都能修好。必需的检查失败时以 1 退出；警告和提示（ℹ️，例如缺少 `e2e:build:*` 脚本）不会导致失败。
 
 ## `quiesco tree` {#quiesco-tree}
 
-```sh
+<CodeGroup>
+```sh pnpm
+pnpm exec quiesco tree             # 连接到正在运行的 App
+pnpm exec quiesco tree --launch --platform android
+pnpm exec quiesco tree --json > tree.json
+```
+```sh npm
 npx quiesco tree                   # 连接到正在运行的 App
 npx quiesco tree --launch --platform android
 npx quiesco tree --json > tree.json
 ```
+```sh bun
+bunx quiesco tree                  # 连接到正在运行的 App
+bunx quiesco tree --launch --platform android
+bunx quiesco tree --json > tree.json
+```
+```sh yarn
+yarn quiesco tree                  # 连接到正在运行的 App
+yarn quiesco tree --launch --platform android
+yarn quiesco tree --json > tree.json
+```
+</CodeGroup>
 
 打印 App 当前屏幕的元素树——每个元素的类型、`#testID`、文本和 `[role]`——帮助你为步骤找到匹配器：
 

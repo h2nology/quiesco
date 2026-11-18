@@ -1,6 +1,6 @@
 ---
 title: "示例 App"
-description: "仓库中的 todo App：三个平台上的 e2e 运行、并行运行、EAS 构建、生产剥离检查和基准测试。"
+description: "仓库中的 todo App：三个平台上的 e2e 运行、并行运行、EAS 构建、生产剥离检查和基准测试脚本。"
 ---
 
 [`examples/todo-app`](https://github.com/h2nology/quiesco/tree/main/examples/todo-app) 是一个 Expo SDK 58 + Expo Router App，用于对 Quiesco 做验收（requirements.md §9）：登录、todo 列表、新建 todo 表单、带动画的屏幕转场，以及对本地 mock 后端的网络调用。
@@ -85,7 +85,7 @@ pnpm check:prod-strip --platform ios --allow-clean        # 会删除 ios/：之
 pnpm bench:android        # 20 次迭代：软重置、含同步的点击、完整测试套件（native 和 js）
 ```
 
-输出是一段 Markdown，用于[基准测试](./benchmarks)页面。
+输出是一段包含各项耗时的 Markdown。
 
 ## App 如何集成 Quiesco {#how-the-app-integrates-quiesco}
 

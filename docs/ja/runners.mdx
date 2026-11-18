@@ -1,16 +1,43 @@
 ---
-title: "JestとVitest"
-description: "Cucumberの代わりにJestやVitestからQuiescoを使います。"
+title: "テストランナー"
+description: "Vitest（推奨）、Jest、Cucumber：実行全体で1つのセッション、各テストの前にリセット、失敗時には証跡。"
 ---
 
-`@quiesco/vitest`と`@quiesco/jest`は、`@quiesco/cucumber`がCucumberに対して行うことをVitestとJestに対して行います。実行全体で1つのセッション（デバイスとアプリ）を使い、各テストの前にリセットし、別のプラットフォームやブラウザー向けのタグが付いたテストはスキップし（`@ios`、`@android`、`@web`、`@native`、`@chromium`、`@firefox`、`@webkit`。最も内側の階層が優先されます）、失敗時のメッセージには証跡ファイル（スクリーンショット、要素ツリー、アイドル状態、ログ）が列挙されます。
+Quiescoはテストランナーからアプリを操作します。3つのランナーに専用のインテグレーションがあり、どれも同じように動作します。実行全体で1つのセッション（デバイスとアプリ）を使い、各テストの前にリセットし、別のプラットフォームやブラウザー向けのタグが付いたテストはスキップし（`@ios`、`@android`、`@web`、`@native`、`@chromium`、`@firefox`、`@webkit`。最も内側の階層が優先されます）、失敗時のメッセージには証跡ファイル（スクリーンショット、要素ツリー、アイドル状態、ログ）が列挙されます。
+
+| ランナー | パッケージ | テスト | アプリ |
+|---|---|---|---|
+| **Vitest**（推奨） | `@quiesco/vitest` | TypeScript、`test(…)` | `app`フィクスチャー |
+| Jest | `@quiesco/jest` | JavaScript、`test(…)` | グローバルの`quiesco.app` |
+| Cucumber | `@quiesco/cucumber` | Gherkinのfeatureとステップ定義 | ステップ内の`this.app` |
+
+## ランナーを選ぶ {#choosing}
+
+`quiesco init`はどのランナーを使うかを尋ね（Vitestが選択済み。CIでは尋ねずにVitestを使います）、そのランナーのパッケージ、設定、最初のテストだけをインストールします。質問なしで選ぶには次のようにします。
+
+<CodeGroup>
+```sh pnpm
+pnpm dlx quiesco init --runner vitest  # または jest、cucumber
+```
+```sh npm
+npx quiesco init --runner vitest     # または jest、cucumber
+```
+```sh bun
+bunx quiesco init --runner vitest    # または jest、cucumber
+```
+```sh yarn
+yarn dlx quiesco init --runner vitest  # または jest、cucumber
+```
+</CodeGroup>
+
+その後の`quiesco test`、`quiesco ui`、`quiesco list`は、Quiescoのパッケージがインストールされているランナーを使うので、`--runner`は不要です。複数インストールされている場合（または1つもない場合）は、Quiesco 0.6以前と同じくCucumberを使います。別のランナーを使うには`--runner`で指定します。
 
 ## Vitest {#vitest}
 
-`app`はテストフィクスチャーです。
+`app`はテストフィクスチャーです。`quiesco init --runner vitest`が設定（`vitest.config.mts`）と最初のテスト（`e2e/app.test.ts`）を書き出します。
 
 ```ts
-// vitest.config.ts
+// vitest.config.mts
 import { quiesco, quiescoPlugin } from '@quiesco/vitest/config';
 import { defineConfig } from 'vitest/config';
 export default defineConfig({ plugins: [quiescoPlugin()], test: { ...quiesco(), include: ['e2e/**/*.test.ts'] } });
@@ -31,10 +58,10 @@ test('Android only', { tags: ['@android'] }, async ({ app }) => { /* … */ });
 
 ## Jest {#jest}
 
-プリセットです。テストからはグローバルの`quiesco`を通じてアプリにアクセスします。
+プリセットです。テストからはグローバルの`quiesco`を通じてアプリにアクセスします。`quiesco init --runner jest`が設定（`jest.config.cjs`）と最初のテスト（`e2e/app.test.js`）を書き出します。
 
 ```js
-// jest.config.js
+// jest.config.cjs
 module.exports = { preset: '@quiesco/jest', maxWorkers: 1, testTimeout: 120_000 }; // maxWorkers: N = N台のデバイス
 
 // e2e/todo.test.js
@@ -45,6 +72,26 @@ test('a new todo appears at the top @ios', async () => {
 
 プラットフォームタグはテストまたは`describe`のタイトルに書きます（Jestにはテストオプションがないため）。プリセットは、実行の進捗を`quiesco test`と`quiesco ui`に送るレポーターも追加します。設定に独自の`reporters`があるとプリセットのものを置き換えるので、そこに`'@quiesco/jest/reporter'`を追加してください（`'default'`と並べて）。
 
+## Cucumber {#cucumber}
+
+Gherkinでfeatureを書き、ステップからは`this.app`を通じてアプリにアクセスします。
+
+```gherkin
+Scenario: A new todo appears at the top of the list
+  When they add a todo "Buy milk"
+  Then the first todo is "Buy milk"
+```
+
+```ts
+When('they add a todo {string}', async function (this: QuiescoWorld, title: string) {
+  await this.app.tap('add-todo');                 // アプリがアイドルになるまで待ってからタップ
+  await this.app.type('todo-title', title);
+  await this.app.tap({ role: 'button', text: 'Save' });
+});
+```
+
+`quiesco init --runner cucumber`は`cucumber.mjs`、`features/support/quiesco.ts`（Worldとライフサイクルフック）、最初のfeatureとそのステップを書き出します。`this.app`の上にビジネスの言葉でステップを書く方法は[Driverパターン](./driver-pattern)を、プロトタイピング用の汎用ステップは[汎用ステップ](./steps)を参照してください。
+
 ## 実行 {#running}
 
-どちらも`npx quiesco test --platform ios --runner vitest|jest`で実行するか、[`quiesco ui`](./ui)を使ってブラウザから実行します。両方のサンプルが[examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e)にあります。詳しくは[CucumberなしでQuiescoを使う](./api#using-quiesco-without-cucumber)を、複数のデバイスで同時に実行する方法は[並列実行](./parallel)を参照してください。
+`npx quiesco test --platform ios`でテストを実行するか（インストール済みのもの以外を使うときは`--runner vitest|jest|cucumber`）、[`quiesco ui`](./ui)を使ってブラウザから実行します。3つすべてのサンプルが[examples/todo-app](https://github.com/h2nology/quiesco/tree/main/examples/todo-app)にあります。詳しくは[Vitest、Jestとその他のランナー](./api#using-quiesco-without-cucumber)を、複数のデバイスで同時に実行する方法は[並列実行](./parallel)を参照してください。

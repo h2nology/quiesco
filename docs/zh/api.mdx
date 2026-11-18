@@ -9,11 +9,11 @@ description: "this.app（Driver）、匹配器、App 内 API、配置、场景�
 - [配置（`quiesco.config.ts`）](#configuration)
 - [场景标签](#scenario-tags)
 - [错误](#errors)
-- [不使用 Cucumber 时如何使用 Quiesco](#using-quiesco-without-cucumber)——Jest、Vitest 及其他运行器
+- [Vitest、Jest 和其他运行器](#using-quiesco-without-cucumber)
 
 ## Driver（`this.app`） {#driver-thisapp}
 
-在步骤定义中，`this.app` 是当前会话的 `Driver`（`@quiesco/core`）。每个调用都是`async` 的，会先等待 App 空闲（见 [同步](./sync)），对于操作，执行之后还会再等待一次。步骤里无需任何等待或 sleep。
+当前会话的 `Driver`（`@quiesco/core`）在 Vitest 测试中是 `app` fixture，在 Jest 中是全局 `quiesco.app`，在 Cucumber 步骤中是 `this.app`；本页的示例写作 `this.app`。每个调用都是`async` 的，会先等待 App 空闲（见 [同步](./sync)），对于操作，执行之后还会再等待一次。步骤里无需任何等待或 sleep。
 
 所有调用都接受一个可选的最后参数：
 
@@ -546,9 +546,9 @@ export default defineConfig({
 
 策略：`none`、`failing`（每个场景都记录，场景失败时保留）或 `all`。默认值：video 为`none`（录制会给每个场景带来少量开销；请在 CI 中开启），logs 和 timeline 为 `failing`。`QUIESCO_ARTIFACTS=all`（或 `failing`、`none`）会为单次运行同时设置这三项。其他运行器通过会话使用同样的机制：在 `beforeScenario` 之前调用 `session.startScenario({ name })`，之后`session.afterScenario({ failed })` 会返回附件和文件。
 
-## 不使用 Cucumber 时如何使用 Quiesco {#using-quiesco-without-cucumber}
+## Vitest、Jest 和其他运行器 {#using-quiesco-without-cucumber}
 
-**Jest 和 Vitest** 有适配器 `@quiesco/jest` 和 `@quiesco/vitest`（示例见[README](./runners) 和[examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e)）。它们的行为与 Cucumber 适配器一致：
+**Vitest 和 Jest** 有适配器 `@quiesco/vitest` 和 `@quiesco/jest`（示例见[测试运行器](./runners)和 [examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e)）。它们的行为与 Cucumber 适配器一致：
 
 | | Vitest（`@quiesco/vitest`） | Jest（`@quiesco/jest`） |
 |---|---|---|

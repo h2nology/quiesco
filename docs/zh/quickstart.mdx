@@ -1,16 +1,32 @@
 ---
 title: "快速开始（Web）"
-description: "从一个新建的 Expo App 到在 Chromium 中通过的 feature，大约 10 分钟。"
+description: "从一个新建的 Expo App 到在 Chromium 中通过的测试，大约 10 分钟。"
 ---
 
 前提条件：Node.js 24+，一个基于 SDK 55 或更高版本的 Expo App （`npx create-expo-app@latest`）。
 
 <Steps>
   <Step title="初始化项目">
-    ```sh
+    <CodeGroup>
+    ```sh pnpm
     cd my-app
-    npx quiesco init          # 依赖、config plugin、Metro、入口文件、quiesco.config.mts，以及第一个 feature
+    pnpm dlx quiesco init     # 依赖、config plugin、Metro、入口文件、quiesco.config.mts，以及第一个测试
     ```
+    ```sh npm
+    cd my-app
+    npx quiesco init          # 依赖、config plugin、Metro、入口文件、quiesco.config.mts，以及第一个测试
+    ```
+    ```sh bun
+    cd my-app
+    bunx quiesco init         # 依赖、config plugin、Metro、入口文件、quiesco.config.mts，以及第一个测试
+    ```
+    ```sh yarn
+    cd my-app
+    yarn dlx quiesco init     # 依赖、config plugin、Metro、入口文件、quiesco.config.mts，以及第一个测试
+    ```
+    </CodeGroup>
+
+    `init` 会询问使用哪个测试运行器：直接按回车选 Vitest（推荐），也可以选 Jest 或 Cucumber（[测试运行器](./runners)）。`--runner vitest|jest|cucumber` 可以跳过询问直接指定。下面的步骤以 Vitest 为例，换成其他运行器只是文件名不同。
   </Step>
   <Step title="包裹根布局">
     用 `<QuiescoRoot>` 包裹根布局（默认模板中是 `src/app/_layout.tsx`）：
@@ -29,16 +45,38 @@ description: "从一个新建的 Expo App 到在 Chromium 中通过的 feature�
     ```
   </Step>
   <Step title="给首页加上 test id">
-    在 `src/app/index.tsx` 中写 `<ThemedView style={styles.container} testID="home">`。生成的`features/app.feature` 会检查它是否可见。
+    在 `src/app/index.tsx` 中写 `<ThemedView style={styles.container} testID="home">`。生成的 `e2e/app.test.ts` 会检查它是否可见：
+
+    ```ts
+    import { test } from '@quiesco/vitest';
+
+    test('the home screen is shown', async ({ app }) => {
+      await app.expectVisible({ id: 'home' });
+    });
+    ```
   </Step>
   <Step title="让首页稳定下来">
     默认模板会在首页上让一个装饰性的光晕转动四分钟，因此页面一直无法稳定。给它加上 test id——在`src/components/animated-icon.web.tsx`（iOS / Android 则是 `animated-icon.tsx`）中写`<Animated.View … style={styles.glow} testID="logo-glow">`——然后取消 `quiesco.config.mts` 中`sync: { ignoreElements: ['logo-glow'] }` 的注释。
   </Step>
   <Step title="运行">
-    ```sh
+    <CodeGroup>
+    ```sh pnpm
+    pnpm exec playwright install chromium
+    pnpm e2e:web              # 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
+    ```
+    ```sh npm
     npx playwright install chromium
     npm run e2e:web           # 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
     ```
+    ```sh bun
+    bunx playwright install chromium
+    bun run e2e:web           # 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
+    ```
+    ```sh yarn
+    yarn playwright install chromium
+    yarn e2e:web              # 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
+    ```
+    </CodeGroup>
 
     该模板在服务端渲染（`web.output: "server"`）；对于这种导出，Quiesco 会自行运行 `npx expo serve`。静态导出则直接托管。
   </Step>
@@ -46,4 +84,4 @@ description: "从一个新建的 Expo App 到在 Chromium 中通过的 feature�
 
 `npx quiesco doctor` 会检查配置，并说明如何补齐缺失的部分。`npx quiesco tree` 会打印运行中 App 的元素树，便于查找 test id。
 
-下一步：[iOS 和 Android](./native)、用业务语言编写步骤的 [Driver 模式](./driver-pattern)，以及 [API 参考](./api)。
+下一步：[iOS 和 Android](./native)、[测试运行器](./runners)，以及 [API 参考](./api)。
