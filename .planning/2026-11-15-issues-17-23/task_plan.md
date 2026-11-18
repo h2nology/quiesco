@@ -106,7 +106,6 @@
 - [x] npm 验证：全新默认模板 `npx quiesco@0.4.0 init` ⇒ 发布不满 24h 仍装到 0.4.0（写入 minimumReleaseAgeExclude）；doctor 通过；quick start web 1/1
 - [x] #17–#23 逐个回复（修复内容、PR、0.4.0、实测结果）并关闭（COMPLETED）
 - **Status:** complete（2026-11-15）
-- **Status:** pending
 
 ## Decisions Made
 | 决定 | 选择 | 理由 |
