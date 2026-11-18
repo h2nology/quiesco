@@ -1,6 +1,6 @@
 {
   "name": "@quiesco/expo-plugin",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Quiesco Expo config plugin: links @quiesco/native into e2e builds only.",
   "license": "MIT",
   "author": "h2nology",
