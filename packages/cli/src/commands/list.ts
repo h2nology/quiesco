@@ -9,13 +9,15 @@ import { listTests } from '@quiesco/core';
 
 import type { CliContext } from '../context.js';
 import { takeFlag, takeOption } from '../context.js';
+import { projectRunner } from '../runner.js';
 
 export const LIST_HELP = `Usage: quiesco list [options] [runner arguments…]
 
 Lists the tests the runner would run, without running them (no device is started).
 
 Options:
-  --runner cucumber|jest|vitest  Test runner (default: cucumber)
+  --runner cucumber|jest|vitest  Test runner (default: the one whose @quiesco package
+                                 is installed; cucumber when several or none are)
   --json                         Print the list as JSON (ids as in the run events)
   -h, --help                     Show this help
 
@@ -53,7 +55,7 @@ export async function listCommand(args: readonly string[], ctx: CliContext, deps
   }
   const r = takeOption(args, '--runner');
   const json = takeFlag(r.rest, '--json');
-  const runner = r.value ?? 'cucumber';
+  const runner = r.value ?? projectRunner(ctx);
   if (!(RUNNERS as readonly string[]).includes(runner)) {
     ctx.err(`quiesco list: unknown runner "${runner}" (cucumber, jest or vitest).`);
     return 2;

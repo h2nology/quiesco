@@ -1,7 +1,7 @@
 /**
  * `quiesco test [--platform ios|android|web] [--runner cucumber|jest|vitest] [--workers N] [runner arguments…]`
  * (requirements.md §6.12, Phase 6.10): sets QUIESCO_PLATFORM and runs the project's test runner with the
- * remaining arguments unchanged. Default runner: cucumber-js. `--workers N` (Phase 6.12) runs N workers,
+ * remaining arguments unchanged. Default runner: the project's (projectRunner). `--workers N` (Phase 6.12) runs N workers,
  * each on its own device, with the runner's own flags; those flags can also be passed directly.
  * Everything after a `--` goes to the runner as-is, and the `--` itself is dropped (issue #7): cucumber-js
  * would read every argument after it as a path.
@@ -13,6 +13,7 @@ import { loadConfig } from '@quiesco/core';
 
 import type { CliContext } from '../context.js';
 import { parsePlatform, takeFlag, takeOption } from '../context.js';
+import { projectRunner } from '../runner.js';
 import { ensureDevServer } from '../dev-server.js';
 import { cucumberFormatArgs, progressWanted, runWithProgress } from '../progress/run.js';
 
@@ -49,7 +50,8 @@ When nothing answers at devClient.metroUrl (native) or apps.web.url (web) on thi
 
 Options:
   --platform ios|android|web     Platform to test (or set QUIESCO_PLATFORM)
-  --runner cucumber|jest|vitest  Test runner (default: cucumber, i.e. cucumber-js)
+  --runner cucumber|jest|vitest  Test runner (default: the one whose @quiesco package
+                                 is installed; cucumber when several or none are)
   --workers N                    Run N workers, each on a device of its own
   --no-progress                  No progress bar (it shows on a terminal, not in CI; or QUIESCO_PROGRESS=0)
   -h, --help                     Show this help (\`quiesco test -- --help\` shows the runner's)
@@ -84,7 +86,7 @@ export async function testCommand(args: readonly string[], ctx: CliContext, deps
     ctx.err('quiesco test: choose a platform with --platform ios|android|web (or set QUIESCO_PLATFORM). See quiesco test --help.');
     return 2;
   }
-  const runner = r.value ?? 'cucumber';
+  const runner = r.value ?? projectRunner(ctx);
   if (!isRunner(runner)) {
     ctx.err(`quiesco test: unknown runner "${runner}" (cucumber, jest or vitest).`);
     return 2;

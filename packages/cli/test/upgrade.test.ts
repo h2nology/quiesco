@@ -66,7 +66,7 @@ describe('quiesco init --upgrade (issues #34, #35)', () => {
     // every Quiesco package, also @quiesco/steps that init does not add; @cucumber/cucumber left alone
     expect(ctx.calls.map((c) => `${c.command} ${c.args.join(' ')}`)).toEqual([
       'npm install @quiesco/agent@9.9.9 @quiesco/native@9.9.9',
-      'npm install --save-dev quiesco@9.9.9 @quiesco/core@9.9.9 @quiesco/cucumber@9.9.9 @quiesco/expo-plugin@9.9.9 @quiesco/steps@9.9.9',
+      'npm install --save-dev quiesco@9.9.9 @quiesco/core@9.9.9 @quiesco/expo-plugin@9.9.9 @quiesco/cucumber@9.9.9 @quiesco/steps@9.9.9',
     ]);
     const out = ctx.lines.join('\n');
     expect(out).toMatch(/\$ versions — 7 Quiesco packages at 9\.9\.9/);

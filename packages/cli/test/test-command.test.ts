@@ -35,6 +35,20 @@ describe('quiesco test', () => {
     expect(unknown.errors[0]).toMatch(/unknown runner "mocha"/);
   });
 
+  it('uses the runner whose Quiesco package the project has, cucumber when several or none', async () => {
+    const run = async (devDependencies: Record<string, string>): Promise<string | undefined> => {
+      const ctx = fakeContext();
+      ctx.put('package.json', JSON.stringify({ devDependencies }));
+      expect(await main(['test', '--platform', 'web'], ctx)).toBe(0);
+      return ctx.calls[0]?.args[0];
+    };
+    expect(await run({ '@quiesco/vitest': '1.0.0', vitest: '5.1.0' })).toBe('vitest');
+    expect(await run({ '@quiesco/jest': '1.0.0' })).toBe('jest');
+    expect(await run({ '@quiesco/cucumber': '1.0.0' })).toBe('cucumber-js');
+    expect(await run({ '@quiesco/cucumber': '1.0.0', '@quiesco/vitest': '1.0.0' })).toBe('cucumber-js');
+    expect(await run({})).toBe('cucumber-js');
+  });
+
   it('passes the parallel flags of the runners through (Phase 6.12)', async () => {
     for (const [runner, flags] of [['cucumber', ['--parallel', '2']], ['jest', ['-w', '2']], ['vitest', ['--fileParallelism', '--maxWorkers', '2']]] as const) {
       const ctx = fakeContext();

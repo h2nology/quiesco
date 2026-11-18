@@ -6,6 +6,7 @@ import { spawn as nodeSpawn } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { createInterface } from 'node:readline/promises';
 
 export interface ExecResult {
   code: number;
@@ -37,6 +38,11 @@ export interface CliContext {
   nodeVersion: string;
   /** Whether a person is at the terminal (stdout is a TTY), not a CI job. */
   interactive: boolean;
+  /**
+   * Ask the person at the terminal to pick one of `options` (numbered; Enter takes `defaultValue`).
+   * Returns `defaultValue` when stdin is not a terminal.
+   */
+  choose(question: string, options: readonly { value: string; label: string }[], defaultValue: string): Promise<string>;
   /** Start a long-running process (Metro) in its own process group, its output appended to `logFile`. */
   spawnBackground(command: string, args: readonly string[], options: { cwd: string; env: NodeJS.ProcessEnv; logFile: string }): BackgroundProcess;
   /** GET `url`; null when nothing answers (connection refused, timeout). */
@@ -120,6 +126,23 @@ export function defaultContext(): CliContext {
     platform: process.platform,
     nodeVersion: process.versions.node,
     interactive: process.stdout.isTTY === true,
+    choose: async (question, options, defaultValue) => {
+      if (process.stdin.isTTY !== true) return defaultValue;
+      const def = Math.max(0, options.findIndex((o) => o.value === defaultValue));
+      process.stdout.write(`${question}\n${options.map((o, i) => `  ${i + 1}) ${o.label}`).join('\n')}\n`);
+      const rl = createInterface({ input: process.stdin, output: process.stdout });
+      try {
+        for (;;) {
+          const answer = (await rl.question(`Choose 1-${options.length} [${def + 1}]: `)).trim();
+          if (answer === '') return defaultValue;
+          const byNumber = options[Number(answer) - 1];
+          const picked = /^\d+$/.test(answer) ? byNumber : options.find((o) => o.value === answer.toLowerCase());
+          if (picked !== undefined) return picked.value;
+        }
+      } finally {
+        rl.close();
+      }
+    },
     spawnBackground: (command, args, options) => {
       fs.mkdirSync(path.dirname(options.logFile), { recursive: true });
       const log = fs.openSync(options.logFile, 'a');

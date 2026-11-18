@@ -49,8 +49,8 @@ export interface StepLog {
 
 /** Installed into `dependencies`: the app bundles them (stubbed / excluded in production builds). */
 export const RUNTIME = ['@quiesco/agent', '@quiesco/native'];
-/** Installed into `devDependencies`. */
-export const DEV = ['quiesco', '@quiesco/core', '@quiesco/cucumber', '@quiesco/expo-plugin', '@cucumber/cucumber'];
+/** Installed into `devDependencies`, with the chosen runner's packages (RUNNER_PACKAGES). */
+export const DEV = ['quiesco', '@quiesco/core', '@quiesco/expo-plugin'];
 export const WEB_DEV = ['@quiesco/web', 'playwright'];
 /** Internal packages pulled in by the ones above; only pinned when installing from tarballs. */
 const TRANSITIVE = ['@quiesco/protocol'];
@@ -295,22 +295,34 @@ export function ensureTsconfig(log: StepLog): void {
 
 // ---- scripts ----
 
-export function e2eScripts(platforms: readonly CliPlatform[]): Record<string, string> {
+/** `testArgs`: appended to each `quiesco test` (`--config vitest.e2e.config.mts` when init wrote that file). */
+export function e2eScripts(platforms: readonly CliPlatform[], testArgs = ''): Record<string, string> {
+  const extra = testArgs === '' ? '' : ` ${testArgs}`;
   return {
     'e2e:start': 'EXPO_PUBLIC_QUIESCO=1 expo start',
-    ...(platforms.includes('web') ? { 'e2e:web': 'EXPO_PUBLIC_QUIESCO=1 expo export --platform web && quiesco test --platform web' } : {}),
-    ...(platforms.includes('android') ? { 'e2e:build:android': 'quiesco build android', 'e2e:android': 'quiesco test --platform android' } : {}),
-    ...(platforms.includes('ios') ? { 'e2e:build:ios': 'quiesco build ios', 'e2e:ios': 'quiesco test --platform ios' } : {}),
+    ...(platforms.includes('web') ? { 'e2e:web': `EXPO_PUBLIC_QUIESCO=1 expo export --platform web && quiesco test --platform web${extra}` } : {}),
+    ...(platforms.includes('android') ? { 'e2e:build:android': 'quiesco build android', 'e2e:android': `quiesco test --platform android${extra}` } : {}),
+    ...(platforms.includes('ios') ? { 'e2e:build:ios': 'quiesco build ios', 'e2e:ios': `quiesco test --platform ios${extra}` } : {}),
   };
 }
 
+/** `pm run <script>` as the person types it (`npm run x`, `pnpm x`, `yarn x`, `bun run x`). */
+export function runScript(pm: PackageManager, script: string): string {
+  return pm === 'pnpm' || pm === 'yarn' ? `${pm} ${script}` : `${pm} run ${script}`;
+}
+
+/** `npx <command>` for the package manager (`pnpm exec`, `yarn`, `bunx`): runs the project's own binary. */
+export function execBin(pm: PackageManager, command: string): string {
+  return { npm: 'npx', pnpm: 'pnpm exec', yarn: 'yarn', bun: 'bunx' }[pm] + ` ${command}`;
+}
+
 /** Add the e2e scripts that are missing; existing scripts of the same name are left alone. */
-export function ensureScripts(log: StepLog, platforms: readonly CliPlatform[]): void {
+export function ensureScripts(log: StepLog, platforms: readonly CliPlatform[], testArgs = ''): void {
   const { ctx, steps } = log;
   const pkgFile = path.join(ctx.cwd, 'package.json');
   const pkg = readJson<PackageJson>(ctx, pkgFile) as PackageJson;
   const scripts = { ...(pkg.scripts ?? {}) };
-  const wanted = e2eScripts(platforms);
+  const wanted = e2eScripts(platforms, testArgs);
   const added = Object.keys(wanted).filter((k) => scripts[k] === undefined);
   if (added.length === 0) {
     steps.push({ status: 'skipped', what: 'scripts', note: 'the e2e scripts exist' });

@@ -15,6 +15,7 @@ import { PLATFORMS, parsePlatform, takeOption } from '../context.js';
 import { MIN_EXPO_SDK, UPGRADE_SDK_FIX, expoSdk } from '../expo-sdk.js';
 import { CLI_COMMANDS, installedVersion, isQuiescoPackage, scriptCommands } from '../packages.js';
 import { rootSourceFiles } from '../project.js';
+import { RUNNER_PACKAGES, projectRunner } from '../runner.js';
 
 /** `info`: worth knowing, nothing is wrong (counted neither as a warning nor as a failure). */
 export type CheckStatus = 'ok' | 'info' | 'warn' | 'fail';
@@ -89,10 +90,12 @@ function projectChecks(ctx: CliContext): CheckResult[] {
     return [{ name: 'project', status: 'fail', detail: `no package.json in ${ctx.cwd}`, fix: 'Run quiesco in the Expo app directory.' }];
   }
   results.push(expoCheck(ctx, pkg));
-  const missing = ['@quiesco/agent', '@quiesco/cucumber', '@cucumber/cucumber'].filter((d) => !hasDep(pkg, d));
+  // The runner the commands use without --runner, with Quiesco's integration and the runner itself.
+  const wanted = ['@quiesco/agent', ...RUNNER_PACKAGES[projectRunner(ctx)]];
+  const missing = wanted.filter((d) => !hasDep(pkg, d));
   results.push(
     missing.length === 0
-      ? { name: 'Quiesco packages', status: 'ok', detail: '@quiesco/agent, @quiesco/cucumber, @cucumber/cucumber' }
+      ? { name: 'Quiesco packages', status: 'ok', detail: wanted.join(', ') }
       : { name: 'Quiesco packages', status: 'fail', detail: `missing ${missing.join(', ')}`, fix: 'Run `npx quiesco init`, or install them.' },
   );
 

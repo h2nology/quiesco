@@ -13,6 +13,7 @@ import { listTests } from '@quiesco/core';
 
 import type { CliContext } from '../context.js';
 import { parsePlatform, takeFlag, takeOption } from '../context.js';
+import { projectRunner } from '../runner.js';
 import { ensureDevServer } from '../dev-server.js';
 import { cucumberFormatArgs } from '../progress/run.js';
 import { RUNNERS, defaultTestDeps, isRunner } from './test.js';
@@ -24,7 +25,8 @@ failures with Quiesco's evidence. Needs @quiesco/ui in the project (npm i -D @qu
 
 Options:
   --platform ios|android|web     Platform to test (or set QUIESCO_PLATFORM)
-  --runner cucumber|jest|vitest  Test runner (default: cucumber)
+  --runner cucumber|jest|vitest  Test runner (default: the one whose @quiesco package
+                                 is installed; cucumber when several or none are)
   --workers N                    Run N workers, each on a device of its own
   --port N                       Port of the UI (default: a free one)
   --no-open                      Do not open the browser
@@ -97,7 +99,7 @@ export async function uiCommand(args: readonly string[], ctx: CliContext, deps: 
     ctx.err('quiesco ui: choose a platform with --platform ios|android|web (or set QUIESCO_PLATFORM). See quiesco ui --help.');
     return 2;
   }
-  const runner = r.value ?? 'cucumber';
+  const runner = r.value ?? projectRunner(ctx);
   if (!isRunner(runner)) {
     ctx.err(`quiesco ui: unknown runner "${runner}" (cucumber, jest or vitest).`);
     return 2;

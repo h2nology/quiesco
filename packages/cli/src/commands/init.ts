@@ -1,6 +1,7 @@
 /**
- * `quiesco init [--platforms ios,android,web] [--packages <dir>] [--skip-install]` (requirements.md
- * §6.12): set Quiesco up in an Expo project. Every step says what it did; existing files are never
+ * `quiesco init [--platforms ios,android,web] [--runner vitest|jest|cucumber] [--packages <dir>] [--skip-install]`
+ * (requirements.md §6.12): set Quiesco up in an Expo project. Without `--runner` it asks which test runner
+ * to use when a person is at the terminal, and takes Vitest otherwise. Every step says what it did; existing files are never
  * overwritten — when one needs a change Quiesco cannot make safely, the step prints what to add.
  *
  * `--packages <dir>`: install Quiesco from the tarballs in <dir> (`pnpm pack` output) instead of the
@@ -13,7 +14,9 @@ import { PLATFORMS, takeFlag, takeOption } from '../context.js';
 import { MIN_EXPO_SDK, UPGRADE_SDK_FIX, expoSdk } from '../expo-sdk.js';
 import { entryFile, registeredRoot, rootSourceFiles, wrapRegisteredRoot } from '../project.js';
 import type { AppJson, InitStep, PackageJson, StepLog } from '../setup-steps.js';
-import { DEV, RUNTIME, WEB_DEV, detectPackageManager, ensureAppIds, ensureScripts, ensureTsconfig, firstScheme, installPackages, printSteps, readJson, writeJson } from '../setup-steps.js';
+import type { RunnerName } from '../runner.js';
+import { RUNNER_LABELS, RUNNER_NAMES, RUNNER_PACKAGES, isRunnerName } from '../runner.js';
+import { DEV, RUNTIME, WEB_DEV, detectPackageManager, ensureAppIds, ensureScripts, ensureTsconfig, execBin, firstScheme, installPackages, printSteps, readJson, runScript, writeJson } from '../setup-steps.js';
 import { upgradeCommand } from './upgrade.js';
 
 export { detectPackageManager, findTarballs } from '../setup-steps.js';
@@ -125,6 +128,49 @@ Then('the home screen is visible', async function (this: QuiescoWorld) {
 });
 `;
 
+const VITEST_CONFIG = `// Quiesco's e2e tests. quiesco(): one app session per worker, kept across files, run one file at a time
+// (quiesco({ workers: N }) runs them on N devices); the platform tags (@ios, @android, @web …).
+// quiescoPlugin(): the run's progress for \`quiesco test\` and \`quiesco ui\`.
+import { quiesco, quiescoPlugin } from '@quiesco/vitest/config';
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  plugins: [quiescoPlugin()],
+  test: { ...quiesco(), include: ['e2e/**/*.test.ts'] },
+});
+`;
+
+const VITEST_TEST = `import { test } from '@quiesco/vitest';
+
+// Tests talk to the app through the \`app\` fixture and never wait or sleep: every call waits for the app
+// to become idle first. Give the element testID="home" (or change the id here).
+test('the home screen is shown', async ({ app }) => {
+  await app.expectVisible({ id: 'home' });
+});
+`;
+
+const JEST_CONFIG = `// Quiesco's e2e tests. The preset: the Quiesco test environment (the global \`quiesco\`) and the reporter for
+// \`quiesco test\` / \`quiesco ui\`. maxWorkers: N runs the files on N devices; testTimeout covers Quiesco's waits.
+module.exports = {
+  preset: '@quiesco/jest',
+  rootDir: __dirname,
+  testMatch: ['<rootDir>/e2e/**/*.test.js'],
+  transform: {},
+  maxWorkers: 1,
+  testTimeout: 120_000,
+};
+`;
+
+const JEST_TEST = `// Tests talk to the app through quiesco.app and never wait or sleep: every call waits for the app to
+// become idle first. Give the element testID="home" (or change the id here).
+test('the home screen is shown', async () => {
+  await quiesco.app.expectVisible({ id: 'home' });
+});
+`;
+
+const VITEST_CONFIGS = ['ts', 'mts', 'cts', 'js', 'mjs', 'cjs'].map((e) => `vitest.config.${e}`);
+const JEST_CONFIGS = ['js', 'ts', 'mjs', 'cjs', 'json'].map((e) => `jest.config.${e}`);
+
 export async function initCommand(args: readonly string[], ctx: CliContext): Promise<number> {
   if (args.includes('--upgrade')) return upgradeCommand(args.filter((a) => a !== '--upgrade'), ctx);
   let rest = [...args];
@@ -134,8 +180,14 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
   rest = packagesOpt.rest;
   const skipInstall = takeFlag(rest, '--skip-install');
   rest = skipInstall.rest;
+  const runnerOpt = takeOption(rest, '--runner');
+  rest = runnerOpt.rest;
   if (rest.length > 0) {
     ctx.err(`quiesco init: unknown arguments ${rest.join(' ')}`);
+    return 2;
+  }
+  if (runnerOpt.value !== undefined && !isRunnerName(runnerOpt.value)) {
+    ctx.err(`quiesco init: unknown runner "${runnerOpt.value}" (${RUNNER_NAMES.join(', ')}).`);
     return 2;
   }
 
@@ -156,13 +208,24 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
         })
       : ['ios', 'android', ...(hasWebDeps ? (['web'] as const) : [])];
 
+  const runner: RunnerName =
+    runnerOpt.value !== undefined
+      ? (runnerOpt.value as RunnerName)
+      : ctx.interactive
+        ? ((await ctx.choose(
+            'Which test runner should drive Quiesco?',
+            RUNNER_NAMES.map((r) => ({ value: r, label: RUNNER_LABELS[r] })),
+            'vitest',
+          )) as RunnerName)
+        : 'vitest';
+
   const steps: InitStep[] = [];
   const log: StepLog = { ctx, steps, dryRun: false };
   const pm = detectPackageManager(ctx);
 
   // 1. Dependencies.
   const runtime = [...RUNTIME];
-  const dev = [...DEV, ...(platforms.includes('web') ? WEB_DEV : [])];
+  const dev = [...DEV, ...RUNNER_PACKAGES[runner], ...(platforms.includes('web') ? WEB_DEV : [])];
   const installed = await installPackages(log, {
     pm,
     runtime,
@@ -250,7 +313,7 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
     }
   }
 
-  // 5. quiesco.config.mts (.mts: an ES module whatever package.json says), cucumber config, features.
+  // 5. quiesco.config.mts (.mts: an ES module whatever package.json says), the runner's config, a first test.
   const write = (rel: string, content: string, note: string, alternatives: readonly string[] = [rel]): void => {
     const existing = alternatives.find((f) => ctx.exists(path.join(ctx.cwd, f)));
     if (existing !== undefined) {
@@ -261,17 +324,32 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
     steps.push({ status: 'created', what: rel, note });
   };
   write('quiesco.config.mts', quiescoConfig(appWithIds, platforms), `apps: ${platforms.join(', ')}`, ['quiesco.config.ts', 'quiesco.config.mts', 'quiesco.config.js', 'quiesco.config.mjs']);
-  write('cucumber.mjs', CUCUMBER_CONFIG, 'step files and format (features/**/*.feature by default)', ['cucumber.mjs', 'cucumber.js', 'cucumber.cjs', 'cucumber.json', 'cucumber.yaml', 'cucumber.yml']);
-  write('features/package.json', '{ "type": "module" }\n', 'step files are ES modules');
-  write('features/support/quiesco.ts', SUPPORT, 'this.app and the lifecycle hooks');
-  write('features/app.feature', FEATURE, 'a first scenario');
-  write('features/step_definitions/app.steps.ts', STEPS, 'its step');
+  /** A config of the runner's own name may be the unit tests': then Quiesco's goes next to it and the scripts name it. */
+  let testArgs = '';
+  let firstTest: string;
+  if (runner === 'cucumber') {
+    write('cucumber.mjs', CUCUMBER_CONFIG, 'step files and format (features/**/*.feature by default)', ['cucumber.mjs', 'cucumber.js', 'cucumber.cjs', 'cucumber.json', 'cucumber.yaml', 'cucumber.yml']);
+    write('features/package.json', '{ "type": "module" }\n', 'step files are ES modules');
+    write('features/support/quiesco.ts', SUPPORT, 'this.app and the lifecycle hooks');
+    write('features/app.feature', FEATURE, 'a first scenario');
+    write('features/step_definitions/app.steps.ts', STEPS, 'its step');
+    firstTest = 'features/step_definitions/app.steps.ts';
+  } else {
+    const [names, standard, e2eName, content] =
+      runner === 'vitest' ? [VITEST_CONFIGS, 'vitest.config.mts', 'vitest.e2e.config.mts', VITEST_CONFIG] : [JEST_CONFIGS, 'jest.config.cjs', 'jest.e2e.config.cjs', JEST_CONFIG];
+    const own = names.find((f) => ctx.exists(path.join(ctx.cwd, f))) ?? (runner === 'jest' && latest.jest !== undefined ? 'package.json "jest"' : undefined);
+    const configFile = own === undefined ? standard : e2eName;
+    write(configFile, content, own === undefined ? 'Quiesco for the e2e tests in e2e/' : `next to ${own} (your unit tests'); the e2e scripts pass --config ${e2eName}`);
+    if (own !== undefined) testArgs = `--config ${configFile}`;
+    firstTest = runner === 'vitest' ? 'e2e/app.test.ts' : 'e2e/app.test.js';
+    write(firstTest, runner === 'vitest' ? VITEST_TEST : JEST_TEST, 'a first test');
+  }
 
   // 5b. tsconfig.json (issue #21): step files import each other with .ts (Node's type stripping needs it).
-  ensureTsconfig(log);
+  if (runner === 'cucumber') ensureTsconfig(log);
 
   // 6. Scripts.
-  ensureScripts(log, platforms);
+  ensureScripts(log, platforms, testArgs);
 
   printSteps(ctx, steps);
   ctx.out('');
@@ -281,10 +359,12 @@ export async function initCommand(args: readonly string[], ctx: CliContext): Pro
   if (!rootSourceFiles(ctx, finalMain).some((f) => (ctx.readFile(f) ?? '').includes('QuiescoRoot'))) {
     next.push("Wrap the root layout in <QuiescoRoot> (import { QuiescoRoot } from '@quiesco/agent'): the app connects to Quiesco from it, and the soft reset remounts it.");
   }
-  next.push('Give the home screen testID="home" (features/step_definitions/app.steps.ts looks for it).');
-  if (platforms.includes('web')) next.push('npx playwright install chromium, then npm run e2e:web');
+  next.push(`Give the home screen testID="home" (${firstTest} looks for it).`);
+  if (platforms.includes('web')) next.push(`${execBin(pm, 'playwright install chromium')}, then ${runScript(pm, 'e2e:web')}`);
   next.forEach((line, i) => ctx.out(`  ${i + 1}. ${line}`));
-  if (platforms.some((p) => p !== 'web')) ctx.out('  •  iOS / Android: npm run e2e:build:ios (or :android) builds the app into binaryPath, then npm run e2e:ios; quiesco test starts Metro when it is not running. `npx quiesco doctor` checks the setup.');
+  if (platforms.some((p) => p !== 'web')) {
+    ctx.out(`  •  iOS / Android: ${runScript(pm, 'e2e:build:ios')} (or :android) builds the app into binaryPath, then ${runScript(pm, 'e2e:ios')}; quiesco test starts Metro when it is not running. \`${execBin(pm, 'quiesco doctor')}\` checks the setup.`);
+  }
   ctx.out('  •  A SYNC_TIMEOUT that names a decorative animation (the default template spins a glow): give it a testID and add it to sync.ignoreElements.');
   return 0;
 }
