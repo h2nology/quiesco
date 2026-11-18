@@ -95,7 +95,6 @@ evidence to code.
 
 The documentation the plugin ships has the details (use the paths the caller passed; the ones below are
 the same files, if `${CLAUDE_PLUGIN_ROOT}` appears resolved): `${CLAUDE_PLUGIN_ROOT}/skills/debug/references/troubleshooting.md`,
-`${CLAUDE_PLUGIN_ROOT}/skills/debug/references/known-issues.md`,
 `${CLAUDE_PLUGIN_ROOT}/skills/quiesco-api/references/sync.md`, and the "Errors" / "Artifacts" sections of
 `${CLAUDE_PLUGIN_ROOT}/skills/quiesco-api/references/api.md`. Read the relevant section when the case is
 not covered above.

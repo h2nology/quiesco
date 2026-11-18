@@ -1,6 +1,6 @@
 ---
 title: "サンプルアプリ"
-description: "リポジトリにあるTodoアプリ：3つのプラットフォームでのe2e実行、並列実行、EASビルド、本番ビルドからの除去チェック、ベンチマーク。"
+description: "リポジトリにあるTodoアプリ：3つのプラットフォームでのe2e実行、並列実行、EASビルド、本番ビルドからの除去チェック、ベンチマーク計測。"
 ---
 
 [`examples/todo-app`](https://github.com/h2nology/quiesco/tree/main/examples/todo-app)は、Quiescoの受け入れ確認（requirements.md §9）に使うExpo SDK 58 + Expo Routerのアプリです。ログイン、Todo一覧、新規Todoフォーム、アニメーション付きの画面遷移、ローカルのモックバックエンドへのネットワーク通信を備えています。
@@ -85,7 +85,7 @@ pnpm check:prod-strip --platform ios --allow-clean        # ios/を削除する�
 pnpm bench:android        # 20回反復：ソフトリセット、同期込みのタップ、スイート全体（nativeとjs）
 ```
 
-出力は[ベンチマーク](./benchmarks)用のMarkdownセクションです。
+出力は計測時間をまとめたMarkdownセクションです。
 
 ## アプリへのQuiescoの組み込み方 {#how-the-app-integrates-quiesco}
 

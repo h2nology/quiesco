@@ -1,22 +1,19 @@
 ---
 title: "Quiesco"
-description: "Cucumber、Jest、Vitest、その他任意のNode.jsテストランナーから動かす、iOS・Android・Web向けExpoアプリのグレーボックスe2eテスト。"
+description: "Vitest、Jest、Cucumber、その他任意のNode.jsテストランナーから動かす、iOS・Android・Web向けExpoアプリのグレーボックスe2eテスト。"
 ---
 
-アプリのe2eビルドに組み込んだ小さなエージェントが、アプリがアイドルになったこと（処理中のネットワークリクエスト、タイマー、Reactのレンダリング、アニメーションがない状態）をテストランナーに伝えます。そのため、テストでスリープやポーリングをする必要がありません。同じテストを、iOSシミュレーター、Androidエミュレーター、ブラウザー（Chromium、Firefox、WebKit）でそのまま実行できます。Cucumberには専用のアダプター（`@quiesco/cucumber`）があり、JestとVitestにも同様のアダプター（`@quiesco/jest`、`@quiesco/vitest`、[その他のテストランナー](./runners)）があります。
-
-```gherkin
-Scenario: A new todo appears at the top of the list
-  Given the user "a@example.com" is logged in
-  When they add a todo "Buy milk"
-  Then the first todo is "Buy milk"
-```
+アプリのe2eビルドに組み込んだ小さなエージェントが、アプリがアイドルになったこと（処理中のネットワークリクエスト、タイマー、Reactのレンダリング、アニメーションがない状態）をテストランナーに伝えます。そのため、テストでスリープやポーリングをする必要がありません。同じテストを、iOSシミュレーター、Androidエミュレーター、ブラウザー（Chromium、Firefox、WebKit）でそのまま実行できます。Vitest（推奨）、Jest、Cucumberには専用のインテグレーション（`@quiesco/vitest`、`@quiesco/jest`、`@quiesco/cucumber`。[テストランナー](./runners)）があります。
 
 ```ts
-When('they add a todo {string}', async function (this: QuiescoWorld, title: string) {
-  await this.app.tap('add-todo');                 // アプリがアイドルになるのを待ってからタップする
-  await this.app.type('todo-title', title);
-  await this.app.tap({ role: 'button', text: 'Save' });
+import { test } from '@quiesco/vitest';
+
+test('a new todo appears at the top of the list', async ({ app }) => {
+  await app.backdoor('loginAs', 'a@example.com');             // UIを操作せずに状態を準備する
+  await app.tap('add-todo');                                  // アプリがアイドルになるのを待ってからタップする
+  await app.type('todo-title', 'Buy milk');
+  await app.tap({ role: 'button', text: 'Save' });
+  await app.expectText({ id: 'todo-item', index: 0 }, 'Buy milk');
 });
 ```
 
@@ -24,24 +21,24 @@ When('they add a todo {string}', async function (this: QuiescoWorld, title: stri
 
 - **自動同期**：ネットワーク、タイマー、Reactスケジューラー、アイドルコールバック、ネイティブの画面遷移、そしてフレーム安定性によるフォールバック（[仕組み](./sync)）。同期がタイムアウトしたときは、まだビジーだったものを名前で示します。
 - **実際の入力**：タッチとテキストを`@quiesco/native`（iOS / Android）またはPlaywright（Web）で入力します。コールバックモード（`js`）ならネイティブコードなしでも動作します。
-- **高速なリセット**：各シナリオの前にソフトリセット（ストレージ、独自のリセットフック、再マウント）を行い、通常は約200msで終わります。`@hard-reset`を付けるとアプリを再起動します。
-- **バックドア**：UIを操作せずに、ステップから状態を準備できます（`this.app.backdoor('loginAs', …)`）。
-- **本番には何も残らない**：`EXPO_PUBLIC_QUIESCO=1`がなければ、エージェントは何もしないスタブに置き換えられ、ネイティブモジュールもビルドから除外されます（CIで検証しています。[ベンチマーク](./benchmarks)を参照）。
+- **高速なリセット**：各テストの前にソフトリセット（ストレージ、独自のリセットフック、再マウント）を行い、通常は約200msで終わります。`@hard-reset`を付けるとアプリを再起動します。
+- **バックドア**：UIを操作せずに、テストから状態を準備できます（`app.backdoor('loginAs', …)`）。
+- **本番には何も残らない**：`EXPO_PUBLIC_QUIESCO=1`がなければ、エージェントは何もしないスタブに置き換えられ、ネイティブモジュールもビルドから除外されます（CIで検証しています）。
 
 ## はじめに {#get-started}
 
 <CardGroup cols={2}>
   <Card title="クイックスタート（Web）" icon="rocket" href="./quickstart">
-    新しいExpoアプリから、Chromiumでfeatureが通るまでを約10分で進めます。
+    新しいExpoアプリから、Chromiumでテストが通るまでを約10分で進めます。
   </Card>
   <Card title="iOSとAndroid" icon="mobile" href="./native">
-    e2eアプリをビルドし、同じfeatureをシミュレーターとエミュレーターで実行します。
+    e2eアプリをビルドし、同じテストをシミュレーターとエミュレーターで実行します。
   </Card>
-  <Card title="JestとVitest" icon="flask" href="./runners">
-    Cucumberを使わずにQuiescoを利用します。
+  <Card title="テストランナー" icon="flask" href="./runners">
+    Vitest（推奨）、Jest、Cucumber。
   </Card>
   <Card title="APIリファレンス" icon="book" href="./api">
-    `this.app`、マッチャー、アプリ内API、設定、エラー。
+    Driver（`app`）、マッチャー、アプリ内API、設定、エラー。
   </Card>
 </CardGroup>
 
@@ -53,10 +50,10 @@ When('they add a todo {string}', async function (this: QuiescoWorld, title: stri
 | `@quiesco/agent` | アプリ内エージェント：要素の検索、同期トラッカー、アクション、リセット、バックドア。Metro用の`withQuiesco()` |
 | `@quiesco/native` | iOS / Androidで実際のタッチとテキスト入力を行うExpoモジュール（e2eビルドのみ） |
 | `@quiesco/expo-plugin` | Config plugin：本番ビルドからネイティブモジュールを除外し、e2eビルドではローカル接続を許可する |
-| `@quiesco/core` | ホスト側：WebSocketサーバー、`Driver`（`this.app`）、セッション、iOS / Androidのデバイスプロバイダー。ランナーに依存しない |
-| `@quiesco/cucumber` | cucumber-jsのWorld（`this.app`）とライフサイクルフック |
+| `@quiesco/core` | ホスト側：WebSocketサーバー、`Driver`（テストの`app`）、セッション、iOS / Androidのデバイスプロバイダー。ランナーに依存しない |
 | `@quiesco/vitest` | Vitest：`app`フィクスチャー付きの`test`、`quiesco()`設定、`quiescoPlugin()` |
 | `@quiesco/jest` | Jest：Quiescoのテスト環境を含むプリセット、グローバルの`quiesco` |
+| `@quiesco/cucumber` | cucumber-jsのWorld（`this.app`）とライフサイクルフック |
 | `@quiesco/web` | Webのデバイスプロバイダー（Playwrightライブラリ） |
 | `@quiesco/ui` | `quiesco ui`の[テスト UI](./ui) |
 | `@quiesco/steps` | 中国語・日本語・英語の汎用ステップ（任意）。プロトタイピング専用（[ステップ](./steps)） |

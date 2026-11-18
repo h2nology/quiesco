@@ -27,7 +27,7 @@ const PAGES = {
   'quiesco-api': ['api', 'sync', 'platforms', 'parallel', 'runners'],
   'writing-tests': ['steps', 'driver-pattern'],
   setup: ['quickstart', 'native', 'cli'],
-  debug: ['troubleshooting', 'known-issues'],
+  debug: ['troubleshooting'],
 };
 
 /** page -> skill */
@@ -58,6 +58,9 @@ export function convert(source, page, skill) {
   const out = [];
   let fence = false;
   let quote = false;
+  /** Inside a <CodeGroup> (one tab per package manager): only the npm tab is kept, as a plain code block. */
+  let group = false;
+  let skip = false;
   let step = 0;
   let stepIndent = 0;
   for (const raw of text.split('\n')) {
@@ -66,11 +69,22 @@ export function convert(source, page, skill) {
     else if (stepIndent) line = line.replace(/^\s+/, '');
     const trimmed = line.trim();
 
-    if (/^(```|~~~)/.test(trimmed)) {
-      fence = !fence;
-      out.push(quote ? `> ${line}` : line);
+    if (trimmed === '<CodeGroup>' || trimmed === '</CodeGroup>') {
+      group = trimmed === '<CodeGroup>';
       continue;
     }
+    if (/^(```|~~~)/.test(trimmed)) {
+      fence = !fence;
+      if (group && fence) {
+        const [lang = '', tab = ''] = trimmed.slice(3).trim().split(/\s+/);
+        skip = tab !== 'npm';
+        line = line.slice(0, line.indexOf(trimmed)) + trimmed.slice(0, 3) + lang;
+      }
+      if (!skip) out.push(quote ? `> ${line}` : line);
+      if (!fence) skip = false;
+      continue;
+    }
+    if (skip) continue;
     if (fence) {
       out.push(quote ? `> ${line}` : line);
       continue;

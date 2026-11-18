@@ -15,12 +15,13 @@ export const HELP = `Usage: quiesco <command> [options]
 
 Commands:
   init     Set Quiesco up in this Expo project (dependencies, config plugin, Metro, entry, config, features)
-             --platforms ios,android,web   --packages <dir> (install from tarballs)   --skip-install
+             --platforms ios,android,web   --runner vitest|jest|cucumber (asked when not given; default vitest)
+             --packages <dir> (install from tarballs)   --skip-install
              --upgrade: bring a project set up by an older version to this one (packages, config, files)
                --dry-run (list the changes only)
   build    Build the app for e2e tests (prebuild + xcodebuild / gradle) into apps.<platform>.binaryPath
              ios|android   --force (also when the native inputs did not change)
-  test     Run the tests with cucumber-js (or --runner jest|vitest); other arguments go to the runner unchanged
+  test     Run the tests with the project's runner (or --runner vitest|jest|cucumber); other arguments go to the runner unchanged
              --platform ios|android|web   --workers N (N devices in parallel)   (quiesco test --help for more)
   ui       Open the test UI: run tests from the browser and watch them live (needs @quiesco/ui)
              --platform ios|android|web   --runner …   --port N   --no-open

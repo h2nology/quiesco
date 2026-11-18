@@ -2,7 +2,7 @@
 
 # iOS and Android
 
-Build the e2e app and run the same features on an iOS simulator and an Android emulator.
+Build the e2e app and run the same tests on an iOS simulator and an Android emulator.
 Native runs need an e2e build of the app (made with `EXPO_PUBLIC_QUIESCO=1`, so it contains the agent
 and `@quiesco/native`):
 

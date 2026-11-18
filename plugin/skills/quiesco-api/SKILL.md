@@ -37,10 +37,10 @@ build tells the host when the app is idle, so every Driver call waits by itself.
 
 | Runner | Driver | Setup |
 |---|---|---|
-| Cucumber (default) | `this.app` in steps (`QuiescoWorld`) | `import '@quiesco/cucumber/register'` or `registerQuiesco({ world })` |
-| Vitest | `test('…', async ({ app }) => …)` from `@quiesco/vitest` | `plugins: [quiescoPlugin()]`, `test: { ...quiesco() }` from `@quiesco/vitest/config` |
+| Vitest (recommended) | `test('…', async ({ app }) => …)` from `@quiesco/vitest` | `plugins: [quiescoPlugin()]`, `test: { ...quiesco() }` from `@quiesco/vitest/config` |
 | Jest | global `quiesco.app` | `preset: '@quiesco/jest'` |
-| Anything else | `new Lifecycle()` from `@quiesco/core` | see `references/api.md` "Using Quiesco without Cucumber" |
+| Cucumber | `this.app` in steps (`QuiescoWorld`) | `import '@quiesco/cucumber/register'` or `registerQuiesco({ world })` |
+| Anything else | `new Lifecycle()` from `@quiesco/core` | see `references/api.md` "Vitest, Jest and other runners" |
 
 ## Driver at a glance
 

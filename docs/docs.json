@@ -52,8 +52,7 @@
               "driver-pattern",
               "parallel",
               "ui",
-              "troubleshooting",
-              "known-issues"
+              "troubleshooting"
             ]
           },
           {
@@ -63,13 +62,6 @@
               "cli",
               "steps",
               "example-app"
-            ]
-          },
-          {
-            "group": "More",
-            "pages": [
-              "benchmarks",
-              "detox-comparison"
             ]
           }
         ]
@@ -94,8 +86,7 @@
               "zh/driver-pattern",
               "zh/parallel",
               "zh/ui",
-              "zh/troubleshooting",
-              "zh/known-issues"
+              "zh/troubleshooting"
             ]
           },
           {
@@ -105,13 +96,6 @@
               "zh/cli",
               "zh/steps",
               "zh/example-app"
-            ]
-          },
-          {
-            "group": "其他",
-            "pages": [
-              "zh/benchmarks",
-              "zh/detox-comparison"
             ]
           }
         ]
@@ -136,8 +120,7 @@
               "ja/driver-pattern",
               "ja/parallel",
               "ja/ui",
-              "ja/troubleshooting",
-              "ja/known-issues"
+              "ja/troubleshooting"
             ]
           },
           {
@@ -147,13 +130,6 @@
               "ja/cli",
               "ja/steps",
               "ja/example-app"
-            ]
-          },
-          {
-            "group": "その他",
-            "pages": [
-              "ja/benchmarks",
-              "ja/detox-comparison"
             ]
           }
         ]

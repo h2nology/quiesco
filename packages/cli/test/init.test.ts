@@ -9,15 +9,15 @@ import { main } from '../src/cli';
 import { fakeContext, freshExpoApp } from './fake-context';
 
 describe('quiesco init', () => {
-  it('sets up a fresh Expo Router app', async () => {
+  it('sets up a fresh Expo Router app (Cucumber)', async () => {
     const ctx = fakeContext();
     freshExpoApp(ctx);
-    expect(await main(['init'], ctx)).toBe(0);
+    expect(await main(['init', '--runner', 'cucumber'], ctx)).toBe(0);
     // dependencies with npm (package-lock.json), web included because react-native-web is installed
     expect(ctx.calls.map((c) => `${c.command} ${c.args.join(' ')}`)).toEqual([
       // the CLI's own version, not whatever the registry metadata calls latest (issue #17)
       'npm install @quiesco/agent@9.9.9 @quiesco/native@9.9.9',
-      'npm install --save-dev quiesco@9.9.9 @quiesco/core@9.9.9 @quiesco/cucumber@9.9.9 @quiesco/expo-plugin@9.9.9 @cucumber/cucumber @quiesco/web@9.9.9 playwright',
+      'npm install --save-dev quiesco@9.9.9 @quiesco/core@9.9.9 @quiesco/expo-plugin@9.9.9 @quiesco/cucumber@9.9.9 @cucumber/cucumber @quiesco/web@9.9.9 playwright',
     ]);
     expect(ctx.lines.join('\n')).toMatch(/\$ versions — 7 Quiesco packages at 9\.9\.9/);
     expect(JSON.parse(ctx.file('app.json') as string).expo.plugins).toEqual(['expo-router', '@quiesco/expo-plugin']);
@@ -45,6 +45,65 @@ describe('quiesco init', () => {
     expect(ctx.file('features/support/quiesco.ts')).toContain("import '@quiesco/cucumber/register'");
     expect(ctx.file('features/step_definitions/app.steps.ts')).toContain("expectVisible({ id: 'home' })");
     expect(ctx.lines.join('\n')).toMatch(/Wrap the root layout in <QuiescoRoot>/);
+  });
+
+  it('sets up Vitest when no runner is given and nobody is at the terminal', async () => {
+    const ctx = fakeContext();
+    freshExpoApp(ctx);
+    expect(await main(['init'], ctx)).toBe(0);
+    expect(ctx.calls[1]?.args).toEqual(['install', '--save-dev', 'quiesco@9.9.9', '@quiesco/core@9.9.9', '@quiesco/expo-plugin@9.9.9', '@quiesco/vitest@9.9.9', 'vitest', '@quiesco/web@9.9.9', 'playwright']);
+    expect(ctx.file('vitest.config.mts')).toContain('test: { ...quiesco(), include: [\'e2e/**/*.test.ts\'] }');
+    expect(ctx.file('vitest.config.mts')).toContain('plugins: [quiescoPlugin()]');
+    expect(ctx.file('e2e/app.test.ts')).toContain("await app.expectVisible({ id: 'home' })");
+    expect(ctx.file('cucumber.mjs')).toBeNull();
+    expect(ctx.file('features/app.feature')).toBeNull();
+    expect(JSON.parse(ctx.file('package.json') as string).scripts['e2e:ios']).toBe('quiesco test --platform ios');
+    const out = ctx.lines.join('\n');
+    expect(out).toMatch(/testID="home" \(e2e\/app\.test\.ts looks for it\)/);
+    expect(out).toMatch(/npx playwright install chromium, then npm run e2e:web/);
+  });
+
+  it('asks which runner to use when a person is at the terminal', async () => {
+    let asked: { question: string; options: string[]; def: string } | undefined;
+    const ctx = fakeContext(undefined, {
+      interactive: true,
+      choose: async (question, options, def) => {
+        asked = { question, options: options.map((o) => o.value), def };
+        return 'jest';
+      },
+    });
+    freshExpoApp(ctx);
+    ctx.put('pnpm-lock.yaml', '');
+    expect(await main(['init', '--skip-install', '--platforms', 'ios'], ctx)).toBe(0);
+    expect(asked).toEqual({ question: expect.stringMatching(/test runner/), options: ['vitest', 'jest', 'cucumber'], def: 'vitest' });
+    expect(ctx.file('jest.config.cjs')).toContain("preset: '@quiesco/jest'");
+    expect(ctx.file('e2e/app.test.js')).toContain("await quiesco.app.expectVisible({ id: 'home' })");
+    expect(ctx.lines.join('\n')).toMatch(/! install — pnpm add -D quiesco@9\.9\.9 @quiesco\/core@9\.9\.9 @quiesco\/expo-plugin@9\.9\.9 @quiesco\/jest@9\.9\.9 jest/);
+    expect(ctx.lines.join('\n')).toMatch(/pnpm e2e:build:ios \(or :android\)[\s\S]*pnpm e2e:ios[\s\S]*`pnpm exec quiesco doctor`/);
+    // --runner skips the question
+    const given = fakeContext(undefined, { interactive: true });
+    freshExpoApp(given);
+    expect(await main(['init', '--skip-install', '--runner', 'vitest'], given)).toBe(0);
+    expect(await main(['init', '--runner', 'mocha'], given)).toBe(2);
+    expect(given.errors.join('\n')).toMatch(/unknown runner "mocha" \(vitest, jest, cucumber\)/);
+  });
+
+  it("puts Quiesco's runner config next to the project's own and names it in the scripts", async () => {
+    const ctx = fakeContext();
+    freshExpoApp(ctx);
+    ctx.put('vitest.config.ts', '// unit tests\n');
+    expect(await main(['init', '--skip-install', '--platforms', 'android'], ctx)).toBe(0);
+    expect(ctx.file('vitest.config.ts')).toBe('// unit tests\n');
+    expect(ctx.file('vitest.e2e.config.mts')).toContain("include: ['e2e/**/*.test.ts']");
+    expect(JSON.parse(ctx.file('package.json') as string).scripts['e2e:android']).toBe('quiesco test --platform android --config vitest.e2e.config.mts');
+    const jest = fakeContext();
+    freshExpoApp(jest);
+    const pkg = JSON.parse(jest.file('package.json') as string);
+    jest.put('package.json', JSON.stringify({ ...pkg, jest: { preset: 'jest-expo' } }));
+    expect(await main(['init', '--skip-install', '--platforms', 'ios', '--runner', 'jest'], jest)).toBe(0);
+    expect(jest.file('jest.config.cjs')).toBeNull();
+    expect(jest.file('jest.e2e.config.cjs')).toContain("preset: '@quiesco/jest'");
+    expect(JSON.parse(jest.file('package.json') as string).scripts['e2e:ios']).toBe('quiesco test --platform ios --config jest.e2e.config.cjs');
   });
 
   it('is idempotent and never overwrites existing files', async () => {
@@ -139,18 +198,18 @@ describe('quiesco init', () => {
     const ctx = fakeContext();
     freshExpoApp(ctx);
     ctx.put('tsconfig.json', '{\n  "extends": "expo/tsconfig.base",\n  "compilerOptions": {\n    "strict": true\n  }\n}\n');
-    expect(await main(['init', '--skip-install'], ctx)).toBe(0);
+    expect(await main(['init', '--skip-install', '--runner', 'cucumber'], ctx)).toBe(0);
     expect(JSON.parse(ctx.file('tsconfig.json') as string)).toEqual({ extends: 'expo/tsconfig.base', compilerOptions: { strict: true, allowImportingTsExtensions: true } });
     expect(ctx.lines.join('\n')).toMatch(/~ tsconfig\.json — allowImportingTsExtensions/);
     expect(ctx.file('features/support/quiesco.ts')).toMatch(/type stripping[\s\S]*'\.\/todo-driver\.ts'[\s\S]*parameter properties/);
     ctx.lines.length = 0;
-    expect(await main(['init', '--skip-install'], ctx)).toBe(0);
+    expect(await main(['init', '--skip-install', '--runner', 'cucumber'], ctx)).toBe(0);
     expect(ctx.lines.join('\n')).toMatch(/= tsconfig\.json — already allows \.ts imports/);
     // a tsconfig with comments is not rewritten
     const commented = fakeContext();
     freshExpoApp(commented);
     commented.put('tsconfig.json', '{\n  // mine\n  "extends": "expo/tsconfig.base"\n}\n');
-    expect(await main(['init', '--skip-install'], commented)).toBe(0);
+    expect(await main(['init', '--skip-install', '--runner', 'cucumber'], commented)).toBe(0);
     expect(commented.file('tsconfig.json')).toBe('{\n  // mine\n  "extends": "expo/tsconfig.base"\n}\n');
     expect(commented.lines.join('\n')).toMatch(/! tsconfig\.json — add "allowImportingTsExtensions": true/);
   });
@@ -174,7 +233,7 @@ describe('quiesco init', () => {
 
   it('installs from tarballs and pins the packages they depend on', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'quiesco-tgz-'));
-    for (const f of ['quiesco-0.0.0.tgz', 'quiesco-agent-0.0.0.tgz', 'quiesco-native-0.0.0.tgz', 'quiesco-core-0.0.0.tgz', 'quiesco-cucumber-0.0.0.tgz', 'quiesco-expo-plugin-0.0.0.tgz', 'quiesco-protocol-0.0.0.tgz', 'quiesco-web-0.0.0.tgz']) {
+    for (const f of ['quiesco-0.0.0.tgz', 'quiesco-agent-0.0.0.tgz', 'quiesco-native-0.0.0.tgz', 'quiesco-core-0.0.0.tgz', 'quiesco-vitest-0.0.0.tgz', 'quiesco-expo-plugin-0.0.0.tgz', 'quiesco-protocol-0.0.0.tgz', 'quiesco-web-0.0.0.tgz']) {
       fs.writeFileSync(path.join(dir, f), '');
     }
     const ctx = fakeContext();
@@ -184,7 +243,7 @@ describe('quiesco init', () => {
     // npm: only the packages not installed directly (an override for a direct dependency is EOVERRIDE)
     expect(pkg.overrides).toEqual({ '@quiesco/protocol': `file:${path.join(dir, 'quiesco-protocol-0.0.0.tgz')}` });
     expect(ctx.calls[0]?.args).toEqual(['install', `file:${path.join(dir, 'quiesco-agent-0.0.0.tgz')}`, `file:${path.join(dir, 'quiesco-native-0.0.0.tgz')}`]);
-    expect(ctx.calls[1]?.args).toContain('@cucumber/cucumber');
+    expect(ctx.calls[1]?.args).toContain('vitest');
     expect(ctx.calls[1]?.args).toContain('playwright');
     // pnpm resolves each range on its own: every Quiesco package is pinned
     const pnpm = fakeContext();
@@ -222,7 +281,7 @@ describe('quiesco init', () => {
     expect(err).toMatch(/@quiesco\/core: 0\.1\.1 \(wanted 9\.9\.9\)/);
     expect(err).not.toMatch(/@quiesco\/agent:/);
     expect(err).toMatch(/minimumReleaseAge/);
-    expect(err).toMatch(/pnpm add -D quiesco@9\.9\.9 @quiesco\/core@9\.9\.9 @quiesco\/cucumber@9\.9\.9 @quiesco\/expo-plugin@9\.9\.9\n/);
+    expect(err).toMatch(/pnpm add -D quiesco@9\.9\.9 @quiesco\/core@9\.9\.9 @quiesco\/expo-plugin@9\.9\.9 @quiesco\/vitest@9\.9\.9\n/);
     // nothing else was written: the project is not set up against the wrong version
     expect(ctx.file('quiesco.config.mts')).toBeNull();
   });

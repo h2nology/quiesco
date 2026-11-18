@@ -1,15 +1,32 @@
 ---
 title: "iOSとAndroid"
-description: "e2eアプリをビルドし、同じfeatureをiOSシミュレーターとAndroidエミュレーターで実行します。"
+description: "e2eアプリをビルドし、同じテストをiOSシミュレーターとAndroidエミュレーターで実行します。"
 ---
 
 ネイティブでの実行には、アプリのe2eビルドが必要です（`EXPO_PUBLIC_QUIESCO=1`付きでビルドしたもので、エージェントと`@quiesco/native`を含みます）。
 
-```sh
+<CodeGroup>
+```sh pnpm
+pnpm exec expo install expo-dev-client
+pnpm exec quiesco build ios  # または：pnpm exec quiesco build android
+pnpm exec quiesco test --platform ios
+```
+```sh npm
 npx expo install expo-dev-client
 npx quiesco build ios       # または：npx quiesco build android
 npx quiesco test --platform ios
 ```
+```sh bun
+bunx expo install expo-dev-client
+bunx quiesco build ios      # または：bunx quiesco build android
+bunx quiesco test --platform ios
+```
+```sh yarn
+yarn expo install expo-dev-client
+yarn quiesco build ios      # または：yarn quiesco build android
+yarn quiesco test --platform ios
+```
+</CodeGroup>
 
 `quiesco build`は`EXPO_PUBLIC_QUIESCO=1`付きの`expo prebuild`とネイティブビルド（シミュレーター向けの`xcodebuild`、`gradlew assembleDebug`）を実行し、`quiesco.config.mts`の`binaryPath`の場所にアプリを書き出します（生成された設定には一般的なパスが入っています）。前回からアプリの設定と依存関係が変わっていなければDebugビルドは省略します。`--force`を付けると必ずビルドします。`quiesco test`は、dev clientがMetroを必要とし`devClient.metroUrl`で何も応答しないとき、`EXPO_PUBLIC_QUIESCO=1`付きでMetroを起動し、実行の終わりに停止します。自分で起動したMetroはそのまま使います（[設定](./api#configuration)の`devServer`）。
 

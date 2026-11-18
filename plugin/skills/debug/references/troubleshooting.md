@@ -101,7 +101,7 @@ Check the app log (forwarded at `logLevel`) and the device log.
 ## `APP_ERROR` {#app-error}
 
 An uncaught error in the app fails the current step — it is usually a real bug. Known harmless framework
-reports can be ignored with `appErrors.ignore` (see [known issues](./known-issues.md)). A `console.error` does not
+reports can be ignored with `appErrors.ignore` ([configuration](../../quiesco-api/references/api.md#configuration)). A `console.error` does not
 fail the step; a failure later in the scenario names it ([LogBox covers the app](#logbox)).
 
 ## iOS {#ios}
@@ -149,7 +149,7 @@ fail the step; a failure later in the scenario names it ([LogBox covers the app]
   clipboard is kept by Quiesco, text only, shared by the page and `app.clipboard`
   ([browsers](../../quiesco-api/references/platforms.md#browsers)).
 - **The first navigation to a lazy route fails with "Requiring unknown module":** a benign Expo Router
-  report that Quiesco ignores by default ([known issues](./known-issues.md)).
+  report that Quiesco ignores by default.
 
 ## `unknown command` or mixed Quiesco versions {#quiesco-versions}
 

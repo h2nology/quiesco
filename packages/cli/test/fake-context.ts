@@ -52,6 +52,9 @@ export function fakeContext(answer: (command: string, args: readonly string[]) =
     platform: 'darwin',
     nodeVersion: '24.22.1',
     interactive: false,
+    choose: async () => {
+      throw new Error('choose not expected in this test');
+    },
     // No dev server answers and none can be started unless a test overrides these.
     spawnBackground: () => {
       throw new Error('spawnBackground not expected in this test');
