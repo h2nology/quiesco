@@ -908,7 +908,14 @@ export class AgentRuntime {
         const current = findAll(this.adapter.getHostRoots(), container)[0] ?? containerNode;
         await performer.scroll(current, direction, vp == null ? undefined : (horizontal ? vp.width : vp.height) * SCROLL_TO_STEP, undefined, true);
         await this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now()));
-        const after = scrollable?.offset();
+        let after = scrollable?.offset();
+        if (scrollable != null && before !== undefined && after !== undefined && Math.abs(after.x - before.x) < 1 && Math.abs(after.y - before.y) < 1 && !js.atEdge(scrollable, direction)) {
+          // The drag did not move the content, though there is more of it: something under the finger took
+          // the drag (a wheel picker, a slider). Scroll this step programmatically instead.
+          js.scrollBy(scrollable, direction, vp == null ? undefined : (horizontal ? vp.width : vp.height) * SCROLL_TO_STEP);
+          await this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now()));
+          after = scrollable.offset();
+        }
         if (before !== undefined && after !== undefined && Math.abs(after.x - before.x) < 1 && Math.abs(after.y - before.y) < 1) {
           // Reached the end: a target this far in that still has its center clipped (e.g. under an
           // overlay that clips) is as good as it gets.
