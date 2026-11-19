@@ -1,7 +1,7 @@
 import type { LogLevel } from './events.js';
 import type { Matcher, TextMatch } from './matcher.js';
 
-export const TRACKER_NAMES = ['network', 'timer', 'react', 'idle-callback', 'frame-stable', 'native'] as const;
+export const TRACKER_NAMES = ['network', 'timer', 'react', 'idle-callback', 'frame-stable', 'native', 'native-module'] as const;
 export type TrackerName = (typeof TRACKER_NAMES)[number];
 
 /**
@@ -16,8 +16,14 @@ export interface AgentConfig {
     stableFrames: number;
     /** URL patterns ignored by the network tracker. Strings match as substrings. */
     ignoreUrls: TextMatch[];
-    /** Per-tracker switch; omitted trackers are enabled. */
+    /** Per-tracker switch; omitted trackers are enabled, except `native-module` (off unless `true`). */
     trackers: Partial<Record<TrackerName, boolean>>;
+    /**
+     * `native-module` tracker (issue #67): how long a pending native module call counts as busy, and the
+     * calls ("Module.method") that never count. Optional for older hosts.
+     */
+    nativeCallThresholdMs?: number;
+    ignoreNativeCalls?: TextMatch[];
     /**
      * Elements (and their subtrees) left out of the frame-stable check, e.g. a decorative animation that
      * runs for minutes. Optional for older hosts.

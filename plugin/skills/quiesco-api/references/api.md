@@ -441,7 +441,7 @@ await this.app.sync.enable();
 ```
 
 `disableTracker` / `enableTracker` take `network`, `timer`, `react`, `idle-callback`, `frame-stable`,
-`native`. `ignoreUrls` and `ignoreElements` add to / remove from the config's lists. The changes
+`native`, `native-module` (off unless enabled, [native module calls](./sync.md#native-module-calls)). `ignoreUrls` and `ignoreElements` add to / remove from the config's lists. The changes
 survive relaunches and reconnects, and are undone before the next scenario. For a single call,
 `{ sync: false }` still works.
 
@@ -619,7 +619,9 @@ export default defineConfig({
 | `sync.countIntervals` | `false` | Whether `setInterval` keeps the app busy |
 | `sync.stableFrames` | `2` | Frames the element tree must stay the same |
 | `sync.ignoreUrls` | `[]` | Requests that never keep the app busy (strings match as substrings) |
-| `sync.trackers` | all on | e.g. `{ 'frame-stable': false }` |
+| `sync.trackers` | all on, `native-module` off | e.g. `{ 'frame-stable': false }`, `{ 'native-module': true }` ([trackers](./sync.md#trackers)) |
+| `sync.nativeCallThresholdMs` | `2000` | How long a pending native module call keeps the app busy (`native-module` tracker) |
+| `sync.ignoreNativeCalls` | `[]` | Native module calls (`"Module.method"`, strings match as substrings) that never keep the app busy |
 | `sync.ignoreElements` | `[]` | Matchers of elements (with their subtrees) left out of the frame-stable check, e.g. a decorative animation: `['logo-glow']` |
 | `actions.mode` | `native` if the app has `@quiesco/native`, else `js` | Real input or callbacks |
 | `actions.gestureSlop` | per platform (see [Multi-finger gestures](#multi-finger-gestures)) | `{ pinch, rotation }`: how far fingers move before the app's recognizers activate |

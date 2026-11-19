@@ -343,7 +343,7 @@ await this.app.sync.disable();                          // 全トラッカーを
 await this.app.sync.enable();
 ```
 
-`disableTracker` / `enableTracker`には`network`、`timer`、`react`、`idle-callback`、`frame-stable`、`native`を指定できます。`ignoreUrls`と`ignoreElements`は、設定のリストへの追加 / 削除です。変更は再起動や再接続をまたいで維持され、次のシナリオの前に元に戻されます。1回の呼び出しだけなら、引き続き`{ sync: false }`も使えます。
+`disableTracker` / `enableTracker`には`network`、`timer`、`react`、`idle-callback`、`frame-stable`、`native`、`native-module`（有効にしない限りオフ。[ネイティブモジュールの呼び出し](./sync#native-module-calls)）を指定できます。`ignoreUrls`と`ignoreElements`は、設定のリストへの追加 / 削除です。変更は再起動や再接続をまたいで維持され、次のシナリオの前に元に戻されます。1回の呼び出しだけなら、引き続き`{ sync: false }`も使えます。
 
 ## マッチャー {#matchers}
 
@@ -484,8 +484,10 @@ export default defineConfig({
 | `sync.countIntervals` | `false` | `setInterval`がアプリをビジーにするかどうか |
 | `sync.stableFrames` | `2` | 要素ツリーが変わらないままでなければならないフレーム数 |
 | `sync.ignoreUrls` | `[]` | アプリをビジーにしないリクエスト（文字列は部分一致） |
-| `sync.trackers` | すべてオン | 例：`{ 'frame-stable': false }` |
+| `sync.trackers` | `native-module`以外はすべてオン | 例：`{ 'frame-stable': false }`、`{ 'native-module': true }`（[トラッカー](./sync#trackers)） |
 | `sync.ignoreElements` | `[]` | frame-stableのチェックから（サブツリーごと）外す要素のマッチャー。例：装飾用のアニメーション`['logo-glow']` |
+| `sync.nativeCallThresholdMs` | `2000` | 未完了のネイティブモジュール呼び出しがアプリをビジーにする上限（`native-module`トラッカー。既定ではオフ） |
+| `sync.ignoreNativeCalls` | `[]` | アプリをビジーにしないネイティブモジュール呼び出し（`"Module.method"`。文字列は部分一致） |
 | `actions.mode` | アプリに`@quiesco/native`があれば`native`、なければ`js` | 実際の入力か、コールバックか |
 | `actions.gestureSlop` | プラットフォームごと（[マルチタッチジェスチャー](#multi-finger-gestures)を参照） | `{ pinch, rotation }`：アプリの認識器が有効になるまでに指が動く距離 |
 | `reset.default` | `soft` | `hard`にすると各シナリオの前にアプリを再起動する |

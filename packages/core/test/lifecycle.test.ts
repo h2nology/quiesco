@@ -372,7 +372,7 @@ describe('app.sync', () => {
     expect(sent.sync['ignoreElements']).toEqual([{ id: 'spinner' }]);
 
     await sync.disable();
-    expect(sync.current().sync.trackers).toEqual({ network: false, timer: false, react: false, 'idle-callback': false, 'frame-stable': false, native: false });
+    expect(sync.current().sync.trackers).toEqual({ network: false, timer: false, react: false, 'idle-callback': false, 'frame-stable': false, native: false, 'native-module': false });
     await sync.enable();
     expect(sync.current().sync.trackers).toEqual({ timer: false });
 

@@ -342,7 +342,7 @@ await this.app.sync.disable();                          // 关闭所有跟踪器
 await this.app.sync.enable();
 ```
 
-`disableTracker` / `enableTracker` 接受 `network`、`timer`、`react`、`idle-callback`、`frame-stable`、`native`。`ignoreUrls` 和 `ignoreElements` 在配置中的列表基础上添加 / 移除。这些更改在重新启动和重新连接之后依然有效，并会在下一个场景之前撤销。对于单次调用，`{ sync: false }` 依然可用。
+`disableTracker` / `enableTracker` 接受 `network`、`timer`、`react`、`idle-callback`、`frame-stable`、`native`、`native-module`（不打开就是关闭的，见[原生模块调用](./sync#native-module-calls)）。`ignoreUrls` 和 `ignoreElements` 在配置中的列表基础上添加 / 移除。这些更改在重新启动和重新连接之后依然有效，并会在下一个场景之前撤销。对于单次调用，`{ sync: false }` 依然可用。
 
 ## 匹配器 {#matchers}
 
@@ -483,8 +483,10 @@ export default defineConfig({
 | `sync.countIntervals` | `false` | `setInterval` 是否让 App 保持忙碌 |
 | `sync.stableFrames` | `2` | 元素树必须保持不变的帧数 |
 | `sync.ignoreUrls` | `[]` | 永远不会让 App 保持忙碌的请求（字符串按子串匹配） |
-| `sync.trackers` | 全部开启 | 例如 `{ 'frame-stable': false }` |
+| `sync.trackers` | 全部开启，`native-module` 除外 | 例如 `{ 'frame-stable': false }`、`{ 'native-module': true }`（[跟踪器](./sync#trackers)） |
 | `sync.ignoreElements` | `[]` | 排除在 frame-stable 检查之外的元素（连同其子树）的匹配器，例如装饰性动画：`['logo-glow']` |
+| `sync.nativeCallThresholdMs` | `2000` | 未完成的原生模块调用最多让 App 忙多久（`native-module` 跟踪器，默认关闭） |
+| `sync.ignoreNativeCalls` | `[]` | 永远不让 App 忙的原生模块调用（`"Module.method"`，字符串按子串匹配） |
 | `actions.mode` | App 包含 `@quiesco/native` 时为 `native`，否则为 `js` | 真实输入或回调 |
 | `actions.gestureSlop` | 因平台而异（见 [多指手势](#multi-finger-gestures)） | `{ pinch, rotation }`：App 的识别器激活前手指需要移动的距离 |
 | `reset.default` | `soft` | `hard` 会在每个场景之前重新启动 App |

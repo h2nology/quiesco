@@ -48,7 +48,7 @@ import type { LogBoxLike } from './reset/logbox';
 import { defaultStorageAdapters } from './reset/storage-defaults';
 import { describeMatcher, findAll, getTree, invisibleReason, isCenterVisible, isVisible, listElements, sizedAncestor, structureLines, summarize, toRegExp } from './query';
 import type { Clock, FetchFn, IdleTracker, TimerGlobals } from './sync';
-import { FrameStableTracker, IdleCallbackTracker, NetworkTracker, OfflineGate, ReactTracker, SyncEngine, TimerTracker, ownConnection, realClock } from './sync';
+import { FrameStableTracker, IdleCallbackTracker, NativeModuleTracker, NetworkTracker, OfflineGate, ReactTracker, SyncEngine, TimerTracker, ownConnection, realClock } from './sync';
 import { AGENT_VERSION } from './version';
 
 /** How long a coordinate calibration is trusted while the window keeps its size (calibrateCoordinates). */
@@ -74,6 +74,8 @@ const EDGE_OF: Record<Direction, Edge> = { down: 'bottom', up: 'top', right: 'ri
  */
 const BACKGROUND_SKIPPED: ReadonlySet<string> = new Set(['frame-stable', 'timer', 'native']);
 const NONE: ReadonlySet<string> = new Set();
+/** Trackers that count only when the config enables them (`sync.trackers: { 'native-module': true }`, issue #67). */
+const TRACKERS_OFF_BY_DEFAULT: Readonly<Record<string, false>> = { 'native-module': false };
 /** Calls whose results report the time spent waiting for idle (`syncMs`, Phase 6.9 timeline). */
 const TIMED: ReadonlySet<string> = new Set(['query', 'action', 'assert', 'webview', 'scrollView']);
 
@@ -131,6 +133,7 @@ export class AgentRuntime {
   private readonly clock: Clock;
   private readonly global: Record<string, unknown>;
   private network: NetworkTracker | null = null;
+  private nativeCalls: NativeModuleTracker | null = null;
   private timer: TimerTracker | null = null;
   private frames: FrameStableTracker | null = null;
   private idleCallbacks: IdleCallbackTracker | null = null;
@@ -158,6 +161,7 @@ export class AgentRuntime {
     const warn = c?.warn;
     this.log = (m) => warn?.call(c, `[quiesco] ${m}`);
     this.engine = new SyncEngine(options.trackers?.(this) ?? this.defaultTrackers(), this.clock);
+    this.engine.setEnabled(TRACKERS_OFF_BY_DEFAULT);
     this.engine.setSkipped(() => (this.deps.appState() === 'background' ? BACKGROUND_SKIPPED : NONE));
     this.engine.setBackground(() => this.deps.appState() === 'background', this.deps.onAppStateChange?.bind(this.deps));
     this.resets = new ResetManager(options.storage ?? (() => defaultStorageAdapters()));
@@ -280,7 +284,12 @@ export class AgentRuntime {
     this.network?.setIgnoreUrls(config.sync.ignoreUrls.map(toRegExp));
     this.timer?.configure({ thresholdMs: config.sync.timerThresholdMs, countIntervals: config.sync.countIntervals });
     this.frames?.setFrames(config.sync.stableFrames);
-    this.engine.setEnabled(config.sync.trackers);
+    this.engine.setEnabled({ ...TRACKERS_OFF_BY_DEFAULT, ...config.sync.trackers });
+    this.nativeCalls?.configure({
+      enabled: config.sync.trackers['native-module'] === true,
+      thresholdMs: config.sync.nativeCallThresholdMs ?? SyncDefaults.nativeCallThresholdMs,
+      ignore: (config.sync.ignoreNativeCalls ?? []).map(toRegExp),
+    });
     this.events.setLevel(config.logLevel);
     this.configureLogBox(config.logBox ?? 'keep');
   }
@@ -1133,6 +1142,14 @@ export class AgentRuntime {
       (this.idleCallbacks = new IdleCallbackTracker({ target: this.global })),
       this.frames,
       new NativeSettleTracker(() => this.nativeModule()),
+      (this.nativeCalls = new NativeModuleTracker({
+        sources: {
+          registry: () => this.deps.nativeModuleSources?.().registry ?? null,
+          expo: () => this.deps.nativeModuleSources?.().expo ?? null,
+        },
+        clock: this.clock,
+        skip: ['QuiescoNative'],
+      })),
     ];
   }
 }

@@ -18,3 +18,6 @@
 - M.B 提交 + PR #70（base fix/scroll-to-steps）。
 - M.C：分支 fix/background-idle-wait。复现 16 次未出现挂住（debug 0 行）。实现 host tick + engine.wake。单元测试、三语文档、requirements §7。定位权限场景 10/10，`pnpm check` 965。Android 全量（后台）进行中。
 - M.C 回归：Android 全量 97/108（2 failed：#63 场景超时太紧 ⇒ 3000 ms；模拟定位 = AOSP 无 GMS 环境问题）；滚动两端 3/3；iOS device.feature 17/17。M.C 提交 + PR。
+- M.C 提交 + PR #71（base fix/ios-open-notification）。
+- M.D：分支 feat/native-module-tracker。实现 native-module tracker + 配置 + 三语文档 + 单元测试。真机：阈值 60 s 时 Android SYNC_TIMEOUT 列出 ExpoLocation.requestForegroundPermissionsAsync（包装生效、#66 tick 生效）；阈值 2 s 两端通过。tracker 打开的 Android 全量（后台）进行中。临时改了 examples/todo-app/quiesco.config.mts（NM_THRESHOLD），备份在 scratchpad，提交前还原。
+- M.D 全量（tracker 开）：Android 98/108（模拟定位 已知）、iOS 101/108 + 7 skipped 无失败。还原 config，pnpm check 973。提交 + PR。

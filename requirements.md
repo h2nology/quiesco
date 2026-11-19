@@ -176,6 +176,7 @@ quiesco/
 3. **React 空闲**：没有待提交的渲染工作。
 4. **空闲回调空闲**：没有挂起的 `requestIdleCallback`（tracker 名 `idle-callback`）。RN 0.88（Expo SDK 58）已移除 `InteractionManager`，官方建议改用 `requestIdleCallback`；在仍存在 `InteractionManager` 的旧版本上，同时跟踪其挂起任务。（2026-11-07 HU 确认的需求变更）
 5. **画面稳定（兜底）**：元素树的结构哈希（类型、文本、坐标取整）连续 N 帧不变，N 默认 2。这一项用于覆盖 Reanimated 等运行在 UI 线程、JS 侧不可见的动画。
+6. **原生模块调用空闲（可选，默认关闭）**：原生模块方法（TurboModule / NativeModules、Expo 模块）返回的 Promise 都已完成（tracker 名 `native-module`）。每个调用最多算忙 `sync.nativeCallThresholdMs`（默认 2000ms），`sync.ignoreNativeCalls` 排除指定调用。用 `sync.trackers: { 'native-module': true }` 打开。（issue #67，2026-11-19 HU 确认：先文档、再实现、默认关闭）
 
 **要求**：
 

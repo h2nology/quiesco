@@ -6,7 +6,7 @@
 import type { AppStateName, Platform, Rect } from '@quiesco/protocol';
 
 import type { NativeBridge } from './actions/native';
-import type { InteractionManagerLike } from './sync';
+import type { InteractionManagerLike, ModuleRegistryLike } from './sync';
 
 declare const require: (id: string) => unknown;
 
@@ -29,6 +29,11 @@ export interface AppDeps {
   createSocket(url: string): SocketLike;
   /** Legacy InteractionManager (RN < 0.88), or null. */
   interactionManager(): InteractionManagerLike | null;
+  /**
+   * Where the app gets its native modules (issue #67): React Native's TurboModuleRegistry and Expo's
+   * `globalThis.expo` (its `modules`). Null where there are none (the web).
+   */
+  nativeModuleSources?(): { registry: ModuleRegistryLike | null; expo: { modules?: Record<string, unknown> } | null };
   /** React Native's AppState (react-native-web: from the page visibility). */
   appState(): AppStateName;
   /**
@@ -163,6 +168,11 @@ export const defaultAppDeps: AppDeps = {
       locale: Intl.DateTimeFormat().resolvedOptions().locale,
       ...preferredLanguages(rn()),
     };
+  },
+  nativeModuleSources() {
+    const registry = (rn() as { TurboModuleRegistry?: ModuleRegistryLike }).TurboModuleRegistry ?? null;
+    const expo = (globalThis as { expo?: { modules?: Record<string, unknown> } }).expo ?? null;
+    return { registry, expo };
   },
   interactionManager() {
     try {

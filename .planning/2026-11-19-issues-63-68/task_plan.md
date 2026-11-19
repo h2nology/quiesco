@@ -4,10 +4,10 @@
 解决 h2nology/quiesco 的 6 个 open issue（同一位用户在 0.8.0 + Vitest 5.1 + Expo SDK 58 Release 构建、iOS 27 模拟器 / Android API 36 模拟器上的实测反馈）。每个修复都配单元测试，必要时更新三语文档；实跑验收后回复并关闭 issue，最后一起发版。
 
 ## Current Phase
-M.D 原生模块 promise（#67）
+M.E 验收、回复、发版
 
 ## Next Step
-从 fix/background-idle-wait 开分支 `feat/native-module-tracker`；按 findings「M.D.0 调研」实现 `native-module` tracker（默认关）+ sync.mdx 三语说明。
+用默认 config 跑 web 全量（iOS / Android 默认 config 的全量已在 M.C / M.D 期间各跑过）；等 HU 合并 PR #69–#72（按 stacked-pr-merge 的做法），然后回复 issue、发 0.9.0（发布要 HU 确认）。
 
 ## 背景
 - 前置：0.8.1 已发布（`dc7ca7d chore(release): 0.8.1`）。上一轮计划：`.planning/2026-11-19-issues-44-55/`。
@@ -92,10 +92,19 @@ M.D 原生模块 promise（#67）
 - **Status:** complete
 
 ### M.D 原生模块 promise（#67）
-- [ ] 文档：sync.mdx（en/ja/zh）tracker 表后加说明和推荐写法
-- [ ] M.D.0 调研：RN 0.88 New Architecture 下 `TurboModuleRegistry` 的包装点、Expo modules（`requireNativeModule`）的包装点、AsyncStorage 走哪条路
-- [ ] 按调研结果和 D5 决定是否实现 `sync.trackNativeModules`
-- **Status:** pending
+分支 `feat/native-module-tracker`（从 fix/background-idle-wait 开，堆叠在 PR #71 上）。
+- [x] M.D.0 调研（findings「M.D.0 调研」）：可行
+- [x] 新 tracker `native-module`（agent `sync/native-module.ts`）：包装 `TurboModuleRegistry.get/getEnforcing` 返回的模块和 `globalThis.expo.modules`（Proxy；方法返回 thenable ⇒ pending 直到 settle；`this` 用原模块；同一模块同一 proxy；跳过 `QuiescoNative`；只读属性用 defineProperty）。包装在 app 启动时就装（模块在 app 模块加载时取得，早于 host 的 config），关闭时只透传
+- [x] 默认关：runtime 构造时和 configure 时 `{ 'native-module': false, ...trackers }`；`app.sync.enableTracker('native-module')` 自动可用
+- [x] 配置：`sync.nativeCallThresholdMs`（默认 2000，超过就不再算忙 ⇒ 等用户操作的调用最多多等这么久）、`sync.ignoreNativeCalls`（"Module.method"，字符串子串 / RegExp）；protocol `TRACKER_NAMES` + AgentConfig 可选字段 + SyncDefaults
+- [x] AppDeps `nativeModuleSources?()`（平台相关的取法放 platform.ts 的默认 deps）
+- [x] 单元测试：tracker 6 个（Turbo / Expo / 拒绝 / 阈值 / 忽略 / 默认关 / 跳过自身 / 卸载还原 / 只读属性）；runtime 默认关；config 转换
+- [x] 文档三语：sync.mdx tracker 表 + 「原生模块调用」一节（含 issue 的写法建议）、api.mdx 配置表和 enableTracker 列表；plugin refs
+- [x] 实测：临时 config（NM_THRESHOLD 环境变量）阈值 60 s ⇒ Android 定位权限场景 SYNC_TIMEOUT，Busy 列出 `ExpoLocation.requestForegroundPermissionsAsync() 9995ms`（证明真机上 Expo 模块被包装，也证明 #66 的 tick 让后台等待正常超时）；阈值 2 s ⇒ Android / iOS 通过
+- [x] tracker 打开（2 s）状态下全量：Android 98 passed / 1 failed（模拟定位 = AOSP 无 GMS，已知）、iOS 101 passed / 7 skipped / 0 failed（同时是 M.B 之后的 iOS 全量通过）；临时 config 已还原
+- [x] `pnpm check`（973；lint 修了 no-this-alias；protocol constants / lifecycle 测试补新字段）；requirements §6.2 加第 6 条
+- [x] 提交、PR（base fix/background-idle-wait）
+- **Status:** complete
 
 ### M.E 验收、回复、发版
 - [ ] 全量单元测试 + lint + typecheck + dependency-cruiser
@@ -107,6 +116,8 @@ M.D 原生模块 promise（#67）
 ## Decisions Made
 | Decision | Rationale |
 |----------|-----------|
+| #67 用时间上限（nativeCallThresholdMs）代替按名字猜「等用户的调用」 | 名单列不全；上限让最坏情况只是多等 2 s；另给 ignore 列表 |
+| #67 包装总是安装、只在启用时计数 | 模块在 config 到达前就被取走，之后再包装来不及；agent 只在 e2e 构建里 |
 | #64/#65/#68 一起改，BANNER_WAIT_MS 保持 2 s | 点中判定改为 app 前台 + 堆叠处理后，不需要退回 0.7.0 的长等待（HU 2026-11-19） |
 | scrollTo 步数上限 60 与 scrollToEdge 一致，不扣除找容器和最后 settle | host 侧 MAX_SCROLL_STEPS 也是 60，scrollToEdge 一直如此；每步很少用满 timeout |
 | #66 事件唤醒 + 原生定时器兜底 | 不依赖后台暂停的 JS timer，且至少能报 SYNC_TIMEOUT（HU 2026-11-19） |

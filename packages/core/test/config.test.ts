@@ -21,12 +21,21 @@ describe('config', () => {
         stableFrames: 2,
         ignoreUrls: [{ regex: { source: '\\/analytics\\/', flags: 'i' } }, 'sse'],
         trackers: { 'frame-stable': false },
+        nativeCallThresholdMs: 2000,
+        ignoreNativeCalls: [],
         ignoreElements: [],
       },
       logLevel: 'info',
       workerIndex: 0,
       logBox: 'clear',
     });
+  });
+
+  it('passes the native-module tracker settings (#67)', () => {
+    const sync = toAgentConfig({ apps: {}, sync: { trackers: { 'native-module': true }, nativeCallThresholdMs: 500, ignoreNativeCalls: ['ExpoLocation.', /^Share\./] } }).sync;
+    expect(sync.trackers).toEqual({ 'native-module': true });
+    expect(sync.nativeCallThresholdMs).toBe(500);
+    expect(sync.ignoreNativeCalls).toEqual(['ExpoLocation.', { regex: { source: '^Share\\.', flags: '' } }]);
   });
 
   it('passes appErrors.logBox to the agent, clear by default (issue #31)', () => {
