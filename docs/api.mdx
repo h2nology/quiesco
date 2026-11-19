@@ -325,6 +325,8 @@ await this.app.device.system.tap({ text: 'Cancel' });  // any system UI outside 
 | `clearKeychain()` | iOS: resets the simulator's keychain (every app's). Android has no keychain: `ACTION_NOT_SUPPORTED`, use `relaunch({ clearData: true })` |
 | `system.tap(query, { timeoutMs }?)` | Tap system UI outside the app (a permission dialog, the biometric prompt, a web page's JS dialog). `query`: `{ text }` (exact, typographic quotes ignored, or a RegExp) and / or `{ id }` (Android resource-id, or the part after `:id/`). Waits up to `timeoutMs` (10 s) for it to show up, then for the app to be idle |
 | `system.expectVisible(query)` / `system.expectNotVisible(query)` | Wait until such system UI is (not) on screen; `ELEMENT_NOT_FOUND` / `ASSERTION_FAILED` list the texts seen |
+| `system.type(query, text, { timeoutMs }?)` | Tap the field matching `query` (a field before a label with the same text) and type `text` with the device's input: iOS through the keyboard (any text), Android as key events (`input text`, printable ASCII) or, for other text, pasted through @quiesco/native's clipboard. Then waits for the app to be idle |
+| `system.tapAt({ x, y })` | A system-level touch at a screen point (points / dp from the top-left corner), over whatever is there: e.g. above iOS's share sheet, which closes it |
 | `system.allowPermission()` / `system.denyPermission()` | Answer the runtime permission dialog whatever the device language (Android: by its buttons' ids, also "while using the app" and "don't ask again"; iOS: by position, as iOS lays them out); resolves when the app is in front and idle |
 
 None of these exist on the web (`ACTION_NOT_SUPPORTED`; tag such scenarios `@native`), except `system.tap` /
@@ -333,6 +335,21 @@ sensors). On iOS, system UI belongs to SpringBoard: Quiesco builds a small XCUIT
 it is needed (once per Xcode version, cached in `~/Library/Caches/quiesco/ios-runner`, about 10 s) and starts
 it on the simulator (2–4 s, once per session). Alerts outlive the app: one left by a scenario is dismissed
 (cancel / deny) before the next. To ask for a permission again, reset it first: `setPermission('notifications', 'reset')`.
+
+**What system UI includes.** Besides the system's own UI (SpringBoard on iOS, other packages on Android),
+`system.*` sees UI that is not React (issues #49–#51):
+
+- the app's own dialog windows on Android, e.g. the date dialog of `DateTimePickerAndroid` (`system.tap({ text: '25' })`,
+  then `{ id: 'android:id/button1' }` for OK in any language). A React Native `Modal` is such a window too;
+- on iOS, the app's UIKit views (an inline `DateTimePicker`'s days, the keyboard's keys, the share sheet), and the
+  web page of an authentication session (`expo-web-browser`'s `openAuthSessionAsync`, SafariViewService) or Safari
+  when they are in front: `system.type({ text: 'Email' }, 'ann@example.com')`, then `system.tap({ text: 'Sign in' })`.
+  The app's React views are in that tree as well; tapping them is a real touch all the same. The share sheet can be
+  closed with `system.tapAt` above it. A React Native `Modal` shown a second time in a session can be missing from
+  the tree XCUITest reports; `app.*` reaches its views.
+
+On the Android emulator, `openAuthSessionAsync` needs a browser with Custom Tabs (an image with Google Play);
+the AOSP images have none.
 
 While a permission dialog (another activity) is in front, Android pauses the app's JS timers; Quiesco's idle
 wait notices that the app went to the background and returns, so the tap that opened the dialog completes.

@@ -263,10 +263,19 @@ await this.app.device.system.tap({ text: 'Cancel' });  // アプリ外の任意�
 | `clearKeychain()` | iOS：シミュレーターのキーチェーン（全アプリ分）をリセットします。Androidにはキーチェーンがないため`ACTION_NOT_SUPPORTED`。`relaunch({ clearData: true })`を使ってください |
 | `system.tap(query, { timeoutMs }?)` | アプリ外のシステムUI（権限ダイアログ、生体認証のプロンプト、WebページのJSダイアログ）をタップします。`query`：`{ text }`（完全一致。タイポグラフィ用の引用符は区別しません。またはRegExp）、および / または`{ id }`（Androidのresource-id、または`:id/`より後ろの部分）。表示されるまで`timeoutMs`（10秒）を上限に待ち、その後アプリがアイドルになるのを待ちます |
 | `system.expectVisible(query)` / `system.expectNotVisible(query)` | そのシステムUIが画面に表示される（されなくなる）まで待ちます。`ELEMENT_NOT_FOUND` / `ASSERTION_FAILED`には見つかったテキストが列挙されます |
+| `system.type(query, text, { timeoutMs }?)` | `query`に一致する入力欄（同じテキストのラベルより入力欄を優先）をタップし、デバイスの入力で`text`を入力します。iOSはキーボード経由（どの文字でも可）、Androidはキーイベント（`input text`、印字可能なASCII）、それ以外の文字は@quiesco/nativeのクリップボード経由で貼り付けます。その後アプリがアイドルになるのを待ちます |
+| `system.tapAt({ x, y })` | 画面上の点（左上からのpt / dp）にシステムレベルのタッチをします。そこにあるものに関係なく届きます。たとえばiOSの共有シートの上側をタップすると閉じられます |
 | `system.allowPermission()` / `system.denyPermission()` | デバイスの言語に関係なく、実行時の権限ダイアログに応答します（Android：ボタンのIDで判別し、「アプリの使用中のみ」や「今後表示しない」にも対応。iOS：iOSのレイアウトに従い位置で判別）。アプリが前面に来てアイドルになった時点で解決します |
 
 これらはWebには存在しません（`ACTION_NOT_SUPPORTED`。こうしたシナリオには`@native`タグを付けてください）。ただし`system.tap` /
 `expectVisible` / `expectNotVisible`は、ページのJavaScriptダイアログに対して使えます（後述）。Androidではエミュレーターが必要です（エミュレーターのコンソールでセンサーを偽装するため）。iOSでは、システムUIはSpringBoardに属します。Quiescoは、初めて必要になったときに小さなXCUITestランナーをビルドし（Xcodeのバージョンごとに1回。`~/Library/Caches/quiesco/ios-runner`にキャッシュされ、約10秒）、シミュレーター上で起動します（2–4秒、セッションごとに1回）。アラートはアプリより長く残ります。シナリオが残したアラートは次のシナリオの前に閉じられます（キャンセル / 拒否）。権限を再び要求させるには、先にリセットします：`setPermission('notifications', 'reset')`。
+
+**システムUIに含まれるもの。** システム自身のUI（iOSのSpringBoard、Androidの他パッケージ）に加えて、`system.*`はReactではないUIも扱います（issue #49–#51）。
+
+- Androidでアプリ自身が開いたダイアログウィンドウ。たとえば`DateTimePickerAndroid`の日付ダイアログ（`system.tap({ text: '25' })`のあと、OKはどの言語でも`{ id: 'android:id/button1' }`）。React Nativeの`Modal`もこのウィンドウです。
+- iOSでアプリのUIKitビュー（インラインの`DateTimePicker`の日付、キーボードのキー、共有シート）と、前面にある認証セッションのWebページ（`expo-web-browser`の`openAuthSessionAsync`、SafariViewService）やSafari。`system.type({ text: 'Email' }, 'ann@example.com')`のあと`system.tap({ text: 'Sign in' })`のように操作できます。このツリーにはアプリのReactビューも含まれますが、タップはどれも実際のタッチです。共有シートはその上側を`system.tapAt`でタップすると閉じられます。同じセッションで2回目に表示したReact Nativeの`Modal`は、XCUITestが返すツリーに出ないことがあります。そのビューには`app.*`で届きます。
+
+Androidエミュレーターで`openAuthSessionAsync`を使うには、Custom Tabsに対応したブラウザ（Google Play入りのイメージ）が必要です。AOSPのイメージにはありません。
 
 権限ダイアログ（別のアクティビティ）が前面にある間、AndroidはアプリのJSタイマーを一時停止します。Quiescoのアイドル待機はアプリがバックグラウンドに移ったことを検知して戻るので、ダイアログを開いたタップは完了します。
 
