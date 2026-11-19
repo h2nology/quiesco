@@ -181,6 +181,30 @@ cucumber config; `.ts` imports in step files without `allowImportingTsExtensions
 fix; most of what an older setup lacks is fixed by `npx quiesco@latest init --upgrade`. Exits with 1 when a
 required check fails; warnings and notes (ℹ️, such as a missing `e2e:build:*` script) do not fail.
 
+## Tests in a package of their own {#app-dir}
+
+When the tests are not in the Expo app's directory (a monorepo, or `app/` and `e2e/` side by side), put
+`quiesco.config.mts`, the runner and its packages in the test package and point `appDir` at the app,
+relative to the config file:
+
+```ts
+// e2e/quiesco.config.mts
+export default defineConfig({
+  appDir: '../app',
+  apps: {
+    ios: { bundleId: 'com.acme.shop', binaryPath: '../app/ios/build/Build/Products/Debug-iphonesimulator/shop.app' },
+  },
+});
+```
+
+Run the commands in the test package. `doctor` checks the app (Expo, `@quiesco/agent`, the config plugin, Metro,
+the entry, `<QuiescoRoot>`, `app.json`) in `appDir` and the test setup (the runner the test package has, the config,
+the scripts) where it runs, with the Quiesco packages of both at one version. `build` runs `expo prebuild` and
+xcodebuild / gradle in `appDir`; `binaryPath` stays relative to the config file. `init --upgrade` upgrades
+`@quiesco/agent`, `@quiesco/native` and `@quiesco/expo-plugin` in the app and the other packages in the test
+package. `quiesco test` starts Metro in `appDir`. `--app-dir <dir>` (doctor, build, `init --upgrade`) names the
+app without the config.
+
 ## `quiesco tree` {#quiesco-tree}
 
 ```sh

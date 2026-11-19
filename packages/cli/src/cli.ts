@@ -18,9 +18,9 @@ Commands:
              --platforms ios,android,web   --runner vitest|jest|cucumber (asked when not given; default vitest)
              --packages <dir> (install from tarballs)   --skip-install
              --upgrade: bring a project set up by an older version to this one (packages, config, files)
-               --dry-run (list the changes only)
+               --dry-run (list the changes only)   --app-dir <dir> (the app, when the tests are elsewhere)
   build    Build the app for e2e tests (prebuild + xcodebuild / gradle) into apps.<platform>.binaryPath
-             ios|android   --force (also when the native inputs did not change)
+             ios|android   --force (also when the native inputs did not change)   --app-dir <dir>
   test     Run the tests with the project's runner (or --runner vitest|jest|cucumber); other arguments go to the runner unchanged
              --platform ios|android|web   --workers N (N devices in parallel)   (quiesco test --help for more)
   ui       Open the test UI: run tests from the browser and watch them live (needs @quiesco/ui)
@@ -28,7 +28,7 @@ Commands:
   list     List the tests the runner would run, without running them
              --runner cucumber|jest|vitest   --json
   doctor   Check the tools and the project setup
-             --platform ios|android|web
+             --platform ios|android|web   --app-dir <dir> (the app, when the tests are elsewhere; or appDir in quiesco.config)
   tree     Print the element tree of the running app (to find testIDs)
              --launch (boot the device and launch the app first)   --json   --timeout <ms>   --platform …
   devices  List the simulators / AVDs Quiesco created for parallel workers

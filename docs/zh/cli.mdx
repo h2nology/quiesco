@@ -246,6 +246,22 @@ yarn quiesco doctor --platform ios
 
 检查 Node.js、Expo SDK（55 及以上）、项目配置（包、所有 Quiesco 包是否为同一版本、package.json 脚本中的每个 `quiesco <command>` 是否存在、config plugin、Metro 中的 `withQuiesco()`、agent 是否为入口的第一个 import、`<QuiescoRoot>`、配置文件）、App ID（`quiesco.config.mts` 与 `app.json` 和构建产物是否一致，以及 `init` 留下的占位符）、旧版本写入的设置（cucumber 配置中的 `paths`；step 文件导入 `.ts` 但没有 `allowImportingTsExtensions`）、平台工具（模拟器、adb 和 AVD、配置中的 Playwright 浏览器）、App 构建和端口。每个问题都附带修复方法；旧的设置缺少的大部分内容，`npx quiesco@latest init --upgrade` 都能修好。必需的检查失败时以 1 退出；警告和提示（ℹ️，例如缺少 `e2e:build:*` 脚本）不会导致失败。
 
+## 测试放在单独的包里 {#app-dir}
+
+测试不在 Expo App 的目录里时（monorepo，或 `app/` 和 `e2e/` 并列），把 `quiesco.config.mts`、runner 及其包放在测试包里，用 `appDir` 指向 App（相对于配置文件）：
+
+```ts
+// e2e/quiesco.config.mts
+export default defineConfig({
+  appDir: '../app',
+  apps: {
+    ios: { bundleId: 'com.acme.shop', binaryPath: '../app/ios/build/Build/Products/Debug-iphonesimulator/shop.app' },
+  },
+});
+```
+
+在测试包里运行命令。`doctor` 在 `appDir` 中检查 App（Expo、`@quiesco/agent`、config plugin、Metro、入口、`<QuiescoRoot>`、`app.json`），在运行的目录中检查测试设置（测试包里的 runner、配置文件、脚本），并检查两边的 Quiesco 包是否为同一版本。`build` 在 `appDir` 中运行 `expo prebuild` 和 xcodebuild / gradle；`binaryPath` 仍然相对于配置文件。`init --upgrade` 在 App 中升级 `@quiesco/agent`、`@quiesco/native` 和 `@quiesco/expo-plugin`，在测试包中升级其余的包。`quiesco test` 在 `appDir` 中启动 Metro。`--app-dir <dir>`（doctor、build、`init --upgrade`）可以不经配置文件直接指定 App。
+
 ## `quiesco tree` {#quiesco-tree}
 
 <CodeGroup>

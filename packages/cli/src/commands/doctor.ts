@@ -1,7 +1,8 @@
 /**
- * `quiesco doctor [--platform ios|android|web]` (requirements.md §6.12): check the environment and the
- * project's Quiesco setup. Every check says what is wrong and how to fix it; exit code 1 when a check
- * fails (warnings do not fail).
+ * `quiesco doctor [--platform ios|android|web] [--app-dir <dir>]` (requirements.md §6.12): check the
+ * environment and the project's Quiesco setup. Every check says what is wrong and how to fix it; exit code
+ * 1 when a check fails (warnings do not fail). With `appDir` (issue #54) the app's checks run in the app's
+ * directory and the test setup's (runner, config, features) in the working directory.
  */
 import fs from 'node:fs';
 import net from 'node:net';
@@ -10,6 +11,7 @@ import path from 'node:path';
 import type { QuiescoConfig } from '@quiesco/core';
 import { loadConfig, serverPort } from '@quiesco/core';
 
+import { APP_DIR_OPTION, appContext, inApp } from '../app-dir.js';
 import type { CliContext, CliPlatform } from '../context.js';
 import { PLATFORMS, parsePlatform, takeOption } from '../context.js';
 import { MIN_EXPO_SDK, UPGRADE_SDK_FIX, expoSdk } from '../expo-sdk.js';
@@ -83,29 +85,46 @@ function expoCheck(ctx: CliContext, pkg: PackageJson): CheckResult {
   return sdk.sdk >= MIN_EXPO_SDK ? { name: 'Expo project', status: 'ok', detail } : { name: 'Expo project', status: 'fail', detail, fix: UPGRADE_SDK_FIX };
 }
 
-function projectChecks(ctx: CliContext): CheckResult[] {
+/**
+ * The app (expo, @quiesco/agent, config plugin, Metro, entry) in `app`, the test setup (runner packages,
+ * older inits' files) in `ctx`: the same directory unless appDir is set (issue #54).
+ */
+function projectChecks(ctx: CliContext, app: CliContext): CheckResult[] {
   const results: CheckResult[] = [];
-  const pkg = readJson<PackageJson>(ctx, path.join(ctx.cwd, 'package.json'));
+  const separate = app !== ctx;
+  const pkg = readJson<PackageJson>(app, path.join(app.cwd, 'package.json'));
   if (pkg === null) {
-    return [{ name: 'project', status: 'fail', detail: `no package.json in ${ctx.cwd}`, fix: 'Run quiesco in the Expo app directory.' }];
+    return [
+      {
+        name: 'project',
+        status: 'fail',
+        detail: `no package.json in ${app.cwd}`,
+        fix: separate ? 'appDir (quiesco.config) or --app-dir must name the Expo app\'s directory.' : 'Run quiesco in the Expo app directory, or set appDir in quiesco.config to where the app is.',
+      },
+    ];
   }
-  results.push(expoCheck(ctx, pkg));
-  // The runner the commands use without --runner, with Quiesco's integration and the runner itself.
-  const wanted = ['@quiesco/agent', ...RUNNER_PACKAGES[projectRunner(ctx)]];
-  const missing = wanted.filter((d) => !hasDep(pkg, d));
+  const testPkg = separate ? readJson<PackageJson>(ctx, path.join(ctx.cwd, 'package.json')) : pkg;
+  results.push(expoCheck(app, pkg));
+  // The app has the agent; the test project has the runner the commands use without --runner, with
+  // Quiesco's integration and the runner itself.
+  const runnerPkgs = RUNNER_PACKAGES[projectRunner(ctx)];
+  const missing = [
+    ...(hasDep(pkg, '@quiesco/agent') ? [] : [`@quiesco/agent${separate ? ` (in ${inApp(ctx, app)})` : ''}`]),
+    ...runnerPkgs.filter((d) => testPkg === null || !hasDep(testPkg, d)),
+  ];
   results.push(
     missing.length === 0
-      ? { name: 'Quiesco packages', status: 'ok', detail: wanted.join(', ') }
+      ? { name: 'Quiesco packages', status: 'ok', detail: ['@quiesco/agent', ...runnerPkgs].join(', ') }
       : { name: 'Quiesco packages', status: 'fail', detail: `missing ${missing.join(', ')}`, fix: 'Run `npx quiesco init`, or install them.' },
   );
 
-  results.push(...versionChecks(ctx, pkg));
+  results.push(...versionChecks(ctx, [{ ctx: app, pkg }, ...(separate && testPkg !== null ? [{ ctx, pkg: testPkg }] : [])]));
   results.push(...legacyChecks(ctx));
 
-  const appJson = readJson<{ expo?: { plugins?: unknown[] } }>(ctx, path.join(ctx.cwd, 'app.json'));
+  const appJson = readJson<{ expo?: { plugins?: unknown[] } }>(app, path.join(app.cwd, 'app.json'));
   const plugins = appJson?.expo?.plugins ?? [];
   const listed = plugins.some((p) => p === '@quiesco/expo-plugin' || (Array.isArray(p) && p[0] === '@quiesco/expo-plugin'));
-  const dynamic = ['app.config.ts', 'app.config.js', 'app.config.mjs'].some((f) => ctx.exists(path.join(ctx.cwd, f)));
+  const dynamic = ['app.config.ts', 'app.config.js', 'app.config.mjs'].some((f) => app.exists(path.join(app.cwd, f)));
   results.push(
     listed
       ? { name: 'config plugin', status: 'ok', detail: '@quiesco/expo-plugin in app.json' }
@@ -114,8 +133,8 @@ function projectChecks(ctx: CliContext): CheckResult[] {
         : { name: 'config plugin', status: 'warn', detail: '@quiesco/expo-plugin is not in app.json plugins', fix: 'Add "@quiesco/expo-plugin" to expo.plugins (needed for iOS / Android e2e builds, not for web).' },
   );
 
-  const metro = ['metro.config.js', 'metro.config.cjs', 'metro.config.mjs', 'metro.config.ts'].map((f) => path.join(ctx.cwd, f)).find((f) => ctx.exists(f));
-  const metroSrc = metro !== undefined ? ctx.readFile(metro) : null;
+  const metro = ['metro.config.js', 'metro.config.cjs', 'metro.config.mjs', 'metro.config.ts'].map((f) => path.join(app.cwd, f)).find((f) => app.exists(f));
+  const metroSrc = metro !== undefined ? app.readFile(metro) : null;
   results.push(
     metroSrc !== null && metroSrc.includes('withQuiesco')
       ? { name: 'Metro', status: 'ok', detail: `${path.basename(metro as string)} uses withQuiesco()` }
@@ -136,8 +155,8 @@ function projectChecks(ctx: CliContext): CheckResult[] {
       fix: "Create index.ts with `import '@quiesco/agent';` as the first line followed by the original entry (e.g. `import 'expo-router/entry';`), and set \"main\": \"index.ts\".",
     });
   } else {
-    const entry = [main, `${main}.ts`, `${main}.tsx`, `${main}.js`].map((f) => path.join(ctx.cwd, f)).find((f) => ctx.exists(f));
-    const src = entry !== undefined ? ctx.readFile(entry) : null;
+    const entry = [main, `${main}.ts`, `${main}.tsx`, `${main}.js`].map((f) => path.join(app.cwd, f)).find((f) => app.exists(f));
+    const src = entry !== undefined ? app.readFile(entry) : null;
     const first = src !== null ? firstImport(src) : null;
     results.push(
       first === '@quiesco/agent'
@@ -152,13 +171,18 @@ function projectChecks(ctx: CliContext): CheckResult[] {
 
 /**
  * Issue #17: every Quiesco package in package.json is installed at one version, and every `quiesco <cmd>`
- * in the scripts exists in it.
+ * in the scripts exists in it. With appDir (issue #54) the app's and the test project's packages together.
  */
-function versionChecks(ctx: CliContext, pkg: PackageJson): CheckResult[] {
+function versionChecks(ctx: CliContext, projects: readonly { ctx: CliContext; pkg: PackageJson }[]): CheckResult[] {
   const results: CheckResult[] = [];
-  const names = [...new Set([...Object.keys(pkg.dependencies ?? {}), ...Object.keys(pkg.devDependencies ?? {})])].filter(isQuiescoPackage).sort();
+  const declared = projects.flatMap((p) =>
+    [...new Set([...Object.keys(p.pkg.dependencies ?? {}), ...Object.keys(p.pkg.devDependencies ?? {})])].filter(isQuiescoPackage).map((name) => ({ name, dir: p.ctx })),
+  );
+  const names = [...new Set(declared.map((d) => d.name))].sort();
   if (names.length === 0) return results;
-  const installed = names.map((name) => ({ name, version: installedVersion(ctx, name) }));
+  const installed = declared
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((d) => ({ name: d.dir === ctx ? d.name : `${d.name} (${inApp(ctx, d.dir)})`, version: installedVersion(d.dir, d.name) }));
   const missing = installed.filter((p) => p.version === null).map((p) => p.name);
   const versions = [...new Set(installed.flatMap((p) => (p.version !== null ? [p.version] : [])))];
   const list = installed.map((p) => `${p.name} ${p.version ?? '(not installed)'}`).join(', ');
@@ -186,7 +210,7 @@ function versionChecks(ctx: CliContext, pkg: PackageJson): CheckResult[] {
           },
     );
   }
-  const unknown = scriptCommands(pkg.scripts).filter((c) => !(CLI_COMMANDS as readonly string[]).includes(c.command));
+  const unknown = projects.flatMap((p) => scriptCommands(p.pkg.scripts)).filter((c) => !(CLI_COMMANDS as readonly string[]).includes(c.command));
   if (unknown.length > 0) {
     results.push({
       name: 'scripts',
@@ -267,7 +291,7 @@ interface AppJsonIds {
  * uses) and, when they exist, with the prebuilt Android project and the iOS build. Placeholders left by
  * init fail.
  */
-async function appIdChecks(ctx: CliContext, config: QuiescoConfig): Promise<CheckResult[]> {
+async function appIdChecks(ctx: CliContext, app: CliContext, config: QuiescoConfig): Promise<CheckResult[]> {
   const { ios, android } = config.apps;
   if (ios === undefined && android === undefined) return [];
   const configFile = CONFIG_FILES.find((f) => ctx.exists(path.join(ctx.cwd, f)));
@@ -282,12 +306,12 @@ async function appIdChecks(ctx: CliContext, config: QuiescoConfig): Promise<Chec
       },
     ];
   }
-  const dynamic = DYNAMIC_APP_CONFIGS.find((f) => ctx.exists(path.join(ctx.cwd, f)));
+  const dynamic = DYNAMIC_APP_CONFIGS.find((f) => app.exists(path.join(app.cwd, f)));
   const results: CheckResult[] = [];
   if (dynamic !== undefined) {
     results.push({ name: 'app IDs', status: 'warn', detail: `${dynamic} found; cannot compare the app IDs with it`, fix: 'Make sure apps.ios.bundleId, apps.android.package and devClient.scheme are the values your app config sets.' });
   } else {
-    const expo = readJson<AppJsonIds>(ctx, path.join(ctx.cwd, 'app.json'))?.expo ?? {};
+    const expo = readJson<AppJsonIds>(app, path.join(app.cwd, 'app.json'))?.expo ?? {};
     const schemes = expo.scheme === undefined ? [] : Array.isArray(expo.scheme) ? expo.scheme : [expo.scheme];
     const problems: string[] = [];
     const compare = (what: string, want: string, have: string | undefined): void => {
@@ -308,9 +332,9 @@ async function appIdChecks(ctx: CliContext, config: QuiescoConfig): Promise<Chec
   }
   // The builds: an app built before the IDs changed is another app.
   if (android !== undefined) {
-    const gradle = ctx.readFile(path.join(ctx.cwd, 'android/app/build.gradle'));
+    const gradle = app.readFile(path.join(app.cwd, 'android/app/build.gradle'));
     const built = gradle === null ? undefined : /applicationId\s*(?:=\s*)?['"]([^'"]+)['"]/.exec(gradle)?.[1];
-    const manifest = ctx.readFile(path.join(ctx.cwd, 'android/app/src/main/AndroidManifest.xml'));
+    const manifest = app.readFile(path.join(app.cwd, 'android/app/src/main/AndroidManifest.xml'));
     const scheme = android.devClient?.scheme;
     const wrong: string[] = [];
     if (built !== undefined && built !== android.package) wrong.push(`android/app/build.gradle has applicationId ${built}`);
@@ -466,7 +490,7 @@ export const defaultDoctorDeps: DoctorDeps = {
     }),
 };
 
-export async function runChecks(ctx: CliContext, only: CliPlatform | undefined, deps: DoctorDeps = defaultDoctorDeps): Promise<CheckResult[]> {
+export async function runChecks(ctx: CliContext, only: CliPlatform | undefined, deps: DoctorDeps = defaultDoctorDeps, appDirFlag?: string): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
   const major = Number.parseInt(ctx.nodeVersion, 10);
   results.push(
@@ -484,17 +508,27 @@ export async function runChecks(ctx: CliContext, only: CliPlatform | undefined, 
       fix: 'Metro started with CI set does not watch files, so code changes do not reach the app under test. Unset it (unset CI) before EXPO_PUBLIC_QUIESCO=1 npx expo start.',
     });
   }
-  results.push(...projectChecks(ctx));
-  results.push(rootCheck(ctx, readJson<PackageJson>(ctx, path.join(ctx.cwd, 'package.json'))?.main));
-
+  // The config first: its appDir says where the app is (issue #54).
   let config: QuiescoConfig | null = null;
+  let configError: string | null = null;
   try {
     config = await deps.loadConfig(ctx.cwd);
-    results.push({ name: 'quiesco.config', status: 'ok', detail: `apps: ${Object.keys(config.apps).join(', ') || 'none'}` });
-    results.push(...(await appIdChecks(ctx, config)));
-    results.push(...buildScriptChecks(readJson<PackageJson>(ctx, path.join(ctx.cwd, 'package.json')), config));
   } catch (e) {
-    results.push({ name: 'quiesco.config', status: 'fail', detail: (e as Error).message.split('\n')[0] ?? '', fix: 'Create quiesco.config.mts (npx quiesco init writes one).' });
+    configError = (e as Error).message.split('\n')[0] ?? '';
+  }
+  const app = appContext(ctx, config, appDirFlag);
+  if (app !== ctx) results.push({ name: 'app', status: 'ok', detail: `${inApp(ctx, app)} (${appDirFlag !== undefined ? APP_DIR_OPTION : 'appDir'}); the test setup in ${ctx.cwd}` });
+  results.push(...projectChecks(ctx, app));
+  results.push(rootCheck(app, readJson<PackageJson>(app, path.join(app.cwd, 'package.json'))?.main));
+
+  if (config !== null) {
+    results.push({ name: 'quiesco.config', status: 'ok', detail: `apps: ${Object.keys(config.apps).join(', ') || 'none'}` });
+    results.push(...(await appIdChecks(ctx, app, config)));
+    // A script that builds may be in either package.json.
+    const scripts = { ...readJson<PackageJson>(app, path.join(app.cwd, 'package.json'))?.scripts, ...readJson<PackageJson>(ctx, path.join(ctx.cwd, 'package.json'))?.scripts };
+    results.push(...buildScriptChecks({ scripts }, config));
+  } else {
+    results.push({ name: 'quiesco.config', status: 'fail', detail: configError ?? '', fix: 'Create quiesco.config.mts (npx quiesco init writes one), in the test project when the app is elsewhere (appDir).' });
   }
 
   const platforms = only !== undefined ? [only] : PLATFORMS.filter((p) => config?.apps[p] !== undefined);
@@ -512,12 +546,13 @@ export async function runChecks(ctx: CliContext, only: CliPlatform | undefined, 
 }
 
 export async function doctorCommand(args: readonly string[], ctx: CliContext, deps: DoctorDeps = defaultDoctorDeps): Promise<number> {
-  const { value, rest } = takeOption(args, '--platform');
-  if (rest.length > 0) {
-    ctx.err(`quiesco doctor: unknown arguments ${rest.join(' ')}`);
+  const { value, rest: afterPlatform } = takeOption(args, '--platform');
+  const appDir = takeOption(afterPlatform, APP_DIR_OPTION);
+  if (appDir.rest.length > 0) {
+    ctx.err(`quiesco doctor: unknown arguments ${appDir.rest.join(' ')}`);
     return 2;
   }
-  const results = await runChecks(ctx, parsePlatform(value), deps);
+  const results = await runChecks(ctx, parsePlatform(value), deps, appDir.value);
   for (const r of results) {
     ctx.out(`${ICON[r.status]} ${r.name}: ${r.detail}`);
     if (r.fix !== undefined && r.status !== 'ok') ctx.out(`   → ${r.fix}`);

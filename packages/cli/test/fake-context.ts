@@ -7,7 +7,8 @@ import type { CliContext, ExecResult } from '../src/context';
 export interface FakeContext extends CliContext {
   lines: string[];
   errors: string[];
-  calls: { command: string; args: string[]; env?: NodeJS.ProcessEnv }[];
+  /** `cwd` only when a command runs somewhere else than the project directory (appDir, issue #54). */
+  calls: { command: string; args: string[]; env?: NodeJS.ProcessEnv; cwd?: string }[];
   file(rel: string): string | null;
   put(rel: string, content: string): void;
 }
@@ -18,6 +19,7 @@ export function fakeContext(answer: (command: string, args: readonly string[]) =
   const lines: string[] = [];
   const errors: string[] = [];
   const calls: FakeContext['calls'] = [];
+  const elsewhere = (dir: string | undefined): { cwd?: string } => (dir !== undefined && path.resolve(dir) !== cwd ? { cwd: path.relative(cwd, dir) } : {});
   const ctx: FakeContext = {
     cwd,
     version: '9.9.9',
@@ -25,13 +27,13 @@ export function fakeContext(answer: (command: string, args: readonly string[]) =
     out: (l) => lines.push(l),
     err: (l) => errors.push(l),
     exec: async (command, args, options = {}) => {
-      calls.push({ command, args: [...args], ...(options.env !== undefined ? { env: options.env } : {}) });
+      calls.push({ command, args: [...args], ...(options.env !== undefined ? { env: options.env } : {}), ...elsewhere(options.cwd) });
       const result = { code: 0, stdout: '', stderr: '', ...answer(command, args) };
-      if (result.code === 0) fakeInstall(cwd, command, args);
+      if (result.code === 0) fakeInstall(options.cwd ?? cwd, command, args);
       return result;
     },
     run: async (command, args, options = {}) => {
-      calls.push({ command, args: [...args], ...(options.env !== undefined ? { env: options.env } : {}) });
+      calls.push({ command, args: [...args], ...(options.env !== undefined ? { env: options.env } : {}), ...elsewhere(options.cwd) });
       return answer(command, args).code ?? 0;
     },
     runPiped: async (command, args, options) => {

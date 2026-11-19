@@ -59,8 +59,10 @@ export async function ensureDevServer(ctx: CliContext, config: QuiescoConfig, pl
   const [command, ...args] = (opts.command ?? ['npx', 'expo', 'start', '--port', '{port}']).map((a) => a.replaceAll('{port}', port));
   if (command === undefined) throw new Error('devServer.command is empty');
   const logFile = path.join(ctx.cwd, config.artifacts?.dir ?? 'artifacts', 'metro.log');
-  ctx.out(`quiesco: starting Metro (${[command, ...args].join(' ')}) with EXPO_PUBLIC_QUIESCO=1; log: ${path.relative(ctx.cwd, logFile)}`);
-  const proc = ctx.spawnBackground(command, args, { cwd: ctx.cwd, env: { ...ctx.env, EXPO_PUBLIC_QUIESCO: '1' }, logFile });
+  // Metro serves the app: in appDir when the tests are a package of their own (issue #54).
+  const appDir = config.appDir ?? ctx.cwd;
+  ctx.out(`quiesco: starting Metro (${[command, ...args].join(' ')})${appDir !== ctx.cwd ? ` in ${appDir}` : ''} with EXPO_PUBLIC_QUIESCO=1; log: ${path.relative(ctx.cwd, logFile)}`);
+  const proc = ctx.spawnBackground(command, args, { cwd: appDir, env: { ...ctx.env, EXPO_PUBLIC_QUIESCO: '1' }, logFile });
   const offInterrupt = ctx.onInterrupt(() => proc.stop());
   const server: DevServer = {
     env: {},
