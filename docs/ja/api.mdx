@@ -259,7 +259,7 @@ await this.app.device.system.tap({ text: 'Cancel' });  // アプリ外の任意�
 | `biometrics.match()` / `biometrics.fail()` | アプリが表示している認証に、一致する / 未登録の顔や指を提示します。`fail()`の後は、実機と同じくシステムが再試行のプロンプトを表示し続け、プロンプトに応答するまでアプリには結果が返りません。続けて何度か失敗すると、センサーがしばらくロックされます（Androidエミュレーター：約0.5秒から最大30秒） |
 | `shake()` | デバイスを振ります（iOS：シミュレーターの*Device > Shake*。Androidエミュレーター：加速度センサーへの入力）。その後アイドルを待ちます |
 | `sendNotification({ title, body?, data? })` | iOS：擬似的なリモートプッシュ（`simctl push`、`data`は`aps`と並べて配置）。アプリが前面にある間はアプリのプッシュライブラリが受け取り、システムが通知を表示するのはアプリが通知を表示できる場合だけです（シミュレーターでは事前に許可できません）。Android：エミュレーターにはプッシュサービスがないため、通知はアプリとして投稿されます（`notifications`権限が必要）。タップすると`data`をintentのextrasとしてアプリが開き、プッシュライブラリのコールバックは呼ばれません。アプリがバックグラウンドにあっても動作します |
-| `openNotification(title)` | 通知をタップします。iOSではバナー、バナーが消えていれば通知センターで。Androidでは通知シェードで。アプリが前面に来てアイドルになった時点で解決します |
+| `openNotification(title, { timeoutMs }?)` | 通知をタップします。iOSではバナー、バナーが消えていれば通知センターで。Androidでは通知シェードで。通知が届くまで `timeoutMs`（10秒）待つので、数秒後に予約した通知も見つかります。アプリが前面に来てアイドルになった時点で解決します |
 | `clearKeychain()` | iOS：シミュレーターのキーチェーン（全アプリ分）をリセットします。Androidにはキーチェーンがないため`ACTION_NOT_SUPPORTED`。`relaunch({ clearData: true })`を使ってください |
 | `system.tap(query, { timeoutMs }?)` | アプリ外のシステムUI（権限ダイアログ、生体認証のプロンプト、WebページのJSダイアログ）をタップします。`query`：`{ text }`（完全一致。タイポグラフィ用の引用符は区別しません。またはRegExp）、および / または`{ id }`（Androidのresource-id、または`:id/`より後ろの部分）。表示されるまで`timeoutMs`（10秒）を上限に待ち、その後アプリがアイドルになるのを待ちます |
 | `system.expectVisible(query)` / `system.expectNotVisible(query)` | そのシステムUIが画面に表示される（されなくなる）まで待ちます。`ELEMENT_NOT_FOUND` / `ASSERTION_FAILED`には見つかったテキストが列挙されます |

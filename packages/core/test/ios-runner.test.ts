@@ -102,19 +102,27 @@ describe('IosProvider system UI (6.7 batch C)', () => {
 
   it('opens a notification from its banner, else from Notification Center', async () => {
     const banner = fakeRunner([{ alerts: [], others: [{ label: '今, Reminder, body', id: 'ShortLook.Platter.Content.Seamless', frame: [8, 58, 386, 66] }] }]);
-    await make(banner.runner).openNotification('Reminder');
+    await make(banner.runner).openNotification('Reminder', 10_000);
     expect(banner.calls).toEqual(['tap 201,91']);
 
     const gone = fakeRunner([{ alerts: [], others: [] }]);
-    await make(gone.runner).openNotification('Reminder');
+    await make(gone.runner).openNotification('Reminder', 10_000);
     expect(gone.calls).toEqual(['center', 'tap 200,340']);
+  });
+
+  it('looks for a notification for the call\'s timeoutMs, in Notification Center too (#47)', async () => {
+    const none = fakeRunner([{ alerts: [], others: [] }]);
+    const t0 = Date.now();
+    await expect(make(none.runner).openNotification('Other', 600)).rejects.toThrow(/no notification "Other" in a banner or Notification Center within 600ms/);
+    expect(Date.now() - t0).toBeLessThan(3_000);
+    expect(none.calls).toEqual(['center']);
   });
 
   it('taps a notification only where two reads agree, and again while it is still there (batch D)', async () => {
     const at = (y: number) => ({ alerts: [], others: [{ label: '今, Reminder, body', id: 'ShortLook.Platter.Content.Seamless', frame: [8, y, 386, 66] }] });
     // Sliding in: 20 → 40 → 58, then still at 58; the first tap misses.
     const { runner, calls } = fakeRunner([at(20), at(40), at(58), at(58)], 1);
-    await make(runner).openNotification('Reminder');
+    await make(runner).openNotification('Reminder', 10_000);
     expect(calls).toEqual(['tap 201,91', 'tap 201,91']);
   });
 

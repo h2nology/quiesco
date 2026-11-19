@@ -202,8 +202,7 @@ export function logTime(ms: number): string {
 /** Darwin notification state BiometricKit_Sim reads for "enrolled" (1 / 0). */
 const BIOMETRIC_ENROLLMENT = 'com.apple.BiometricKit.enrollmentChanged';
 
-/** openNotification: how long to look for the notification; after BANNER_WAIT_MS, in Notification Center. */
-const NOTIFICATION_WAIT_MS = 10_000;
+/** openNotification: after BANNER_WAIT_MS (at most half the timeout) without a banner, it looks in Notification Center. */
 const BANNER_WAIT_MS = 2_000;
 const NOTIFICATION_POLL_MS = 250;
 /** After tapping a notification: how long it may stay on screen before it is tapped again, and how often. */
@@ -706,11 +705,12 @@ export class IosProvider implements DeviceProvider {
 
   /**
    * Tap the notification titled `title`: its banner while it is shown, else in Notification Center
-   * (swiped down from the top edge). Banners read "<time>, <title>, <body>".
+   * (swiped down from the top edge). Banners read "<time>, <title>, <body>". Waits up to `timeoutMs` for it.
    */
-  async openNotification(title: string): Promise<void> {
+  async openNotification(title: string, timeoutMs: number): Promise<void> {
     const find = async () => (await this.runner.screen()).others.find((o) => o.label.split(', ').includes(title) || o.label.includes(title));
-    const deadline = Date.now() + NOTIFICATION_WAIT_MS;
+    const start = Date.now();
+    const deadline = start + timeoutMs;
     let centerOpened = false;
     let taps = 0;
     for (;;) {
@@ -732,10 +732,10 @@ export class IosProvider implements DeviceProvider {
       }
       if (Date.now() > deadline) {
         const seen = (await this.runner.screen().catch(() => ({ alerts: [], others: [] }))).others.map((o) => JSON.stringify(o.label)).slice(0, 8);
-        throw new QuiescoError('DEVICE_ERROR', `openNotification: no notification "${title}" in a banner or Notification Center (seen: ${seen.join(', ') || 'nothing'}). Can the app show notifications (system.allowPermission())?`);
+        throw new QuiescoError('DEVICE_ERROR', `openNotification: no notification "${title}" in a banner or Notification Center within ${timeoutMs}ms (seen: ${seen.join(', ') || 'nothing'}). Can the app show notifications (system.allowPermission())?`);
       }
       // The banner goes away after a few seconds; then the notification is in Notification Center.
-      if (!centerOpened && Date.now() > deadline - NOTIFICATION_WAIT_MS + BANNER_WAIT_MS) {
+      if (!centerOpened && Date.now() > start + Math.min(BANNER_WAIT_MS, timeoutMs / 2)) {
         await this.runner.openNotificationCenter();
         centerOpened = true;
       }

@@ -80,6 +80,26 @@ describe('js mode', () => {
     js.scrollToEdge(s, 'top');
     expect(offset).toEqual({ x: 0, y: 0 });
   });
+
+  it('measures the scroll view inside an Android refresh wrapper, not the wrapper (#44)', () => {
+    // The element tree of the issue: a FlatList with a refreshControl, scrolled by 1000.
+    const calls: unknown[] = [];
+    const instance = { call: (a: unknown) => calls.push(a), hostNodes: () => [wrapper], raw: () => ({}) };
+    const wrapper = node({
+      type: 'AndroidSwipeRefreshLayout',
+      rect: { x: 0, y: 184, width: 411, height: 634 },
+      children: [{ type: 'RCTScrollView', testID: 'item-list', rect: { x: 0, y: 184, width: 411, height: 634 }, children: [{ rect: { x: 0, y: -816, width: 411, height: 7539 }, children: [{ testID: 'row' }] }] }],
+      instance,
+    });
+    const row = wrapper.children[0]!.children[0]!.children[0]!;
+    (row.spec as { instance?: unknown }).instance = instance;
+    const s = js.findScrollable(row)!;
+    expect(s.offset()).toEqual({ x: 0, y: 1000 });
+    expect(s.host()?.testID).toBe('item-list');
+    expect(s.content()?.height).toBe(7539);
+    js.scrollToEdge(s, 'bottom');
+    expect(calls).toEqual([{ x: 0, y: 7539 - 634, animated: false }]);
+  });
 });
 
 function bridge() {

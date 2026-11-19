@@ -5,10 +5,11 @@
  * - a counter (multiTap, tapAt),
  * - a note field (pressKey enter / backspace, replaceText),
  * - a box dragged with PanResponder onto one of two drop zones (drag),
- * - a 200-row FlatList without getItemLayout (scrollToIndex, scrollToEdge).
+ * - a 200-row FlatList without getItemLayout (scrollToIndex, scrollToEdge), with pull-to-refresh: on
+ *   Android its RefreshControl wraps the native scroll view (issue #44).
  */
 import { useRef, useState } from 'react';
-import { FlatList, PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, PanResponder, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { LayoutRectangle } from 'react-native';
 
 import { ScreenTransition } from '../components/ScreenTransition';
@@ -102,6 +103,7 @@ export default function Playground() {
           style={styles.list}
           data={ROWS}
           keyExtractor={(n) => String(n)}
+          refreshControl={<RefreshControl refreshing={false} onRefresh={() => {}} />}
           renderItem={({ item }) => (
             <View testID={`row-${item}`} style={styles.listRow}>
               <Text>第 {item} 行</Text>

@@ -627,15 +627,19 @@ describe('AndroidProvider system integration (Phase 6.7)', () => {
     const { p, calls } = provider([...BOOTED, [/cat \/sdcard\/quiesco-ui.xml/, shade]]);
     await p.boot();
     calls.length = 0;
-    await p.openNotification('Hello');
+    await p.openNotification('Hello', 10_000);
     expect(calls.filter((c) => !/uiautomator dump|cat \/sdcard/.test(c))).toEqual([
       'adb -s emulator-5554 shell cmd statusbar expand-notifications',
       'adb -s emulator-5554 shell input tap 400 390',
     ]);
     calls.length = 0;
-    await expect(p.openNotification('Missing')).rejects.toThrow(/no notification "Missing" in the shade \(texts there: "Quiesco Todo", "Hello"\)/);
+    // #47: it looks for timeoutMs (the call's), not a fixed 5 s.
+    const t0 = Date.now();
+    await expect(p.openNotification('Missing', 700)).rejects.toThrow(/no notification "Missing" in the shade within 700ms \(texts there: "Quiesco Todo", "Hello"\)/);
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(700);
+    expect(Date.now() - t0).toBeLessThan(3_000);
     expect(calls.at(-1)).toBe('adb -s emulator-5554 shell cmd statusbar collapse');
-  }, 15_000);
+  });
 
   it('resets a permission like a fresh install: revoked, may ask again (the app is killed)', async () => {
     const { p, calls } = provider([...BOOTED]);

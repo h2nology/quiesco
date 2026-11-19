@@ -167,8 +167,8 @@ export interface DeviceProvider {
   clearKeychain?(): Promise<void>;
   /** Deliver a notification to the app (iOS: a simulated push; Android: posted as the app). */
   sendNotification?(n: NotificationSpec, app: InAppControls): Promise<void>;
-  /** Tap the notification with this title in the system's notification list (the app comes to the front). */
-  openNotification?(title: string): Promise<void>;
+  /** Tap the notification with this title in the system's notification list (the app comes to the front); waits up to `timeoutMs` for it. */
+  openNotification?(title: string, timeoutMs: number): Promise<void>;
   /** System UI on screen now that does not belong to the app (dialogs, prompts), topmost window first. */
   systemNodes?(): Promise<SystemNode[]>;
   tapSystemNode?(node: SystemNode): Promise<void>;

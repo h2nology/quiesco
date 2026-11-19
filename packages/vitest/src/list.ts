@@ -5,7 +5,8 @@
  *
  * A static parse (`parseSpecifications`): no globalSetup, setup files, module code or fixtures run
  * (findings P0). `test.each` is listed once; skipped and todo tests are listed too. Ids are Vitest's own
- * test ids, as the reporter sends them.
+ * test ids, as the reporter sends them. The static parse takes every `test.<x>(…)` call for a test, so
+ * hook calls through the test function (`test.beforeEach(reset)`, #55) are dropped by their source.
  */
 import fs from 'node:fs';
 
@@ -41,13 +42,32 @@ export async function listVitestTests(args: Omit<ListArgs, 'out'>): Promise<Test
     const tests: TestRef[] = [];
     const errors: { file?: string; message: string }[] = [];
     for (const m of modules) {
-      for (const t of m.children.allTests()) tests.push(testRef(t, root));
+      const lines = sourceLines(m.moduleId);
+      for (const t of m.children.allTests()) if (!isHookCall(lines, t.location)) tests.push(testRef(t, root));
       for (const e of m.errors()) errors.push({ file: testRefFile(root, m.moduleId), message: e.message });
     }
     return { runner: 'vitest', files: specifications.map((s) => testRefFile(root, s.moduleId)), tests, errors };
   } finally {
     await vitest.close();
   }
+}
+
+/** Hooks a test function also has (`test.beforeEach`, `it.afterAll`, …): calls of these are not tests. */
+const HOOK_CALL = /^[\w$]+(?:\.[\w$]+)*\.(?:beforeEach|afterEach|beforeAll|afterAll|aroundEach|aroundAll|onTestFailed|onTestFinished)\s*\(/;
+
+function sourceLines(file: string): string[] | null {
+  try {
+    return fs.readFileSync(file, 'utf8').split('\n');
+  } catch {
+    return null;
+  }
+}
+
+/** Whether the call at `location` (1-based line and column, in the original source) is a hook call. */
+export function isHookCall(lines: readonly string[] | null, location: { line: number; column: number } | undefined): boolean {
+  if (lines === null || location === undefined) return false;
+  const line = lines[location.line - 1];
+  return line !== undefined && HOOK_CALL.test(line.slice(location.column - 1));
 }
 
 function testRefFile(root: string, file: string): string {

@@ -181,13 +181,20 @@ export interface Scrollable {
   host(): HostNode | null;
 }
 
+/**
+ * Hosts a ScrollView renders around its native scroll view: on Android, a ScrollView with a
+ * `refreshControl` is wrapped in the cloned RefreshControl (RN 0.88 ScrollView.js, issue #44).
+ */
+const SCROLL_WRAPPERS = new Set(['AndroidSwipeRefreshLayout']);
+
 /** The ScrollView that contains `node` (or is `node`), or null. */
 export function findScrollable(node: HostNode): Scrollable | null {
   const inst = node.findInstance('scrollTo');
   if (inst === null) return null;
-  // ScrollView renders: native scroll view host → content container host → children.
+  // ScrollView renders: [refresh wrapper →] native scroll view host → content container host → children.
   const host = (): { scroll: HostNode | null; content: HostNode | null } => {
-    const scroll = inst.hostNodes()[0] ?? null;
+    let scroll = inst.hostNodes()[0] ?? null;
+    if (scroll !== null && SCROLL_WRAPPERS.has(scroll.type)) scroll = scroll.children[0] ?? null;
     return { scroll, content: scroll?.children[0] ?? null };
   };
   return {
