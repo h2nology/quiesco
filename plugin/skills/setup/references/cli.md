@@ -84,6 +84,7 @@ platforms come from `quiesco.config.mts` (or `--platforms`). Run `npx quiesco do
 ```sh
 npx quiesco build ios
 npx quiesco build android --force
+npx quiesco build ios --clean
 ```
 
 Builds the e2e app (`expo prebuild` with `EXPO_PUBLIC_QUIESCO=1`, then `xcodebuild` for the simulator or
@@ -92,6 +93,9 @@ derived data path, configuration and scheme come from that path
 (`<dir>/Build/Products/<Configuration>-iphonesimulator/<Name>.app`). A Debug build is skipped when the app
 config and the dependencies (with their installed versions) did not change since the last one and the build
 is still there; `--force` builds anyway. Release builds embed the JS bundle and are always built.
+`--clean` runs `expo prebuild --clean`: `ios/` / `android/` are deleted and generated again, so changes made
+by hand in them are lost. Use it after removing a native module or when the native project is in a bad
+state; it always builds.
 
 ## `quiesco test` {#quiesco-test}
 
