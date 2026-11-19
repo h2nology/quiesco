@@ -31,6 +31,8 @@ export class SyncEngine {
   private skipped: () => ReadonlySet<string> = () => NO_NAMES;
   private inBackground: () => boolean = () => false;
   private onBackgroundChange: ((wake: () => void) => () => void) | undefined;
+  /** The sleeps of the pending waits: `wake()` ends them early. */
+  private readonly sleepers = new Set<() => void>();
 
   constructor(
     readonly trackers: readonly IdleTracker[],
@@ -65,12 +67,21 @@ export class SyncEngine {
   /**
    * While `inBackground()`, Android pauses the JS timers (findings 6.7 batch C: a permission dialog is
    * another activity), so a wait sleeping on a timer would neither end nor time out. `onChange` wakes it
-   * (AppState events still arrive), and in the background it returns as soon as every active tracker is
-   * idle, without the confirmation check in a later macrotask (that needs a timer; nothing runs anyway).
+   * (AppState events still arrive), so do the host's messages (`wake()`, its `tick` every 500 ms while a
+   * call is pending, issue #66); each wake checks the trackers and the timeout again. In the background
+   * it returns as soon as every active tracker is idle, without the confirmation check in a later
+   * macrotask (that needs a timer; nothing runs anyway).
    */
   setBackground(inBackground: () => boolean, onChange?: (wake: () => void) => () => void): void {
     this.inBackground = inBackground;
     this.onBackgroundChange = onChange;
+  }
+
+  /** End the current sleep of every pending wait now: it checks the trackers and its timeout again. */
+  wake(): void {
+    const sleepers = [...this.sleepers];
+    this.sleepers.clear();
+    for (const s of sleepers) s();
   }
 
   private active(): IdleTracker[] {
@@ -94,8 +105,13 @@ export class SyncEngine {
     const unsubscribe = safe(() => this.onBackgroundChange?.(() => wake?.()), undefined);
     const sleep = (ms: number) =>
       new Promise<void>((resolve) => {
-        wake = resolve;
-        this.clock.setTimeout(resolve, ms);
+        const done = () => {
+          this.sleepers.delete(done);
+          resolve();
+        };
+        wake = done;
+        this.sleepers.add(done);
+        this.clock.setTimeout(done, ms);
       });
     for (const t of trackers) t.beginWait?.();
     try {
@@ -110,6 +126,7 @@ export class SyncEngine {
         await sleep(Math.min(pollMs, timeoutMs - elapsed));
       }
     } finally {
+      if (wake !== null) this.sleepers.delete(wake);
       wake = null;
       safe(() => unsubscribe?.(), undefined);
       for (const t of trackers) t.endWait?.();

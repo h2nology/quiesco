@@ -75,6 +75,31 @@ describe('AgentClient', () => {
     expect(byId[4]).toMatchObject({ error: { code: -32601 } });
   });
 
+  it('calls onMessage for every host message, the tick notification too, and does not answer a notification (#66)', async () => {
+    const onMessage = vi.fn();
+    const sockets: FakeSocket[] = [];
+    const client = new AgentClient({
+      params: { port: 7400, session: 'sess', source: 'native' },
+      hello: { platform: 'android', agentVersion: '0.0.0', nativeModule: false },
+      createSocket: (url) => {
+        const s = new FakeSocket(url);
+        sockets.push(s);
+        return s;
+      },
+      handle: async () => ({ ok: true }),
+      onMessage,
+      clock,
+    });
+    client.start();
+    const s = sockets[0]!;
+    acceptHello(s);
+    const sent = s.sent.length;
+    s.receive({ jsonrpc: '2.0', method: 'tick' });
+    expect(onMessage).toHaveBeenCalledTimes(2); // the hello result, then the tick
+    await flush();
+    expect(s.sent.length).toBe(sent);
+  });
+
   it('replies PARSE_ERROR to invalid JSON', () => {
     const { client, last } = setup();
     client.start();

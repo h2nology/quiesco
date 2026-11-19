@@ -119,6 +119,8 @@ export default function Device() {
         <View testID="device-actions" style={styles.column}>
           <View style={styles.row}>
             {button('read-location', '读取位置', () => void readLocation())}
+            {/* The system's permission dialog: the app goes to the background while it is up (issue #66). */}
+            {button('request-location', '请求定位权限', () => void Location.requestForegroundPermissionsAsync().then((p) => setPosition(p.granted ? '已允许' : '已拒绝')))}
             <Text testID="position" style={dark && styles.darkText}>
               {position}
             </Text>

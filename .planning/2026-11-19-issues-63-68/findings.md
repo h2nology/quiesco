@@ -48,3 +48,12 @@ Quiesco 0.8.0，Vitest 5.1.1，Expo SDK 58（RN 0.88.1，New Architecture，Expo
 ## 旁支发现（不在 6 个 issue 内）
 - `packages/agent/metro.cjs`：bundle 信息（`builtAt` / `watching`）写进一个生成的模块文件。Metro 开发服务器运行期间再跑一次 `expo export`（例如 `pnpm build:web`），export 会覆盖这个文件，Metro 的 watcher 读到新内容 ⇒ 开发 bundle 自称「one-off export，23:37:50 构建」，session 报「app 没有某文件的修改」的误报。2026-11-19 M.B 实测时出现。可另开 issue。
 - iOS 锁屏状态下（Cover Sheet 显示锁屏时）点通知只会把它滑开、露出「Open」；再点 Open 才打开 app。headless 模拟器没法用 Cmd+L 锁屏复现，M.B 只有单元测试覆盖这条路径。
+
+## M.D.0 调研：原生模块 promise（#67）
+- RN 0.88.1 `Libraries/TurboModule/TurboModuleRegistry.js`：`get` / `getEnforcing` 每次调用 `turboModuleProxy(name)`（模块求值时捕获的 `global.__turboModuleProxy`），再回退到 `NativeModules[name]`。⇒ 包装点：替换 `require('react-native').TurboModuleRegistry.get/getEnforcing`（导出对象可写）。agent 安装后才 require 的模块（app 代码、第三方库）都会经过；RN 核心在 InitializeCore 里已拿到的模块不经过（可接受）。
+- `@react-native-async-storage/async-storage` 2.2.0：`TurboModuleRegistry.get("PlatformLocalStorage") || TurboModuleRegistry.get("RNC_AsyncSQLiteDBStorage") || …`，在模块求值时调用 ⇒ 能被包装（agent 先加载）。
+- Expo：`expo-modules-core` `requireOptionalNativeModule` 先查 `globalThis.expo.modules[name]`（JSI 安装，JS 运行前就有），再 `NativeModulesProxy`，再 `TurboModuleRegistry.get` ⇒ 包装点：用 Proxy 替换 `globalThis.expo.modules`（get trap 返回包装后的模块）。
+- 模块包装：Proxy，get 到函数时返回包装函数（`this` 用原 target 调用），返回值是 thenable ⇒ 记为 pending（`Module.method`）直到 settle。缓存包装函数。排除 agent 自己的 `QuiescoNative`。
+- 难点：等用户操作的原生 promise（`requestPermissionsAsync`、`authenticateAsync`、WebBrowser `openAuthSessionAsync`、picker、Share…）会一直 pending。按名字猜不全 ⇒ 用**时间上限**：一个原生调用最多算忙 N ms（类似 `timerThresholdMs`），超过就不再算（UI 等用户的调用最多拖慢 N ms），外加可选忽略列表。
+- iOS 权限弹窗时 app 是 inactive 不是 background ⇒ 不能只靠后台跳过。
+- 方案草案：新 tracker `native-module`，默认关（`sync.trackers: { 'native-module': true }` 开启）；`sync.nativeCallThresholdMs`（默认 2000）；`sync.ignoreNativeCalls`（字符串 / RegExp，匹配 `Module.method`）。⇒ 新配置 ⇒ 0.9.0（D6）。
