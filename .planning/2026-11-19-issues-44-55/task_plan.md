@@ -4,10 +4,10 @@
 解决 h2nology/quiesco 的 12 个 open issue（同一位用户在 0.7.0 + Vitest + Expo SDK 58 Release 构建、iOS 27 模拟器 / Android API 36 模拟器上实测的反馈）。每个修复都配测试和三语文档，实跑验收后回复并关闭 issue，最后一起发下一个版本。
 
 ## Current Phase
-L.E system UI 与原生控件（#49、#50、#51）
+L.F 发布 0.8.0
 
 ## Next Step
-HU 确认 L.E 的提交 / PR（滚动回归的修复作为单独的 commit）；之后进入 L.F（发布 0.8.0）。
+HU 执行 `! npm login`（如需要）和 `! pnpm -r publish --otp <code>`；之后 tag v0.8.0、push main 和 tag、npm view 确认、贴 issue 回复并关闭。
 
 ## 背景
 - 前置：0.7.0 已发布（`707bade chore(release): 0.7.0`）。
@@ -127,29 +127,16 @@ HU 2026-11-19：E1 自动包含 app 自己的原生 UI；E2 其他 app + 关闭�
 - [x] 三端全量回归（第一次）：web 84 + 21 skipped；Android 95 / 105（「模拟定位」：AOSP 没有 Google Play，同以前）；iOS 96 / 105，values.feature 2 个失败 = **L.B 的回归**：scrollTo 每步 0.85 视口，拖动起点落在 controls 页的滚轮选择器上（UIPickerView 吃掉拖动）⇒ offset 不变 ⇒ 判断为到头
 - [x] 修复：一步拖动后 offset 没变、但这个方向还有内容（`js.atEdge`）⇒ 这一步改用程序化滚动。runtime 单测（没有修复时失败）；values + actions iOS / Android 各 21 + 1 skipped；`pnpm check` 946
 - [x] iOS 全量回归（第二次）：105 scenarios（98 passed, 7 skipped），0 失败
-- [ ] HU 确认提交 / PR
-- **Status:** in_progress
+- [x] HU 确认提交 / PR：PR #60（base 是 PR #59 的分支；滚动回归的修复是单独的 commit cf0f888）
+- **Status:** complete
 
-### L.F 发布
-- [ ] CHANGELOG、版本号（D8）、三端全量 e2e
-- [ ] 回复并关闭 #44–#55
+### L.F 发布 0.8.0
+按 docs/releasing.md。PR 链：#56 ← #57 ← #58 ← #59 ← #60（每个的 base 是前一个的分支）。
+- [x] 合并（HU：依次 merge）：#60 的 CI 全部通过后执行。**出错**：#56 合并到 main 后 `--delete-branch` 删掉了 #57 的 base 分支，GitHub 没有自动改 base，而是关闭了 #57；#59 同样被关闭；#58、#60 合并进了各自的 base 分支，没进 main。所有 commit 都在 `feat/app-dir` 里（已确认）⇒ 开 #61（feat/app-dir → main），在 #57–#60 上留言说明。教训：叠起来的 PR 要先手动把下一个 PR 的 base 改成 main（`gh pr edit N --base main`）再合并，不要靠 `--delete-branch`
+- [x] main 只有 #56 时 sdk-compat 失败（web 的 refresh 包装层问题，#57 修的）⇒ 确认 feat/app-dir 的文件树和通过全部 CI 的 #60（82bb804）完全相同（7eef804）后，不等 #61 自己的 CI 跑完就合并（6296df7）；三个剩余分支确认已在 main 里后删除
+- [x] main 上 6296df7 的 CI：sdk-compat（含 webkit）、ci、docs、prod-strip 全部 success（#61 自己的 webkit 是 `playwright install --with-deps webkit` 卡住 30 min 超时，测试没跑，CI 环境问题）
+- [x] 版本号 0.8.0：12 个 packages/*/package.json、`AGENT_VERSION`、plugin.json；`chore(release): 0.8.0`（本地，发布后和 tag 一起 push）
+- [x] `pnpm install --frozen-lockfile`、`pnpm release:check` 通过（12 个包 0.8.0；core 的包里有 ios-runner 的 Swift 源码）；prod-strip 在 main 的 CI 上已通过
+- [ ] 发布：`pnpm -r publish`（需要 HU 的 npm 登录和 OTP）；tag v0.8.0 并 push
+- [ ] `npm view` 确认；issue #44–#55：回复（改了什么、0.8.0 的用法、限制）并关闭（回复内容先给 HU 看）
 - **Status:** pending
-
-## Decisions Made
-| Decision | Rationale |
-|----------|-----------|
-| D1 #45 三处都修 | 只改一处仍会留下静默点错的路径 |
-| D2 #48 app.openUrl 直接支持后台 | 不加新 API，用户直觉写法就能用 |
-| D7 #49–#51 先调研 | iOS 能力取决于现有 system UI runner，先看清再定 |
-| D8 全部完成后发 0.8.0 | 有新 API / 新配置 |
-| #47 默认等 10 s（不是 sync.timeoutMs） | DeviceHost 没有 sync 配置；和 system.* 的默认值一致，调用方可传 timeoutMs |
-| #44 按 host 名跳过 AndroidSwipeRefreshLayout | 结构判断（同 rect）会和内容不足一屏的普通 ScrollView 混淆 |
-| #44 包装层用结构判断（唯一子节点也裁剪、rect 基本相同） | RNW 的包装层是普通 div，Android 的带 overflow: scroll；名字和 clipsContent 都不能单独区分 |
-| scroll() 650 ms / scrollTo 一步 400 ms | 650 ms 时 iOS 的 scrollTo（120 行）超过 10 s；400 ms 时 Android 距离少 14% |
-| #52 逐字输入前先 settle（waitForIdle） | Android 上 IME 启动时会丢掉刚提交的字；固定等待 500 ms 也能过，但 idle 等待不依赖时长 |
-| web 的 type 默认行为不变（本来就逐键） | 改成一次写入会影响依赖 keydown 的 web app |
-| #55 按源码判断 hook 调用 | Vitest 静态解析的结果里没有调用的方法名，只有位置 |
-
-## Errors Encountered
-| Error | Attempt | Resolution |
-|-------|---------|------------|
