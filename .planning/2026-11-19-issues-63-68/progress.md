@@ -9,3 +9,9 @@
 - M.A：分支 `fix/scroll-to-steps`。runtime.ts / driver.ts / 三语 api.mdx / plugin refs / 3 个单元测试 / example 新场景。`pnpm check` 通过（951）。
 - 实测：Metro（`pnpm start:e2e`，后台）+ iOS 27 模拟器 + Android emulator-5554。长列表场景 iOS 3/3、Android 3/3；旧 runtime 下新场景 iOS 失败（SYNC_TIMEOUT）；web actions.feature 10 passed / 1 skipped（@native）。
 - 单元测试第一次失败：预期 20 步，实为 19 步（行中心在 offset 6460 时已可见）⇒ 改断言。
+- M.A 提交 + PR #69（base main）。M.B 分支 `fix/ios-open-notification` 从 fix/scroll-to-steps 开（堆叠）。
+- M.B 实现：prepareSystemUi、Swift snapshot `/screen` + `/appState`、isRunnerGone 重试策略、openNotification 以前台判断点中 + 堆叠取最上面 + 锁屏 Open、D3。单元测试 core 318 全过。
+- iOS 实测：新场景第一次失败（锁屏 Open）→ 修复 → 通知两个场景 6/6。探针脚本确认 snapshot `/screen` 在 app 前台时 others 为空、appState=4。
+- 注意：报告里出现「app JS: bundle built 23:37:50, a one-off export」警告（`pnpm build:web` 之后），iOS 的 app 实际用的是 Metro（新按钮存在、能点到），待查这个警告是否误报。
+- 跑 iOS 全量（后台）。
+- iOS 全量第 1 次 96/107（4 failed），原因是锁屏 Open 判断太宽 ⇒ 收紧 + 堆叠展开立即重找。之后通知场景 6/6、system.feature 2×15/15（真机走到锁屏 Open 路径）、Android system.feature 12 passed。`pnpm check` 960 通过。M.B 提交、开 PR。

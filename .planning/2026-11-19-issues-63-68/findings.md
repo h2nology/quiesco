@@ -44,3 +44,7 @@ Quiesco 0.8.0，Vitest 5.1.1，Expo SDK 58（RN 0.88.1，New Architecture，Expo
 - 场景：`await api.login()`（tracked）→ `await AsyncStorage.setItem()`（未追踪）→ `router.replace('/')` ⇒ tap 在 415 ms 返回，下一屏的 GET 在之后才发。
 - 可能的实现点（待调研）：New Architecture `TurboModuleRegistry.get/getEnforcing`、`global.__turboModuleProxy`、Expo `requireNativeModule`；风险：长期 pending 的 promise（等待事件类 API）会让 app 永远忙 ⇒ 需默认关或忽略列表。
 - 最少要做：文档说明。
+
+## 旁支发现（不在 6 个 issue 内）
+- `packages/agent/metro.cjs`：bundle 信息（`builtAt` / `watching`）写进一个生成的模块文件。Metro 开发服务器运行期间再跑一次 `expo export`（例如 `pnpm build:web`），export 会覆盖这个文件，Metro 的 watcher 读到新内容 ⇒ 开发 bundle 自称「one-off export，23:37:50 构建」，session 报「app 没有某文件的修改」的误报。2026-11-19 M.B 实测时出现。可另开 issue。
+- iOS 锁屏状态下（Cover Sheet 显示锁屏时）点通知只会把它滑开、露出「Open」；再点 Open 才打开 app。headless 模拟器没法用 Cmd+L 锁屏复现，M.B 只有单元测试覆盖这条路径。

@@ -9,6 +9,7 @@
 //   POST /edgeSwipeBack          → drag from the left edge of the screen (the interactive pop gesture)
 //   GET  /elements?bundleId=…    → the UIKit elements of an app (the app under test, Safari, SafariViewService), from
 //                                  one snapshot: { state, elements: [{ type, label, id, value, frame, enabled, selected }] }
+//   GET  /appState?bundleId=…   → { state } (XCUIApplication.State) without reading the app's UI
 //   POST /typeText?bundleId=…&text=… → type into the focused field of that app with its keyboard (409 without one)
 //   POST /quit                   → end the test
 import Network
@@ -104,6 +105,9 @@ final class SystemUIServer: XCTestCase {
         }
       }
       return ("200 OK", ["state": app.state.rawValue, "elements": out])
+    case "/appState":
+      guard let id = q["bundleId"], !id.isEmpty else { return ("400 Bad Request", ["error": "bundleId"]) }
+      return ("200 OK", ["state": XCUIApplication(bundleIdentifier: id).state.rawValue])
     case "/typeText":
       guard let id = q["bundleId"], !id.isEmpty, let text = q["text"] else { return ("400 Bad Request", ["error": "bundleId and text"]) }
       let app = XCUIApplication(bundleIdentifier: id)
@@ -124,23 +128,35 @@ final class SystemUIServer: XCTestCase {
     return [f.minX, f.minY, f.width, f.height].map { Double($0) }
   }
 
+  /**
+   * SpringBoard's alerts and its other labelled buttons (banners, Notification Center cells), from one
+   * snapshot (issue #65): reading the elements one by one by index fails, and ends this test, when the list
+   * changes in between (a notification stack expanding). The snapshot has no `isHittable`: a button counts
+   * when its frame is on screen.
+   */
   private func screen() -> [String: Any] {
+    guard let root = try? springboard.snapshot() else { return ["alerts": [], "others": []] }
+    let screenFrame = root.frame
+    func rect(_ f: CGRect) -> [Double] { [f.minX, f.minY, f.width, f.height].map { Double($0) } }
+    func onScreen(_ f: CGRect) -> Bool { f.width > 0 && f.height > 0 && (screenFrame.isEmpty || screenFrame.intersects(f)) }
+    func descendants(_ e: XCUIElementSnapshot, _ type: XCUIElement.ElementType) -> [XCUIElementSnapshot] {
+      e.children.flatMap { c in (c.elementType == type ? [c] : []) + descendants(c, type) }
+    }
     var alerts: [[String: Any]] = []
-    var inAlerts = Set<String>()
-    for a in springboard.alerts.allElementsBoundByIndex where a.exists {
-      let texts = a.staticTexts.allElementsBoundByIndex.map { ["label": $0.label, "frame": frame($0)] as [String: Any] }
-      let buttons = a.buttons.allElementsBoundByIndex.map { b -> [String: Any] in
-        inAlerts.insert("\(b.label)|\(frame(b))")
-        return ["label": b.label, "id": b.identifier, "frame": frame(b)]
-      }
-      alerts.append(["label": a.label, "id": a.identifier, "frame": frame(a), "texts": texts, "buttons": buttons])
-    }
-    // Banners and Notification Center cells: SpringBoard buttons with a label, outside the alerts.
     var others: [[String: Any]] = []
-    for b in springboard.buttons.allElementsBoundByIndex where !b.label.isEmpty && b.isHittable {
-      if inAlerts.contains("\(b.label)|\(frame(b))") { continue }
-      others.append(["label": b.label, "id": b.identifier, "frame": frame(b)])
+    func walk(_ e: XCUIElementSnapshot) {
+      if e.elementType == .alert {
+        let texts = descendants(e, .staticText).map { ["label": $0.label, "frame": rect($0.frame)] as [String: Any] }
+        let buttons = descendants(e, .button).map { ["label": $0.label, "id": $0.identifier, "frame": rect($0.frame)] as [String: Any] }
+        alerts.append(["label": e.label, "id": e.identifier, "frame": rect(e.frame), "texts": texts, "buttons": buttons])
+        return
+      }
+      if e.elementType == .button && !e.label.isEmpty && onScreen(e.frame) {
+        others.append(["label": e.label, "id": e.identifier, "frame": rect(e.frame)])
+      }
+      for c in e.children { walk(c) }
     }
+    walk(root)
     return ["alerts": alerts, "others": others]
   }
 }

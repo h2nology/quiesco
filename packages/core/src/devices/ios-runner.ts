@@ -153,7 +153,7 @@ export class IosSystemRunner {
   }
 
   async screen(): Promise<RunnerScreen> {
-    return this.call(() => this.request<RunnerScreen>('GET', '/screen'));
+    return this.call(() => this.request<RunnerScreen>('GET', '/screen'), true);
   }
 
   async tap(x: number, y: number): Promise<void> {
@@ -162,7 +162,7 @@ export class IosSystemRunner {
 
   /** The navigation bars of the app `bundleId` (issue #4). */
   async navigationBar(bundleId: string): Promise<RunnerNavigationBar> {
-    return this.call(() => this.request<RunnerNavigationBar>('GET', `/navigationBar?bundleId=${encodeURIComponent(bundleId)}`));
+    return this.call(() => this.request<RunnerNavigationBar>('GET', `/navigationBar?bundleId=${encodeURIComponent(bundleId)}`), true);
   }
 
   /**
@@ -170,7 +170,15 @@ export class IosSystemRunner {
    * the app's state (XCUIApplication.State: 1 not running … 4 in front).
    */
   async elements(bundleId: string): Promise<RunnerElements> {
-    return this.call(() => this.request('GET', `/elements?bundleId=${encodeURIComponent(bundleId)}`));
+    return this.call(() => this.request('GET', `/elements?bundleId=${encodeURIComponent(bundleId)}`), true);
+  }
+
+  /**
+   * The state of the app `bundleId` alone (XCUIApplication.State: 1 not running, 2 suspended, 3 in the
+   * background, 4 in front), without reading its UI: openNotification confirms its tap with it (issue #68).
+   */
+  async appState(bundleId: string): Promise<number> {
+    return (await this.call(() => this.request<{ state: number }>('GET', `/appState?bundleId=${encodeURIComponent(bundleId)}`), true)).state;
   }
 
   /** Type into the focused field of `bundleId` through its keyboard (XCUITest typeText, issue #51). */
@@ -189,18 +197,30 @@ export class IosSystemRunner {
 
   /**
    * A request to the running runner. The runner's test can die while xcodebuild lives on (seen in parallel
-   * runs, Phase 6.12): nothing listens on its port any more. Then the runner is restarted once.
+   * runs, Phase 6.12): nothing listens on its port any more. Or it dies while answering (an XCTest failure
+   * ends the test, issue #65): the connection is reset. Then the runner is restarted, and a request that
+   * only reads (`readOnly`), or one that never reached it (refused), is sent again once. A tap that may
+   * have happened is not repeated: it fails with what the runner printed.
    */
-  private async call<T>(request: () => Promise<T>): Promise<T> {
+  private async call<T>(request: () => Promise<T>, readOnly = false): Promise<T> {
     await this.start();
     try {
       return await request();
     } catch (e) {
-      if (!isConnectionRefused(e)) throw e;
-      this.options.logger.warn(`the iOS system UI runner stopped answering; restarting it. Its last output:\n${this.output.slice(-1500)}`);
+      if (!isRunnerGone(e)) throw e;
+      const output = this.output.slice(-1500);
+      this.options.logger.warn(`the iOS system UI runner stopped answering (${describeNetworkError(e)}); restarting it. Its last output:\n${output}`);
       await this.stop();
       await this.start();
-      return request();
+      if (!readOnly && !isConnectionRefused(e)) {
+        throw new QuiescoError('DEVICE_ERROR', `the iOS system UI runner ended while answering (${describeNetworkError(e)}); it was restarted. Its last output:\n${output}`);
+      }
+      try {
+        return await request();
+      } catch (again) {
+        if (!isRunnerGone(again)) throw again;
+        throw new QuiescoError('DEVICE_ERROR', `the iOS system UI runner stopped answering twice (${describeNetworkError(again)}). Its last output:\n${this.output.slice(-1500)}`);
+      }
     }
   }
 
@@ -252,6 +272,27 @@ export class IosSystemRunner {
     if (!r.ok) throw new QuiescoError('DEVICE_ERROR', `iOS system UI runner: ${p}: ${body.error ?? r.status}`);
     return body;
   }
+}
+
+/** The error's network code: `TypeError: fetch failed` carries it in `cause` (undici). */
+function networkCode(e: unknown): string {
+  const cause = (e as { cause?: { code?: string } } | null)?.cause;
+  return cause?.code ?? '';
+}
+
+function describeNetworkError(e: unknown): string {
+  return networkCode(e) || String((e as Error | null)?.message ?? e);
+}
+
+/**
+ * The runner is not there any more: nobody listens (ECONNREFUSED) or it went away while answering
+ * (ECONNRESET, a closed socket; issue #65).
+ */
+export function isRunnerGone(e: unknown): boolean {
+  if (isConnectionRefused(e)) return true;
+  const code = networkCode(e);
+  if (code === 'ECONNRESET' || code === 'EPIPE' || code === 'UND_ERR_SOCKET' || code === 'UND_ERR_CLOSED') return true;
+  return /ECONNRESET|socket hang up|other side closed/.test(String((e as Error | null)?.message ?? ''));
 }
 
 /** fetch() to a port nobody listens on: `TypeError: fetch failed` caused by ECONNREFUSED. */

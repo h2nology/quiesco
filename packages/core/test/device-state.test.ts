@@ -36,6 +36,8 @@ class StateProvider extends FakeProvider {
   revokeKills = false;
   locale: string | null = null;
   lagLeft = 0;
+  /** The AppState the app reports (deviceInfo). */
+  reportedAppState: 'active' | 'background' = 'active';
   constructor(onLaunch: (p: LaunchParams) => void) {
     super(onLaunch);
   }
@@ -170,7 +172,7 @@ async function start(extra: Partial<QuiescoConfig> = {}, logger: Logger = silent
         handler: (m, p) => {
           if (m === 'deviceInfo' && provider.lagLeft > 0 && --provider.lagLeft === 0) Object.assign(provider.app, { width: 400, height: 800 });
           const a = provider.app;
-          if (m === 'deviceInfo') return { window: { width: a.width, height: a.height }, pixelRatio: 2, appState: 'active', colorScheme: a.colorScheme, fontScale: a.fontScale, locale: a.locale, ...(a.preferredLanguages !== undefined ? { preferredLanguages: a.preferredLanguages } : {}) };
+          if (m === 'deviceInfo') return { window: { width: a.width, height: a.height }, pixelRatio: 2, appState: provider.reportedAppState, colorScheme: a.colorScheme, fontScale: a.fontScale, locale: a.locale, ...(a.preferredLanguages !== undefined ? { preferredLanguages: a.preferredLanguages } : {}) };
           if (m === 'setOrientation') return { supported: true };
           if (m === 'getClipboard') return { supported: true, text: clip };
           if (m === 'postNotification') return { supported: true, enabled: true };
@@ -435,6 +437,15 @@ describe('app.device state (Phase 6.6)', () => {
     await expect(device.sendNotification({ title: 'x' })).rejects.toMatchObject({ errorName: 'APP_NOT_RUNNING' });
     await expect(device.openNotification('x')).rejects.toMatchObject({ errorName: 'APP_NOT_RUNNING' });
   });
+
+  it('an app that stays in the background after openNotification stays marked so: the next reset brings it back (#68)', async () => {
+    const { provider } = await start();
+    const device = session!.driver.device;
+    (session as unknown as { appState: string }).appState = 'background';
+    provider.reportedAppState = 'background';
+    await expect(device.openNotification('Later')).rejects.toThrow(/did not become active/);
+    expect(device.appState).toBe('background');
+  }, 15_000);
 
   it('openUrl in the background opens the link from outside the app and waits for it (#48); in front, inside the app', async () => {
     const { provider, agents } = await start();

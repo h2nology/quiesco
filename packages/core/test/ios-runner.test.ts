@@ -7,7 +7,7 @@ import type { Exec } from '../src/devices/exec';
 import { silentLogger } from '../src/logger';
 import { IosProvider, uikitNodes } from '../src/devices/ios';
 import type { SystemRunnerLike } from '../src/devices/ios';
-import { IosSystemRunner, backButton, PERMISSION_ALLOW, isConnectionRefused, PERMISSION_ALLOW_ONCE, PERMISSION_DENY, dismissButton, runnerCacheKey, screenNodes } from '../src/devices/ios-runner';
+import { IosSystemRunner, backButton, PERMISSION_ALLOW, isConnectionRefused, isRunnerGone, PERMISSION_ALLOW_ONCE, PERMISSION_DENY, dismissButton, runnerCacheKey, screenNodes } from '../src/devices/ios-runner';
 import type { RunnerElements, RunnerScreen } from '../src/devices/ios-runner';
 
 const f = (y: number) => [57, y, 140, 48];
@@ -69,7 +69,7 @@ describe('iOS system UI runner screens (6.7 batch C)', () => {
 
 /** A runner whose screen changes as the test says; records taps. */
 /** `missTaps`: taps that do not land (the notification stays on screen); others open it (it goes away). */
-function fakeRunner(screens: RunnerScreen[], missTaps = 0) {
+function fakeRunner(screens: RunnerScreen[], missTaps = 0, extra: Partial<SystemRunnerLike> = {}) {
   const calls: string[] = [];
   const empty: RunnerScreen = { alerts: [], others: [] };
   const runner: SystemRunnerLike = {
@@ -85,6 +85,7 @@ function fakeRunner(screens: RunnerScreen[], missTaps = 0) {
       screens.splice(0, screens.length, { alerts: [], others: [{ label: '2 分前, Reminder, body', id: 'cell', frame: [0, 300, 400, 80] }] });
     },
     stop: async () => void calls.push('stop'),
+    ...extra,
   };
   return { runner, calls };
 }
@@ -135,6 +136,93 @@ describe('IosProvider system UI (6.7 batch C)', () => {
     const { runner, calls } = fakeRunner([at(20), at(40), at(58), at(58)], 1);
     await make(runner).openNotification('Reminder', 10_000);
     expect(calls).toEqual(['tap 201,91', 'tap 201,91']);
+  });
+
+  it('does not count the runner start against the timeout (#64)', async () => {
+    // The runner takes longer to start than the whole timeout; the notification is in Notification Center.
+    const { runner, calls } = fakeRunner([{ alerts: [], others: [] }], 0, { start: () => new Promise((r) => setTimeout(r, 800)) });
+    await make(runner).openNotification('Reminder', 600);
+    expect(calls).toEqual(['center', 'tap 200,340']);
+  });
+
+  /** A runner that reports the app's state: in front once `opens` taps have been made. */
+  function stateful(screens: RunnerScreen[], opensAfter: number, onTap: (n: number) => void = () => undefined) {
+    let taps = 0;
+    const r = fakeRunner(screens, Number.MAX_SAFE_INTEGER, { appState: async () => (taps >= opensAfter ? 4 : 2) });
+    const tap = r.runner.tap;
+    r.runner.tap = async (x, y) => {
+      taps++;
+      await tap(x, y);
+      onTap(taps);
+    };
+    return r;
+  }
+
+  it('a tap counts once the app is in front, not when the banner goes away by itself (#68)', async () => {
+    const banner = { alerts: [], others: [{ label: '今, Reminder, body', id: 'ShortLook.Platter.Content.Seamless', frame: [8, 58, 386, 66] }] };
+    const screens: RunnerScreen[] = [banner];
+    // The tap misses a banner sliding away: it is gone, the app stays suspended. Notification Center has it.
+    const { runner, calls } = stateful(screens, 2, (n) => {
+      if (n === 1) screens.splice(0, screens.length, { alerts: [], others: [] });
+    });
+    await make(runner).openNotification('Reminder', 10_000);
+    expect(calls).toEqual(['tap 201,91', 'center', 'tap 200,340']);
+  });
+
+  it('in an expanded stack taps the topmost matching notification (#65)', async () => {
+    const cell = (y: number, label: string) => ({ label, id: 'ListCell', frame: [0, y, 400, 80] });
+    const collapsed = { alerts: [], others: [cell(300, '2 分前, Reminder, body')] };
+    const expanded = { alerts: [], others: [cell(380, '5 分前, Reminder, older'), cell(200, 'Show less'), cell(280, '今, Reminder, body')] };
+    const screens: RunnerScreen[] = [collapsed];
+    // The first tap expands the stack (the app stays in the background); the second opens the newest one.
+    const { runner, calls } = stateful(screens, 2, (n) => {
+      if (n === 1) screens.splice(0, screens.length, expanded);
+    });
+    await make(runner).openNotification('Reminder', 10_000);
+    expect(calls).toEqual(['tap 200,340', 'tap 200,320']);
+  });
+
+  it('on a locked device taps the "Open" button a tap shows next to the notification', async () => {
+    const screens: RunnerScreen[] = [{ alerts: [], others: [{ label: '今, Reminder, body', id: 'ListCell', frame: [0, 300, 400, 80] }] }];
+    const { runner, calls } = stateful(screens, 2, (n) => {
+      if (n === 1) {
+        screens.splice(0, screens.length, {
+          alerts: [],
+          others: [
+            { label: '今, Reminder, body', id: 'ListCell', frame: [110, 300, 290, 80] },
+            { label: '開く', id: '', frame: [14, 300, 90, 80] },
+            { label: '1 時間前, Other app', id: 'ListCell', frame: [0, 390, 400, 80] },
+          ],
+        });
+      }
+    });
+    await make(runner).openNotification('Reminder', 10_000);
+    expect(calls).toEqual(['tap 200,340', 'tap 59,340']);
+  });
+
+  it('never taps another notification, or a button on the right, as the "Open" button', async () => {
+    const screens: RunnerScreen[] = [{ alerts: [], others: [{ label: '今, Reminder, body', id: 'ListCell', frame: [0, 300, 400, 80] }] }];
+    const { runner, calls } = stateful(screens, Number.MAX_SAFE_INTEGER, (n) => {
+      if (n === 1) {
+        // The tap expanded a group: another app's notification moved into the row, "Clear" showed up.
+        screens.splice(0, screens.length, {
+          alerts: [],
+          others: [
+            { label: 'Clear', id: '', frame: [300, 260, 90, 30] },
+            { label: 'Yesterday, Hello from another app', id: 'ShortLook.Platter.Content.Seamless', frame: [0, 300, 400, 80] },
+            { label: 'Clear', id: 'clear-button', frame: [320, 310, 70, 60] },
+          ],
+        });
+      }
+    });
+    await expect(make(runner).openNotification('Reminder', 600)).rejects.toThrow(/tapped "Reminder" 1 time/);
+    expect(calls).toEqual(['tap 200,340']);
+  });
+
+  it('says it tapped when the app never comes to the front (#68)', async () => {
+    const banner = { alerts: [], others: [{ label: '今, Reminder, body', id: 'ShortLook.Platter.Content.Seamless', frame: [8, 58, 386, 66] }] };
+    const { runner } = stateful([banner], Number.MAX_SAFE_INTEGER);
+    await expect(make(runner).openNotification('Reminder', 600)).rejects.toThrow(/tapped "Reminder" 1 time\(s\), but the app did not come to the front within 600ms/);
   });
 
   it('dismisses alerts left over by the previous scenario before the next one, and stops the runner', async () => {
@@ -227,8 +315,30 @@ describe('IosSystemRunner restart (Phase 6.12)', () => {
     await expect(other.runner.tap(1, 2)).rejects.toThrow(/500/);
     expect(other.counts.stop).toBe(0);
     const twice = stubbed([refused, refused]);
-    await expect(twice.runner.tap(1, 2)).rejects.toBe(refused);
+    await expect(twice.runner.tap(1, 2)).rejects.toMatchObject({ errorName: 'DEVICE_ERROR', message: expect.stringContaining('stopped answering twice (ECONNREFUSED)') });
     expect(twice.counts).toEqual({ start: 2, stop: 1, requests: 2 });
+  });
+
+  const reset = Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNRESET' } });
+
+  it('recognises a runner that went away while answering (#65)', () => {
+    expect(isRunnerGone(reset)).toBe(true);
+    expect(isRunnerGone(refused)).toBe(true);
+    expect(isRunnerGone(Object.assign(new TypeError('fetch failed'), { cause: { code: 'UND_ERR_SOCKET' } }))).toBe(true);
+    expect(isRunnerGone(new Error('socket hang up'))).toBe(true);
+    expect(isRunnerGone(new Error('iOS system UI runner: /tap: 500'))).toBe(false);
+    expect(isRunnerGone(null)).toBe(false);
+  });
+
+  it('a reset connection restarts the runner: a read is sent again, a tap fails as DEVICE_ERROR (#65)', async () => {
+    const screen = { alerts: [], others: [] };
+    const read = stubbed([reset, screen]);
+    await expect(read.runner.screen()).resolves.toEqual(screen);
+    expect(read.counts).toEqual({ start: 2, stop: 1, requests: 2 });
+    // The tap may have happened before the runner died: not repeated.
+    const tap = stubbed([reset, { ok: true }]);
+    await expect(tap.runner.tap(1, 2)).rejects.toMatchObject({ errorName: 'DEVICE_ERROR', message: expect.stringContaining('ended while answering (ECONNRESET); it was restarted') });
+    expect(tap.counts).toEqual({ start: 2, stop: 1, requests: 1 });
   });
 });
 
