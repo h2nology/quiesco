@@ -45,7 +45,8 @@ export type ActionSpec =
   | { type: 'longPress'; matcher: Matcher; durationMs?: number; point?: Point }
   | { type: 'doubleTap'; matcher: Matcher }
   | { type: 'multiTap'; matcher: Matcher; count: number }
-  | { type: 'type'; matcher: Matcher; text: string }
+  /** `intervalMs`: type one character at a time, this far apart (issue #52); absent = the whole text at once. */
+  | { type: 'type'; matcher: Matcher; text: string; intervalMs?: number }
   | { type: 'replaceText'; matcher: Matcher; text: string }
   | { type: 'clear'; matcher: Matcher }
   | { type: 'pressKey'; matcher: Matcher; key: KeyName }
@@ -89,7 +90,7 @@ export type ActionType = ActionSpec['type'];
  */
 export type HostInput =
   | { kind: 'tap'; x: number; y: number; count?: number; holdMs?: number }
-  | { kind: 'type'; x: number; y: number; text: string; clearFirst?: boolean }
+  | { kind: 'type'; x: number; y: number; text: string; clearFirst?: boolean; intervalMs?: number }
   /** Press at `from`, hold `holdMs`, move to `to` over `durationMs`, release. */
   | { kind: 'drag'; from: { x: number; y: number }; to: { x: number; y: number }; durationMs: number; holdMs?: number }
   /** Mouse wheel at (x, y); positive `dy` scrolls content down (reveals what is below). */

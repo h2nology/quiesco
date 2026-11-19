@@ -122,6 +122,13 @@ export interface DeviceInfo {
   fontScale?: number;
   /** The JS engine's default locale (`Intl.DateTimeFormat().resolvedOptions().locale`). */
   locale?: string;
+  /**
+   * iOS: the user's preferred languages as the app sees them (`AppleLanguages`, launch arguments included),
+   * what expo-localization's `getLocales()` follows. `locale` above is the language iOS resolved for the
+   * app's bundle, which falls back to the development language when the app does not declare the
+   * preferred one (CFBundleLocalizations; issue #53). Absent on Android and the web.
+   */
+  preferredLanguages?: string[];
 }
 
 /**
