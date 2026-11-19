@@ -4,10 +4,10 @@
 解决 h2nology/quiesco 的 12 个 open issue（同一位用户在 0.7.0 + Vitest + Expo SDK 58 Release 构建、iOS 27 模拟器 / Android API 36 模拟器上实测的反馈）。每个修复都配测试和三语文档，实跑验收后回复并关闭 issue，最后一起发下一个版本。
 
 ## Current Phase
-L.F 发布 0.8.0
+完成（0.8.0 已发布，#44–#55 已回复并关闭）
 
 ## Next Step
-HU 执行 `! npm login`（如需要）和 `! pnpm -r publish --otp <code>`；之后 tag v0.8.0、push main 和 tag、npm view 确认、贴 issue 回复并关闭。
+本任务完成。
 
 ## 背景
 - 前置：0.7.0 已发布（`707bade chore(release): 0.7.0`）。
@@ -137,6 +137,6 @@ HU 2026-11-19：E1 自动包含 app 自己的原生 UI；E2 其他 app + 关闭�
 - [x] main 上 6296df7 的 CI：sdk-compat（含 webkit）、ci、docs、prod-strip 全部 success（#61 自己的 webkit 是 `playwright install --with-deps webkit` 卡住 30 min 超时，测试没跑，CI 环境问题）
 - [x] 版本号 0.8.0：12 个 packages/*/package.json、`AGENT_VERSION`、plugin.json；`chore(release): 0.8.0`（本地，发布后和 tag 一起 push）
 - [x] `pnpm install --frozen-lockfile`、`pnpm release:check` 通过（12 个包 0.8.0；core 的包里有 ios-runner 的 Swift 源码）；prod-strip 在 main 的 CI 上已通过
-- [ ] 发布：`pnpm -r publish`（需要 HU 的 npm 登录和 OTP）；tag v0.8.0 并 push
-- [ ] `npm view` 确认；issue #44–#55：回复（改了什么、0.8.0 的用法、限制）并关闭（回复内容先给 HU 看）
-- **Status:** pending
+- [x] 发布：HU 执行 `pnpm -r publish`；tag v0.8.0（e78d743）并 push main 和 tag；GitHub Release 0.8.0（Latest）
+- [x] `npm view`：12 个包都是 0.8.0；issue #44–#55 按 HU 确认的草稿回复并关闭（completed），链接 0.8.0 的 Release（#57 / #59 是关闭状态，不引用 PR 编号）
+- **Status:** complete

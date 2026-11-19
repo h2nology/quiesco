@@ -35,3 +35,7 @@
 - PR #59（L.D）已开。L.E 分支 `feat/system-ui-l-e`。HU：E1 自动包含、E2 其他 app + 装 expo-web-browser 实测、E3 iOS typeText / Android input text + 粘贴。
 - example 装 expo-web-browser，iOS / Android 重建成功。实现 runner / provider / DeviceApi / example。实测中修了 8 处（见 task_plan.md L.E）。
 - 全量回归发现 L.B 的回归（滚轮选择器吃掉 scrollTo 的拖动），已修，等 iOS 第二次全量。
+
+## 2026-11-19 Session 1（L.F）
+- PR #60（L.E）已开。合并 PR 链出错（`--delete-branch` 关闭了 #57 / #59，#58 / #60 进了叠加的分支）⇒ #61（feat/app-dir → main）补救；main 只有 #56 时 sdk-compat 失败（web refresh 包装层，#57 修的）⇒ 确认文件树和通过 CI 的 #60 一致后合并 #61，main 的 CI 全部通过。教训写进 memory（stacked-pr-merge）。
+- 0.8.0：版本号、release:check、提交；HU 发布到 npm；tag v0.8.0、push、GitHub Release；issue #44–#55 回复并关闭。
