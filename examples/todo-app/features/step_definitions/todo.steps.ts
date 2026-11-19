@@ -195,6 +195,44 @@ Then('第 {int} 行可见', async function (this: QuiescoWorld, row: number) {
   await this.app.expectVisible({ id: `row-${row}` });
 });
 
+When('在搜索框里逐字输入 {string}', async function (this: QuiescoWorld, text: string) {
+  await this.app.type({ id: 'search' }, text, { perCharacter: true });
+});
+
+When('在搜索框里一次输入 {string}', async function (this: QuiescoWorld, text: string) {
+  await this.app.type({ id: 'search' }, text);
+});
+
+Then('搜索框的统计是 {string}', async function (this: QuiescoWorld, stats: string) {
+  await this.app.expectText({ id: 'search-stats' }, stats);
+});
+
+When('在长列表里找到第 {int} 行并点击它', async function (this: QuiescoWorld, row: number) {
+  await this.app.scrollTo({ id: 'long-list' }, { id: `row-${row}` });
+  await this.app.tap({ id: `row-${row}` });
+});
+
+When('在横向列表里找到第 {int} 张并点击它', async function (this: QuiescoWorld, slide: number) {
+  await this.app.scrollTo({ id: 'carousel' }, { id: `slide-${slide}` });
+  await this.app.tap({ id: `slide-${slide}` });
+});
+
+/** Where the first slide was before the last carousel scroll (the step after it compares). */
+let slideX: number | undefined;
+
+When('把横向列表向右滚动 {int}', async function (this: QuiescoWorld, distance: number) {
+  slideX = (await this.app.query({ id: 'slide-1' }))[0]?.rect?.x;
+  await this.app.scroll({ id: 'carousel' }, 'right', { distance });
+});
+
+Then('横向列表移动了大约 {int}', async function (this: QuiescoWorld, distance: number) {
+  const now = (await this.app.query({ id: 'slide-1' }))[0]?.rect?.x;
+  if (slideX === undefined || now === undefined) throw new Error('slide-1 is not rendered');
+  const moved = slideX - now;
+  // A scroll moves the content by about the distance: the touch slop (≈ 10 pt) less, no fling (issue #46).
+  if (Math.abs(moved - distance) > distance * 0.2) throw new Error(`the carousel moved ${moved.toFixed(1)}, not about ${distance}`);
+});
+
 // ---- value controls (Phase 6.3) ----
 
 Given('打开值控件页', async function (this: QuiescoWorld) {
@@ -271,6 +309,20 @@ When('把生日设为 {string}', async function (this: QuiescoWorld, iso: string
   if ((await this.app.query({ id: 'birthday-open' })).length > 0) await this.app.tap({ id: 'birthday-open' });
   // Noon local time: the same calendar day whatever the device's time zone.
   await this.app.setValue({ id: 'birthday' }, new Date(y, m - 1, d, 12));
+});
+
+When('打开生日的日期对话框', async function (this: QuiescoWorld) {
+  await this.app.scrollTo('controls', 'birthday-open');
+  await this.app.tap('birthday-open');
+});
+
+When('在日期对话框里点 {string} 再点确定', async function (this: QuiescoWorld, day: string) {
+  await this.app.device.system.tap({ text: day });
+  await this.app.device.system.tap({ id: 'android:id/button1' }); // OK, in any language
+});
+
+Then('生日是这个月的 25 日', async function (this: QuiescoWorld) {
+  await this.app.expectText({ id: 'birthday-value' }, /-25$/);
 });
 
 Then('生日是 {string}', async function (this: QuiescoWorld, iso: string) {

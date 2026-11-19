@@ -27,9 +27,21 @@ describe('hostPerformer', () => {
     expect(await run(p.longPress(node))).toEqual({ kind: 'tap', x: 110, y: 120, holdMs: 800 });
   });
 
+  it('clicks the center of the visible part of a partly visible element (#45)', async () => {
+    const roots = tree(
+      { testID: 'header', rect: { x: 0, y: 150, width: 300, height: 50 } },
+      { testID: 'list', clips: true, rect: { x: 0, y: 200, width: 300, height: 400 }, children: [{ testID: 'row', tag: 7, rect: { x: 0, y: 590, width: 300, height: 52 } }] },
+    );
+    const { p } = setup(roots);
+    const row = roots[1]!.children[0]!;
+    expect(await run(p.tap(row))).toEqual({ kind: 'tap', x: 150, y: 595 });
+    expect(await run(p.multiTap(row, 2))).toEqual({ kind: 'tap', x: 150, y: 595, count: 2 });
+  });
+
   it('returns keyboard input at the field; clear replaces the content', async () => {
     const { p, node } = setup();
     expect(await run(p.type(node, '买牛奶'))).toEqual({ kind: 'type', x: 110, y: 120, text: '买牛奶', clearFirst: false });
+    expect(await run(p.type(node, 'ab', 80))).toEqual({ kind: 'type', x: 110, y: 120, text: 'ab', clearFirst: false, intervalMs: 80 }); // #52
     expect(await run(p.clear(node))).toEqual({ kind: 'type', x: 110, y: 120, text: '', clearFirst: true });
   });
 

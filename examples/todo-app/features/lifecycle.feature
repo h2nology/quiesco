@@ -30,6 +30,13 @@ Feature: 应用生命周期（生命周期页）
     When 点击访问 +1 共 1 次
     Then 访问计数是 "1"
 
+  @native
+  Scenario: 在后台时打开深链接（热启动）
+    Given 打开生命周期页
+    When 把 App 切到后台
+    And 在后台用深链接打开能力演示页
+    Then 看到能力演示页
+
   Scenario: 结束 App 之后的操作给出明确的错误
     Given 打开生命周期页
     When 结束 App

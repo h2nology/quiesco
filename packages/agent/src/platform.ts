@@ -39,7 +39,7 @@ export interface AppDeps {
   /** The window in logical units and physical pixels per unit. */
   windowInfo(): { width: number; height: number; pixelRatio: number };
   /** What the app sees of the device settings (Phase 6.6 read-backs). */
-  settings(): { colorScheme: 'light' | 'dark' | null; fontScale: number; locale: string };
+  settings(): { colorScheme: 'light' | 'dark' | null; fontScale: number; locale: string; preferredLanguages?: string[] };
 }
 
 /** What the agent uses of @quiesco/native besides the action bridge. */
@@ -81,6 +81,25 @@ interface RN {
 }
 
 const rn = (): RN => require('react-native') as RN;
+
+/**
+ * iOS `AppleLanguages` from React Native's SettingsManager (NSUserDefaults, launch arguments included;
+ * issue #53). The module exists on iOS only: elsewhere nothing is reported.
+ */
+export function preferredLanguages(reactNative: unknown): { preferredLanguages?: string[] } {
+  try {
+    const r = reactNative as { TurboModuleRegistry?: { get?(name: string): unknown }; NativeModules?: Record<string, unknown> };
+    const mod = (r.TurboModuleRegistry?.get?.('SettingsManager') ?? r.NativeModules?.['SettingsManager']) as
+      | { getConstants?(): { settings?: Record<string, unknown> }; settings?: Record<string, unknown> }
+      | null
+      | undefined;
+    const settings = mod?.getConstants?.().settings ?? mod?.settings;
+    const langs = settings?.['AppleLanguages'];
+    return Array.isArray(langs) && langs.every((l) => typeof l === 'string') ? { preferredLanguages: langs as string[] } : {};
+  } catch {
+    return {};
+  }
+}
 
 type MatchMedia = (query: string) => { matches: boolean };
 
@@ -142,6 +161,7 @@ export const defaultAppDeps: AppDeps = {
       colorScheme: readColorScheme(mm?.bind(globalThis), () => rn().Appearance.getColorScheme()),
       fontScale: rn().PixelRatio.getFontScale(),
       locale: Intl.DateTimeFormat().resolvedOptions().locale,
+      ...preferredLanguages(rn()),
     };
   },
   interactionManager() {

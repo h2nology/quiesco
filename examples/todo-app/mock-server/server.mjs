@@ -42,6 +42,22 @@ export function startMockServer(options = {}) {
         setTimeout(() => res.end('3]}'), SLOW_MS);
         return;
       }
+      // A web login page for the auth session (issue #51): it sends the user back to the app with the email.
+      if (route === 'GET /auth') {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(
+          '<!doctype html><meta name="viewport" content="width=device-width"><title>Quiesco Todo login</title>' +
+            '<form action="/auth/done"><label>Email <input name="email" aria-label="Email" autocapitalize="none"></label>' +
+            '<button type="submit">Sign in</button></form>',
+        );
+        return;
+      }
+      if (req.method === 'GET' && req.url?.startsWith('/auth/done')) {
+        const email = new URL(req.url, 'http://x').searchParams.get('email') ?? '';
+        res.writeHead(302, { Location: `quiescotodo://auth?user=${encodeURIComponent(email)}` });
+        res.end();
+        return;
+      }
       switch (route) {
         case 'OPTIONS /login':
         case 'OPTIONS /todos':

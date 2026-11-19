@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { AndroidProvider, DEV_MENU_PREFS, DEV_MENU_PREFS_FILE, emulatorGpu, parseUiNodes, primaryButton } from '../src/devices/android';
+import { AndroidProvider, DEV_MENU_PREFS, DEV_MENU_PREFS_FILE, emulatorGpu, hasDialogWindow, parseUiNodes, primaryButton } from '../src/devices/android';
 import type { AndroidProviderOptions } from '../src/devices/android';
 import type { Exec } from '../src/devices/exec';
 import { fakeSpawner } from './helpers/fake-child';
@@ -622,6 +622,14 @@ describe('AndroidProvider system integration (Phase 6.7)', () => {
     await expect(p.sendNotification({ title: 'x' }, app({ supported: true, enabled: false }))).rejects.toThrow(/grant them/);
   });
 
+  it('opens a link from outside the app with a VIEW intent (#48)', async () => {
+    const { p, calls } = provider([...BOOTED]);
+    await p.boot();
+    calls.length = 0;
+    await p.openUrlFromOutside('myapp://item/1');
+    expect(calls).toEqual(["adb -s emulator-5554 shell am start -W -a android.intent.action.VIEW -d 'myapp://item/1' 'com.example.todo'"]);
+  });
+
   it('opens a notification from the shade by its title; lists what is there when it is missing', async () => {
     const shade = '<hierarchy><node text="" resource-id="" clickable="false" enabled="true" bounds="[0,0][1080,2400]"><node text="Quiesco Todo" resource-id="android:id/app_name_text" clickable="false" enabled="true" bounds="[200,300][500,350]" /><node text="Hello" resource-id="android:id/title" clickable="false" enabled="true" bounds="[200,360][600,420]" /></node></hierarchy>';
     const { p, calls } = provider([...BOOTED, [/cat \/sdcard\/quiesco-ui.xml/, shade]]);
@@ -675,6 +683,52 @@ describe('AndroidProvider system integration (Phase 6.7)', () => {
     await p.tapSystemNode(nodes[1]!);
     expect(calls).toEqual(['adb -s emulator-5554 shell input tap 540 1305']);
     expect(p.permissionDialog.deny).toContain('com.android.permissioncontroller:id/permission_deny_and_dont_ask_again_button');
+  });
+
+  // dumpsys window windows, shortened (findings L.E.0): the activity's window, and a dialog over it.
+  const MAIN = '  Window #3 Window{3fe6401 u0 com.example.todo/com.example.todo.MainActivity}:\n    mOwnerUid=10190 showForAllUsers=false package=com.example.todo appop=NONE\n    mAttrs={(0,0)(fillxfill) ty=BASE_APPLICATION fmt=TRANSLUCENT\n    mViewVisibility=0x0 mHaveFrame=true';
+  const DIALOG_WINDOW = '  Window #2 Window{aeceff0 u0 com.example.todo/com.example.todo.MainActivity}:\n    mOwnerUid=10190 showForAllUsers=false package=com.example.todo appop=NONE\n    mAttrs={(0,0)(wrapxwrap) gr=CENTER ty=APPLICATION fmt=TRANSLUCENT\n    mViewVisibility=0x0 mHaveFrame=true';
+  const DATE_DIALOG = [
+    '<hierarchy>',
+    '<node text="25" resource-id="" package="com.example.todo" enabled="true" bounds="[215,1442][307,1547]" />',
+    '<node text="OK" resource-id="android:id/button1" package="com.example.todo" enabled="true" bounds="[718,1663][886,1805]" />',
+    '</hierarchy>',
+  ].join('');
+
+  it('includes the app\'s own dialog windows (a date dialog), not its main window (#49)', async () => {
+    const withDialog = provider([...BOOTED, [/cat \/sdcard\/quiesco-ui.xml/, DATE_DIALOG], [/dumpsys window windows/, `${DIALOG_WINDOW}\n${MAIN}`]]);
+    await withDialog.p.boot();
+    expect((await withDialog.p.systemNodes()).map((n) => n.text)).toEqual(['25', 'OK']);
+    const mainOnly = provider([...BOOTED, [/cat \/sdcard\/quiesco-ui.xml/, DATE_DIALOG], [/dumpsys window windows/, MAIN]]);
+    await mainOnly.p.boot();
+    expect(await mainOnly.p.systemNodes()).toEqual([]);
+    expect(hasDialogWindow(`${DIALOG_WINDOW}\n${MAIN}`, 'com.example.todo')).toBe(true);
+    expect(hasDialogWindow(MAIN, 'com.example.todo')).toBe(false);
+    expect(hasDialogWindow(DIALOG_WINDOW.replace('mViewVisibility=0x0', 'mViewVisibility=0x8'), 'com.example.todo')).toBe(false); // gone
+    expect(hasDialogWindow(DIALOG_WINDOW, 'com.other')).toBe(false);
+  });
+
+  it('types into a system field: ASCII as key events, other text pasted through the app\'s clipboard (#51)', async () => {
+    const { p, calls } = provider([...BOOTED, [/wm density/, 'Physical density: 420\n']]);
+    await p.boot();
+    const field = { text: 'Email', id: 'x:id/email', bounds: { x1: 100, y1: 200, x2: 300, y2: 260 } };
+    const clip: string[] = [];
+    const app = { suspend: async () => false, setOrientation: async () => ({ supported: false }), getClipboard: async () => ({ supported: false }), setClipboard: async (t: string) => (clip.push(t), { supported: true }), postNotification: async () => ({ supported: false }) };
+    calls.length = 0;
+    await p.typeSystemNode(field, 'ann@example.com 50%', app);
+    await p.typeSystemNode(field, 'アン', app);
+    await p.typeSystemNode(field, 'a %s b', app); // no way to send a literal %s as keys: pasted
+    expect(clip).toEqual(['アン', 'a %s b']);
+    expect(calls.slice(0, 4)).toEqual([
+      'adb -s emulator-5554 shell input tap 200 230',
+      "adb -s emulator-5554 shell input text 'ann@example.com%s50%'",
+      'adb -s emulator-5554 shell input tap 200 230',
+      'adb -s emulator-5554 shell input keyevent KEYCODE_PASTE',
+    ]);
+    await expect(p.typeSystemNode(field, 'アン', { ...app, setClipboard: async () => ({ supported: false }) })).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED' });
+    calls.length = 0;
+    await p.tapSystemPoint(100, 50);
+    expect(calls).toEqual(['adb -s emulator-5554 shell wm density', 'adb -s emulator-5554 shell input tap 263 131']);
   });
 });
 

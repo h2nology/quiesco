@@ -99,3 +99,39 @@ Feature: 系统集成（系统集成页）
     Then 系统界面显示 "已保存"
     When 点击系统界面上的 "OK"
     Then 系统集成页显示对话框结果 "提示已关闭"
+
+  # 系统界面也包括其他 App（网页登录）和 App 自己的非 React 界面（issues #49–#51）。
+  # Android 模拟器（AOSP 镜像）没有支持 Custom Tabs 的浏览器，网页登录只在 iOS 上跑。
+  @ios
+  Scenario: 在网页登录页输入并登录
+    When 点击网页登录
+    And 同意 App 使用网站登录
+    And 在系统界面的 "Email" 里输入 "ann@example.com"
+    And 点击系统界面上的 "Sign in"
+    Then 系统集成页显示网页登录结果 "已登录：ann@example.com"
+
+  @ios
+  Scenario: 看到分享面板，用系统点击把它关掉
+    When 点击分享
+    Then 系统界面显示 "Copy"
+    When 在屏幕上 (200, 90) 处做一次系统点击
+    Then 系统界面不再显示 "Copy"
+
+  @ios
+  Scenario: 在内嵌日历（UIKit）里点一个日期
+    When 把内嵌日历滚动到屏幕上
+    And 点击系统界面上的 "25"
+    Then 内嵌日历选中的日期是 "2026-12-25"
+
+  # Android：ASCII 作为按键输入，其他文字经剪贴板粘贴。
+  Scenario Outline: 用系统输入在 App 的对话框里打字（<种类>）
+    When 打开输入对话框
+    And 在系统界面的 "备注" 里输入 "<文字>"
+    And 点击系统界面上的 "完成"
+    Then 系统集成页显示输入的内容 "<文字>"
+
+    Examples:
+      | 种类  | 文字                 |
+      | ASCII | ann@example.com 50%  |
+      | 中文  | 你好，世界           |
+

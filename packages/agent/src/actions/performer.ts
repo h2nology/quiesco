@@ -24,12 +24,16 @@ export interface ActionPerformer {
   tap(node: HostNode, point?: Point): Performed;
   longPress(node: HostNode, durationMs?: number, point?: Point): Performed;
   multiTap(node: HostNode, count: number): Performed;
-  type(node: HostNode, text: string): Performed;
+  /** `intervalMs`: one character at a time, this far apart (issue #52); absent = the whole text at once. */
+  type(node: HostNode, text: string, intervalMs?: number): Performed;
   replaceText(node: HostNode, text: string): Performed;
   clear(node: HostNode): Performed;
   pressKey(node: HostNode, key: KeyName): Performed;
-  /** `down` reveals content further down. `from`: start inside the element, normalized 0–1. */
-  scroll(node: HostNode, direction: Direction, distance?: number, from?: Point): Performed;
+  /**
+   * `down` reveals content further down. `from`: start inside the element, normalized 0–1. `step`: one
+   * step of scrollTo, where speed matters more than the exact distance.
+   */
+  scroll(node: HostNode, direction: Direction, distance?: number, from?: Point, step?: boolean): Performed;
   /** Finger direction: `up` moves the finger up. */
   swipe(node: HostNode, direction: Direction, speed?: Speed, distance?: number, from?: Point): Performed;
   /** Press the element's center, hold `holdMs`, move to the window point `to` over `durationMs`, release. */
@@ -61,7 +65,14 @@ export function jsPerformer(ctx: js.JsActionContext): ActionPerformer {
     tap: async (n, point) => js.tap(n, ctx, point),
     longPress: async (n, _durationMs, point) => js.longPress(n, ctx, point),
     multiTap: async (n, count) => js.multiTap(n, count, ctx),
-    type: async (n, text) => js.typeText(n, text, ctx),
+    type: async (n, text, intervalMs) => {
+      if (intervalMs === undefined) return js.typeText(n, text, ctx);
+      const chars = js.characters(text);
+      for (const [i, ch] of chars.entries()) {
+        if (i > 0) await ctx.sleep?.(intervalMs);
+        js.typeText(n, ch, ctx);
+      }
+    },
     replaceText: async (n, text) => js.replaceText(n, text, ctx),
     clear: async (n) => js.clearText(n, ctx),
     pressKey: async (n, key) => js.pressKey(n, key, ctx),

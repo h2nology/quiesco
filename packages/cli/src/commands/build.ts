@@ -8,6 +8,8 @@
  * A Debug build is skipped when its native inputs (app config, dependencies and their installed versions)
  * did not change since the last build and the binary is still there; `--force` builds anyway. Release builds
  * embed the JS bundle, so they are always built.
+ * With `appDir` (or `--app-dir`, issue #54) the app is built in that directory; `binaryPath` stays relative
+ * to the working directory (the config's).
  */
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -16,14 +18,16 @@ import path from 'node:path';
 import type { QuiescoConfig } from '@quiesco/core';
 import { loadConfig } from '@quiesco/core';
 
+import { APP_DIR_OPTION, appContext } from '../app-dir.js';
 import type { CliContext } from '../context.js';
 import { takeOption } from '../context.js';
 
-export const BUILD_HELP = `Usage: quiesco build ios|android [--force]
+export const BUILD_HELP = `Usage: quiesco build ios|android [--force] [--app-dir <dir>]
 
 Builds the app for e2e tests (EXPO_PUBLIC_QUIESCO=1: expo prebuild, then xcodebuild / gradle) and writes it
 to apps.<platform>.binaryPath in quiesco.config. A Debug build is skipped when the native inputs (app config,
-dependencies) did not change since the last one; --force builds anyway.`;
+dependencies) did not change since the last one; --force builds anyway. The app is the one in appDir
+(quiesco.config) or --app-dir when the tests are in a package of their own.`;
 
 export interface BuildDeps {
   loadConfig: (cwd: string) => Promise<QuiescoConfig>;
@@ -74,7 +78,8 @@ export async function buildCommand(args: readonly string[], ctx: CliContext, dep
     return 0;
   }
   const force = args.includes('--force');
-  const rest = takeOption(args.filter((a) => a !== '--force'), '--platform');
+  const appDirOpt = takeOption(args.filter((a) => a !== '--force'), APP_DIR_OPTION);
+  const rest = takeOption(appDirOpt.rest, '--platform');
   const platform = rest.value ?? rest.rest[0];
   if (platform !== 'ios' && platform !== 'android') {
     ctx.err(`quiesco build: choose ios or android (quiesco build ios). The web needs no build: quiesco test starts Metro, or export it with EXPO_PUBLIC_QUIESCO=1 npx expo export --platform web.`);
@@ -87,6 +92,7 @@ export async function buildCommand(args: readonly string[], ctx: CliContext, dep
     ctx.err(`quiesco build: ${(e as Error).message}`);
     return 1;
   }
+  const app = appContext(ctx, config, appDirOpt.value);
   const binaryPath = config.apps[platform]?.binaryPath;
   if (binaryPath === undefined) {
     ctx.err(`quiesco build: apps.${platform}.binaryPath is not set in quiesco.config: that is where the build goes (npx quiesco init writes it).`);
@@ -99,8 +105,8 @@ export async function buildCommand(args: readonly string[], ctx: CliContext, dep
   }
   const release = platform === 'ios' ? !/^debug$/i.test(ios?.configuration ?? '') : androidVariant(binaryPath) === 'release';
   const binary = path.resolve(ctx.cwd, binaryPath);
-  const stampFile = path.join(ctx.cwd, '.expo', 'quiesco', `build-${platform}.json`);
-  const fingerprint = nativeFingerprint(ctx, platform, binaryPath);
+  const stampFile = path.join(app.cwd, '.expo', 'quiesco', `build-${platform}.json`);
+  const fingerprint = nativeFingerprint(app, platform, binaryPath);
   if (!force && !release && ctx.exists(binary)) {
     const stamp = ctx.readFile(stampFile);
     if (stamp !== null && (JSON.parse(stamp) as { fingerprint?: string }).fingerprint === fingerprint) {
@@ -111,27 +117,30 @@ export async function buildCommand(args: readonly string[], ctx: CliContext, dep
 
   const env = { ...ctx.env, EXPO_PUBLIC_QUIESCO: '1' };
   ctx.out(`quiesco build: expo prebuild --platform ${platform} (EXPO_PUBLIC_QUIESCO=1)`);
-  let code = await ctx.run('npx', ['expo', 'prebuild', '--platform', platform], { cwd: ctx.cwd, env });
+  if (app !== ctx) ctx.out(`quiesco build: the app in ${app.cwd}`);
+  let code = await ctx.run('npx', ['expo', 'prebuild', '--platform', platform], { cwd: app.cwd, env });
   if (code !== 0) return fail(ctx, 'expo prebuild', code);
 
   if (ios !== null) {
     const workspace = path.join('ios', `${ios.name}.xcworkspace`);
-    if (!ctx.exists(path.join(ctx.cwd, workspace))) {
+    if (!app.exists(path.join(app.cwd, workspace))) {
       ctx.err(`quiesco build: ${workspace} not found after prebuild. The .app name in apps.ios.binaryPath must be the Xcode scheme (expo prebuild names it after expo.name).`);
       return 1;
     }
-    const xcode = ['-workspace', workspace, '-scheme', ios.name, '-configuration', ios.configuration, '-sdk', 'iphonesimulator', '-destination', 'generic/platform=iOS Simulator', '-derivedDataPath', ios.derivedData, '-quiet', 'build'];
+    // binaryPath (and so the derived data) is relative to the working directory; xcodebuild runs in the app.
+    const derivedData = path.relative(app.cwd, path.resolve(ctx.cwd, ios.derivedData)) || '.';
+    const xcode = ['-workspace', workspace, '-scheme', ios.name, '-configuration', ios.configuration, '-sdk', 'iphonesimulator', '-destination', 'generic/platform=iOS Simulator', '-derivedDataPath', derivedData, '-quiet', 'build'];
     ctx.out(`quiesco build: xcodebuild ${xcode.join(' ')}`);
-    code = await ctx.run('xcodebuild', xcode, { cwd: ctx.cwd, env });
+    code = await ctx.run('xcodebuild', xcode, { cwd: app.cwd, env });
     if (code !== 0) return fail(ctx, 'xcodebuild', code);
   } else {
     const variant = androidVariant(binaryPath);
     const task = `assemble${variant === 'release' ? 'Release' : 'Debug'}`;
     const gradlew = ctx.platform === 'win32' ? 'gradlew.bat' : './gradlew';
     ctx.out(`quiesco build: ${gradlew} ${task} (in android/)`);
-    code = await ctx.run(gradlew, [task], { cwd: path.join(ctx.cwd, 'android'), env });
+    code = await ctx.run(gradlew, [task], { cwd: path.join(app.cwd, 'android'), env });
     if (code !== 0) return fail(ctx, `gradle ${task}`, code);
-    const output = path.join(ctx.cwd, 'android', 'app', 'build', 'outputs', 'apk', variant, `app-${variant}.apk`);
+    const output = path.join(app.cwd, 'android', 'app', 'build', 'outputs', 'apk', variant, `app-${variant}.apk`);
     if (path.resolve(output) !== binary) {
       fs.mkdirSync(path.dirname(binary), { recursive: true });
       fs.copyFileSync(output, binary);

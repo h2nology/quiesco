@@ -7,12 +7,16 @@
  *
  * Only changes it can make safely; anything else is listed with what to do. Running it again changes
  * nothing. `--dry-run` lists the changes without making them.
+ *
+ * With `appDir` (or `--app-dir`, issue #54) the app's packages (agent, native, expo-plugin) and files
+ * (app.json, <QuiescoRoot>) are upgraded in the app's directory, the rest in the working directory.
  */
 import path from 'node:path';
 
 import type { QuiescoConfig } from '@quiesco/core';
 import { loadConfig } from '@quiesco/core';
 
+import { APP_DIR_OPTION, appContext } from '../app-dir.js';
 import type { CliContext, CliPlatform } from '../context.js';
 import { PLATFORMS, takeFlag, takeOption } from '../context.js';
 import { installedVersion, isQuiescoPackage } from '../packages.js';
@@ -33,11 +37,13 @@ const CUCUMBER_FILES = ['cucumber.mjs', 'cucumber.js', 'cucumber.cjs', 'cucumber
 /** The line 0.1.x wrote into cucumber.mjs (issue #8). */
 const OLD_PATHS_LINE = /^[ \t]*paths:[ \t]*\[[ \t]*['"]features\/\*\*\/\*\.feature['"][ \t]*\],?[ \t]*\r?\n/m;
 
-/** Quiesco packages to install: the ones the platforms need and every other one the project already has. */
-function packagesToInstall(pkg: PackageJson, platforms: readonly CliPlatform[]): { runtime: string[]; dev: string[] } {
-  const needed = [...RUNTIME, ...DEV, ...(platforms.includes('web') ? WEB_DEV : [])].filter(isQuiescoPackage);
+/** The app's own packages, installed in the app when the tests are elsewhere (appDir, issue #54). */
+const APP_PACKAGES = [...RUNTIME, '@quiesco/expo-plugin'];
+
+/** Quiesco packages to install: the `needed` ones and every other one the project already has. */
+function packagesToInstall(pkg: PackageJson, needed: readonly string[]): { runtime: string[]; dev: string[] } {
   const present = [...Object.keys(pkg.dependencies ?? {}), ...Object.keys(pkg.devDependencies ?? {})].filter(isQuiescoPackage);
-  const all = [...new Set([...needed, ...present])];
+  const all = [...new Set([...needed.filter(isQuiescoPackage), ...present])];
   // Keep each package in the group it is in; new ones go where init puts them.
   const isRuntime = (n: string): boolean => pkg.dependencies?.[n] !== undefined || (pkg.devDependencies?.[n] === undefined && RUNTIME.includes(n));
   return { runtime: all.filter(isRuntime), dev: all.filter((n) => !isRuntime(n)) };
@@ -126,13 +132,24 @@ export async function upgradeCommand(args: readonly string[], ctx: CliContext, d
   rest = skipInstall.rest;
   const dryRun = takeFlag(rest, '--dry-run');
   rest = dryRun.rest;
+  const appDirOpt = takeOption(rest, APP_DIR_OPTION);
+  rest = appDirOpt.rest;
   if (rest.length > 0) {
     ctx.err(`quiesco init --upgrade: unknown arguments ${rest.join(' ')}`);
     return 2;
   }
-  const pkg = readJson<PackageJson>(ctx, path.join(ctx.cwd, 'package.json'));
+  let config: QuiescoConfig | null = null;
+  let configError = '';
+  try {
+    config = await deps.loadConfig(ctx.cwd);
+  } catch (e) {
+    configError = (e as Error).message.split('\n')[0] ?? '';
+  }
+  const app = appContext(ctx, config, appDirOpt.value);
+  const separate = app !== ctx;
+  const pkg = readJson<PackageJson>(app, path.join(app.cwd, 'package.json'));
   if (pkg === null || (pkg.dependencies?.['expo'] === undefined && pkg.devDependencies?.['expo'] === undefined)) {
-    ctx.err(`quiesco init --upgrade: ${ctx.cwd} is not an Expo project (no expo dependency in package.json).`);
+    ctx.err(`quiesco init --upgrade: ${app.cwd} is not an Expo project (no expo dependency in package.json).${separate ? '' : ' Tests in a package of their own: set appDir in quiesco.config or pass --app-dir.'}`);
     return 1;
   }
   let platforms: CliPlatform[];
@@ -143,43 +160,57 @@ export async function upgradeCommand(args: readonly string[], ctx: CliContext, d
       return 2;
     }
     platforms = platformsOpt.value.split(',') as CliPlatform[];
+  } else if (config !== null) {
+    platforms = PLATFORMS.filter((p) => config.apps[p] !== undefined);
   } else {
-    try {
-      const config = await deps.loadConfig(ctx.cwd);
-      platforms = PLATFORMS.filter((p) => config.apps[p] !== undefined);
-    } catch (e) {
-      ctx.err(`quiesco init --upgrade: cannot read quiesco.config (${(e as Error).message.split('\n')[0] ?? ''}).`);
-      ctx.err('Run quiesco init for a new setup, or name the platforms: quiesco init --upgrade --platforms ios,android,web');
-      return 1;
-    }
+    ctx.err(`quiesco init --upgrade: cannot read quiesco.config (${configError}).`);
+    ctx.err('Run quiesco init for a new setup, or name the platforms: quiesco init --upgrade --platforms ios,android,web');
+    return 1;
   }
 
   const steps: InitStep[] = [];
   const log: StepLog = { ctx, steps, dryRun: dryRun.present };
+  // The app's steps; the same as `log` unless the app is elsewhere.
+  const appLog: StepLog = { ...log, ctx: app };
 
-  // 1. Every Quiesco package at this CLI's version.
-  const { runtime, dev } = packagesToInstall(pkg, platforms);
-  const current = [...runtime, ...dev].map((n) => installedVersion(ctx, n));
-  if (packagesOpt.value === undefined && current.every((v) => v === ctx.version)) {
-    steps.push({ status: 'skipped', what: 'versions', note: `${current.length} Quiesco packages at ${ctx.version}` });
-  } else {
-    const ok = await installPackages(log, {
-      pm: detectPackageManager(ctx),
+  // 1. Every Quiesco package at this CLI's version: one project, or the app's in the app and the rest here.
+  const needed = [...RUNTIME, ...DEV, ...(platforms.includes('web') ? WEB_DEV : [])];
+  const testPkg = separate ? readJson<PackageJson>(ctx, path.join(ctx.cwd, 'package.json')) : null;
+  if (separate && testPkg === null) {
+    ctx.err(`quiesco init --upgrade: no package.json in ${ctx.cwd} (the test project).`);
+    return 1;
+  }
+  const sets: { log: StepLog; packages: { runtime: string[]; dev: string[] } }[] = separate
+    ? [
+        { log: appLog, packages: packagesToInstall(pkg, APP_PACKAGES) },
+        { log, packages: packagesToInstall(testPkg as PackageJson, needed.filter((n) => !APP_PACKAGES.includes(n))) },
+      ]
+    : [{ log, packages: packagesToInstall(pkg, needed) }];
+  for (const set of sets) {
+    const { runtime, dev } = set.packages;
+    const where = separate ? ` in ${path.relative(ctx.cwd, set.log.ctx.cwd) || '.'}` : '';
+    const current = [...runtime, ...dev].map((n) => installedVersion(set.log.ctx, n));
+    if (packagesOpt.value === undefined && current.every((v) => v === ctx.version)) {
+      steps.push({ status: 'skipped', what: 'versions', note: `${current.length} Quiesco packages at ${ctx.version}${where}` });
+      continue;
+    }
+    const ok = await installPackages(set.log, {
+      pm: detectPackageManager(set.log.ctx),
       runtime,
       dev,
-      ...(packagesOpt.value !== undefined ? { packagesDir: packagesOpt.value } : {}),
+      ...(packagesOpt.value !== undefined ? { packagesDir: path.resolve(ctx.cwd, packagesOpt.value) } : {}),
       skipInstall: skipInstall.present,
     });
     if (!ok) return 1;
   }
 
-  // 2. What older inits wrote.
+  // 2. What older inits wrote: the test setup here, app.json and <QuiescoRoot> in the app.
   fixCucumberPaths(log);
   ensureTsconfig(log);
-  const app = ensureAppIds(log, platforms);
-  fixConfigPlaceholders(log, app);
+  const appJson = ensureAppIds(appLog, platforms);
+  fixConfigPlaceholders(log, appJson);
   ensureScripts(log, platforms);
-  ensureRoot(log);
+  ensureRoot(appLog);
 
   printSteps(ctx, steps);
   ctx.out('');

@@ -112,6 +112,13 @@ export interface WebDeviceConfig {
 }
 
 export interface QuiescoConfig {
+  /**
+   * The Expo app's directory, relative to the config file (issue #54): for tests in a package of their own
+   * (a monorepo, or `app/` and `e2e/` side by side). `quiesco doctor`, `build` and `init --upgrade` check
+   * and build the app there, and `quiesco test` starts Metro there. Default: the config file's directory.
+   * `loadConfig` returns it as an absolute path.
+   */
+  appDir?: string;
   apps: {
     android?: AndroidAppConfig;
     ios?: IosAppConfig;
@@ -317,6 +324,10 @@ export async function loadConfig(options: { cwd?: string; file?: string; worker?
   const config = resolveConfig(input as QuiescoConfigInput, options.worker ?? { workerIndex: 0, workerCount: 1 });
   if (config === null || typeof config !== 'object') {
     throw new QuiescoError('CONFIG_ERROR', `the config function in ${file} must return the config object`);
+  }
+  if (config.appDir !== undefined) {
+    if (typeof config.appDir !== 'string' || config.appDir === '') throw new QuiescoError('CONFIG_ERROR', `appDir in ${file} must be a directory path (relative to the config file)`);
+    return { config: { ...config, appDir: path.resolve(path.dirname(file), config.appDir) }, file };
   }
   return { config, file };
 }

@@ -323,6 +323,85 @@ describe('AgentRuntime', () => {
     expect(content).toMatchObject({ height: 3000, y: -2500 });
   });
 
+  it('scrollTo scrolls a horizontal list right / left, not the vertical list around it (#46)', async () => {
+    const { target, call } = setup();
+    const carousel = { x: 0, y: 100, width: 300, height: 80 };
+    const strip = { x: 0, y: 100, width: 2400, height: 80 };
+    const slide8 = { x: 1680, y: 100, width: 240, height: 80 };
+    const carouselView = {
+      scrollTo: vi.fn(({ x }: { x: number }) => {
+        strip.x = -x;
+        slide8.x = 1680 - x;
+      }),
+    };
+    const listView = { scrollTo: vi.fn() };
+    sameRoot(target)(
+      classOf(
+        listView,
+        host(
+          'RCTScrollView',
+          { testID: 'list', __rect: { x: 0, y: 100, width: 300, height: 600 } },
+          host(
+            'RCTScrollContentView',
+            { __rect: { x: 0, y: 100, width: 300, height: 3000 } },
+            classOf(carouselView, host('AndroidHorizontalScrollView', { testID: 'carousel', __rect: carousel }, host('RCTScrollContentView', { __rect: strip }, host('RCTView', { testID: 'slide-8', __rect: slide8 })))),
+          ),
+        ),
+      ),
+    );
+    await expect(drive(call('action', { action: { type: 'scrollTo', container: { id: 'carousel' }, target: { id: 'slide-8' } }, mode: 'js' }), 1000)).resolves.toMatchObject({ element: { testID: 'slide-8' } });
+    // 0.85 × 300 per step until slide 8's center is in the carousel.
+    expect(carouselView.scrollTo.mock.calls.map(([a]) => (a as { x: number; y: number }).y)).toEqual(carouselView.scrollTo.mock.calls.map(() => 0));
+    expect(slide8.x + slide8.width / 2).toBeLessThan(300);
+    expect(listView.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('scrollTo goes on programmatically when a drag moves nothing though there is more content (a wheel picker took it)', async () => {
+    const gesture = vi.fn(async () => ({ handled: true })); // the finger lands on a picker: the list does not move
+    const native = {
+      getLaunchParams: () => ({ port: null, session: null }),
+      locate: async () => ({ found: true, x: 0, y: 200, width: 300, height: 400, windowHasFocus: true }),
+      tap: vi.fn(),
+      swipe: vi.fn(),
+      typeText: vi.fn(),
+      gesture,
+    };
+    const { target, call } = setup({ native });
+    const content = { x: 0, y: 200, width: 300, height: 3000 };
+    const row = { x: 0, y: 200 + 2000, width: 300, height: 40 };
+    const listView = {
+      scrollTo: vi.fn(({ y }: { y: number }) => {
+        content.y = 200 - y;
+        row.y = 200 + 2000 - y;
+      }),
+    };
+    sameRoot(target)(classOf(listView, host('RCTScrollView', { testID: 'list', __rect: { x: 0, y: 200, width: 300, height: 400 } }, host('RCTScrollContentView', { __rect: content }, host('RCTView', { testID: 'row', __rect: row })))));
+    await expect(drive(call('action', { action: { type: 'scrollTo', container: { id: 'list' }, target: { id: 'row' } }, mode: 'native' }), 3000)).resolves.toMatchObject({ element: { testID: 'row' } });
+    expect(gesture).toHaveBeenCalled();
+    expect(listView.scrollTo.mock.calls.length).toBeGreaterThan(0);
+  });
+
+  it('scrollTo goes on until the center of the target is visible, not a 1 pt sliver of it (#45)', async () => {
+    const { target, call } = setup();
+    // A list below a header (y 150–200), 400 high: one step is 0.85 × 400 = 340. Row content y 739, 52 high.
+    const content = { x: 0, y: 200, width: 300, height: 5000 };
+    const row = { x: 0, y: 200 + 739, width: 300, height: 52 };
+    const listView = {
+      scrollTo: vi.fn(({ y }: { y: number }) => {
+        content.y = 200 - y;
+        row.y = 200 + 739 - y;
+      }),
+    };
+    sameRoot(target)(
+      host('RCTView', { testID: 'header', __rect: { x: 0, y: 150, width: 300, height: 50 } }),
+      classOf(listView, host('RCTScrollView', { testID: 'list', __rect: { x: 0, y: 200, width: 300, height: 400 } }, host('RCTScrollContentView', { __rect: content }, host('RCTView', { testID: 'row', __rect: row })))),
+    );
+    await expect(drive(call('action', { action: { type: 'scrollTo', container: { id: 'list' }, target: { id: 'row' } }, mode: 'js' }), 1000)).resolves.toMatchObject({ element: { testID: 'row' } });
+    // After one step the row showed 1 pt (y 599); the second step brings its center in.
+    expect(listView.scrollTo.mock.calls.map(([a]) => (a as { y: number }).y)).toEqual([340, 680]);
+    expect(row.y).toBe(259);
+  });
+
   it('scrollView (6.9 full-page screenshots): the largest visible one by default, or the one around an element; scrolls it when asked', async () => {
     const { target, call } = setup();
     const big = { x: 0, y: 100, width: 300, height: 500 };

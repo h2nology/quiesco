@@ -26,6 +26,12 @@ export interface RunnerScreen {
   others: { label: string; id: string; frame: number[] }[];
 }
 
+/** An app's UIKit elements (Runner/SystemUIServer.swift `/elements`); `type` is XCUIElement.ElementType. */
+export interface RunnerElements {
+  state: number;
+  elements: { type: number; label: string; id: string; value: string; frame: number[]; enabled?: boolean; selected?: boolean }[];
+}
+
 /** The app's navigation bars and their buttons (Runner/SystemUIServer.swift `/navigationBar`). */
 export interface RunnerNavigationBar {
   bars: { frame: number[]; buttons: { label: string; id: string; frame: number[]; hittable: boolean }[] }[];
@@ -157,6 +163,19 @@ export class IosSystemRunner {
   /** The navigation bars of the app `bundleId` (issue #4). */
   async navigationBar(bundleId: string): Promise<RunnerNavigationBar> {
     return this.call(() => this.request<RunnerNavigationBar>('GET', `/navigationBar?bundleId=${encodeURIComponent(bundleId)}`));
+  }
+
+  /**
+   * The UIKit elements of the app or system service `bundleId`, from one snapshot (issues #49–#51), and
+   * the app's state (XCUIApplication.State: 1 not running … 4 in front).
+   */
+  async elements(bundleId: string): Promise<RunnerElements> {
+    return this.call(() => this.request('GET', `/elements?bundleId=${encodeURIComponent(bundleId)}`));
+  }
+
+  /** Type into the focused field of `bundleId` through its keyboard (XCUITest typeText, issue #51). */
+  async typeText(bundleId: string, text: string): Promise<void> {
+    await this.call(() => this.request('POST', `/typeText?bundleId=${encodeURIComponent(bundleId)}&text=${encodeURIComponent(text)}`));
   }
 
   /** The interactive-pop gesture: a drag from the left edge of the screen (issue #4). */

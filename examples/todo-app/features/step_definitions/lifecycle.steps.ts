@@ -20,6 +20,15 @@ When('以启动参数 {string} 重新启动 App 并打开生命周期页', async
   await this.app.expectVisible('lifecycle');
 });
 
+When('在后台用深链接打开能力演示页', async function (this: QuiescoWorld) {
+  // A warm start: the link comes from outside the app while it is in the background (issue #48).
+  await this.app.openUrl('quiescotodo://playground');
+});
+
+Then('看到能力演示页', async function (this: QuiescoWorld) {
+  await this.app.expectVisible('playground');
+});
+
 When('重新启动 App 并打开生命周期页', async function (this: QuiescoWorld) {
   await this.app.device.relaunch({ url: LIFECYCLE_URL });
   await this.app.expectVisible('lifecycle');

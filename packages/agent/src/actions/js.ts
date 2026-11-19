@@ -27,6 +27,18 @@ export interface JsActionContext {
   platform: string;
   /** Current host roots, for taps at a point (hit testing). */
   roots?: () => readonly HostNode[];
+  /** Wait between the characters of `type(…, { perCharacter: true })`. */
+  sleep?: (ms: number) => Promise<void>;
+}
+
+/**
+ * The characters a user types one by one: grapheme clusters where the engine can segment them (an emoji
+ * with modifiers is one key), else code points (issue #52).
+ */
+export function characters(text: string): string[] {
+  const Segmenter = (Intl as unknown as { Segmenter?: new (l?: string, o?: { granularity: 'grapheme' }) => { segment(t: string): Iterable<{ segment: string }> } }).Segmenter;
+  if (typeof Segmenter === 'function') return Array.from(new Segmenter(undefined, { granularity: 'grapheme' }).segment(text), (s) => s.segment);
+  return Array.from(text);
 }
 
 /** Holding at least this long is a long press (`longPressAt`). */
@@ -182,10 +194,23 @@ export interface Scrollable {
 }
 
 /**
- * Hosts a ScrollView renders around its native scroll view: on Android, a ScrollView with a
- * `refreshControl` is wrapped in the cloned RefreshControl (RN 0.88 ScrollView.js, issue #44).
+ * A ScrollView with a `refreshControl` is wrapped in the cloned RefreshControl (issue #44): Android's
+ * AndroidSwipeRefreshLayout, react-native-web's View. Both get the scroll view's style, so the wrapper
+ * clips too and has the scroll view's frame (web: up to a border apart). Its only child is the scroll
+ * view, which clips; a scroll view's only child is its content container, which does not.
  */
-const SCROLL_WRAPPERS = new Set(['AndroidSwipeRefreshLayout']);
+function isScrollWrapper(n: HostNode): boolean {
+  const child = n.children.length === 1 ? n.children[0]! : null;
+  if (child === null || !child.clipsContent) return false;
+  const a = n.measure();
+  const b = child.measure();
+  if (a === null || b === null) return false;
+  const near = (p: number, q: number) => Math.abs(p - q) <= WRAPPER_SLACK;
+  return near(a.x, b.x) && near(a.y, b.y) && near(a.width, b.width) && near(a.height, b.height);
+}
+
+/** How far apart a refresh wrapper's frame and its scroll view's may be (a border on each side). */
+const WRAPPER_SLACK = 4;
 
 /** The ScrollView that contains `node` (or is `node`), or null. */
 export function findScrollable(node: HostNode): Scrollable | null {
@@ -194,7 +219,7 @@ export function findScrollable(node: HostNode): Scrollable | null {
   // ScrollView renders: [refresh wrapper →] native scroll view host → content container host → children.
   const host = (): { scroll: HostNode | null; content: HostNode | null } => {
     let scroll = inst.hostNodes()[0] ?? null;
-    if (scroll !== null && SCROLL_WRAPPERS.has(scroll.type)) scroll = scroll.children[0] ?? null;
+    if (scroll !== null && isScrollWrapper(scroll)) scroll = scroll.children[0] ?? null;
     return { scroll, content: scroll?.children[0] ?? null };
   };
   return {
@@ -225,6 +250,18 @@ export function scrollBy(s: Scrollable, direction: Direction, distance?: number)
   const { x, y } = s.offset();
   const sign = direction === 'down' || direction === 'right' ? 1 : -1;
   s.scrollTo(vertical ? x : x + sign * d, vertical ? y + sign * d : y);
+}
+
+/** Whether the content cannot move further in `direction` (`down` = towards its end). */
+export function atEdge(s: Scrollable, direction: Direction): boolean {
+  const vp = s.viewport();
+  const content = s.content();
+  if (vp === null || content === null) return true;
+  const { x, y } = s.offset();
+  if (direction === 'down') return y >= content.height - vp.height - 1;
+  if (direction === 'up') return y <= 1;
+  if (direction === 'right') return x >= content.width - vp.width - 1;
+  return x <= 1;
 }
 
 /** Jump to an edge of the current content (a virtualized list may grow afterwards; callers repeat). */

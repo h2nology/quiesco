@@ -9,7 +9,7 @@ import type { Direction, HostInput, Matcher, Point, Rect, Speed } from '@quiesco
 
 import { QuiescoError } from '../errors';
 import type { HostNode, Viewport } from '../fiber-adapter';
-import { summarize } from '../query';
+import { summarize, visibleCenterPoint } from '../query';
 import type { Clock } from '../sync';
 import { center, describe, describeCover, hitTest, isAncestor } from './hit-test';
 import type { ActionPerformer } from './performer';
@@ -62,17 +62,19 @@ export function hostPerformer(ctx: HostContext): ActionPerformer {
   };
 
   const tapAt = async (node: HostNode, extra: { count?: number; holdMs?: number; point?: Point } = {}): Promise<HostInput> => {
-    const rect = await ready(node, extra.point);
-    const c = extra.point === undefined ? center(rect) : { x: rect.x + extra.point.x, y: rect.y + extra.point.y };
+    // Partly visible: the center of the visible part (issue #45).
+    const point = extra.point ?? visibleCenterPoint(node, ctx.viewport());
+    const rect = await ready(node, point);
+    const c = point === undefined ? center(rect) : { x: rect.x + point.x, y: rect.y + point.y };
     const input: HostInput = { kind: 'tap', x: c.x, y: c.y };
     if (extra.count !== undefined) input.count = extra.count;
     if (extra.holdMs !== undefined) input.holdMs = extra.holdMs;
     return input;
   };
 
-  const typeAt = async (node: HostNode, text: string, clearFirst: boolean): Promise<HostInput> => {
+  const typeAt = async (node: HostNode, text: string, clearFirst: boolean, intervalMs?: number): Promise<HostInput> => {
     const c = center(await ready(node));
-    return { kind: 'type', x: c.x, y: c.y, text, clearFirst };
+    return { kind: 'type', x: c.x, y: c.y, text, clearFirst, ...(intervalMs !== undefined ? { intervalMs } : {}) };
   };
 
   /** Wheel over the element (at `from`, normalized, when given); `down` reveals content below. */
@@ -92,7 +94,7 @@ export function hostPerformer(ctx: HostContext): ActionPerformer {
     tap: (node, point) => tapAt(node, point === undefined ? {} : { point }),
     longPress: (node, durationMs, point) => tapAt(node, { holdMs: durationMs ?? LONG_PRESS_MS, ...(point === undefined ? {} : { point }) }),
     multiTap: (node, count) => tapAt(node, { count }),
-    type: (node, text) => typeAt(node, text, false),
+    type: (node, text, intervalMs) => typeAt(node, text, false, intervalMs),
     replaceText: (node, text) => typeAt(node, text, true),
     clear: (node) => typeAt(node, '', true),
     async pressKey(node, key) {

@@ -93,6 +93,27 @@ export function isVisible(node: HostNode, viewport: Viewport | null, rect: Rect 
   return visibleRatio(node, viewport, rect) > 0;
 }
 
+/** Visible, with its center not clipped (where a tap at the element goes; issue #45). */
+export function isCenterVisible(node: HostNode, viewport: Viewport | null, rect: Rect | null = node.measure()): boolean {
+  if (rect === null || !isVisible(node, viewport, rect)) return false;
+  const part = visiblePart(node, viewport, rect);
+  const cx = rect.x + rect.width / 2;
+  const cy = rect.y + rect.height / 2;
+  return part !== null && cx >= part.x && cx <= part.x + part.width && cy >= part.y && cy <= part.y + part.height;
+}
+
+/**
+ * Where to touch an element that is only partly visible: the center of its visible part, relative to
+ * the element (issue #45). Undefined when its center is visible (touch the center, as before) or
+ * nothing of it is.
+ */
+export function visibleCenterPoint(node: HostNode, viewport: Viewport | null, rect: Rect | null = node.measure()): { x: number; y: number } | undefined {
+  if (rect === null || isCenterVisible(node, viewport, rect)) return undefined;
+  const part = visiblePart(node, viewport, rect);
+  if (part === null || part.width <= 0 || part.height <= 0) return undefined;
+  return { x: part.x + part.width / 2 - rect.x, y: part.y + part.height / 2 - rect.y };
+}
+
 function describeHost(n: HostNode): string {
   return `<${n.type}${n.testID === undefined ? '' : ` testID="${n.testID}"`}>`;
 }

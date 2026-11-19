@@ -4,11 +4,13 @@
  * - a canvas split into four quadrants (taps at a point),
  * - a counter (multiTap, tapAt),
  * - a note field (pressKey enter / backspace, replaceText),
+ * - a search field that searches 300 ms after the last keystroke (per-character typing, issue #52),
  * - a box dragged with PanResponder onto one of two drop zones (drag),
  * - a 200-row FlatList without getItemLayout (scrollToIndex, scrollToEdge), with pull-to-refresh: on
- *   Android its RefreshControl wraps the native scroll view (issue #44).
+ *   Android its RefreshControl wraps the native scroll view (issue #44); its header is a horizontal
+ *   carousel (a horizontal list inside a vertical one, issue #46). Rows and slides report taps.
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FlatList, PanResponder, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { LayoutRectangle } from 'react-native';
 
@@ -20,12 +22,22 @@ const QUADRANTS = [
 ] as const;
 
 const ROWS = Array.from({ length: 200 }, (_, i) => i + 1);
+const SLIDES = Array.from({ length: 10 }, (_, i) => i + 1);
 
 export default function Playground() {
   const [tapped, setTapped] = useState('');
   const [count, setCount] = useState(0);
   const [note, setNote] = useState('');
   const [submitted, setSubmitted] = useState('');
+  const [query, setQuery] = useState('');
+  const [keys, setKeys] = useState(0);
+  const [searches, setSearches] = useState<string[]>([]);
+  // Debounced search: a search runs 300 ms after the last keystroke.
+  useEffect(() => {
+    if (query === '') return undefined;
+    const t = setTimeout(() => setSearches((s) => [...s, query]), 300);
+    return () => clearTimeout(t);
+  }, [query]);
   const [dropped, setDropped] = useState('');
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   // Layouts relative to the drag area (independent of the screen's slide-in animation): the box's center
@@ -85,6 +97,20 @@ export default function Playground() {
           <Text testID="submitted">{submitted}</Text>
         </View>
 
+        <View style={styles.row}>
+          <TextInput
+            testID="search"
+            accessibilityLabel="搜索"
+            value={query}
+            onChangeText={(t) => {
+              setKeys((k) => k + 1);
+              setQuery(t);
+            }}
+            style={styles.input}
+          />
+          <Text testID="search-stats">{`按键 ${keys} 次，搜索 ${searches.length} 次：${searches.join(' / ')}`}</Text>
+        </View>
+
         <View style={styles.dragArea}>
           <View testID="drag-box" onLayout={keep('box')} style={[styles.box, { transform: [{ translateX: offset.x }, { translateY: offset.y }] }]} {...pan.panHandlers} />
           <View style={styles.zones} onLayout={keep('zones')}>
@@ -104,10 +130,23 @@ export default function Playground() {
           data={ROWS}
           keyExtractor={(n) => String(n)}
           refreshControl={<RefreshControl refreshing={false} onRefresh={() => {}} />}
+          ListHeaderComponent={
+            <FlatList
+              testID="carousel"
+              horizontal
+              data={SLIDES}
+              keyExtractor={(n) => String(n)}
+              renderItem={({ item }) => (
+                <Pressable testID={`slide-${item}`} style={styles.slide} onPress={() => setTapped(`第 ${item} 张`)}>
+                  <Text>第 {item} 张</Text>
+                </Pressable>
+              )}
+            />
+          }
           renderItem={({ item }) => (
-            <View testID={`row-${item}`} style={styles.listRow}>
+            <Pressable testID={`row-${item}`} style={styles.listRow} onPress={() => setTapped(`第 ${item} 行`)}>
               <Text>第 {item} 行</Text>
-            </View>
+            </Pressable>
           )}
         />
       </View>
@@ -128,5 +167,6 @@ const styles = StyleSheet.create({
   zones: { flexDirection: 'row', gap: 12 },
   zone: { flex: 1, height: 56, borderWidth: 1, borderStyle: 'dashed', borderColor: '#6b7280', alignItems: 'center', justifyContent: 'center' },
   list: { flex: 1, minHeight: 160, borderWidth: 1, borderColor: '#e5e7eb' },
+  slide: { width: 240, height: 80, justifyContent: 'center', alignItems: 'center', borderRightWidth: 1, borderRightColor: '#e5e7eb' },
   listRow: { height: 36, justifyContent: 'center', paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
 });

@@ -37,7 +37,7 @@ import { silentLogger } from './logger.js';
 import type { MatcherInput, TextQuery } from './matcher.js';
 import { toMatcher, toTextMatch } from './matcher.js';
 import type { DeviceProvider } from './devices/provider.js';
-import type { ActionOptions, CallOptions } from './options.js';
+import type { ActionOptions, CallOptions, TypeOptions } from './options.js';
 import type { VisibleOptions } from './expect.js';
 import { ElementExpectation, checkRatio } from './expect.js';
 import type { AgentConnection } from './server/ws-server.js';
@@ -48,7 +48,7 @@ import { WebView } from './webview.js';
 import { cropToRect } from './screenshots.js';
 import type { WebViewHost } from './webview.js';
 
-export type { ActionOptions, CallOptions } from './options.js';
+export type { ActionOptions, CallOptions, TypeOptions } from './options.js';
 
 export interface DriverOptions {
   provider: DeviceProvider;
@@ -68,6 +68,9 @@ export interface DriverOptions {
   /** Where calls are recorded (Phase 6.9 timeline). */
   timeline?: Timeline;
 }
+
+/** type({ perCharacter: true }): time between two characters, about a quick typist's (issue #52). */
+const TYPE_INTERVAL_MS = 80;
 
 /** Calls worth a line in the timeline (lifecycle polling such as deviceInfo is left out). */
 const TIMELINED: ReadonlySet<keyof AgentMethods> = new Set(['query', 'action', 'assert', 'waitForIdle', 'backdoor', 'reset', 'webview', 'scrollView']);
@@ -151,8 +154,16 @@ export class Driver {
     if (!Number.isInteger(count) || count < 1) throw new RangeError(`count must be a positive integer, got ${count}`);
     return this.action({ type: 'multiTap', matcher: toMatcher(target), count }, opts);
   }
-  type(target: MatcherInput, text: string, opts?: ActionOptions): Promise<ElementSummary | undefined> {
-    return this.action({ type: 'type', matcher: toMatcher(target), text }, opts);
+  /**
+   * Focus the input and enter `text`: at once, or with `{ perCharacter: true }` one character at a time,
+   * `intervalMs` (80 ms) apart, like a user typing (issue #52).
+   */
+  type(target: MatcherInput, text: string, opts?: TypeOptions): Promise<ElementSummary | undefined> {
+    const { perCharacter, intervalMs, ...rest } = opts ?? {};
+    if (intervalMs !== undefined && (!Number.isFinite(intervalMs) || intervalMs < 0)) throw new RangeError(`intervalMs must be a number ≥ 0, got ${intervalMs}`);
+    if (intervalMs !== undefined && perCharacter !== true) throw new TypeError('type: intervalMs needs perCharacter: true');
+    const spec: ActionSpec = { type: 'type', matcher: toMatcher(target), text, ...(perCharacter === true ? { intervalMs: intervalMs ?? TYPE_INTERVAL_MS } : {}) };
+    return this.action(spec, rest);
   }
   /** Replace the whole text at once (no typing character by character). */
   replaceText(target: MatcherInput, text: string, opts?: ActionOptions): Promise<ElementSummary | undefined> {
@@ -244,7 +255,15 @@ export class Driver {
       });
     }
   }
+  /**
+   * Open a deep link. In front: inside the app. In the background (issue #48): from outside the app, as
+   * from another app (a warm start); resolves when the app is in front and idle.
+   */
   async openUrl(url: string, opts?: ActionOptions): Promise<void> {
+    if (this.options.appState?.() === 'background' && this.options.provider.openUrlFromOutside !== undefined && this.lifecycle !== null) {
+      await this.lifecycle.device.openUrlInBackground(url);
+      return;
+    }
     await this.action({ type: 'openUrl', url }, opts);
   }
   async dismissKeyboard(opts?: ActionOptions): Promise<void> {

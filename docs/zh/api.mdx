@@ -27,15 +27,15 @@ description: "this.app（Driver）、匹配器、App 内 API、配置、场景�
 
 | 方法 | 作用 |
 |---|---|
-| `tap(target, { point })` | 点击元素：点击其中心，或其自身坐标系中的 `point`（`{ x, y }`，以左上角为原点） |
+| `tap(target, { point })` | 点击元素：点击其中心，或其自身坐标系中的 `point`（`{ x, y }`，以左上角为原点）。被滚动视图或 `overflow` 祖先裁掉一部分的元素，点击其可见部分的中心 |
 | `doubleTap(target)` / `multiTap(target, n)` | 在一个手势中点击 `n` 次 |
 | `longPress(target, { durationMs, point })` | 按住（默认 800 ms） |
-| `type(target, text)` | 聚焦输入框并输入 `text`（native 模式下经由输入法，因此任何语言都可以） |
+| `type(target, text, { perCharacter, intervalMs })` | 聚焦输入框并输入 `text`（native 模式下经由输入法，因此任何语言都可以）。native 上一次输入整段文本。`perCharacter: true` 时逐字输入，字间隔 `intervalMs`（80 ms），最后等待空闲：App 会收到每一次按键（防抖搜索、输入掩码、`onKeyPress`）。web 本来就逐键发送，`perCharacter` 只是加上间隔 |
 | `replaceText(target, text)` | 一次性替换全部文本 |
 | `clear(target)` | 清空文本输入框 |
 | `pressKey(target, 'enter' \| 'backspace')` | 向字段发送回车键（提交；在多行输入框中是换行）或退格键。字段只需存在即可：即使键盘的回车键够不着，按键也能送达 |
-| `scroll(target, direction, { distance, from })` | 滚动一个滚动视图（`down` 显示下方内容）。`from`：起点，在元素内归一化为 0–1 |
-| `scrollTo(container, target)` | 滚动 `container`，直到 `target` 可见 |
+| `scroll(target, direction, { distance, from })` | 滚动一个滚动视图（`down` 显示下方内容）。`from`：起点，在元素内归一化为 0–1。`native` 模式下手指拖动时逐渐减速直到停下，所以内容移动约 `distance`，不会惯性滑动（会少掉系统的触摸 slop：iOS 约 10 pt，Android 约 7%） |
+| `scrollTo(container, target)` | 滚动 `container`，直到 `target` 的中心可见（点击会落在那里）：先向下再向上；横向列表先向右再向左。每一步移动不到一个视图的距离，所以不会跳过元素。滚到内容尽头时，中心仍被裁掉的目标按原样返回 |
 | `scrollToEdge(target, 'top' \| 'bottom' \| 'left' \| 'right')` | 滚动到一端；虚拟化列表在增长时会持续跟随（native 模式：真实的快速滑动） |
 | `scrollToIndex(list, index, { viewPosition })` | 将 FlatList / FlashList 的第 `index` 行滚入视图，无需 `getItemLayout`；`viewPosition` 0 = 顶部，0.5 = 中间，1 = 底部 |
 | `swipe(target, direction, { speed, distance, from })` | 一个滑动手势（带惯性）；`direction` 指手指移动的方向 |
@@ -43,7 +43,7 @@ description: "this.app（Driver）、匹配器、App 内 API、配置、场景�
 | `tapAt({ x, y })` / `longPressAt({ x, y }, { durationMs })` | 触摸屏幕上的一个点（窗口坐标），不管那里是什么 |
 | `pressBack()` | Android 返回键；web 上是浏览器后退；iOS 上不可用 |
 | `goBack()` | 像用户一样返回上一页，所有平台通用：Android 按返回键（先关闭键盘），web 浏览器后退，iOS 点导航栏的返回按钮，没有时从左边缘右滑（通过系统 UI runner）。使用 Expo Router 的 App，路由没有变化时会失败 |
-| `openUrl(url)` | 打开一个深层链接（iOS 上在 App 内打开，Android 上用 `am start`，web 上通过地址栏） |
+| `openUrl(url)` | 打开一个深层链接（iOS 上在 App 内打开，Android 上用 `am start`，web 上通过地址栏）。App 在后台时（`sendToBackground()`），像从其他 App 打开一样从 App 外打开（热启动）：iOS 会回答系统的「在 … 中打开？」确认；App 回到前台并空闲后 resolve |
 | `dismissKeyboard()` | 隐藏软键盘 |
 | `setValue(target, value)` | 设置值控件：滑块（数字）、开关 / 复选框（布尔值）、选择器（某一项的值或标签）、分段控件（某一段的值或索引）、日期 / 时间选择器或日期输入框（`Date`）。见 [值控件](#value-controls) |
 | `adjustSlider(target, position)` | 用真实的手指 / 鼠标将滑块的滑柄拖到 `position`（0 = 最小值，1 = 最大值）；落点与目标相差不超过一个步长 |
@@ -133,7 +133,7 @@ await this.app.setValue('due-time-picker', '20:15');   // 不必编造一个日�
 
 对于其他识别器，设置 `actions.gestureSlop: { pinch, rotation }`（逻辑单位、弧度；`0`：手指严格按`scale` / `radians` 移动）。一次无法在屏幕内完成的捏合（例如 `pinch(t, 10)`）会像用户那样分成多次捏合完成；手指在元素上按下，并始终留在窗口内。给需要多指的场景加上标签，以便不支持触摸的视口跳过它们（示例中使用`@multi-touch`，并以 `--tags 'not @multi-touch'` 运行桌面视口）。
 
-一个操作需要恰好一个**可见**元素：它会等待目标存在且可见（否则以 `ELEMENT_NOT_FOUND` 失败，并说明是缺失还是被隐藏），当匹配到多个元素时会立即以 `MULTIPLE_MATCHES` 失败。在 `native` 模式下，触摸还必须能到达该元素：如果被对话框或其他窗口遮挡，操作会以 `ELEMENT_OBSCURED` 失败，并指出位于上层的是什么。遮挡目标的软键盘会先被收起。
+一个操作需要恰好一个**可见**元素：它会等待目标存在且可见（否则以 `ELEMENT_NOT_FOUND` 失败，并说明是缺失还是被隐藏），当匹配到多个元素时会立即以 `MULTIPLE_MATCHES` 失败。在 `native` 模式下，触摸还必须能到达该元素：如果被对话框或其他窗口遮挡，操作会以 `ELEMENT_OBSCURED` 失败，并指出位于上层的是什么。元素被其滚动视图或 `overflow` 祖先裁掉的部分无法触摸：触摸点落在那里也会以 `ELEMENT_OBSCURED` 失败。遮挡目标的软键盘会先被收起。
 
 ### 断言
 
@@ -227,7 +227,7 @@ await this.app.device.setStatusBar({ time: '9:41', batteryLevel: 100 }); // 用�
 | `setOrientation('portrait' \| 'landscape')` | 旋转 App，并等待其窗口变为新的形状。App 不能锁定方向（app.json 中 `"orientation": "default"`） |
 | `setAppearance('light' \| 'dark')` | 系统配色方案；会对照 App 上报的值进行检查。App 必须跟随系统（`"userInterfaceStyle": "automatic"`） |
 | `setFontScale(n)` | 系统文字大小（0.5–4）；resolve 的值为实际采用的缩放比例。Android 会重新启动 App （保留数据）。web 上不可用 |
-| `setLocale(tag \| null)` | App 的语言和地区（BCP 47）；`null` = 设备默认值。会以该设置重新启动 App （保留数据）。iOS 要求该语言在 `CFBundleLocalizations` 中 |
+| `setLocale(tag \| null)` | App 的语言和地区（BCP 47）；`null` = 设备默认值。会以该设置重新启动 App （保留数据）。App 的首选语言（iOS 的 `AppleLanguages`，即 expo-localization 读取的值）或 JS 的 locale 变成新语言即视为成功。iOS 只会把 `Intl` 和 App 的原生字符串解析为 `CFBundleLocalizations` 中的语言：没有该语言时会给出警告（只在 JS 里本地化的 App 照常工作） |
 | `setLocation(lat, lon)` | 模拟 GPS 位置（Android：仅限模拟器） |
 | `setPermission(name, 'grant' \| 'revoke' \| 'reset')` | 在 App 运行时更改权限。Android 在撤销权限时会杀掉 App：Quiesco 会在 resolve 之前重新启动它（保留数据），因此 App 会回到首屏。`'reset'` = 未决定状态，与全新安装后相同：App 下一次请求时会再次显示系统弹窗（Android：撤销并清除“不再询问”；iOS：`simctl privacy reset`；web：由浏览器询问）。在 iOS 上，通知和相机权限只能通过重新安装 App 来重置：Quiesco 会重新安装并启动 App，**删除其数据**（需要 `binaryPath`；会有警告提示） |
 | `setNetwork('offline' \| 'online')` | 离线：App 新建的 `fetch` / `XMLHttpRequest` / `WebSocket` 连接会像没有网络时一样失败（Quiesco 自己的连接不受影响；已打开的连接保持打开）。Android 还会关闭 Wi-Fi 和移动数据，web 会报告 `navigator.onLine === false`，因此这两个平台上 NetInfo 能感知到；iOS 模拟器没有网络开关，NetInfo 仍报告在线。跨重新启动持续有效 |
@@ -262,10 +262,19 @@ await this.app.device.system.tap({ text: 'Cancel' });  // App 之外的任意系
 | `clearKeychain()` | iOS：重置模拟器的钥匙串（所有 App 的）。Android 没有钥匙串：`ACTION_NOT_SUPPORTED`，请使用 `relaunch({ clearData: true })` |
 | `system.tap(query, { timeoutMs }?)` | 点击 App 之外的系统 UI（权限弹窗、生物识别提示、网页的 JS 对话框）。`query`：`{ text }`（精确匹配，忽略弯引号与直引号的差别，或一个 RegExp）和 / 或 `{ id }`（Android resource-id，或 `:id/` 之后的部分）。最多等待 `timeoutMs`（10 s）让它出现，然后等待 App 空闲 |
 | `system.expectVisible(query)` / `system.expectNotVisible(query)` | 等待此类系统 UI 出现在 / 离开屏幕；`ELEMENT_NOT_FOUND` / `ASSERTION_FAILED` 会列出看到的文本 |
+| `system.type(query, text, { timeoutMs }?)` | 点击与 `query` 匹配的输入框（同名的标签和输入框，优先输入框），用设备的输入方式输入 `text`：iOS 经由键盘（任何文字都可以），Android 作为按键事件（`input text`，可打印的 ASCII），其他文字经由 @quiesco/native 的剪贴板粘贴。然后等待 App 空闲 |
+| `system.tapAt({ x, y })` | 在屏幕上的一个点（从左上角算起的 pt / dp）做一次系统级的触摸，不管那里是什么：例如点击 iOS 分享面板的上方可以关掉它 |
 | `system.allowPermission()` / `system.denyPermission()` | 无论设备语言是什么，都能应答运行时权限弹窗（Android：根据按钮的 id，也包括“仅在使用该 App 时允许”和“不再询问”；iOS：按 iOS 的布局根据位置）；App 回到前台并空闲后 resolve |
 
 这些在 web 上都不存在（`ACTION_NOT_SUPPORTED`；请给此类场景加上 `@native` 标签），只有 `system.tap` /
 `expectVisible` / `expectNotVisible` 例外，用于页面的 JavaScript 对话框（见下文）。在 Android 上，它们需要模拟器（由其控制台模拟传感器）。在 iOS 上，系统 UI 属于 SpringBoard：Quiesco 会在第一次需要时构建一个小型的 XCUITest runner（每个 Xcode 版本一次，缓存在 `~/Library/Caches/quiesco/ios-runner`，约 10 s），并在模拟器上启动它（2–4 s，每个会话一次）。弹窗的生命周期比 App 更长：上一个场景遗留的弹窗会在下一个场景之前被关闭（取消 / 拒绝）。要再次请求某项权限，请先重置它：`setPermission('notifications', 'reset')`。
+
+**系统 UI 包括什么。** 除了系统自己的 UI（iOS 的 SpringBoard、Android 的其他 package），`system.*` 也能看到不是 React 的 UI（issues #49–#51）：
+
+- Android 上 App 自己打开的对话框窗口，例如 `DateTimePickerAndroid` 的日期对话框（`system.tap({ text: '25' })`，然后用 `{ id: 'android:id/button1' }` 点确定，与语言无关）。React Native 的 `Modal` 也是这种窗口；
+- iOS 上 App 的 UIKit 视图（内嵌 `DateTimePicker` 的日期、键盘的按键、分享面板），以及位于前台的认证会话网页（`expo-web-browser` 的 `openAuthSessionAsync`，SafariViewService）或 Safari：`system.type({ text: 'Email' }, 'ann@example.com')`，然后 `system.tap({ text: 'Sign in' })`。App 的 React 视图也在这棵树里；点击它们同样是真实触摸。分享面板可以用 `system.tapAt` 点击它的上方来关掉。同一会话中第二次显示的 React Native `Modal` 可能不在 XCUITest 返回的树里；它的视图用 `app.*` 可以操作。
+
+在 Android 模拟器上，`openAuthSessionAsync` 需要支持 Custom Tabs 的浏览器（带 Google Play 的镜像）；AOSP 镜像里没有。
 
 当权限弹窗（另一个 activity）位于前台时，Android 会暂停 App 的 JS 定时器；Quiesco 的空闲等待会察觉到 App 进入了后台并返回，因此打开弹窗的那次点击能够完成。
 

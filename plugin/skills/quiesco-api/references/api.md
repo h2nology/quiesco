@@ -30,15 +30,15 @@ All calls take an optional last argument:
 
 | Method | What it does |
 |---|---|
-| `tap(target, { point })` | Tap the element: its center, or `point` in its own coordinates (`{ x, y }` from its top-left corner) |
+| `tap(target, { point })` | Tap the element: its center, or `point` in its own coordinates (`{ x, y }` from its top-left corner). An element cut off by a scroll view or `overflow` ancestor is tapped at the center of its visible part |
 | `doubleTap(target)` / `multiTap(target, n)` | `n` taps in one gesture |
 | `longPress(target, { durationMs, point })` | Press and hold (default 800 ms) |
-| `type(target, text)` | Focus the input and enter `text` (native mode: through the IME, so any language works) |
+| `type(target, text, { perCharacter, intervalMs })` | Focus the input and enter `text` (native mode: through the IME, so any language works). Native: the whole text at once. `perCharacter: true` types one character at a time, `intervalMs` (80 ms) apart, then waits for idle: the app sees every keystroke (debounced search, input masks, `onKeyPress`). The web already sends a key per character; `perCharacter` adds the interval |
 | `replaceText(target, text)` | Replace the whole text at once |
 | `clear(target)` | Clear a text input |
 | `pressKey(target, 'enter' \| 'backspace')` | The return key (submits; a newline in a multi-line input) or backspace, sent to the field. The field only has to exist: the key reaches it even where a keyboard's return key would be out of reach |
-| `scroll(target, direction, { distance, from })` | Scroll a scroll view (`down` reveals content below). `from`: start point normalized 0–1 in the element |
-| `scrollTo(container, target)` | Scroll `container` until `target` is visible |
+| `scroll(target, direction, { distance, from })` | Scroll a scroll view (`down` reveals content below). `from`: start point normalized 0–1 in the element. `native` mode drags a finger that slows down to a stop, so the content moves by about `distance` without a fling (the system's touch slop less: about 10 pt on iOS, 7% on Android) |
+| `scrollTo(container, target)` | Scroll `container` until the center of `target` is visible (where a tap goes): down, then up; right, then left for a horizontal list. Each step moves less than one view, so nothing is skipped. At an end of the content a target whose center stays cut off is returned as it is |
 | `scrollToEdge(target, 'top' \| 'bottom' \| 'left' \| 'right')` | Scroll to an end; a virtualized list is followed while it grows (native mode: real flings) |
 | `scrollToIndex(list, index, { viewPosition })` | Bring row `index` of a FlatList / FlashList into view, also without `getItemLayout`; `viewPosition` 0 = top, 0.5 = middle, 1 = bottom |
 | `swipe(target, direction, { speed, distance, from })` | A swipe gesture (with inertia); `direction` is the finger's |
@@ -46,7 +46,7 @@ All calls take an optional last argument:
 | `tapAt({ x, y })` / `longPressAt({ x, y }, { durationMs })` | Touch a point of the screen (window coordinates), whatever is there |
 | `pressBack()` | Android back button; browser back on the web; not available on iOS |
 | `goBack()` | Back to the previous screen as a user would, on every platform: Android back (the keyboard is closed first), browser back, on iOS the navigation bar's back button, else the edge swipe (through the system UI runner). In Expo Router apps it fails when the route did not change |
-| `openUrl(url)` | Open a deep link (in the app on iOS, `am start` on Android, the address bar on the web) |
+| `openUrl(url)` | Open a deep link (in the app on iOS, `am start` on Android, the address bar on the web). While the app is in the background (`sendToBackground()`), from outside the app as another app would (a warm start): iOS answers the system's "Open in …?" confirmation; resolves when the app is in front and idle |
 | `dismissKeyboard()` | Hide the software keyboard |
 | `setValue(target, value)` | Set a value control: slider (number), switch / checkbox (boolean), picker (an item's value or label), segmented control (a segment's value or index), date / time picker or date input (`Date`). See [Value controls](#value-controls) |
 | `adjustSlider(target, position)` | Drag a slider's thumb to `position` (0 = minimum, 1 = maximum) with a real finger / mouse; lands within one step of it |
@@ -184,7 +184,8 @@ An action needs exactly one **visible** element: it waits until the target exist
 fails with `ELEMENT_NOT_FOUND`, saying whether it is missing or hidden) and fails at once with
 `MULTIPLE_MATCHES` when several elements match. In `native` mode the touch must also be able to reach the
 element: if a dialog or another window covers it, the action fails with `ELEMENT_OBSCURED` naming what is
-on top. A software keyboard covering the target is dismissed first.
+on top. The part of an element its scroll view or `overflow` ancestor cuts off cannot be touched: a touch
+point there fails with `ELEMENT_OBSCURED` too. A software keyboard covering the target is dismissed first.
 
 ### Assertions
 
@@ -286,7 +287,7 @@ await this.app.device.setStatusBar({ time: '9:41', batteryLevel: 100 }); // for 
 | `setOrientation('portrait' \| 'landscape')` | Rotates the app and waits until its window has the new shape. The app must not lock its orientation (app.json `"orientation": "default"`) |
 | `setAppearance('light' \| 'dark')` | System color scheme; checked against what the app reports. The app must follow the system (`"userInterfaceStyle": "automatic"`) |
 | `setFontScale(n)` | System text size (0.5–4); resolves with the scale applied. Android starts the app again (data kept). Not on the web |
-| `setLocale(tag \| null)` | The app's language and region (BCP 47); `null` = device default. The app is started again with it (data kept). iOS needs the language in `CFBundleLocalizations` |
+| `setLocale(tag \| null)` | The app's language and region (BCP 47); `null` = device default. The app is started again with it (data kept). It passes when the app's preferred language (iOS `AppleLanguages`, what expo-localization reads) or its JS locale is the new one. iOS resolves `Intl` and the app's native strings to a language in `CFBundleLocalizations` only: without it, a warning says so (an app localized in JS works as it is) |
 | `setLocation(lat, lon)` | Simulated GPS position (Android: emulators only) |
 | `setPermission(name, 'grant' \| 'revoke' \| 'reset')` | Change a permission while the app runs. Android kills the app on a revoke: Quiesco starts it again (data kept) before resolving, so the app is back on its first screen. `'reset'` = not determined, as after a fresh install: the app's next request shows the system dialog again (Android: revoked, "don't ask again" cleared; iOS: `simctl privacy reset`; web: the browser asks). On iOS, notifications and the camera can only be reset by reinstalling the app: Quiesco reinstalls and starts it, **deleting its data** (needs `binaryPath`; a warning says so) |
 | `setNetwork('offline' \| 'online')` | Offline: the app's new `fetch` / `XMLHttpRequest` / `WebSocket` connections fail as they do without a network (Quiesco's own connection keeps working; connections already open stay open). Android also turns Wi-Fi and mobile data off, the web reports `navigator.onLine === false`, so NetInfo sees it there; the iOS simulator has no network switch, NetInfo keeps reporting online. Lasts across relaunches |
@@ -324,6 +325,8 @@ await this.app.device.system.tap({ text: 'Cancel' });  // any system UI outside 
 | `clearKeychain()` | iOS: resets the simulator's keychain (every app's). Android has no keychain: `ACTION_NOT_SUPPORTED`, use `relaunch({ clearData: true })` |
 | `system.tap(query, { timeoutMs }?)` | Tap system UI outside the app (a permission dialog, the biometric prompt, a web page's JS dialog). `query`: `{ text }` (exact, typographic quotes ignored, or a RegExp) and / or `{ id }` (Android resource-id, or the part after `:id/`). Waits up to `timeoutMs` (10 s) for it to show up, then for the app to be idle |
 | `system.expectVisible(query)` / `system.expectNotVisible(query)` | Wait until such system UI is (not) on screen; `ELEMENT_NOT_FOUND` / `ASSERTION_FAILED` list the texts seen |
+| `system.type(query, text, { timeoutMs }?)` | Tap the field matching `query` (a field before a label with the same text) and type `text` with the device's input: iOS through the keyboard (any text), Android as key events (`input text`, printable ASCII) or, for other text, pasted through @quiesco/native's clipboard. Then waits for the app to be idle |
+| `system.tapAt({ x, y })` | A system-level touch at a screen point (points / dp from the top-left corner), over whatever is there: e.g. above iOS's share sheet, which closes it |
 | `system.allowPermission()` / `system.denyPermission()` | Answer the runtime permission dialog whatever the device language (Android: by its buttons' ids, also "while using the app" and "don't ask again"; iOS: by position, as iOS lays them out); resolves when the app is in front and idle |
 
 None of these exist on the web (`ACTION_NOT_SUPPORTED`; tag such scenarios `@native`), except `system.tap` /
@@ -332,6 +335,21 @@ sensors). On iOS, system UI belongs to SpringBoard: Quiesco builds a small XCUIT
 it is needed (once per Xcode version, cached in `~/Library/Caches/quiesco/ios-runner`, about 10 s) and starts
 it on the simulator (2–4 s, once per session). Alerts outlive the app: one left by a scenario is dismissed
 (cancel / deny) before the next. To ask for a permission again, reset it first: `setPermission('notifications', 'reset')`.
+
+**What system UI includes.** Besides the system's own UI (SpringBoard on iOS, other packages on Android),
+`system.*` sees UI that is not React (issues #49–#51):
+
+- the app's own dialog windows on Android, e.g. the date dialog of `DateTimePickerAndroid` (`system.tap({ text: '25' })`,
+  then `{ id: 'android:id/button1' }` for OK in any language). A React Native `Modal` is such a window too;
+- on iOS, the app's UIKit views (an inline `DateTimePicker`'s days, the keyboard's keys, the share sheet), and the
+  web page of an authentication session (`expo-web-browser`'s `openAuthSessionAsync`, SafariViewService) or Safari
+  when they are in front: `system.type({ text: 'Email' }, 'ann@example.com')`, then `system.tap({ text: 'Sign in' })`.
+  The app's React views are in that tree as well; tapping them is a real touch all the same. The share sheet can be
+  closed with `system.tapAt` above it. A React Native `Modal` shown a second time in a session can be missing from
+  the tree XCUITest reports; `app.*` reaches its views.
+
+On the Android emulator, `openAuthSessionAsync` needs a browser with Custom Tabs (an image with Google Play);
+the AOSP images have none.
 
 While a permission dialog (another activity) is in front, Android pauses the app's JS timers; Quiesco's idle
 wait notices that the app went to the background and returns, so the tap that opened the dialog completes.

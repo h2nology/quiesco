@@ -50,7 +50,8 @@ export function describeCover(top: HostNode, scoped: readonly HostNode[]): strin
 
 /**
  * Topmost host node whose rect contains `p` (later in render order = drawn on top; zIndex / elevation
- * are not considered). `pointerEvents: none` removes a subtree, `box-none` only the node itself.
+ * are not considered). `pointerEvents: none` removes a subtree, `box-none` only the node itself. A host
+ * that clips its content (scroll view, `overflow`) hides its descendants outside its rect (issue #45).
  */
 export function hitTest(roots: readonly HostNode[], p: { x: number; y: number }): HostNode | null {
   let top: HostNode | null = null;
@@ -59,7 +60,9 @@ export function hitTest(roots: readonly HostNode[], p: { x: number; y: number })
     const pe = n.props['pointerEvents'];
     if (pe === 'none') return;
     const r = n.measure();
-    if (pe !== 'box-none' && r !== null && r.width > 0 && r.height > 0 && contains(r, p)) top = n;
+    const inside = r !== null && r.width > 0 && r.height > 0 && contains(r, p);
+    if (pe !== 'box-none' && inside) top = n;
+    if (n.clipsContent && r !== null && !inside) return;
     for (const c of n.children) visit(c);
   };
   for (const r of roots) visit(r);

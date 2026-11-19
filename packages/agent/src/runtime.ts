@@ -46,7 +46,7 @@ import { ResetManager } from './reset';
 import { appLogBox } from './reset/logbox';
 import type { LogBoxLike } from './reset/logbox';
 import { defaultStorageAdapters } from './reset/storage-defaults';
-import { describeMatcher, findAll, getTree, invisibleReason, isVisible, listElements, sizedAncestor, structureLines, summarize, toRegExp } from './query';
+import { describeMatcher, findAll, getTree, invisibleReason, isCenterVisible, isVisible, listElements, sizedAncestor, structureLines, summarize, toRegExp } from './query';
 import type { Clock, FetchFn, IdleTracker, TimerGlobals } from './sync';
 import { FrameStableTracker, IdleCallbackTracker, NetworkTracker, OfflineGate, ReactTracker, SyncEngine, TimerTracker, ownConnection, realClock } from './sync';
 import { AGENT_VERSION } from './version';
@@ -89,6 +89,12 @@ export interface RuntimeOptions {
 }
 
 type Handlers = { [M in keyof AgentMethods]: (params: ParamsOf<AgentMethods[M]>) => Promise<ResultOf<AgentMethods[M]>> };
+
+/**
+ * scrollTo: each step scrolls by this fraction of the scroll view, less than one view so no target is
+ * skipped (a step is a drag that ends without a fling, issue #46).
+ */
+const SCROLL_TO_STEP = 0.85;
 
 export class AgentRuntime {
   readonly adapter: FiberAdapter;
@@ -571,7 +577,7 @@ export class AgentRuntime {
     const deadline = this.clock.now() + timeoutMs;
     let node: HostNode | undefined;
     let hostInput: HostInput | void = undefined;
-    const perform = (matcher: Matcher): ActionPerformer => this.performer(mode, spec.type, matcher, deadline);
+    const perform = (matcher: Matcher): ActionPerformer => this.performer(mode, spec.type, matcher, deadline, () => this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now())));
 
     switch (spec.type) {
       case 'dismissKeyboard':
@@ -596,7 +602,7 @@ export class AgentRuntime {
         break;
       case 'type':
         node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
-        hostInput = await perform(spec.matcher).type(node, spec.text);
+        hostInput = await perform(spec.matcher).type(node, spec.text, spec.intervalMs);
         break;
       case 'replaceText':
         node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
@@ -815,7 +821,14 @@ export class AgentRuntime {
   }
 
   private jsContext(): js.JsActionContext {
-    return { platform: this.deps.platform(), roots: () => this.adapter.getHostRoots() };
+    return {
+      platform: this.deps.platform(),
+      roots: () => this.adapter.getHostRoots(),
+      sleep: (ms) =>
+        new Promise((r) => {
+          this.clock.setTimeout(r, ms);
+        }),
+    };
   }
 
   /**
@@ -848,7 +861,7 @@ export class AgentRuntime {
    * otherwise the host injects real input (web via Playwright); a host that cannot inject a kind of
    * input rejects it with ACTION_NOT_SUPPORTED.
    */
-  private performer(mode: ParamsOf<AgentMethods['action']>['mode'], action: ActionType, matcher: Matcher, deadline: number): ActionPerformer {
+  private performer(mode: ParamsOf<AgentMethods['action']>['mode'], action: ActionType, matcher: Matcher, deadline: number, settle?: () => Promise<void>): ActionPerformer {
     if (mode === 'js') return jsPerformer(this.jsContext());
     const roots = (): HostNode[] => this.adapter.getHostRoots();
     // Issue #38: what React Native draws over the app outside <QuiescoRoot> (LogBox) covers it too.
@@ -856,7 +869,7 @@ export class AgentRuntime {
     const viewport = (): ReturnType<FiberAdapter['viewport']> => this.adapter.viewport();
     const bridge: NativeBridge | null = this.nativeModule();
     if (bridge === null) return hostPerformer({ clock: this.clock, roots, hitRoots, viewport, matcher, deadline });
-    return nativePerformer({ bridge, clock: this.clock, roots, hitRoots, viewport, action, matcher, deadline });
+    return nativePerformer({ bridge, clock: this.clock, roots, hitRoots, viewport, action, matcher, deadline, ...(settle !== undefined ? { settle } : {}) });
   }
 
   /** scrollTo loops in the agent; with host-injected input it scrolls with the JS fallback instead. */
@@ -865,28 +878,51 @@ export class AgentRuntime {
   }
 
   /**
-   * Scroll `container` until `target` is visible: down until the offset stops changing, then up.
-   * Each step waits for idle so lists can render more items.
+   * Scroll `container` until the center of `target` is visible (where a tap goes, issue #45): down until
+   * the offset stops changing, then up; right / left for a horizontal scroll view (issue #46). Each step
+   * waits for idle so lists can render more items. At an end, a visible target whose center stays
+   * clipped is returned too.
    */
   private async scrollTo(container: Matcher, target: Matcher, opts: SyncOption, deadline: number, performer: ActionPerformer): Promise<HostNode> {
     const containerNode = await this.resolveTarget(container, opts, deadline);
     // Offset readout (layout-based, works in both modes) to notice the end of the content.
     const scrollable = js.findScrollable(containerNode);
     const MAX_STEPS_WITHOUT_OFFSET = 10;
-    for (const direction of ['down', 'up'] as const) {
+    const vp = scrollable?.viewport();
+    const content = scrollable?.content();
+    const horizontal = vp != null && content != null && content.width > vp.width + 1 && content.height <= vp.height + 1;
+    const visibleTargets = (centered: boolean): HostNode[] => {
+      const viewport = this.adapter.viewport();
+      const visible = findAll(this.adapter.getHostRoots(), target).filter((n) => (centered ? isCenterVisible(n, viewport) : isVisible(n, viewport)));
+      if (visible.length > 1) {
+        throw new QuiescoError('MULTIPLE_MATCHES', `${visible.length} elements match ${describeMatcher(target)}`, { matcher: target, matches: visible.map((n) => this.summarize(n)) });
+      }
+      return visible;
+    };
+    for (const direction of horizontal ? (['right', 'left'] as const) : (['down', 'up'] as const)) {
       for (let step = 0; ; step++) {
-        const visible = findAll(this.adapter.getHostRoots(), target).filter((n) => isVisible(n, this.adapter.viewport()));
-        if (visible.length === 1) return visible[0] as HostNode;
-        if (visible.length > 1) {
-          throw new QuiescoError('MULTIPLE_MATCHES', `${visible.length} elements match ${describeMatcher(target)}`, { matcher: target, matches: visible.map((n) => this.summarize(n)) });
-        }
+        const centered = visibleTargets(true);
+        if (centered.length === 1) return centered[0] as HostNode;
         if (this.clock.now() >= deadline || (scrollable === null && step >= MAX_STEPS_WITHOUT_OFFSET)) break;
         const before = scrollable?.offset();
         const current = findAll(this.adapter.getHostRoots(), container)[0] ?? containerNode;
-        await performer.scroll(current, direction);
+        await performer.scroll(current, direction, vp == null ? undefined : (horizontal ? vp.width : vp.height) * SCROLL_TO_STEP, undefined, true);
         await this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now()));
-        const after = scrollable?.offset();
-        if (before !== undefined && after !== undefined && Math.abs(after.x - before.x) < 1 && Math.abs(after.y - before.y) < 1) break; // reached the end
+        let after = scrollable?.offset();
+        if (scrollable != null && before !== undefined && after !== undefined && Math.abs(after.x - before.x) < 1 && Math.abs(after.y - before.y) < 1 && !js.atEdge(scrollable, direction)) {
+          // The drag did not move the content, though there is more of it: something under the finger took
+          // the drag (a wheel picker, a slider). Scroll this step programmatically instead.
+          js.scrollBy(scrollable, direction, vp == null ? undefined : (horizontal ? vp.width : vp.height) * SCROLL_TO_STEP);
+          await this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now()));
+          after = scrollable.offset();
+        }
+        if (before !== undefined && after !== undefined && Math.abs(after.x - before.x) < 1 && Math.abs(after.y - before.y) < 1) {
+          // Reached the end: a target this far in that still has its center clipped (e.g. under an
+          // overlay that clips) is as good as it gets.
+          const partly = visibleTargets(false);
+          if (partly.length === 1) return partly[0] as HostNode;
+          break;
+        }
       }
     }
     throw new QuiescoError('ELEMENT_NOT_FOUND', `Scrolled ${describeMatcher(container)} to both ends without finding a visible ${describeMatcher(target)}`, { matcher: target });

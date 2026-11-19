@@ -280,7 +280,8 @@ export class WebProvider implements DeviceProvider {
           await page.keyboard.press('ControlOrMeta+A');
           await page.keyboard.press('Backspace');
         }
-        if (input.text !== '') await page.keyboard.type(input.text);
+        // keyboard.type sends a key per character; intervalMs paces them like a user (issue #52).
+        if (input.text !== '') await page.keyboard.type(input.text, input.intervalMs !== undefined ? { delay: input.intervalMs } : {});
         return;
       case 'drag': {
         const steps = Math.max(4, Math.round(input.durationMs / 16));

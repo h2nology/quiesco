@@ -6,7 +6,7 @@ export type { AndroidAppConfig, AndroidDeviceConfig, ConfigContext, QuiescoConfi
 export { Driver } from './driver.js';
 export { ElementExpectation } from './expect.js';
 export type { VisibleOptions } from './expect.js';
-export type { ActionOptions, CallOptions } from './driver.js';
+export type { ActionOptions, CallOptions, TypeOptions } from './driver.js';
 export { QuiescoError } from './errors.js';
 export type { HostErrorName } from './errors.js';
 export { consoleLogger, silentLogger } from './logger.js';
