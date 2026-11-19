@@ -110,6 +110,17 @@ describe('IosProvider system UI (6.7 batch C)', () => {
     expect(gone.calls).toEqual(['center', 'tap 200,340']);
   });
 
+  it('opens a link from outside the app and answers SpringBoard\'s "Open in …?" with its right-hand button (#48)', async () => {
+    const confirm = { label: 'Open in “Quiesco Todo”?', id: '', frame: [60, 380, 280, 140], texts: [], buttons: [{ label: 'Cancel', id: '', frame: [60, 476, 140, 44] }, { label: 'Open', id: '', frame: [200, 476, 140, 44] }] };
+    const { runner, calls } = fakeRunner([{ alerts: [], others: [] }, { alerts: [confirm], others: [] }]);
+    const exec: string[][] = [];
+    const p = new IosProvider({ app: { bundleId: 'com.example.todo' }, systemRunner: runner, exec: async (_cmd: string, args: readonly string[]) => (exec.push([...args]), { stdout: Buffer.from(''), stderr: '' }) });
+    (p as unknown as { sim: { udid: string } }).sim = { udid: 'SIM-1' }; // as after boot()
+    await p.openUrlFromOutside('quiescotodo://lifecycle');
+    expect(exec.at(-1)).toEqual(['simctl', 'openurl', 'SIM-1', 'quiescotodo://lifecycle']);
+    expect(calls).toEqual(['tap 270,498']);
+  });
+
   it('looks for a notification for the call\'s timeoutMs, in Notification Center too (#47)', async () => {
     const none = fakeRunner([{ alerts: [], others: [] }]);
     const t0 = Date.now();

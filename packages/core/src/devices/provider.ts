@@ -169,6 +169,11 @@ export interface DeviceProvider {
   sendNotification?(n: NotificationSpec, app: InAppControls): Promise<void>;
   /** Tap the notification with this title in the system's notification list (the app comes to the front); waits up to `timeoutMs` for it. */
   openNotification?(title: string, timeoutMs: number): Promise<void>;
+  /**
+   * Open a link from outside the app while it is in the background (issue #48), as another app would:
+   * the system brings the app to the front with it. iOS answers the system's "Open in …?" confirmation.
+   */
+  openUrlFromOutside?(url: string): Promise<void>;
   /** System UI on screen now that does not belong to the app (dialogs, prompts), topmost window first. */
   systemNodes?(): Promise<SystemNode[]>;
   tapSystemNode?(node: SystemNode): Promise<void>;

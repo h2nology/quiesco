@@ -205,6 +205,8 @@ const BIOMETRIC_ENROLLMENT = 'com.apple.BiometricKit.enrollmentChanged';
 /** openNotification: after BANNER_WAIT_MS (at most half the timeout) without a banner, it looks in Notification Center. */
 const BANNER_WAIT_MS = 2_000;
 const NOTIFICATION_POLL_MS = 250;
+/** openUrlFromOutside: how long SpringBoard's "Open in …?" confirmation may take to show up. */
+const OPEN_URL_CONFIRM_MS = 5_000;
 /** After tapping a notification: how long it may stay on screen before it is tapped again, and how often. */
 const NOTIFICATION_TAP_CONFIRM_MS = 1_500;
 const NOTIFICATION_TAPS = 3;
@@ -684,6 +686,27 @@ export class IosProvider implements DeviceProvider {
 
   async tapSystemNode(node: SystemNode): Promise<void> {
     await this.runner.tap((node.bounds.x1 + node.bounds.x2) / 2, (node.bounds.y1 + node.bounds.y2) / 2);
+  }
+
+  /**
+   * `simctl openurl` while the app is in the background (issue #48). SpringBoard asks "Open in “<app>”?"
+   * (Cancel, Open, in the device's language): Open, the right-hand button, is tapped through the runner.
+   * No confirmation within OPEN_URL_CONFIRM_MS (a link the system opens directly): nothing to answer.
+   */
+  async openUrlFromOutside(url: string): Promise<void> {
+    await this.simctl(['openurl', this.udid, url]);
+    const deadline = Date.now() + OPEN_URL_CONFIRM_MS;
+    for (;;) {
+      const alert = (await this.runner.screen()).alerts.find((a) => a.buttons.length === 2);
+      const open = alert?.buttons[1];
+      if (open !== undefined) {
+        const [x = 0, y = 0, w = 0, h = 0] = open.frame;
+        await this.runner.tap(x + w / 2, y + h / 2);
+        return;
+      }
+      if (Date.now() >= deadline) return;
+      await new Promise((r) => setTimeout(r, NOTIFICATION_POLL_MS));
+    }
   }
 
   /**

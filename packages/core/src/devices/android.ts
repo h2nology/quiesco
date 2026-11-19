@@ -856,6 +856,11 @@ export class AndroidProvider implements DeviceProvider {
     }
   }
 
+  /** A VIEW intent for the app, as another app sends it (issue #48): the app comes to the front with the link. */
+  async openUrlFromOutside(url: string): Promise<void> {
+    await this.shell(`am start -W -a android.intent.action.VIEW -d ${shq(url)} ${shq(this.pkg)}`);
+  }
+
   /** Pulls the notification shade down and taps the notification whose text is `title` (uiautomator), waiting up to `timeoutMs` for it. */
   async openNotification(title: string, timeoutMs: number): Promise<void> {
     await this.shell('cmd statusbar expand-notifications');

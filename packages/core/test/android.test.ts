@@ -622,6 +622,14 @@ describe('AndroidProvider system integration (Phase 6.7)', () => {
     await expect(p.sendNotification({ title: 'x' }, app({ supported: true, enabled: false }))).rejects.toThrow(/grant them/);
   });
 
+  it('opens a link from outside the app with a VIEW intent (#48)', async () => {
+    const { p, calls } = provider([...BOOTED]);
+    await p.boot();
+    calls.length = 0;
+    await p.openUrlFromOutside('myapp://item/1');
+    expect(calls).toEqual(["adb -s emulator-5554 shell am start -W -a android.intent.action.VIEW -d 'myapp://item/1' 'com.example.todo'"]);
+  });
+
   it('opens a notification from the shade by its title; lists what is there when it is missing', async () => {
     const shade = '<hierarchy><node text="" resource-id="" clickable="false" enabled="true" bounds="[0,0][1080,2400]"><node text="Quiesco Todo" resource-id="android:id/app_name_text" clickable="false" enabled="true" bounds="[200,300][500,350]" /><node text="Hello" resource-id="android:id/title" clickable="false" enabled="true" bounds="[200,360][600,420]" /></node></hierarchy>';
     const { p, calls } = provider([...BOOTED, [/cat \/sdcard\/quiesco-ui.xml/, shade]]);

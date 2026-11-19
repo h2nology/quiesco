@@ -394,10 +394,19 @@ export class DeviceApi {
     await this.afterChange(change, 'setLocale');
     if (locale === null) return;
     const lang = (locale.split('-')[0] as string).toLowerCase();
-    await this.waitForApp(
-      (i) => i.locale === undefined || i.locale.toLowerCase().split('-')[0] === lang,
-      (i) => `the app still uses locale ${String(i.locale)}: does it support ${locale}? (iOS: CFBundleLocalizations in Info.plist, expo.ios.infoPlist)`,
+    const sameLang = (l: string | undefined) => l !== undefined && l.toLowerCase().split(/[-_]/)[0] === lang;
+    // The app follows the new language when its preferred languages (iOS AppleLanguages, what
+    // expo-localization reads) or its JS engine's locale have it; an app localized in JS only does not need
+    // CFBundleLocalizations (issue #53).
+    const info = await this.waitForApp(
+      (i) => i.locale === undefined || sameLang(i.locale) || sameLang(i.preferredLanguages?.[0]),
+      (i) => `the app still uses locale ${String(i.locale)}${i.preferredLanguages !== undefined ? ` (preferred languages: ${i.preferredLanguages.join(', ')})` : ''}: does it support ${locale}? (iOS: CFBundleLocalizations in Info.plist, expo.ios.infoPlist)`,
     );
+    if (info.locale !== undefined && !sameLang(info.locale)) {
+      this.host.logger.warn(
+        `setLocale('${locale}'): the app's preferred language is ${String(info.preferredLanguages?.[0])}, but iOS resolved its bundle to ${info.locale}: Intl and the app's native strings stay in that language. Add the language to CFBundleLocalizations (expo.ios.infoPlist) if the app relies on them.`,
+      );
+    }
   }
 
   /** Shake the device (iOS: Simulator's Device > Shake; Android emulator: accelerometer pushes). Waits for idle after. */
@@ -547,7 +556,8 @@ export class DeviceApi {
   }
 
   /** Wait until the app reports `ok`, then for idle; fail with `why` after SETTLE_MS. */
-  private async waitForApp(ok: (i: DeviceInfo) => boolean, why: (i: DeviceInfo) => string): Promise<void> {
+  /** Poll the app's DeviceInfo until `ok`; the info that passed, once the app is idle. */
+  private async waitForApp(ok: (i: DeviceInfo) => boolean, why: (i: DeviceInfo) => string): Promise<DeviceInfo> {
     const deadline = Date.now() + SETTLE_MS;
     let last: DeviceInfo | null = null;
     for (;;) {
@@ -556,6 +566,23 @@ export class DeviceApi {
       if (Date.now() >= deadline) throw new QuiescoError('DEVICE_ERROR', last === null ? 'the app did not answer' : why(last));
       await new Promise((r) => setTimeout(r, STATE_POLL_MS));
     }
+    await this.host.waitForIdle();
+    return last;
+  }
+
+  /**
+   * `app.openUrl(url)` while the app is in the background (issue #48): the link is opened from outside the
+   * app, as a user would from another app; resolves when the app is in front and idle. Called by the
+   * Driver; not part of the test API.
+   * @internal
+   */
+  async openUrlInBackground(url: string): Promise<void> {
+    const p = this.host.provider;
+    if (p.openUrlFromOutside === undefined) throw notSupported('openUrl', p.platform, BACKGROUND_HINT[p.platform]);
+    await p.openUrlFromOutside(url);
+    this.host.appState = 'running';
+    await this.waitForAppState((s) => s === 'active', true);
+    await this.host.reapplyConfig();
     await this.host.waitForIdle();
   }
 
