@@ -33,7 +33,7 @@ All calls take an optional last argument:
 | `tap(target, { point })` | Tap the element: its center, or `point` in its own coordinates (`{ x, y }` from its top-left corner). An element cut off by a scroll view or `overflow` ancestor is tapped at the center of its visible part |
 | `doubleTap(target)` / `multiTap(target, n)` | `n` taps in one gesture |
 | `longPress(target, { durationMs, point })` | Press and hold (default 800 ms) |
-| `type(target, text)` | Focus the input and enter `text` (native mode: through the IME, so any language works) |
+| `type(target, text, { perCharacter, intervalMs })` | Focus the input and enter `text` (native mode: through the IME, so any language works). Native: the whole text at once. `perCharacter: true` types one character at a time, `intervalMs` (80 ms) apart, then waits for idle: the app sees every keystroke (debounced search, input masks, `onKeyPress`). The web already sends a key per character; `perCharacter` adds the interval |
 | `replaceText(target, text)` | Replace the whole text at once |
 | `clear(target)` | Clear a text input |
 | `pressKey(target, 'enter' \| 'backspace')` | The return key (submits; a newline in a multi-line input) or backspace, sent to the field. The field only has to exist: the key reaches it even where a keyboard's return key would be out of reach |
@@ -46,7 +46,7 @@ All calls take an optional last argument:
 | `tapAt({ x, y })` / `longPressAt({ x, y }, { durationMs })` | Touch a point of the screen (window coordinates), whatever is there |
 | `pressBack()` | Android back button; browser back on the web; not available on iOS |
 | `goBack()` | Back to the previous screen as a user would, on every platform: Android back (the keyboard is closed first), browser back, on iOS the navigation bar's back button, else the edge swipe (through the system UI runner). In Expo Router apps it fails when the route did not change |
-| `openUrl(url)` | Open a deep link (in the app on iOS, `am start` on Android, the address bar on the web) |
+| `openUrl(url)` | Open a deep link (in the app on iOS, `am start` on Android, the address bar on the web). While the app is in the background (`sendToBackground()`), from outside the app as another app would (a warm start): iOS answers the system's "Open in …?" confirmation; resolves when the app is in front and idle |
 | `dismissKeyboard()` | Hide the software keyboard |
 | `setValue(target, value)` | Set a value control: slider (number), switch / checkbox (boolean), picker (an item's value or label), segmented control (a segment's value or index), date / time picker or date input (`Date`). See [Value controls](#value-controls) |
 | `adjustSlider(target, position)` | Drag a slider's thumb to `position` (0 = minimum, 1 = maximum) with a real finger / mouse; lands within one step of it |
@@ -287,7 +287,7 @@ await this.app.device.setStatusBar({ time: '9:41', batteryLevel: 100 }); // for 
 | `setOrientation('portrait' \| 'landscape')` | Rotates the app and waits until its window has the new shape. The app must not lock its orientation (app.json `"orientation": "default"`) |
 | `setAppearance('light' \| 'dark')` | System color scheme; checked against what the app reports. The app must follow the system (`"userInterfaceStyle": "automatic"`) |
 | `setFontScale(n)` | System text size (0.5–4); resolves with the scale applied. Android starts the app again (data kept). Not on the web |
-| `setLocale(tag \| null)` | The app's language and region (BCP 47); `null` = device default. The app is started again with it (data kept). iOS needs the language in `CFBundleLocalizations` |
+| `setLocale(tag \| null)` | The app's language and region (BCP 47); `null` = device default. The app is started again with it (data kept). It passes when the app's preferred language (iOS `AppleLanguages`, what expo-localization reads) or its JS locale is the new one. iOS resolves `Intl` and the app's native strings to a language in `CFBundleLocalizations` only: without it, a warning says so (an app localized in JS works as it is) |
 | `setLocation(lat, lon)` | Simulated GPS position (Android: emulators only) |
 | `setPermission(name, 'grant' \| 'revoke' \| 'reset')` | Change a permission while the app runs. Android kills the app on a revoke: Quiesco starts it again (data kept) before resolving, so the app is back on its first screen. `'reset'` = not determined, as after a fresh install: the app's next request shows the system dialog again (Android: revoked, "don't ask again" cleared; iOS: `simctl privacy reset`; web: the browser asks). On iOS, notifications and the camera can only be reset by reinstalling the app: Quiesco reinstalls and starts it, **deleting its data** (needs `binaryPath`; a warning says so) |
 | `setNetwork('offline' \| 'online')` | Offline: the app's new `fetch` / `XMLHttpRequest` / `WebSocket` connections fail as they do without a network (Quiesco's own connection keeps working; connections already open stay open). Android also turns Wi-Fi and mobile data off, the web reports `navigator.onLine === false`, so NetInfo sees it there; the iOS simulator has no network switch, NetInfo keeps reporting online. Lasts across relaunches |

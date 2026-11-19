@@ -21,6 +21,7 @@ import { center, describe, describeCover, hitTest, isAncestor } from './hit-test
 import type { ActionPerformer } from './performer';
 import type { FingerPath } from './multitouch';
 import { framesForSequence, pinchGestures, rotateGesture } from './multitouch';
+import { characters } from './js';
 import * as value from './value';
 import type { WheelContext, WheelState } from './wheel';
 import { selectDate, selectRow } from './wheel';
@@ -78,6 +79,8 @@ export interface NativeContext {
   action: ActionType;
   matcher: Matcher;
   deadline: number;
+  /** Wait until the app is idle (sync), between the steps of an action. */
+  settle?: () => Promise<void>;
 }
 
 const TAP_HOLD_MS = 50;
@@ -354,10 +357,22 @@ export function nativePerformer(ctx: NativeContext): ActionPerformer {
       const { tag } = await ready(node);
       await bridge.tap(tag, 0, 0, TAP_HOLD_MS, count);
     },
-    async type(node, text) {
+    async type(node, text, intervalMs) {
       const { tag } = await ready(node);
       await bridge.tap(tag, 0, 0, TAP_HOLD_MS, 1); // focus, like a user
-      await bridge.typeText(tag, text, false);
+      if (intervalMs === undefined) {
+        await bridge.typeText(tag, text, false);
+        return;
+      }
+      // One key at a time (issue #52): each character is its own insertText / commitText, so the app sees
+      // every keystroke (onChangeText, onKeyPress, debounce) like from a user typing.
+      // Let the keyboard come up first: on Android the IME starting its input connection drops a key
+      // committed meanwhile (the first character was lost, findings L.C).
+      await ctx.settle?.();
+      for (const [i, ch] of characters(text).entries()) {
+        if (i > 0) await sleep(intervalMs);
+        await bridge.typeText(tag, ch, false);
+      }
     },
     async replaceText(node, text) {
       const { tag } = await ready(node);

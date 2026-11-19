@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import * as js from '../src/actions/js';
+import { jsPerformer } from '../src/actions/performer';
 import type { InstanceRef } from '../src/fiber-adapter';
 import { node } from './helpers/nodes';
 
@@ -44,6 +45,28 @@ describe('js type / clear', () => {
     const n = node({ owner: { value: 'ab', onChange: (e: { nativeEvent: { text: string } }) => calls.push(['change', e.nativeEvent.text]), onChangeText: (t: string) => calls.push(['text', t]) } });
     js.typeText(n, 'c', ctx);
     expect(calls).toEqual([['change', 'abc'], ['text', 'abc']]);
+  });
+
+  it('jsPerformer types one character at a time with { intervalMs }, the app re-rendering in between (#52)', async () => {
+    const texts: string[] = [];
+    const owner: Record<string, unknown> = { value: '' };
+    owner['onChangeText'] = (t: string) => {
+      texts.push(t);
+      owner['value'] = t; // the controlled input re-renders with it
+    };
+    const slept: number[] = [];
+    const p = jsPerformer({ platform: 'ios', sleep: async (ms) => void slept.push(ms) });
+    await p.type(node({ owner }), 'Item', 80);
+    expect(texts).toEqual(['I', 'It', 'Ite', 'Item']);
+    expect(slept).toEqual([80, 80, 80]);
+    await p.type(node({ owner }), '!');
+    expect(texts.at(-1)).toBe('Item!');
+  });
+
+  it('characters() splits into what a user types as one key', () => {
+    expect(js.characters('ab')).toEqual(['a', 'b']);
+    expect(js.characters('日本')).toEqual(['日', '本']);
+    expect(js.characters('👨‍👩‍👧x')).toEqual(['👨‍👩‍👧', 'x']);
   });
 
   it('uses defaultValue when uncontrolled, and clear() sends an empty string', () => {

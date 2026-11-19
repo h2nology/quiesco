@@ -72,9 +72,9 @@ export function hostPerformer(ctx: HostContext): ActionPerformer {
     return input;
   };
 
-  const typeAt = async (node: HostNode, text: string, clearFirst: boolean): Promise<HostInput> => {
+  const typeAt = async (node: HostNode, text: string, clearFirst: boolean, intervalMs?: number): Promise<HostInput> => {
     const c = center(await ready(node));
-    return { kind: 'type', x: c.x, y: c.y, text, clearFirst };
+    return { kind: 'type', x: c.x, y: c.y, text, clearFirst, ...(intervalMs !== undefined ? { intervalMs } : {}) };
   };
 
   /** Wheel over the element (at `from`, normalized, when given); `down` reveals content below. */
@@ -94,7 +94,7 @@ export function hostPerformer(ctx: HostContext): ActionPerformer {
     tap: (node, point) => tapAt(node, point === undefined ? {} : { point }),
     longPress: (node, durationMs, point) => tapAt(node, { holdMs: durationMs ?? LONG_PRESS_MS, ...(point === undefined ? {} : { point }) }),
     multiTap: (node, count) => tapAt(node, { count }),
-    type: (node, text) => typeAt(node, text, false),
+    type: (node, text, intervalMs) => typeAt(node, text, false, intervalMs),
     replaceText: (node, text) => typeAt(node, text, true),
     clear: (node) => typeAt(node, '', true),
     async pressKey(node, key) {

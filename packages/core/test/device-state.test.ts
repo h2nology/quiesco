@@ -5,6 +5,7 @@ import type { Orientation } from '@quiesco/protocol';
 import type { QuiescoConfig } from '../src/config';
 import type { Permission } from '../src/devices/permissions';
 import type { ColorScheme, InAppControls, LaunchParams, NotificationSpec, StateChange, StatusBarOptions, SystemNode } from '../src/devices/provider';
+import type { Logger } from '../src/logger';
 import { silentLogger } from '../src/logger';
 import { Session } from '../src/session';
 import { connectAgent } from './helpers/fake-agent';
@@ -18,12 +19,16 @@ interface AppView {
   colorScheme: ColorScheme;
   fontScale: number;
   locale: string;
+  /** iOS AppleLanguages as the app reports them. */
+  preferredLanguages?: string[];
 }
 
 /** Device-state methods recording calls; `honors` = whether the app follows the system (else it locks the setting). */
 class StateProvider extends FakeProvider {
   app: AppView = { width: 400, height: 800, colorScheme: 'light', fontScale: 1, locale: 'en-US' };
   honors = true;
+  /** iOS app without the language in CFBundleLocalizations (#53): the preferred languages follow, Intl does not. */
+  jsOnly = false;
   revokeKills = false;
   locale: string | null = null;
   lagLeft = 0;
@@ -31,7 +36,10 @@ class StateProvider extends FakeProvider {
     super(onLaunch);
   }
   override async launch(p: LaunchParams) {
-    if (this.locale !== null && this.honors) this.app.locale = this.locale;
+    if (this.locale !== null && this.honors) {
+      if (this.jsOnly) this.app.preferredLanguages = [this.locale];
+      else this.app.locale = this.locale;
+    }
     await super.launch(p);
   }
   override async terminate(opts: { keepData?: boolean } = {}) {
@@ -106,6 +114,9 @@ class StateProvider extends FakeProvider {
   async openNotification(title: string, timeoutMs: number) {
     this.calls.push(`open:${title}:${timeoutMs}`);
   }
+  async openUrlFromOutside(url: string) {
+    this.calls.push(`openUrlFromOutside:${url}`);
+  }
   /** What systemNodes() returns on each call (the last one repeats). */
   screens: SystemNode[][] = [[]];
   async systemNodes() {
@@ -138,7 +149,7 @@ afterEach(async () => {
   session = null;
 });
 
-async function start(extra: Partial<QuiescoConfig> = {}) {
+async function start(extra: Partial<QuiescoConfig> = {}, logger: Logger = silentLogger) {
   const agents: FakeAgent[] = [];
   let clip = '';
   const provider: StateProvider = new StateProvider((p) =>
@@ -149,7 +160,7 @@ async function start(extra: Partial<QuiescoConfig> = {}) {
         handler: (m, p) => {
           if (m === 'deviceInfo' && provider.lagLeft > 0 && --provider.lagLeft === 0) Object.assign(provider.app, { width: 400, height: 800 });
           const a = provider.app;
-          if (m === 'deviceInfo') return { window: { width: a.width, height: a.height }, pixelRatio: 2, appState: 'active', colorScheme: a.colorScheme, fontScale: a.fontScale, locale: a.locale };
+          if (m === 'deviceInfo') return { window: { width: a.width, height: a.height }, pixelRatio: 2, appState: 'active', colorScheme: a.colorScheme, fontScale: a.fontScale, locale: a.locale, ...(a.preferredLanguages !== undefined ? { preferredLanguages: a.preferredLanguages } : {}) };
           if (m === 'setOrientation') return { supported: true };
           if (m === 'getClipboard') return { supported: true, text: clip };
           if (m === 'postNotification') return { supported: true, enabled: true };
@@ -167,7 +178,7 @@ async function start(extra: Partial<QuiescoConfig> = {}) {
     config: { apps: { android: { package: 'p' } }, server: { port: 0, host: '127.0.0.1' }, permissions: ['location'], connectTimeoutMs: 2000, ...extra },
     platform: 'android',
     provider,
-    logger: silentLogger,
+    logger,
   });
   provider.calls.length = 0;
   return { provider, agents, device: session.driver.device };
@@ -213,6 +224,15 @@ describe('app.device state (Phase 6.6)', () => {
     expect(agents).toHaveLength(2);
     expect(provider.app.locale).toBe('ja-JP');
     await expect(device.setLocale('日本語')).rejects.toThrow(RangeError);
+  });
+
+  it('setLocale accepts an app that follows the language in JS only (iOS without CFBundleLocalizations, #53), with a warning', async () => {
+    const warnings: string[] = [];
+    const { provider, device } = await start({}, { ...silentLogger, warn: (m: string) => void warnings.push(m) });
+    provider.jsOnly = true;
+    await device.setLocale('fr-FR');
+    expect(provider.app).toMatchObject({ locale: 'en-US', preferredLanguages: ['fr-FR'] });
+    expect(warnings).toEqual([expect.stringMatching(/preferred language is fr-FR, but iOS resolved its bundle to en-US.*CFBundleLocalizations/)]);
   });
 
   it('setPermission: a revoke that kills the app (Android) relaunches it, keeping data', async () => {
@@ -384,6 +404,23 @@ describe('app.device state (Phase 6.6)', () => {
     await device.terminate();
     await expect(device.sendNotification({ title: 'x' })).rejects.toMatchObject({ errorName: 'APP_NOT_RUNNING' });
     await expect(device.openNotification('x')).rejects.toMatchObject({ errorName: 'APP_NOT_RUNNING' });
+  });
+
+  it('openUrl in the background opens the link from outside the app and waits for it (#48); in front, inside the app', async () => {
+    const { provider, agents } = await start();
+    const app = session!.driver;
+    agents[0]!.requests.length = 0;
+    await app.openUrl('myapp://item/1');
+    expect(agents[0]!.requests.find((r) => r.method === 'action')?.params).toMatchObject({ action: { type: 'openUrl', url: 'myapp://item/1' } });
+    expect(provider.calls.filter((c) => c.startsWith('openUrlFromOutside'))).toEqual([]);
+    (session as unknown as { appState: string }).appState = 'background';
+    agents[0]!.requests.length = 0;
+    await app.openUrl('myapp://item/2');
+    expect(provider.calls.filter((c) => c.startsWith('openUrlFromOutside'))).toEqual(['openUrlFromOutside:myapp://item/2']);
+    expect(app.device.appState).toBe('running');
+    expect(methods(agents[0])).toEqual(['deviceInfo', 'configure', 'waitForIdle']);
+    await app.device.terminate();
+    await expect(app.openUrl('myapp://item/3')).rejects.toMatchObject({ errorName: 'APP_NOT_RUNNING' });
   });
 
   it('system UI (6.7 batch C): waits for it to show up, taps it, then waits for the app', async () => {

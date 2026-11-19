@@ -30,7 +30,7 @@ description: "this.app（Driver）、匹配器、App 内 API、配置、场景�
 | `tap(target, { point })` | 点击元素：点击其中心，或其自身坐标系中的 `point`（`{ x, y }`，以左上角为原点）。被滚动视图或 `overflow` 祖先裁掉一部分的元素，点击其可见部分的中心 |
 | `doubleTap(target)` / `multiTap(target, n)` | 在一个手势中点击 `n` 次 |
 | `longPress(target, { durationMs, point })` | 按住（默认 800 ms） |
-| `type(target, text)` | 聚焦输入框并输入 `text`（native 模式下经由输入法，因此任何语言都可以） |
+| `type(target, text, { perCharacter, intervalMs })` | 聚焦输入框并输入 `text`（native 模式下经由输入法，因此任何语言都可以）。native 上一次输入整段文本。`perCharacter: true` 时逐字输入，字间隔 `intervalMs`（80 ms），最后等待空闲：App 会收到每一次按键（防抖搜索、输入掩码、`onKeyPress`）。web 本来就逐键发送，`perCharacter` 只是加上间隔 |
 | `replaceText(target, text)` | 一次性替换全部文本 |
 | `clear(target)` | 清空文本输入框 |
 | `pressKey(target, 'enter' \| 'backspace')` | 向字段发送回车键（提交；在多行输入框中是换行）或退格键。字段只需存在即可：即使键盘的回车键够不着，按键也能送达 |
@@ -43,7 +43,7 @@ description: "this.app（Driver）、匹配器、App 内 API、配置、场景�
 | `tapAt({ x, y })` / `longPressAt({ x, y }, { durationMs })` | 触摸屏幕上的一个点（窗口坐标），不管那里是什么 |
 | `pressBack()` | Android 返回键；web 上是浏览器后退；iOS 上不可用 |
 | `goBack()` | 像用户一样返回上一页，所有平台通用：Android 按返回键（先关闭键盘），web 浏览器后退，iOS 点导航栏的返回按钮，没有时从左边缘右滑（通过系统 UI runner）。使用 Expo Router 的 App，路由没有变化时会失败 |
-| `openUrl(url)` | 打开一个深层链接（iOS 上在 App 内打开，Android 上用 `am start`，web 上通过地址栏） |
+| `openUrl(url)` | 打开一个深层链接（iOS 上在 App 内打开，Android 上用 `am start`，web 上通过地址栏）。App 在后台时（`sendToBackground()`），像从其他 App 打开一样从 App 外打开（热启动）：iOS 会回答系统的「在 … 中打开？」确认；App 回到前台并空闲后 resolve |
 | `dismissKeyboard()` | 隐藏软键盘 |
 | `setValue(target, value)` | 设置值控件：滑块（数字）、开关 / 复选框（布尔值）、选择器（某一项的值或标签）、分段控件（某一段的值或索引）、日期 / 时间选择器或日期输入框（`Date`）。见 [值控件](#value-controls) |
 | `adjustSlider(target, position)` | 用真实的手指 / 鼠标将滑块的滑柄拖到 `position`（0 = 最小值，1 = 最大值）；落点与目标相差不超过一个步长 |
@@ -227,7 +227,7 @@ await this.app.device.setStatusBar({ time: '9:41', batteryLevel: 100 }); // 用�
 | `setOrientation('portrait' \| 'landscape')` | 旋转 App，并等待其窗口变为新的形状。App 不能锁定方向（app.json 中 `"orientation": "default"`） |
 | `setAppearance('light' \| 'dark')` | 系统配色方案；会对照 App 上报的值进行检查。App 必须跟随系统（`"userInterfaceStyle": "automatic"`） |
 | `setFontScale(n)` | 系统文字大小（0.5–4）；resolve 的值为实际采用的缩放比例。Android 会重新启动 App （保留数据）。web 上不可用 |
-| `setLocale(tag \| null)` | App 的语言和地区（BCP 47）；`null` = 设备默认值。会以该设置重新启动 App （保留数据）。iOS 要求该语言在 `CFBundleLocalizations` 中 |
+| `setLocale(tag \| null)` | App 的语言和地区（BCP 47）；`null` = 设备默认值。会以该设置重新启动 App （保留数据）。App 的首选语言（iOS 的 `AppleLanguages`，即 expo-localization 读取的值）或 JS 的 locale 变成新语言即视为成功。iOS 只会把 `Intl` 和 App 的原生字符串解析为 `CFBundleLocalizations` 中的语言：没有该语言时会给出警告（只在 JS 里本地化的 App 照常工作） |
 | `setLocation(lat, lon)` | 模拟 GPS 位置（Android：仅限模拟器） |
 | `setPermission(name, 'grant' \| 'revoke' \| 'reset')` | 在 App 运行时更改权限。Android 在撤销权限时会杀掉 App：Quiesco 会在 resolve 之前重新启动它（保留数据），因此 App 会回到首屏。`'reset'` = 未决定状态，与全新安装后相同：App 下一次请求时会再次显示系统弹窗（Android：撤销并清除“不再询问”；iOS：`simctl privacy reset`；web：由浏览器询问）。在 iOS 上，通知和相机权限只能通过重新安装 App 来重置：Quiesco 会重新安装并启动 App，**删除其数据**（需要 `binaryPath`；会有警告提示） |
 | `setNetwork('offline' \| 'online')` | 离线：App 新建的 `fetch` / `XMLHttpRequest` / `WebSocket` 连接会像没有网络时一样失败（Quiesco 自己的连接不受影响；已打开的连接保持打开）。Android 还会关闭 Wi-Fi 和移动数据，web 会报告 `navigator.onLine === false`，因此这两个平台上 NetInfo 能感知到；iOS 模拟器没有网络开关，NetInfo 仍报告在线。跨重新启动持续有效 |

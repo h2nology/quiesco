@@ -27,6 +27,18 @@ export interface JsActionContext {
   platform: string;
   /** Current host roots, for taps at a point (hit testing). */
   roots?: () => readonly HostNode[];
+  /** Wait between the characters of `type(…, { perCharacter: true })`. */
+  sleep?: (ms: number) => Promise<void>;
+}
+
+/**
+ * The characters a user types one by one: grapheme clusters where the engine can segment them (an emoji
+ * with modifiers is one key), else code points (issue #52).
+ */
+export function characters(text: string): string[] {
+  const Segmenter = (Intl as unknown as { Segmenter?: new (l?: string, o?: { granularity: 'grapheme' }) => { segment(t: string): Iterable<{ segment: string }> } }).Segmenter;
+  if (typeof Segmenter === 'function') return Array.from(new Segmenter(undefined, { granularity: 'grapheme' }).segment(text), (s) => s.segment);
+  return Array.from(text);
 }
 
 /** Holding at least this long is a long press (`longPressAt`). */

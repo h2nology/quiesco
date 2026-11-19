@@ -577,7 +577,7 @@ export class AgentRuntime {
     const deadline = this.clock.now() + timeoutMs;
     let node: HostNode | undefined;
     let hostInput: HostInput | void = undefined;
-    const perform = (matcher: Matcher): ActionPerformer => this.performer(mode, spec.type, matcher, deadline);
+    const perform = (matcher: Matcher): ActionPerformer => this.performer(mode, spec.type, matcher, deadline, () => this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now())));
 
     switch (spec.type) {
       case 'dismissKeyboard':
@@ -602,7 +602,7 @@ export class AgentRuntime {
         break;
       case 'type':
         node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
-        hostInput = await perform(spec.matcher).type(node, spec.text);
+        hostInput = await perform(spec.matcher).type(node, spec.text, spec.intervalMs);
         break;
       case 'replaceText':
         node = await this.resolveActionTarget(spec.matcher, mode, opts, deadline);
@@ -821,7 +821,14 @@ export class AgentRuntime {
   }
 
   private jsContext(): js.JsActionContext {
-    return { platform: this.deps.platform(), roots: () => this.adapter.getHostRoots() };
+    return {
+      platform: this.deps.platform(),
+      roots: () => this.adapter.getHostRoots(),
+      sleep: (ms) =>
+        new Promise((r) => {
+          this.clock.setTimeout(r, ms);
+        }),
+    };
   }
 
   /**
@@ -854,7 +861,7 @@ export class AgentRuntime {
    * otherwise the host injects real input (web via Playwright); a host that cannot inject a kind of
    * input rejects it with ACTION_NOT_SUPPORTED.
    */
-  private performer(mode: ParamsOf<AgentMethods['action']>['mode'], action: ActionType, matcher: Matcher, deadline: number): ActionPerformer {
+  private performer(mode: ParamsOf<AgentMethods['action']>['mode'], action: ActionType, matcher: Matcher, deadline: number, settle?: () => Promise<void>): ActionPerformer {
     if (mode === 'js') return jsPerformer(this.jsContext());
     const roots = (): HostNode[] => this.adapter.getHostRoots();
     // Issue #38: what React Native draws over the app outside <QuiescoRoot> (LogBox) covers it too.
@@ -862,7 +869,7 @@ export class AgentRuntime {
     const viewport = (): ReturnType<FiberAdapter['viewport']> => this.adapter.viewport();
     const bridge: NativeBridge | null = this.nativeModule();
     if (bridge === null) return hostPerformer({ clock: this.clock, roots, hitRoots, viewport, matcher, deadline });
-    return nativePerformer({ bridge, clock: this.clock, roots, hitRoots, viewport, action, matcher, deadline });
+    return nativePerformer({ bridge, clock: this.clock, roots, hitRoots, viewport, action, matcher, deadline, ...(settle !== undefined ? { settle } : {}) });
   }
 
   /** scrollTo loops in the agent; with host-injected input it scrolls with the JS fallback instead. */

@@ -195,6 +195,18 @@ Then('第 {int} 行可见', async function (this: QuiescoWorld, row: number) {
   await this.app.expectVisible({ id: `row-${row}` });
 });
 
+When('在搜索框里逐字输入 {string}', async function (this: QuiescoWorld, text: string) {
+  await this.app.type({ id: 'search' }, text, { perCharacter: true });
+});
+
+When('在搜索框里一次输入 {string}', async function (this: QuiescoWorld, text: string) {
+  await this.app.type({ id: 'search' }, text);
+});
+
+Then('搜索框的统计是 {string}', async function (this: QuiescoWorld, stats: string) {
+  await this.app.expectText({ id: 'search-stats' }, stats);
+});
+
 When('在长列表里找到第 {int} 行并点击它', async function (this: QuiescoWorld, row: number) {
   await this.app.scrollTo({ id: 'long-list' }, { id: `row-${row}` });
   await this.app.tap({ id: `row-${row}` });

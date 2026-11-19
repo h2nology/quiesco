@@ -90,6 +90,14 @@ describe('WebProvider (real Chromium)', () => {
     expect(await evaluate('document.getElementById("i").value')).toBe('买牛奶!');
   });
 
+  it('paces the keys of a per-character type by intervalMs (#52)', async () => {
+    await provider.injectInput({ kind: 'type', x: 100, y: 95, text: '', clearFirst: true });
+    const t0 = Date.now();
+    await provider.injectInput({ kind: 'type', x: 100, y: 95, text: 'abcd', clearFirst: false, intervalMs: 60 });
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(180); // 4 keys, 3+ gaps of 60 ms
+    expect(await evaluate('document.getElementById("i").value')).toBe('abcd');
+  });
+
   it('chooses an option of a <select> and fills a date input at a point (Phase 6.3)', async () => {
     await provider.injectInput({ kind: 'select', x: 60, y: 315, value: 'b' });
     await provider.injectInput({ kind: 'fill', x: 60, y: 365, value: '2027-03-08' });

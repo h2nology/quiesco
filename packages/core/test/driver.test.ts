@@ -68,6 +68,18 @@ describe('Driver', () => {
     ]);
   });
 
+  it('type({ perCharacter }) asks for one character at a time, 80 ms apart by default (#52)', async () => {
+    const { driver, agent } = await setup(() => ({ element: { testID: 'q' } }));
+    await driver.type('q', 'Item 04', { perCharacter: true });
+    await driver.type('q', 'x', { perCharacter: true, intervalMs: 0, timeoutMs: 500 });
+    expect(agent.requests.map((r) => r.params)).toEqual([
+      { action: { type: 'type', matcher: { id: 'q' }, text: 'Item 04', intervalMs: 80 }, mode: 'js' },
+      { action: { type: 'type', matcher: { id: 'q' }, text: 'x', intervalMs: 0 }, mode: 'js', timeoutMs: 500 },
+    ]);
+    expect(() => driver.type('q', 'x', { intervalMs: 50 })).toThrow(/needs perCharacter: true/);
+    expect(() => driver.type('q', 'x', { perCharacter: true, intervalMs: -1 })).toThrow(RangeError);
+  });
+
   it('uses native mode when the app has @quiesco/native, unless configured', async () => {
     const a = await setup(() => ({}), { nativeModule: true });
     await a.driver.tap('x');

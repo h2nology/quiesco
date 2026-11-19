@@ -83,6 +83,10 @@ Then('设备状态页显示的语言是日语', async function (this: QuiescoWor
   await this.app.expectText('locale', /^ja\b/);
 });
 
+Then('设备状态页显示的首选语言是 {string}', async function (this: QuiescoWorld, lang: string) {
+  await this.app.expectText('preferred-language', new RegExp(`^${lang}\\b`));
+});
+
 Then('设备状态页显示位置 {string}', async function (this: QuiescoWorld, position: string) {
   await this.app.expectText('position', position);
 });

@@ -4,12 +4,13 @@
  * - a canvas split into four quadrants (taps at a point),
  * - a counter (multiTap, tapAt),
  * - a note field (pressKey enter / backspace, replaceText),
+ * - a search field that searches 300 ms after the last keystroke (per-character typing, issue #52),
  * - a box dragged with PanResponder onto one of two drop zones (drag),
  * - a 200-row FlatList without getItemLayout (scrollToIndex, scrollToEdge), with pull-to-refresh: on
  *   Android its RefreshControl wraps the native scroll view (issue #44); its header is a horizontal
  *   carousel (a horizontal list inside a vertical one, issue #46). Rows and slides report taps.
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FlatList, PanResponder, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { LayoutRectangle } from 'react-native';
 
@@ -28,6 +29,15 @@ export default function Playground() {
   const [count, setCount] = useState(0);
   const [note, setNote] = useState('');
   const [submitted, setSubmitted] = useState('');
+  const [query, setQuery] = useState('');
+  const [keys, setKeys] = useState(0);
+  const [searches, setSearches] = useState<string[]>([]);
+  // Debounced search: a search runs 300 ms after the last keystroke.
+  useEffect(() => {
+    if (query === '') return undefined;
+    const t = setTimeout(() => setSearches((s) => [...s, query]), 300);
+    return () => clearTimeout(t);
+  }, [query]);
   const [dropped, setDropped] = useState('');
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   // Layouts relative to the drag area (independent of the screen's slide-in animation): the box's center
@@ -85,6 +95,20 @@ export default function Playground() {
         <View style={styles.row}>
           <TextInput testID="note" accessibilityLabel="备注" value={note} onChangeText={setNote} onSubmitEditing={() => setSubmitted(note)} style={styles.input} />
           <Text testID="submitted">{submitted}</Text>
+        </View>
+
+        <View style={styles.row}>
+          <TextInput
+            testID="search"
+            accessibilityLabel="搜索"
+            value={query}
+            onChangeText={(t) => {
+              setKeys((k) => k + 1);
+              setQuery(t);
+            }}
+            style={styles.input}
+          />
+          <Text testID="search-stats">{`按键 ${keys} 次，搜索 ${searches.length} 次：${searches.join(' / ')}`}</Text>
         </View>
 
         <View style={styles.dragArea}>

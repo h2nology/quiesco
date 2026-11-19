@@ -102,6 +102,43 @@ describe('nativePerformer', () => {
     ]);
   });
 
+  it('types one character at a time with intervalMs between them, after one focusing tap (#52)', async () => {
+    const b = bridge();
+    const { p, target } = setup(b);
+    const times: number[] = [];
+    b.typeText.mockImplementation(async (_t: number, text: string) => (times.push(Date.now()), { text }));
+    const t = p.type(target, 'a👍🏽b', 80);
+    await vi.advanceTimersByTimeAsync(500);
+    await t;
+    expect(b.tap).toHaveBeenCalledTimes(1);
+    expect(b.typeText.mock.calls).toEqual([
+      [7, 'a', false],
+      [7, '👍🏽', false], // one key: a grapheme, not its code points
+      [7, 'b', false],
+    ]);
+    expect(times[1]! - times[0]!).toBeGreaterThanOrEqual(80);
+    expect(times[2]! - times[1]!).toBeGreaterThanOrEqual(80);
+  });
+
+  it('waits for the app to settle after the focusing tap before the first key (Android IME start, #52)', async () => {
+    const b = bridge();
+    const order: string[] = [];
+    b.tap.mockImplementation(async () => (order.push('tap'), { handled: true }));
+    b.typeText.mockImplementation(async (_t: number, text: string) => (order.push(`key:${text}`), { text }));
+    const roots = tree({ testID: 'btn', tag: 7, rect: { x: 0, y: 0, width: 100, height: 40 } });
+    const p = nativePerformer({ bridge: b, clock, roots: () => roots, viewport: () => ({ width: 400, height: 800 }), action: 'type', matcher: { id: 'btn' }, deadline: Date.now() + 5000, settle: async () => void order.push('settle') });
+    const t = p.type(roots[0]!, 'ab', 0);
+    await vi.advanceTimersByTimeAsync(200);
+    await t;
+    expect(order).toEqual(['tap', 'settle', 'key:a', 'key:b']);
+    // The whole text at once needs no settling (one commit).
+    order.length = 0;
+    const once = p.type(roots[0]!, 'ab');
+    await vi.advanceTimersByTimeAsync(200);
+    await once;
+    expect(order).toEqual(['tap', 'key:ab']);
+  });
+
   it('scroll down drags the finger up inside the element; swipe follows the finger', async () => {
     const b = bridge([{ x: 0, y: 100, width: 400, height: 600 }]);
     const { p, target } = setup(b);

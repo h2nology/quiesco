@@ -10,13 +10,26 @@ import * as Clipboard from 'expo-clipboard';
 import { fetch as expoFetch } from 'expo/fetch';
 import * as Location from 'expo-location';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
+import { Platform, Pressable, Settings, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 
 import { api, apiBase } from '../api';
 import { ScreenTransition } from '../components/ScreenTransition';
 
 /** What the "复制" button puts on the clipboard. */
 export const COPIED_TEXT = '来自 App 的文字';
+
+/**
+ * The user's first preferred language, what expo-localization's getLocales() reports: iOS AppleLanguages
+ * (it follows the language even when the app does not declare it in CFBundleLocalizations, issue #53),
+ * elsewhere the JS locale.
+ */
+function preferredLanguage(): string {
+  if (Platform.OS === 'ios') {
+    const langs: unknown = Settings.get('AppleLanguages');
+    if (Array.isArray(langs) && typeof langs[0] === 'string') return langs[0];
+  }
+  return Intl.DateTimeFormat().resolvedOptions().locale;
+}
 
 export default function Device() {
   const { width, height, fontScale } = useWindowDimensions();
@@ -100,6 +113,7 @@ export default function Device() {
           {row('外观', 'color-scheme', scheme ?? 'unknown')}
           {row('字号倍数', 'font-scale', fontScale.toFixed(3))}
           {row('语言', 'locale', Intl.DateTimeFormat().resolvedOptions().locale)}
+          {row('首选语言', 'preferred-language', preferredLanguage())}
           {row('网络', 'net-state', net.isConnected === null ? 'unknown' : net.isConnected ? 'online' : 'offline')}
         </View>
         <View testID="device-actions" style={styles.column}>

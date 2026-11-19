@@ -28,6 +28,11 @@ Feature: 设备状态（设备状态页）
     When 把 App 的语言设为 "ja-JP"
     Then 设备状态页显示的语言是日语
 
+  # 示例 App 只声明了 en / ja（CFBundleLocalizations）。只在 JS 里本地化的 App 也能切到别的语言（issue #53）。
+  Scenario: 切换到 App 没有声明的语言
+    When 把 App 的语言设为 "fr-FR"
+    Then 设备状态页显示的首选语言是 "fr"
+
   Scenario: 模拟定位
     When 把设备位置设为北纬 35.68、东经 139.76
     And 读取位置

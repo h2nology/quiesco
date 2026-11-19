@@ -41,6 +41,7 @@ describe('hostPerformer', () => {
   it('returns keyboard input at the field; clear replaces the content', async () => {
     const { p, node } = setup();
     expect(await run(p.type(node, '买牛奶'))).toEqual({ kind: 'type', x: 110, y: 120, text: '买牛奶', clearFirst: false });
+    expect(await run(p.type(node, 'ab', 80))).toEqual({ kind: 'type', x: 110, y: 120, text: 'ab', clearFirst: false, intervalMs: 80 }); // #52
     expect(await run(p.clear(node))).toEqual({ kind: 'type', x: 110, y: 120, text: '', clearFirst: true });
   });
 
