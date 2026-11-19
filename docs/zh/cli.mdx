@@ -86,22 +86,26 @@ yarn dlx quiesco@latest init --upgrade --dry-run  # 只列出改动
 ```sh pnpm
 pnpm exec quiesco build ios
 pnpm exec quiesco build android --force
+pnpm exec quiesco build ios --clean
 ```
 ```sh npm
 npx quiesco build ios
 npx quiesco build android --force
+npx quiesco build ios --clean
 ```
 ```sh bun
 bunx quiesco build ios
 bunx quiesco build android --force
+bunx quiesco build ios --clean
 ```
 ```sh yarn
 yarn quiesco build ios
 yarn quiesco build android --force
+yarn quiesco build ios --clean
 ```
 </CodeGroup>
 
-构建 e2e App（以 `EXPO_PUBLIC_QUIESCO=1` 运行 `expo prebuild`，然后是面向模拟器的 `xcodebuild`，或 `gradlew assembleDebug` / `assembleRelease`），并写到 `apps.<platform>.binaryPath`。在 iOS 上，derived data 路径、构建配置和 scheme 都从这个路径（`<dir>/Build/Products/<Configuration>-iphonesimulator/<Name>.app`）中读取。如果自上次构建以来 App 配置和依赖（含已安装的版本）都没有变化，并且构建产物还在，会跳过 Debug 构建；加 `--force` 则总是构建。Release 构建包含 JS bundle，总是会构建。
+构建 e2e App（以 `EXPO_PUBLIC_QUIESCO=1` 运行 `expo prebuild`，然后是面向模拟器的 `xcodebuild`，或 `gradlew assembleDebug` / `assembleRelease`），并写到 `apps.<platform>.binaryPath`。在 iOS 上，derived data 路径、构建配置和 scheme 都从这个路径（`<dir>/Build/Products/<Configuration>-iphonesimulator/<Name>.app`）中读取。如果自上次构建以来 App 配置和依赖（含已安装的版本）都没有变化，并且构建产物还在，会跳过 Debug 构建；加 `--force` 则总是构建。Release 构建包含 JS bundle，总是会构建。加 `--clean` 会运行 `expo prebuild --clean`：删除 `ios/` / `android/` 并重新生成，在其中手动做过的修改都会丢失。适合在移除原生模块之后，或原生工程状态异常时使用；此时也总是会构建。
 
 ## `quiesco test` {#quiesco-test}
 

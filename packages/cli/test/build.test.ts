@@ -74,6 +74,28 @@ describe('quiesco build (issue #5)', () => {
     expect(rel.steps()).toEqual(['npx expo prebuild --platform android', './gradlew assembleRelease']);
   });
 
+  it('--clean runs expo prebuild --clean and builds even when nothing changed', async () => {
+    const { ctx, deps, steps } = project({ apps: { android: { package: 'p', binaryPath: 'builds/e2e.apk' } } });
+    expect(await buildCommand(['android'], ctx, deps)).toBe(0);
+    ctx.calls.length = 0;
+    expect(await buildCommand(['android', '--clean'], ctx, deps)).toBe(0);
+    expect(steps()).toEqual(['npx expo prebuild --platform android --clean', './gradlew assembleDebug']);
+    const ios = project({ apps: { ios: { bundleId: 'b', binaryPath: IOS_BIN } } });
+    expect(await buildCommand(['--clean', '--platform', 'ios'], ios.ctx, ios.deps)).toBe(0);
+    expect(ios.steps()[0]).toBe('npx expo prebuild --platform ios --clean');
+  });
+
+  it('rejects unknown options and extra arguments instead of ignoring them', async () => {
+    const { ctx, deps, steps } = project({ apps: { ios: { bundleId: 'b', binaryPath: IOS_BIN } } });
+    expect(await buildCommand(['ios', '--cleen'], ctx, deps)).toBe(2);
+    expect(ctx.errors[0]).toMatch(/^quiesco build: unknown option --cleen\n\nUsage: quiesco build/);
+    expect(await buildCommand(['ios', 'android'], ctx, deps)).toBe(2);
+    expect(ctx.errors[1]).toMatch(/^quiesco build: unexpected argument android/);
+    expect(await buildCommand(['--platform', 'ios', 'android'], ctx, deps)).toBe(2);
+    expect(ctx.errors[2]).toMatch(/^quiesco build: unexpected argument android/);
+    expect(steps()).toEqual([]);
+  });
+
   it('explains what is wrong', async () => {
     const noPlatform = project({ apps: {} });
     expect(await buildCommand([], noPlatform.ctx, noPlatform.deps)).toBe(2);

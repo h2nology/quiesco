@@ -20,7 +20,8 @@ Commands:
              --upgrade: bring a project set up by an older version to this one (packages, config, files)
                --dry-run (list the changes only)   --app-dir <dir> (the app, when the tests are elsewhere)
   build    Build the app for e2e tests (prebuild + xcodebuild / gradle) into apps.<platform>.binaryPath
-             ios|android   --force (also when the native inputs did not change)   --app-dir <dir>
+             ios|android   --force (also when the native inputs did not change)
+             --clean (delete and generate ios/ / android/ again: expo prebuild --clean)   --app-dir <dir>
   test     Run the tests with the project's runner (or --runner vitest|jest|cucumber); other arguments go to the runner unchanged
              --platform ios|android|web   --workers N (N devices in parallel)   (quiesco test --help for more)
   ui       Open the test UI: run tests from the browser and watch them live (needs @quiesco/ui)

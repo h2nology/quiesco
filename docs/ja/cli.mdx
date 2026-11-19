@@ -86,22 +86,26 @@ yarn dlx quiesco@latest init --upgrade --dry-run  # 変更内容を示すだけ
 ```sh pnpm
 pnpm exec quiesco build ios
 pnpm exec quiesco build android --force
+pnpm exec quiesco build ios --clean
 ```
 ```sh npm
 npx quiesco build ios
 npx quiesco build android --force
+npx quiesco build ios --clean
 ```
 ```sh bun
 bunx quiesco build ios
 bunx quiesco build android --force
+bunx quiesco build ios --clean
 ```
 ```sh yarn
 yarn quiesco build ios
 yarn quiesco build android --force
+yarn quiesco build ios --clean
 ```
 </CodeGroup>
 
-e2eアプリをビルドし（`EXPO_PUBLIC_QUIESCO=1`付きの`expo prebuild`の後、シミュレーター向けの`xcodebuild`、または`gradlew assembleDebug` / `assembleRelease`）、`apps.<platform>.binaryPath`に書き出します。iOSでは、derived dataのパス、構成、スキームをそのパス（`<dir>/Build/Products/<Configuration>-iphonesimulator/<Name>.app`）から読み取ります。前回からアプリの設定と依存関係（インストール済みのバージョンを含む）が変わっておらず、ビルドが残っていれば、Debugビルドは省略します。`--force`を付けると必ずビルドします。ReleaseビルドはJSバンドルを含むため、常にビルドします。
+e2eアプリをビルドし（`EXPO_PUBLIC_QUIESCO=1`付きの`expo prebuild`の後、シミュレーター向けの`xcodebuild`、または`gradlew assembleDebug` / `assembleRelease`）、`apps.<platform>.binaryPath`に書き出します。iOSでは、derived dataのパス、構成、スキームをそのパス（`<dir>/Build/Products/<Configuration>-iphonesimulator/<Name>.app`）から読み取ります。前回からアプリの設定と依存関係（インストール済みのバージョンを含む）が変わっておらず、ビルドが残っていれば、Debugビルドは省略します。`--force`を付けると必ずビルドします。ReleaseビルドはJSバンドルを含むため、常にビルドします。`--clean`を付けると`expo prebuild --clean`を実行し、`ios/` / `android/`を削除して生成し直します。中を手で変更していた場合、その変更は失われます。ネイティブモジュールを外した後や、ネイティブプロジェクトがおかしくなったときに使います。この場合も必ずビルドします。
 
 ## `quiesco test` {#quiesco-test}
 

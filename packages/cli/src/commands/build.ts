@@ -1,5 +1,5 @@
 /**
- * `quiesco build ios|android [--force]` (issue #5): the e2e build of the app, written where the config's
+ * `quiesco build ios|android [--force] [--clean]` (issue #5): the e2e build of the app, written where the config's
  * `binaryPath` says, so `quiesco test` finds it. `expo prebuild` with EXPO_PUBLIC_QUIESCO=1, then
  * - iOS: `xcodebuild` for the simulator, with the derived data path, configuration and scheme read from
  *   `apps.ios.binaryPath` (`<derivedData>/Build/Products/<Configuration>-iphonesimulator/<Name>.app`);
@@ -7,7 +7,8 @@
  *   `binaryPath` when that is somewhere else.
  * A Debug build is skipped when its native inputs (app config, dependencies and their installed versions)
  * did not change since the last build and the binary is still there; `--force` builds anyway. Release builds
- * embed the JS bundle, so they are always built.
+ * embed the JS bundle, so they are always built. `--clean` runs `expo prebuild --clean` (ios/ / android/ are
+ * deleted and generated again) and so builds anyway too.
  * With `appDir` (or `--app-dir`, issue #54) the app is built in that directory; `binaryPath` stays relative
  * to the working directory (the config's).
  */
@@ -22,11 +23,12 @@ import { APP_DIR_OPTION, appContext } from '../app-dir.js';
 import type { CliContext } from '../context.js';
 import { takeOption } from '../context.js';
 
-export const BUILD_HELP = `Usage: quiesco build ios|android [--force] [--app-dir <dir>]
+export const BUILD_HELP = `Usage: quiesco build ios|android [--force] [--clean] [--app-dir <dir>]
 
 Builds the app for e2e tests (EXPO_PUBLIC_QUIESCO=1: expo prebuild, then xcodebuild / gradle) and writes it
 to apps.<platform>.binaryPath in quiesco.config. A Debug build is skipped when the native inputs (app config,
-dependencies) did not change since the last one; --force builds anyway. The app is the one in appDir
+dependencies) did not change since the last one; --force builds anyway. --clean deletes ios/ / android/ and
+generates them again (expo prebuild --clean; changes made by hand in them are lost), then builds. The app is the one in appDir
 (quiesco.config) or --app-dir when the tests are in a package of their own.`;
 
 export interface BuildDeps {
@@ -77,9 +79,20 @@ export async function buildCommand(args: readonly string[], ctx: CliContext, dep
     ctx.out(BUILD_HELP);
     return 0;
   }
-  const force = args.includes('--force');
-  const appDirOpt = takeOption(args.filter((a) => a !== '--force'), APP_DIR_OPTION);
+  const clean = args.includes('--clean');
+  const force = clean || args.includes('--force');
+  const appDirOpt = takeOption(args.filter((a) => a !== '--force' && a !== '--clean'), APP_DIR_OPTION);
   const rest = takeOption(appDirOpt.rest, '--platform');
+  const unknown = rest.rest.find((a) => a.startsWith('-'));
+  if (unknown !== undefined) {
+    ctx.err(`quiesco build: unknown option ${unknown}\n\n${BUILD_HELP}`);
+    return 2;
+  }
+  const extra = rest.value === undefined ? rest.rest.slice(1) : rest.rest;
+  if (extra.length > 0) {
+    ctx.err(`quiesco build: unexpected argument ${extra[0]}\n\n${BUILD_HELP}`);
+    return 2;
+  }
   const platform = rest.value ?? rest.rest[0];
   if (platform !== 'ios' && platform !== 'android') {
     ctx.err(`quiesco build: choose ios or android (quiesco build ios). The web needs no build: quiesco test starts Metro, or export it with EXPO_PUBLIC_QUIESCO=1 npx expo export --platform web.`);
@@ -116,9 +129,10 @@ export async function buildCommand(args: readonly string[], ctx: CliContext, dep
   }
 
   const env = { ...ctx.env, EXPO_PUBLIC_QUIESCO: '1' };
-  ctx.out(`quiesco build: expo prebuild --platform ${platform} (EXPO_PUBLIC_QUIESCO=1)`);
+  const prebuild = ['expo', 'prebuild', '--platform', platform, ...(clean ? ['--clean'] : [])];
+  ctx.out(`quiesco build: ${prebuild.join(' ')} (EXPO_PUBLIC_QUIESCO=1)`);
   if (app !== ctx) ctx.out(`quiesco build: the app in ${app.cwd}`);
-  let code = await ctx.run('npx', ['expo', 'prebuild', '--platform', platform], { cwd: app.cwd, env });
+  let code = await ctx.run('npx', prebuild, { cwd: app.cwd, env });
   if (code !== 0) return fail(ctx, 'expo prebuild', code);
 
   if (ios !== null) {
