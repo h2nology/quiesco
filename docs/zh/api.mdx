@@ -27,15 +27,15 @@ description: "this.app（Driver）、匹配器、App 内 API、配置、场景�
 
 | 方法 | 作用 |
 |---|---|
-| `tap(target, { point })` | 点击元素：点击其中心，或其自身坐标系中的 `point`（`{ x, y }`，以左上角为原点） |
+| `tap(target, { point })` | 点击元素：点击其中心，或其自身坐标系中的 `point`（`{ x, y }`，以左上角为原点）。被滚动视图或 `overflow` 祖先裁掉一部分的元素，点击其可见部分的中心 |
 | `doubleTap(target)` / `multiTap(target, n)` | 在一个手势中点击 `n` 次 |
 | `longPress(target, { durationMs, point })` | 按住（默认 800 ms） |
 | `type(target, text)` | 聚焦输入框并输入 `text`（native 模式下经由输入法，因此任何语言都可以） |
 | `replaceText(target, text)` | 一次性替换全部文本 |
 | `clear(target)` | 清空文本输入框 |
 | `pressKey(target, 'enter' \| 'backspace')` | 向字段发送回车键（提交；在多行输入框中是换行）或退格键。字段只需存在即可：即使键盘的回车键够不着，按键也能送达 |
-| `scroll(target, direction, { distance, from })` | 滚动一个滚动视图（`down` 显示下方内容）。`from`：起点，在元素内归一化为 0–1 |
-| `scrollTo(container, target)` | 滚动 `container`，直到 `target` 可见 |
+| `scroll(target, direction, { distance, from })` | 滚动一个滚动视图（`down` 显示下方内容）。`from`：起点，在元素内归一化为 0–1。`native` 模式下手指拖动时逐渐减速直到停下，所以内容移动约 `distance`，不会惯性滑动（会少掉系统的触摸 slop：iOS 约 10 pt，Android 约 7%） |
+| `scrollTo(container, target)` | 滚动 `container`，直到 `target` 的中心可见（点击会落在那里）：先向下再向上；横向列表先向右再向左。每一步移动不到一个视图的距离，所以不会跳过元素。滚到内容尽头时，中心仍被裁掉的目标按原样返回 |
 | `scrollToEdge(target, 'top' \| 'bottom' \| 'left' \| 'right')` | 滚动到一端；虚拟化列表在增长时会持续跟随（native 模式：真实的快速滑动） |
 | `scrollToIndex(list, index, { viewPosition })` | 将 FlatList / FlashList 的第 `index` 行滚入视图，无需 `getItemLayout`；`viewPosition` 0 = 顶部，0.5 = 中间，1 = 底部 |
 | `swipe(target, direction, { speed, distance, from })` | 一个滑动手势（带惯性）；`direction` 指手指移动的方向 |
@@ -133,7 +133,7 @@ await this.app.setValue('due-time-picker', '20:15');   // 不必编造一个日�
 
 对于其他识别器，设置 `actions.gestureSlop: { pinch, rotation }`（逻辑单位、弧度；`0`：手指严格按`scale` / `radians` 移动）。一次无法在屏幕内完成的捏合（例如 `pinch(t, 10)`）会像用户那样分成多次捏合完成；手指在元素上按下，并始终留在窗口内。给需要多指的场景加上标签，以便不支持触摸的视口跳过它们（示例中使用`@multi-touch`，并以 `--tags 'not @multi-touch'` 运行桌面视口）。
 
-一个操作需要恰好一个**可见**元素：它会等待目标存在且可见（否则以 `ELEMENT_NOT_FOUND` 失败，并说明是缺失还是被隐藏），当匹配到多个元素时会立即以 `MULTIPLE_MATCHES` 失败。在 `native` 模式下，触摸还必须能到达该元素：如果被对话框或其他窗口遮挡，操作会以 `ELEMENT_OBSCURED` 失败，并指出位于上层的是什么。遮挡目标的软键盘会先被收起。
+一个操作需要恰好一个**可见**元素：它会等待目标存在且可见（否则以 `ELEMENT_NOT_FOUND` 失败，并说明是缺失还是被隐藏），当匹配到多个元素时会立即以 `MULTIPLE_MATCHES` 失败。在 `native` 模式下，触摸还必须能到达该元素：如果被对话框或其他窗口遮挡，操作会以 `ELEMENT_OBSCURED` 失败，并指出位于上层的是什么。元素被其滚动视图或 `overflow` 祖先裁掉的部分无法触摸：触摸点落在那里也会以 `ELEMENT_OBSCURED` 失败。遮挡目标的软键盘会先被收起。
 
 ### 断言
 

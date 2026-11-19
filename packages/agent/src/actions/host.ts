@@ -9,7 +9,7 @@ import type { Direction, HostInput, Matcher, Point, Rect, Speed } from '@quiesco
 
 import { QuiescoError } from '../errors';
 import type { HostNode, Viewport } from '../fiber-adapter';
-import { summarize } from '../query';
+import { summarize, visibleCenterPoint } from '../query';
 import type { Clock } from '../sync';
 import { center, describe, describeCover, hitTest, isAncestor } from './hit-test';
 import type { ActionPerformer } from './performer';
@@ -62,8 +62,10 @@ export function hostPerformer(ctx: HostContext): ActionPerformer {
   };
 
   const tapAt = async (node: HostNode, extra: { count?: number; holdMs?: number; point?: Point } = {}): Promise<HostInput> => {
-    const rect = await ready(node, extra.point);
-    const c = extra.point === undefined ? center(rect) : { x: rect.x + extra.point.x, y: rect.y + extra.point.y };
+    // Partly visible: the center of the visible part (issue #45).
+    const point = extra.point ?? visibleCenterPoint(node, ctx.viewport());
+    const rect = await ready(node, point);
+    const c = point === undefined ? center(rect) : { x: rect.x + point.x, y: rect.y + point.y };
     const input: HostInput = { kind: 'tap', x: c.x, y: c.y };
     if (extra.count !== undefined) input.count = extra.count;
     if (extra.holdMs !== undefined) input.holdMs = extra.holdMs;

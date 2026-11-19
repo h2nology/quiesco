@@ -15,7 +15,7 @@ import type { ActionType, Direction, KeyName, Matcher, Point, Rect, Speed } from
 
 import { QuiescoError } from '../errors';
 import type { HostNode, Viewport } from '../fiber-adapter';
-import { describeMatcher, summarize } from '../query';
+import { describeMatcher, summarize, visibleCenterPoint } from '../query';
 import type { Clock } from '../sync';
 import { center, describe, describeCover, hitTest, isAncestor } from './hit-test';
 import type { ActionPerformer } from './performer';
@@ -84,7 +84,17 @@ const TAP_HOLD_MS = 50;
 const LONG_PRESS_MS = 800;
 const STABLE_POLL_MS = 16;
 const SWIPE_MS: Record<Speed, number> = { slow: 600, normal: 300, fast: 120 };
-/** Slow drag for scrolling: no fling, so the content moves by about the drag distance. */
+/**
+ * Scrolling drag: the finger slows down to a stop (ease-out) so the scroll view gets no fling and the
+ * content moves by about the drag distance. A steady drag released at full speed flings on iOS above
+ * about 200 pt/s (issue #46: 240 pt in 500 ms moved the content by 457 pt). 650 ms: Android loses about
+ * 7% of the distance (400 ms: 14%). A scrollTo step only has to stay below one view: 400 ms, as a long
+ * scrollTo takes many steps (findings L.B).
+ */
+const SCROLL_EASE_MS = 650;
+const SCROLL_STEP_EASE_MS = 400;
+const SCROLL_EASE_STEPS = 10;
+/** Apps without gesture() (built before Phase 6.2): a steady, slow swipe. */
 const SCROLL_DRAG_MS = 500;
 const DRAG_FRACTION = 0.35;
 /** Rest at the drop point before releasing, so drop targets see the finger arrive. */
@@ -93,6 +103,20 @@ const DROP_HOLD_MS = 100;
 const SLIDER_PRESS_MS = 80;
 /** Every slider drag ends with a straight move of this length onto the aim (beyond the touch slop). */
 const SLIDER_RUN_UP = 80;
+
+/**
+ * A finger path from `start` to `end` that slows down to a stop (cubic ease-out), flat [x, y, tMs, ...]
+ * for `bridge.gesture`: the last step moves by (1/steps)³ of the distance, so the release has no speed.
+ */
+export function easeOutPath(start: Point, end: Point, durationMs: number, steps: number): number[] {
+  const path: number[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const u = i / steps;
+    const k = 1 - (1 - u) ** 3;
+    path.push(start.x + (end.x - start.x) * k, start.y + (end.y - start.y) * k, durationMs * u);
+  }
+  return path;
+}
 
 /** The current @quiesco/native lacks `fn` (the app was built before it existed). */
 function needsRebuild(fn: string, action: ActionType): QuiescoError {
@@ -245,7 +269,7 @@ export function nativePerformer(ctx: NativeContext): ActionPerformer {
    * center; with `from` (normalized 0–1) it starts there and travels `distance` (default: about 70% of
    * the element) in the finger direction.
    */
-  const drag = async (node: HostNode, finger: Direction, durationMs: number, distance?: number, from?: Point): Promise<void> => {
+  const drag = async (node: HostNode, finger: Direction, durationMs: number, distance?: number, from?: Point, easeOutMs?: number): Promise<void> => {
     const { tag, rect } = await ready(node);
     const vertical = finger === 'up' || finger === 'down';
     const span = vertical ? rect.height : rect.width;
@@ -261,6 +285,11 @@ export function nativePerformer(ctx: NativeContext): ActionPerformer {
       start = { x: rect.x + from.x * rect.width, y: rect.y + from.y * rect.height };
       const d = distance ?? span * DRAG_FRACTION * 2;
       end = vertical ? { x: start.x, y: start.y + sign * d } : { x: start.x + sign * d, y: start.y };
+    }
+    // Apps built before Phase 6.2 have no gesture(): a steady swipe, as before.
+    if (easeOutMs !== undefined && bridge.gesture !== undefined) {
+      await bridge.gesture(tag, easeOutPath(start, end, easeOutMs, SCROLL_EASE_STEPS));
+      return;
     }
     await bridge.swipe(tag, start.x, start.y, end.x, end.y, durationMs);
   };
@@ -309,11 +338,14 @@ export function nativePerformer(ctx: NativeContext): ActionPerformer {
       await playFingers(tag, [fingers]);
     },
     async tap(node, point) {
+      // Partly visible (e.g. at the edge of a list): the center of the visible part (issue #45).
+      point ??= visibleCenterPoint(node, ctx.viewport());
       if (point !== undefined) return pressAt(node, point, TAP_HOLD_MS);
       const { tag } = await ready(node);
       await bridge.tap(tag, 0, 0, TAP_HOLD_MS, 1);
     },
     async longPress(node, durationMs, point) {
+      point ??= visibleCenterPoint(node, ctx.viewport());
       if (point !== undefined) return pressAt(node, point, durationMs ?? LONG_PRESS_MS);
       const { tag } = await ready(node);
       await bridge.tap(tag, 0, 0, durationMs ?? LONG_PRESS_MS, 1);
@@ -343,7 +375,7 @@ export function nativePerformer(ctx: NativeContext): ActionPerformer {
       // key of the keyboard can be out of reach).
       await bridge.pressKey(tagOf(node, ctx.action, ctx.matcher), key);
     },
-    scroll: (node, direction, distance, from) => drag(node, fingerFor(direction), SCROLL_DRAG_MS, distance, from),
+    scroll: (node, direction, distance, from, step) => drag(node, fingerFor(direction), SCROLL_DRAG_MS, distance, from, step === true ? SCROLL_STEP_EASE_MS : SCROLL_EASE_MS),
     swipe: (node, direction, speed, distance, from) => drag(node, direction, SWIPE_MS[speed ?? 'normal'], distance, from),
     async drag(node, to, holdMs, durationMs) {
       const { tag, rect } = await ready(node);

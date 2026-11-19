@@ -40,6 +40,18 @@ describe('hitTest', () => {
     const covered = [...roots, node({ testID: 'toast', rect: { x: 0, y: 0, width: 400, height: 100 } })];
     expect(hitTest(covered, { x: 20, y: 15 })?.testID).toBe('toast');
   });
+
+  it('does not hit the part of a node its clipping ancestor cuts off (#45)', () => {
+    // A row scrolled up under the header: its rect reaches into the header, but the list clips it.
+    const roots = tree(
+      { testID: 'header', rect: { x: 0, y: 150, width: 300, height: 50 } },
+      { testID: 'list', clips: true, rect: { x: 0, y: 200, width: 300, height: 400 }, children: [{ testID: 'row', rect: { x: 0, y: 154, width: 300, height: 52 } }] },
+    );
+    expect(hitTest(roots, { x: 150, y: 180 })?.testID).toBe('header');
+    expect(hitTest(roots, { x: 150, y: 203 })?.testID).toBe('row');
+    const unclipped = tree({ testID: 'header', rect: { x: 0, y: 150, width: 300, height: 50 } }, { testID: 'box', rect: { x: 0, y: 200, width: 300, height: 400 }, children: [{ testID: 'row', rect: { x: 0, y: 154, width: 300, height: 52 } }] });
+    expect(hitTest(unclipped, { x: 150, y: 180 })?.testID).toBe('row'); // overflow visible: drawn over the header
+  });
 });
 
 describe('nativePerformer', () => {

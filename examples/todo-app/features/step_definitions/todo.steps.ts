@@ -195,6 +195,32 @@ Then('第 {int} 行可见', async function (this: QuiescoWorld, row: number) {
   await this.app.expectVisible({ id: `row-${row}` });
 });
 
+When('在长列表里找到第 {int} 行并点击它', async function (this: QuiescoWorld, row: number) {
+  await this.app.scrollTo({ id: 'long-list' }, { id: `row-${row}` });
+  await this.app.tap({ id: `row-${row}` });
+});
+
+When('在横向列表里找到第 {int} 张并点击它', async function (this: QuiescoWorld, slide: number) {
+  await this.app.scrollTo({ id: 'carousel' }, { id: `slide-${slide}` });
+  await this.app.tap({ id: `slide-${slide}` });
+});
+
+/** Where the first slide was before the last carousel scroll (the step after it compares). */
+let slideX: number | undefined;
+
+When('把横向列表向右滚动 {int}', async function (this: QuiescoWorld, distance: number) {
+  slideX = (await this.app.query({ id: 'slide-1' }))[0]?.rect?.x;
+  await this.app.scroll({ id: 'carousel' }, 'right', { distance });
+});
+
+Then('横向列表移动了大约 {int}', async function (this: QuiescoWorld, distance: number) {
+  const now = (await this.app.query({ id: 'slide-1' }))[0]?.rect?.x;
+  if (slideX === undefined || now === undefined) throw new Error('slide-1 is not rendered');
+  const moved = slideX - now;
+  // A scroll moves the content by about the distance: the touch slop (≈ 10 pt) less, no fling (issue #46).
+  if (Math.abs(moved - distance) > distance * 0.2) throw new Error(`the carousel moved ${moved.toFixed(1)}, not about ${distance}`);
+});
+
 // ---- value controls (Phase 6.3) ----
 
 Given('打开值控件页', async function (this: QuiescoWorld) {

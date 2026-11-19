@@ -27,15 +27,15 @@ description: "this.app（Driver）、マッチャー、アプリ内API、設定�
 
 | メソッド | 動作 |
 |---|---|
-| `tap(target, { point })` | 要素をタップします。中心、または要素自身の座標系での`point`（左上隅からの`{ x, y }`） |
+| `tap(target, { point })` | 要素をタップします。中心、または要素自身の座標系での`point`（左上隅からの`{ x, y }`）。スクロールビューや`overflow`の祖先に一部が切り取られた要素は、見えている部分の中心をタップします |
 | `doubleTap(target)` / `multiTap(target, n)` | 1つのジェスチャーで`n`回タップ |
 | `longPress(target, { durationMs, point })` | 押し続ける（デフォルト800 ms） |
 | `type(target, text)` | 入力欄にフォーカスして`text`を入力（nativeモード：IME経由なので、どの言語でも入力できます） |
 | `replaceText(target, text)` | テキスト全体を一度に置き換える |
 | `clear(target)` | テキスト入力をクリアする |
 | `pressKey(target, 'enter' \| 'backspace')` | Returnキー（送信。複数行入力では改行）またはBackspaceをフィールドに送ります。フィールドが存在しさえすればよく、キーボードのReturnキーに手が届かない状況でもキーはフィールドに届きます |
-| `scroll(target, direction, { distance, from })` | スクロールビューをスクロールする（`down`で下のコンテンツが現れる）。`from`：要素内で0–1に正規化した開始点 |
-| `scrollTo(container, target)` | `target`が表示されるまで`container`をスクロールする |
+| `scroll(target, direction, { distance, from })` | スクロールビューをスクロールする（`down`で下のコンテンツが現れる）。`from`：要素内で0–1に正規化した開始点。`native`モードでは指を徐々に減速させて止めるので、慣性スクロールせずにコンテンツがおよそ`distance`だけ動きます（システムのタッチスロップの分だけ短くなります。iOSで約10pt、Androidで約7%） |
+| `scrollTo(container, target)` | `target`の中心（タップが当たる位置）が見えるまで`container`をスクロールする。下、次に上へ。横方向のリストは右、次に左へ。1ステップの移動は1画面分より短いので、要素を飛ばしません。コンテンツの端まで来ても中心が切り取られたままのターゲットは、そのまま返します |
 | `scrollToEdge(target, 'top' \| 'bottom' \| 'left' \| 'right')` | 端までスクロールする。仮想化リストは伸びていく間も追従します（nativeモード：実際のフリック） |
 | `scrollToIndex(list, index, { viewPosition })` | FlatList / FlashListの`index`行目を表示する。`getItemLayout`がなくても動作します。`viewPosition`は0 = 上端、0.5 = 中央、1 = 下端 |
 | `swipe(target, direction, { speed, distance, from })` | スワイプジェスチャー（慣性あり）。`direction`は指の動く向き |
@@ -134,7 +134,7 @@ await this.app.setValue('due-time-picker', '20:15');   // 日付をでっち上�
 
 別の認識器を使う場合は`actions.gestureSlop: { pinch, rotation }`を設定します（論理単位、ラジアン。`0`：指を`scale` / `radians`のとおり正確に動かす）。1回では画面に収まらないピンチ（例：`pinch(t, 10)`）は、ユーザーと同じように複数回のピンチに分けて行います。指は要素の上に置かれ、ウィンドウの外には出ません。複数の指が必要なシナリオにはタグを付け、タッチ非対応のビューポートではスキップできるようにします（サンプルでは`@multi-touch`を使い、デスクトップのビューポートを`--tags 'not @multi-touch'`で実行しています）。
 
-アクションには、**表示されている**要素がちょうど1つ必要です。ターゲットが存在して表示されるまで待ち（そうならなければ`ELEMENT_NOT_FOUND`で失敗し、存在しないのか隠れているのかを示します）、複数の要素がマッチした場合は直ちに`MULTIPLE_MATCHES`で失敗します。`native`モードでは、タッチが要素に届くことも必要です。ダイアログや別のウィンドウが要素を覆っている場合、アクションは`ELEMENT_OBSCURED`で失敗し、上に何があるかを示します。ソフトウェアキーボードがターゲットを覆っている場合は、先にキーボードを閉じます。
+アクションには、**表示されている**要素がちょうど1つ必要です。ターゲットが存在して表示されるまで待ち（そうならなければ`ELEMENT_NOT_FOUND`で失敗し、存在しないのか隠れているのかを示します）、複数の要素がマッチした場合は直ちに`MULTIPLE_MATCHES`で失敗します。`native`モードでは、タッチが要素に届くことも必要です。ダイアログや別のウィンドウが要素を覆っている場合、アクションは`ELEMENT_OBSCURED`で失敗し、上に何があるかを示します。スクロールビューや`overflow`の祖先に切り取られた部分にはタッチできません。タッチ位置がそこにある場合も`ELEMENT_OBSCURED`で失敗します。ソフトウェアキーボードがターゲットを覆っている場合は、先にキーボードを閉じます。
 
 ### アサーション
 

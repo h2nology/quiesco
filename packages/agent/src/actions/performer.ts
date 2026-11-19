@@ -28,8 +28,11 @@ export interface ActionPerformer {
   replaceText(node: HostNode, text: string): Performed;
   clear(node: HostNode): Performed;
   pressKey(node: HostNode, key: KeyName): Performed;
-  /** `down` reveals content further down. `from`: start inside the element, normalized 0–1. */
-  scroll(node: HostNode, direction: Direction, distance?: number, from?: Point): Performed;
+  /**
+   * `down` reveals content further down. `from`: start inside the element, normalized 0–1. `step`: one
+   * step of scrollTo, where speed matters more than the exact distance.
+   */
+  scroll(node: HostNode, direction: Direction, distance?: number, from?: Point, step?: boolean): Performed;
   /** Finger direction: `up` moves the finger up. */
   swipe(node: HostNode, direction: Direction, speed?: Speed, distance?: number, from?: Point): Performed;
   /** Press the element's center, hold `holdMs`, move to the window point `to` over `durationMs`, release. */

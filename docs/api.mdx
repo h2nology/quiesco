@@ -30,15 +30,15 @@ All calls take an optional last argument:
 
 | Method | What it does |
 |---|---|
-| `tap(target, { point })` | Tap the element: its center, or `point` in its own coordinates (`{ x, y }` from its top-left corner) |
+| `tap(target, { point })` | Tap the element: its center, or `point` in its own coordinates (`{ x, y }` from its top-left corner). An element cut off by a scroll view or `overflow` ancestor is tapped at the center of its visible part |
 | `doubleTap(target)` / `multiTap(target, n)` | `n` taps in one gesture |
 | `longPress(target, { durationMs, point })` | Press and hold (default 800 ms) |
 | `type(target, text)` | Focus the input and enter `text` (native mode: through the IME, so any language works) |
 | `replaceText(target, text)` | Replace the whole text at once |
 | `clear(target)` | Clear a text input |
 | `pressKey(target, 'enter' \| 'backspace')` | The return key (submits; a newline in a multi-line input) or backspace, sent to the field. The field only has to exist: the key reaches it even where a keyboard's return key would be out of reach |
-| `scroll(target, direction, { distance, from })` | Scroll a scroll view (`down` reveals content below). `from`: start point normalized 0–1 in the element |
-| `scrollTo(container, target)` | Scroll `container` until `target` is visible |
+| `scroll(target, direction, { distance, from })` | Scroll a scroll view (`down` reveals content below). `from`: start point normalized 0–1 in the element. `native` mode drags a finger that slows down to a stop, so the content moves by about `distance` without a fling (the system's touch slop less: about 10 pt on iOS, 7% on Android) |
+| `scrollTo(container, target)` | Scroll `container` until the center of `target` is visible (where a tap goes): down, then up; right, then left for a horizontal list. Each step moves less than one view, so nothing is skipped. At an end of the content a target whose center stays cut off is returned as it is |
 | `scrollToEdge(target, 'top' \| 'bottom' \| 'left' \| 'right')` | Scroll to an end; a virtualized list is followed while it grows (native mode: real flings) |
 | `scrollToIndex(list, index, { viewPosition })` | Bring row `index` of a FlatList / FlashList into view, also without `getItemLayout`; `viewPosition` 0 = top, 0.5 = middle, 1 = bottom |
 | `swipe(target, direction, { speed, distance, from })` | A swipe gesture (with inertia); `direction` is the finger's |
@@ -184,7 +184,8 @@ An action needs exactly one **visible** element: it waits until the target exist
 fails with `ELEMENT_NOT_FOUND`, saying whether it is missing or hidden) and fails at once with
 `MULTIPLE_MATCHES` when several elements match. In `native` mode the touch must also be able to reach the
 element: if a dialog or another window covers it, the action fails with `ELEMENT_OBSCURED` naming what is
-on top. A software keyboard covering the target is dismissed first.
+on top. The part of an element its scroll view or `overflow` ancestor cuts off cannot be touched: a touch
+point there fails with `ELEMENT_OBSCURED` too. A software keyboard covering the target is dismissed first.
 
 ### Assertions
 

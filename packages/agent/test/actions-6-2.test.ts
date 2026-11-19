@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { hostPerformer } from '../src/actions/host';
 import * as js from '../src/actions/js';
-import { nativePerformer } from '../src/actions/native';
+import { easeOutPath, nativePerformer } from '../src/actions/native';
 import type { NativeBridge } from '../src/actions/native';
 import type { Clock } from '../src/sync';
 import { node, tree } from './helpers/nodes';
@@ -87,8 +87,9 @@ describe('js mode', () => {
     const instance = { call: (a: unknown) => calls.push(a), hostNodes: () => [wrapper], raw: () => ({}) };
     const wrapper = node({
       type: 'AndroidSwipeRefreshLayout',
+      clips: true,
       rect: { x: 0, y: 184, width: 411, height: 634 },
-      children: [{ type: 'RCTScrollView', testID: 'item-list', rect: { x: 0, y: 184, width: 411, height: 634 }, children: [{ rect: { x: 0, y: -816, width: 411, height: 7539 }, children: [{ testID: 'row' }] }] }],
+      children: [{ type: 'RCTScrollView', testID: 'item-list', clips: true, rect: { x: 0, y: 184, width: 411, height: 634 }, children: [{ rect: { x: 0, y: -816, width: 411, height: 7539 }, children: [{ testID: 'row' }] }] }],
       instance,
     });
     const row = wrapper.children[0]!.children[0]!.children[0]!;
@@ -99,6 +100,28 @@ describe('js mode', () => {
     expect(s.content()?.height).toBe(7539);
     js.scrollToEdge(s, 'bottom');
     expect(calls).toEqual([{ x: 0, y: 7539 - 634, animated: false }]);
+  });
+
+  it('measures the scroll view inside react-native-web\'s refresh wrapper (a View with the scroll view\'s style and a border, #44)', () => {
+    const instance = { call: () => undefined, hostNodes: () => [wrapper], raw: () => ({}) };
+    const wrapper = node({
+      type: 'div',
+      clips: true,
+      rect: { x: 0, y: 183, width: 413, height: 636 },
+      children: [{ type: 'div', testID: 'item-list', clips: true, rect: { x: 1, y: 184, width: 411, height: 634 }, children: [{ type: 'div', rect: { x: 1, y: -816, width: 411, height: 7539 } }] }],
+      instance,
+    });
+    const s = js.findScrollable(wrapper)!;
+    expect(s.offset()).toEqual({ x: 0, y: 1000 });
+    expect(s.host()?.testID).toBe('item-list');
+    // A plain web ScrollView: its first host clips, it is the scroll view.
+    const plain = node({ type: 'div', testID: 'plain', clips: true, rect: { x: 0, y: 0, width: 100, height: 100 }, children: [{ type: 'div', rect: { x: 0, y: -50, width: 100, height: 500 } }] });
+    (plain.spec as { instance?: unknown }).instance = { call: () => undefined, hostNodes: () => [plain], raw: () => ({}) };
+    expect(js.findScrollable(plain)!.offset()).toEqual({ x: 0, y: 50 });
+    // Content that fits in a scroll view whose content container clips (overflow: hidden): still the scroll view.
+    const fits = node({ type: 'div', clips: true, rect: { x: 0, y: 0, width: 100, height: 100 }, children: [{ type: 'div', clips: true, rect: { x: 0, y: 0, width: 100, height: 60 } }] });
+    (fits.spec as { instance?: unknown }).instance = { call: () => undefined, hostNodes: () => [fits], raw: () => ({}) };
+    expect(js.findScrollable(fits)!.content()?.height).toBe(60);
   });
 });
 
@@ -122,6 +145,25 @@ function nativeSetup(b: NativeBridge, action: 'tap' | 'drag' | 'pressKey' = 'tap
 describe('native mode', () => {
   beforeEach(() => vi.useFakeTimers({ toFake: ['setTimeout', 'Date'] }));
   afterEach(() => vi.useRealTimers());
+
+  it('taps the center of the visible part of a partly visible element (#45)', async () => {
+    const b = bridge();
+    b.locate.mockResolvedValue({ found: true, x: 0, y: 590, width: 300, height: 52, windowHasFocus: true });
+    const roots = tree(
+      { testID: 'header', rect: { x: 0, y: 150, width: 300, height: 50 } },
+      { testID: 'list', clips: true, rect: { x: 0, y: 200, width: 300, height: 400 }, children: [{ testID: 'row', tag: 7, rect: { x: 0, y: 590, width: 300, height: 52 } }] },
+    );
+    const row = roots[1]!.children[0]!;
+    const p = nativePerformer({ bridge: b, clock, roots: () => roots, viewport: () => ({ width: 400, height: 800 }), action: 'tap', matcher: { id: 'row' }, deadline: Date.now() + 5000 });
+    // 10 pt of the row are in the list (y 590–600): touch y 595, not its center 616 (outside the list).
+    await run(p.tap(row));
+    await run(p.longPress(row));
+    expect(b.gesture.mock.calls).toEqual([
+      [7, [150, 595, 0, 150, 595, 50]],
+      [7, [150, 595, 0, 150, 595, 800]],
+    ]);
+    expect(b.tap).not.toHaveBeenCalled();
+  });
 
   it('tap / long press at a point: a hold at that window point through gesture()', async () => {
     const b = bridge();
@@ -159,7 +201,25 @@ describe('native mode', () => {
     await run(p.swipe(target, 'left', 'fast', 100, { x: 0.9, y: 0.5 }));
     expect(b.swipe).toHaveBeenLastCalledWith(7, 190, 120, 90, 120, 120);
     await run(p.scroll(target, 'down', 30, { x: 0.5, y: 0.75 }));
-    expect(b.swipe).toHaveBeenLastCalledWith(7, 110, 130, 110, 100, 500); // scrolling down = finger up
+    // Scrolling down = finger up, slowing down to a stop (no fling, issue #46).
+    expect(b.gesture).toHaveBeenLastCalledWith(7, easeOutPath({ x: 110, y: 130 }, { x: 110, y: 100 }, 650, 10));
+    const old = bridge();
+    delete (old as Partial<typeof old>).gesture;
+    await run(p.scroll(target, 'down', 30, { x: 0.5, y: 0.75 }, true));
+    expect(b.gesture).toHaveBeenLastCalledWith(7, easeOutPath({ x: 110, y: 130 }, { x: 110, y: 100 }, 400, 10)); // a scrollTo step: quicker
+    const legacy = nativeSetup(old);
+    await run(legacy.p.scroll(legacy.target, 'down', 30, { x: 0.5, y: 0.75 }));
+    expect(old.swipe).toHaveBeenLastCalledWith(7, 110, 130, 110, 100, 500); // apps without gesture(): a steady swipe
+  });
+
+  it('easeOutPath slows the finger down to a stop', () => {
+    const path = easeOutPath({ x: 0, y: 300 }, { x: 0, y: 60 }, 650, 10);
+    expect(path.slice(0, 3)).toEqual([0, 300, 0]);
+    expect(path.slice(-3)).toEqual([0, 60, 650]);
+    const ys = path.filter((_, i) => i % 3 === 1);
+    const steps = ys.slice(1).map((y, i) => (ys[i] as number) - y);
+    for (let i = 1; i < steps.length; i++) expect(steps[i]).toBeLessThan(steps[i - 1] as number); // each step shorter
+    expect(steps.at(-1)).toBeLessThan(0.5); // ≈ 0.24 pt in the last 65 ms: no speed at the release
   });
 
   it('tapAt taps a window point without an element', async () => {
