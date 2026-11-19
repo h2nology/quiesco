@@ -21,3 +21,4 @@
 - M.C 提交 + PR #71（base fix/ios-open-notification）。
 - M.D：分支 feat/native-module-tracker。实现 native-module tracker + 配置 + 三语文档 + 单元测试。真机：阈值 60 s 时 Android SYNC_TIMEOUT 列出 ExpoLocation.requestForegroundPermissionsAsync（包装生效、#66 tick 生效）；阈值 2 s 两端通过。tracker 打开的 Android 全量（后台）进行中。临时改了 examples/todo-app/quiesco.config.mts（NM_THRESHOLD），备份在 scratchpad，提交前还原。
 - M.D 全量（tracker 开）：Android 98/108（模拟定位 已知）、iOS 101/108 + 7 skipped 无失败。还原 config，pnpm check 973。提交 + PR。
+- M.E：web 全量发现定位权限场景缺 @native ⇒ 补上（1dbf564，PR #72）。三端全量都已跑过。等 HU：合并 / 回复 issue / 发版。
