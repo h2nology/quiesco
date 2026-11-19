@@ -371,7 +371,7 @@ export class WebProvider implements DeviceProvider {
       throw new QuiescoError('ACTION_NOT_SUPPORTED', 'setOrientation on the web needs a configured viewport (devices.web.viewport)', { action: 'setOrientation', platform: 'web' });
     }
     this.orientation = orientation;
-    await this.requirePage().setViewportSize(this.viewportSize() as { width: number; height: number });
+    await resizeViewport(this.requirePage(), this.viewportSize() as { width: number; height: number });
   }
 
   async setLocation(location: { latitude: number; longitude: number }): Promise<void> {
@@ -599,7 +599,7 @@ export class WebProvider implements DeviceProvider {
     if (this.orientation !== null) {
       this.orientation = null;
       const vp = this.device.viewport;
-      if (page !== null && vp !== undefined) await page.setViewportSize({ width: vp.width, height: vp.height });
+      if (page !== null && vp !== undefined) await resizeViewport(page, { width: vp.width, height: vp.height });
     }
     if (this.geolocation !== null) {
       this.geolocation = null;
@@ -706,4 +706,25 @@ export class WebProvider implements DeviceProvider {
 /** Entry used by @quiesco/core's createProvider('web') (loaded at runtime by name). */
 export function createWebProvider(options: WebProviderOptions): DeviceProvider {
   return new WebProvider(options);
+}
+
+/** How long `resizeViewport` watches the page for its new size before it only waits for Playwright. */
+const RESIZE_SEEN_MS = 10_000;
+
+/**
+ * `page.setViewportSize`, done once the page has the new size. Firefox's `setViewportSize` can stay
+ * pending although the page has already resized (seen turning a landscape page back to portrait), which
+ * hung the scenario's reset; the page's own size ends the wait as well. If the page reports another
+ * size (a mobile layout viewport), the wait is Playwright's alone, as before.
+ */
+async function resizeViewport(page: Page, size: { width: number; height: number }): Promise<void> {
+  const resized = page.setViewportSize(size);
+  const seen = page
+    .waitForFunction(([w, h]) => window.innerWidth === w && window.innerHeight === h, [size.width, size.height] as const, { timeout: RESIZE_SEEN_MS })
+    .then(
+      () => undefined,
+      () => resized,
+    );
+  resized.catch(() => undefined); // When the page's size ended the wait, a later failure has no one to tell.
+  await Promise.race([resized, seen]);
 }
