@@ -62,6 +62,14 @@ When('从通知栏打开通知 {string}', async function (this: QuiescoWorld, ti
   await this.app.device.openNotification(title);
 });
 
+When('预约 3 秒后的本地通知', async function (this: QuiescoWorld) {
+  await this.app.tap('schedule-notification');
+});
+
+Then('系统集成页显示点击的通知 {string}', async function (this: QuiescoWorld, title: string) {
+  await this.app.expectText('notification-tapped', title);
+});
+
 Then('系统集成页显示收到的通知 {string}', async function (this: QuiescoWorld, title: string) {
   await this.app.expectText('notification-received', title);
 });

@@ -178,6 +178,11 @@ export interface DeviceProvider {
    * the system brings the app to the front with it. iOS answers the system's "Open in …?" confirmation.
    */
   openUrlFromOutside?(url: string): Promise<void>;
+  /**
+   * Start what reading the system UI needs (iOS: the XCUITest runner, 7–15 s cold). The system UI waits
+   * start their clock after it (issue #64).
+   */
+  prepareSystemUi?(): Promise<void>;
   /** System UI on screen now that does not belong to the app (dialogs, prompts), topmost window first. */
   systemNodes?(): Promise<SystemNode[]>;
   tapSystemNode?(node: SystemNode): Promise<void>;

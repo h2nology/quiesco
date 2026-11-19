@@ -35,6 +35,7 @@ import { execCommand } from './exec.js';
 import { LogBuffer, exited, spawnProcess } from './streams.js';
 import type { ChildLike, SpawnProcess } from './streams.js';
 import { IosSystemRunner, PERMISSION_ALLOW, PERMISSION_DENY, backButton, dismissButton, screenNodes } from './ios-runner.js';
+import type { RunnerScreen } from './ios-runner.js';
 import type { Permission } from './permissions.js';
 import { SERIAL_WORKER } from './provider.js';
 import type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions, SystemNode, WorkerInfo } from './provider.js';
@@ -138,7 +139,7 @@ export interface IosProviderOptions {
 }
 
 /** What IosProvider uses of IosSystemRunner. */
-export type SystemRunnerLike = Pick<IosSystemRunner, 'running' | 'screen' | 'tap' | 'openNotificationCenter' | 'stop'> & Partial<Pick<IosSystemRunner, 'navigationBar' | 'edgeSwipeBack' | 'elements' | 'typeText'>>;
+export type SystemRunnerLike = Pick<IosSystemRunner, 'running' | 'screen' | 'tap' | 'openNotificationCenter' | 'stop'> & Partial<Pick<IosSystemRunner, 'navigationBar' | 'edgeSwipeBack' | 'elements' | 'typeText' | 'appState' | 'start'>>;
 
 /** `27.0` / `iOS 27.0` / `27` → does the runtime identifier match? */
 export function runtimeMatches(runtime: string, version: string): boolean {
@@ -221,6 +222,16 @@ export function uikitNodes(elements: readonly { type: number; label: string; id:
     });
 }
 
+/**
+ * Whether `frame` ([x, y, w, h]) looks like the "Open" button a locked device shows beside the tapped
+ * notification `b`: in its row, on its left, less than half its width.
+ */
+function revealedOpen(frame: number[], b: { x1: number; x2: number; y1: number; y2: number }): boolean {
+  const [x = 0, y = 0, w = 0, h = 0] = frame;
+  const mid = y + h / 2;
+  return mid >= b.y1 && mid <= b.y2 && x + w / 2 < (b.x1 + b.x2) / 2 && w < (b.x2 - b.x1) / 2;
+}
+
 /** Darwin notification state BiometricKit_Sim reads for "enrolled" (1 / 0). */
 const BIOMETRIC_ENROLLMENT = 'com.apple.BiometricKit.enrollmentChanged';
 
@@ -229,8 +240,13 @@ const BANNER_WAIT_MS = 2_000;
 const NOTIFICATION_POLL_MS = 250;
 /** openUrlFromOutside: how long SpringBoard's "Open in …?" confirmation may take to show up. */
 const OPEN_URL_CONFIRM_MS = 5_000;
-/** After tapping a notification: how long it may stay on screen before it is tapped again, and how often. */
+/**
+ * After tapping a notification: how long the app may take to come to the front (or, with a runner that
+ * cannot tell, the notification to go away) before Quiesco looks again, and how many taps it makes.
+ */
 const NOTIFICATION_TAP_CONFIRM_MS = 1_500;
+/** The same for a runner that reads the app's state: an app resuming from suspension may take a moment. */
+const NOTIFICATION_FRONT_MS = 3_000;
 const NOTIFICATION_TAPS = 3;
 
 export class IosProvider implements DeviceProvider {
@@ -707,6 +723,11 @@ export class IosProvider implements DeviceProvider {
    * a web authentication session or Safari, and the app's own UIKit views (an inline date picker, the
    * keyboard). The app's React views are in that tree too; tapping them is a real touch all the same.
    */
+  /** Start the system UI runner: system UI waits start their clock after it (a cold start takes 7–15 s, issue #64). */
+  async prepareSystemUi(): Promise<void> {
+    await this.runner.start?.();
+  }
+
   async systemNodes(): Promise<SystemNode[]> {
     const runner = this.runner;
     const nodes = screenNodes(await runner.screen());
@@ -761,6 +782,7 @@ export class IosProvider implements DeviceProvider {
    * No confirmation within OPEN_URL_CONFIRM_MS (a link the system opens directly): nothing to answer.
    */
   async openUrlFromOutside(url: string): Promise<void> {
+    await this.prepareSystemUi();
     await this.simctl(['openurl', this.udid, url]);
     const deadline = Date.now() + OPEN_URL_CONFIRM_MS;
     for (;;) {
@@ -795,40 +817,89 @@ export class IosProvider implements DeviceProvider {
 
   /**
    * Tap the notification titled `title`: its banner while it is shown, else in Notification Center
-   * (swiped down from the top edge). Banners read "<time>, <title>, <body>". Waits up to `timeoutMs` for it.
+   * (swiped down from the top edge). Banners read "<time>, <title>, <body>". Waits up to `timeoutMs` for it,
+   * counted once the system UI runner is up (issue #64).
+   *
+   * A tap counts once the app is in front (issue #68): a banner that slides away by itself under the tap
+   * also leaves the screen, but the app stays suspended. Otherwise Quiesco looks again — in Notification
+   * Center once the banner is gone — and taps the topmost matching notification: a first tap on a stack of
+   * the app's notifications only expands it (issue #65).
    */
   async openNotification(title: string, timeoutMs: number): Promise<void> {
-    const find = async () => (await this.runner.screen()).others.find((o) => o.label.split(', ').includes(title) || o.label.includes(title));
+    await this.prepareSystemUi();
+    const runner = this.runner;
+    const matches = (o: { label: string }) => o.label.split(', ').includes(title) || o.label.includes(title);
+    let shown: RunnerScreen['others'] = [];
+    // The topmost one: in an expanded stack the newest notification comes first.
+    const find = async () => {
+      shown = (await runner.screen()).others;
+      return shown.filter(matches).sort((a, b) => (a.frame[1] ?? 0) - (b.frame[1] ?? 0))[0];
+    };
+    const appState = runner.appState?.bind(runner);
+    const inFront = async () => appState !== undefined && (await appState(this.bundleId).catch(() => 0)) === RUNNING_FOREGROUND;
     const start = Date.now();
     const deadline = start + timeoutMs;
     let centerOpened = false;
     let taps = 0;
     for (;;) {
       const hit = await find();
-      if (hit !== undefined) {
-        // The banner slides in: tap only once two reads agree on where it is, and tap again while the
-        // notification is still on screen (a tap during the animation misses; the app then stays in the
-        // background, suspended — batch D 2026-11-13).
+      if (hit !== undefined && taps < NOTIFICATION_TAPS && (taps === 0 || Date.now() <= deadline)) {
+        // The banner slides in, Notification Center slides down: tap only once two reads a moment apart
+        // agree on where it is (a tap during the animation misses; the app then stays in the background,
+        // suspended — batch D 2026-11-13).
+        await new Promise((r) => setTimeout(r, NOTIFICATION_POLL_MS));
         const again = await find();
         if (again === undefined || JSON.stringify(again.frame) !== JSON.stringify(hit.frame)) continue;
+        const before = new Set(shown.map((o) => o.label));
+        const matching = shown.filter(matches).length;
         const b = screenNodes({ alerts: [], others: [again] })[0]!.bounds;
-        await this.runner.tap((b.x1 + b.x2) / 2, (b.y1 + b.y2) / 2);
-        if (++taps >= NOTIFICATION_TAPS) return;
-        const until = Date.now() + NOTIFICATION_TAP_CONFIRM_MS;
-        while (Date.now() < until && (await find()) !== undefined) await new Promise((r) => setTimeout(r, NOTIFICATION_POLL_MS));
-        if ((await find()) === undefined) return;
-        this.logger.warn(`openNotification: "${title}" is still on screen after the tap; tapping it again`);
+        await runner.tap((b.x1 + b.x2) / 2, (b.y1 + b.y2) / 2);
+        taps++;
+        // A stack that expanded shows more matching notifications: look again right away.
+        const expanded = async () => (await find(), shown.filter(matches).length > matching);
+        if (await this.tapOpened(appState !== undefined, inFront, find, deadline, expanded)) return;
+        // On a locked device a tap only slides the notification to the right and shows an "Open" button on
+        // its left (in the device's language): a new, small button, not a notification, left in that row.
+        // Not one on the right ("Clear", "Options"), nor another notification.
+        await find();
+        const revealed = shown.find((o) => !before.has(o.label) && !matches(o) && !o.label.includes(', ') && revealedOpen(o.frame, b));
+        if (revealed !== undefined) {
+          const r = screenNodes({ alerts: [], others: [revealed] })[0]!.bounds;
+          this.logger.warn(`openNotification: tapping "${title}" showed ${JSON.stringify(revealed.label)} (a locked device); tapping it`);
+          await runner.tap((r.x1 + r.x2) / 2, (r.y1 + r.y2) / 2);
+          if (await this.tapOpened(appState !== undefined, inFront, find, deadline, async () => false)) return;
+        }
+        this.logger.warn(`openNotification: the app did not come to the front after tapping "${title}"; looking again`);
         continue;
       }
+      if (taps > 0 && (await inFront())) return;
       if (Date.now() > deadline) {
-        const seen = (await this.runner.screen().catch(() => ({ alerts: [], others: [] }))).others.map((o) => JSON.stringify(o.label)).slice(0, 8);
+        const seen = (await runner.screen().catch(() => ({ alerts: [], others: [] }))).others.map((o) => JSON.stringify(o.label)).slice(0, 8);
+        if (taps > 0) {
+          throw new QuiescoError('DEVICE_ERROR', `openNotification: tapped "${title}" ${taps} time(s), but the app did not come to the front within ${timeoutMs}ms (seen: ${seen.join(', ') || 'nothing'})`);
+        }
         throw new QuiescoError('DEVICE_ERROR', `openNotification: no notification "${title}" in a banner or Notification Center within ${timeoutMs}ms (seen: ${seen.join(', ') || 'nothing'}). Can the app show notifications (system.allowPermission())?`);
       }
-      // The banner goes away after a few seconds; then the notification is in Notification Center.
-      if (!centerOpened && Date.now() > start + Math.min(BANNER_WAIT_MS, timeoutMs / 2)) {
-        await this.runner.openNotificationCenter();
+      // The banner goes away after a few seconds (also after a tap that missed it); then the notification is in Notification Center.
+      if (!centerOpened && (taps > 0 || Date.now() > start + Math.min(BANNER_WAIT_MS, timeoutMs / 2))) {
+        await runner.openNotificationCenter();
         centerOpened = true;
       }
+      await new Promise((r) => setTimeout(r, NOTIFICATION_POLL_MS));
+    }
+  }
+
+  /**
+   * Whether a notification tap opened the app: the app is in front within NOTIFICATION_FRONT_MS
+   * (`knowsState`), else (a runner that cannot tell) the notification went away within NOTIFICATION_TAP_CONFIRM_MS.
+   */
+  private async tapOpened(knowsState: boolean, inFront: () => Promise<boolean>, find: () => Promise<unknown>, deadline: number, expanded: () => Promise<boolean>): Promise<boolean> {
+    // Not past the call's deadline (but one look at least).
+    const until = Math.min(Date.now() + (knowsState ? NOTIFICATION_FRONT_MS : NOTIFICATION_TAP_CONFIRM_MS), Math.max(deadline, Date.now()));
+    for (;;) {
+      if (knowsState ? await inFront() : (await find()) === undefined) return true;
+      if (knowsState && (await expanded())) return false;
+      if (Date.now() >= until) return false;
       await new Promise((r) => setTimeout(r, NOTIFICATION_POLL_MS));
     }
   }

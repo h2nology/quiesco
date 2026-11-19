@@ -125,6 +125,7 @@ export class DeviceApi {
     expectNotVisible: async (query: SystemQuery, opts: SystemWaitOptions = {}): Promise<void> => {
       checkSystemQuery('system.expectNotVisible', query);
       const p = this.systemProvider('system.expectNotVisible');
+      await this.host.provider.prepareSystemUi?.();
       const deadline = Date.now() + (opts.timeoutMs ?? SYSTEM_WAIT_MS);
       for (;;) {
         const match = (await p.systemNodes()).find((n) => matchesSystemQuery(n, query));
@@ -473,7 +474,12 @@ export class DeviceApi {
     if (this.host.appState === 'terminated') throw notRunning('openNotification');
     await p.openNotification(title, timeoutMs);
     this.host.appState = 'running';
-    await this.waitForAppState((s) => s === 'active', true);
+    await this.waitForAppState((s) => s === 'active', true).catch((e: unknown) => {
+      // Still in the background: the next scenario's reset brings it back instead of waiting on a
+      // suspended app (issue #68).
+      this.host.appState = 'background';
+      throw e;
+    });
     await this.host.reapplyConfig();
     await this.host.waitForIdle();
   }
@@ -639,6 +645,8 @@ export class DeviceApi {
   private async findSystemNode(action: string, what: string, pick: (nodes: SystemNode[]) => SystemNode | undefined, opts: SystemWaitOptions): Promise<SystemNode> {
     const p = this.systemProvider(action);
     const timeoutMs = opts.timeoutMs ?? SYSTEM_WAIT_MS;
+    // Not counted: starting the system UI runner (issue #64).
+    await this.host.provider.prepareSystemUi?.();
     const deadline = Date.now() + timeoutMs;
     for (;;) {
       const nodes = await p.systemNodes();

@@ -98,6 +98,15 @@ export default function System() {
             {/* Shows the system's permission dialog while the permission is undetermined (features/system.feature). */}
             {button('request-notification-permission', '请求通知权限', () => void Notifications.requestPermissionsAsync().then((p) => setPermission(p.status)))}
           </View>
+          <View style={styles.row}>
+            {/* A local notification a few seconds ahead: posted while the app is in the background (issues #64, #65, #68). */}
+            {button('schedule-notification', '3 秒后提醒', () =>
+              void Notifications.scheduleNotificationAsync({
+                content: { title: '稍后提醒', body: '3 秒前预约的通知' },
+                trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 3 },
+              }),
+            )}
+          </View>
           {Platform.OS === 'web' && (
             <View style={styles.row}>
               {/* The browser's JS dialogs block the page until answered (features/system.feature, @web). */}

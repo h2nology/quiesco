@@ -4,10 +4,10 @@
 解决 h2nology/quiesco 的 6 个 open issue（同一位用户在 0.8.0 + Vitest 5.1 + Expo SDK 58 Release 构建、iOS 27 模拟器 / Android API 36 模拟器上的实测反馈）。每个修复都配单元测试，必要时更新三语文档；实跑验收后回复并关闭 issue，最后一起发版。
 
 ## Current Phase
-M.B iOS openNotification（#64、#65、#68）
+M.C Android 后台 idle 等待（#66）
 
 ## Next Step
-从 `fix/scroll-to-steps` 开分支 `fix/ios-open-notification`（堆叠 PR），先做 #64（runner 启动不计入超时）。
+从 fix/ios-open-notification 开分支 `fix/background-idle-wait`；M.C.0：example 的 device 页加「请求位置权限」按钮 + 场景，Android 上复现 #66，记录挂住时忙的 tracker。
 
 ## 背景
 - 前置：0.8.1 已发布（`dc7ca7d chore(release): 0.8.1`）。上一轮计划：`.planning/2026-11-19-issues-44-55/`。
@@ -59,16 +59,24 @@ M.B iOS openNotification（#64、#65、#68）
 - **Status:** complete
 
 ### M.B iOS openNotification（#64、#65、#68）
-分支 `fix/ios-open-notification`。
-- [ ] #64：`openNotification` 及其他 `system.*` 在记时前 `await runner.start()`
-- [ ] #65 Swift：`screen()` 改用 `springboard.snapshot()` 遍历；alerts 部分同理；不再按 index 惰性读取
-- [ ] #65 TS：`isConnectionRefused` 扩展为 `isRunnerGone`（ECONNREFUSED / ECONNRESET / socket hang up / UND_ERR_SOCKET）；重启后仍失败 ⇒ `DEVICE_ERROR` 带 runner 输出
-- [ ] #68：点击成功判定改为 app 前台（runner `elements(bundleId).state === 4`，或加轻量 `/appState?bundleId=` 端点）；未到前台 ⇒ 打开通知中心重找重点，直到超时
-- [ ] #65 堆叠：点击后同 title 的 platter 变多 ⇒ 点最上面的匹配项
-- [ ] D3：reset 前把挂起的 app 带回前台
-- [ ] 单元测试（ios-runner / ios provider 的 fake runner）：runner 启动慢不计入超时；ECONNRESET 重启；横幅自行消失但 app 未到前台 ⇒ 重试；堆叠展开 ⇒ 点最上面
-- [ ] 实测：同一模拟器上（通知中心已有该 app 的旧通知）跑该场景 5 次，全部通过；冷启动 runner 的首次调用也通过
-- **Status:** pending
+分支 `fix/ios-open-notification`（从 fix/scroll-to-steps 开，堆叠在 PR #69 上）。
+- [x] #64：provider 接口加 `prepareSystemUi?()`（iOS：`runner.start()`）；`findSystemNode` / `expectNotVisible` / iOS `openNotification` / `openUrlFromOutside` 在记时前调用
+- [x] #65 Swift：`screen()` 改为 `springboard.snapshot()` 遍历（alerts 也是）；可点判断改为 frame 在屏幕内（snapshot 没有 isHittable）。实测：app 在前台时 others 为空，通知中心打开时列出 cell / platter
+- [x] #65 TS：`isRunnerGone`（ECONNREFUSED / ECONNRESET / EPIPE / UND_ERR_SOCKET / socket hang up）；只读请求（screen / elements / navigationBar / appState）重启后重发一次；tap 等 POST 遇 reset ⇒ 重启 runner 后报 `DEVICE_ERROR`（不重复点击）；两次都失败 ⇒ `DEVICE_ERROR` 带输出
+- [x] #68：新端点 `GET /appState?bundleId=`；点中的判断 = app 在前台（3 s 内，且不超过期限）；没到前台 ⇒ 再找（横幅没了就打开通知中心）再点，最多 3 次；超时消息区分「没找到」和「点了 N 次但没到前台」
+- [x] #65 堆叠：匹配项里取最上面的（y 最小）
+- [x] 实测发现：锁屏状态下点通知只会把它滑开、露出「Open」（随设备语言）⇒ 点完没到前台时，找同一行**左侧**新出现的、比半行窄的、不是通知（label 不含 ", "）的按钮并点它（第一版太宽，iOS 全量里误点了别的 app 的通知）
+- [x] 点击后匹配项变多（堆叠展开）⇒ 立刻重新查找，不等满 3 s
+- [x] 两次读取位置之间隔一个轮询间隔（通知中心下拉动画中途的点击会失效）
+- [x] D3：`DeviceApi.openNotification` 等前台失败时把 appState 恢复为 `background` ⇒ 下一个场景 reset 走 bringToForeground，不再等挂起的 app 15 s
+- [x] 三语 api.mdx 的 openNotification 说明；plugin refs
+- [x] 单元测试：runner reset 重试 / 不重复 tap / 两次失败；runner 启动慢不计入超时；横幅自行消失 ⇒ 去通知中心；堆叠点最上面；锁屏点 Open；一直没到前台的消息；D3（device-state）
+- [x] example：system 页加「3 秒后提醒」按钮（expo-notifications 本地通知）+ 场景「从几秒后发出的本地通知打开 App」+ 两个 step
+- [x] 实测 iOS：改锁屏处理前 5 次中 1 次失败（锁屏 Open）；改后通知两个场景连续 6/6
+- [x] iOS 全量第 1 次：107 场景 96 passed / 4 failed（新通知场景误点别的 app 的通知 ⇒ 连锁；分享面板 / 日历 / 生物识别单独跑 5/5、3/3 通过）⇒ 修正后通知场景 6/6；system.feature 两次 15/15（第 2 次实际走到锁屏 Open 路径并通过）；Android system.feature 12 passed / 7 skipped
+- [x] `pnpm check`（960）+ docs:check
+- [x] 提交、PR（base fix/scroll-to-steps）
+- **Status:** complete
 
 ### M.C Android 后台 idle 等待（#66）
 分支 `fix/background-idle-wait`。
@@ -103,3 +111,6 @@ M.B iOS openNotification（#64、#65、#68）
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
+| iOS 新通知场景 1/5 失败：点了 2 次，app 没到前台，通知中心里该通知被滑开、露出「Open」 | 1 | 锁屏时点通知只会露出 Open ⇒ 点完后找同一行新出现的按钮并点；两次读取之间等 250 ms。之后 6/6 |
+| iOS 全量：锁屏 Open 判断太宽，把展开后移进同一行的别的 app 的通知当成 Open 点了 | 1 | 只认左侧、窄于半行、非通知的新按钮；单元测试覆盖 |
+| 想用 Cmd+L 锁住模拟器验证锁屏路径：Simulator.app 没开（headless），osascript 失败 | 1 | 不打开用户的 Simulator 窗口；锁屏路径只有单元测试覆盖 |
