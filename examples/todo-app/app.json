@@ -46,7 +46,8 @@
           "faceIDPermission": "Quiesco example: biometric authentication driven by app.device.biometrics (Phase 6.7)."
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      "expo-web-browser"
     ],
     "scheme": "quiescotodo"
   }

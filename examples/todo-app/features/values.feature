@@ -41,6 +41,13 @@ Feature: 值控件与无障碍动作（值控件页）
     When 把生日设为 "2027-03-08"
     Then 生日是 "2027-03-08"
 
+  # App 自己的对话框窗口（DateTimePickerAndroid）：app.device.system.* 用真实触摸操作它（issue #49）。
+  @android
+  Scenario: 在日期对话框里用真实触摸选日期
+    When 打开生日的日期对话框
+    And 在日期对话框里点 "25" 再点确定
+    Then 生日是这个月的 25 日
+
   Scenario: 日期和时间分开选：选时间不改日期，选日期不改时间
     When 把截止日期设为 "2031-12-24"
     And 把截止时间设为 "20:15"
