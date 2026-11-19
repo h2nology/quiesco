@@ -103,8 +103,8 @@ class StateProvider extends FakeProvider {
   async sendNotification(n: NotificationSpec, app: InAppControls) {
     this.calls.push(`notify:${n.title}:${(await app.postNotification(n)).enabled}`);
   }
-  async openNotification(title: string) {
-    this.calls.push(`open:${title}`);
+  async openNotification(title: string, timeoutMs: number) {
+    this.calls.push(`open:${title}:${timeoutMs}`);
   }
   /** What systemNodes() returns on each call (the last one repeats). */
   screens: SystemNode[][] = [[]];
@@ -375,7 +375,10 @@ describe('app.device state (Phase 6.6)', () => {
     await device.openNotification('Later');
     expect(device.appState).toBe('running');
     expect(methods(agents[0])).toEqual(['deviceInfo', 'configure', 'waitForIdle']);
-    expect(provider.calls.filter((c) => /notify|open/.test(c))).toEqual(['notify:Hello:true', 'notify:Later:true', 'open:Later']);
+    // #47: the wait for the notification is the call's timeoutMs (default 10 s, as system.*), on both platforms.
+    await device.openNotification('Later', { timeoutMs: 30_000 });
+    expect(provider.calls.filter((c) => /notify|open/.test(c))).toEqual(['notify:Hello:true', 'notify:Later:true', 'open:Later:10000', 'open:Later:30000']);
+    await expect(device.openNotification('Later', { timeoutMs: 0 })).rejects.toThrow(/timeoutMs must be a positive number/);
     await expect(device.sendNotification({ title: '' })).rejects.toThrow(TypeError);
     await expect(device.sendNotification({ title: 'x', data: { n: 1 as never } })).rejects.toThrow(/data.n must be a string/);
     await device.terminate();

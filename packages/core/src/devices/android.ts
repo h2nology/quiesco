@@ -856,10 +856,10 @@ export class AndroidProvider implements DeviceProvider {
     }
   }
 
-  /** Pulls the notification shade down and taps the notification whose text is `title` (uiautomator). */
-  async openNotification(title: string): Promise<void> {
+  /** Pulls the notification shade down and taps the notification whose text is `title` (uiautomator), waiting up to `timeoutMs` for it. */
+  async openNotification(title: string, timeoutMs: number): Promise<void> {
     await this.shell('cmd statusbar expand-notifications');
-    const deadline = Date.now() + NOTIFICATION_WAIT_MS;
+    const deadline = Date.now() + timeoutMs;
     for (;;) {
       const nodes = parseUiNodes(await this.uiDump());
       const node = nodes.find((n) => n.text === title);
@@ -870,7 +870,7 @@ export class AndroidProvider implements DeviceProvider {
       if (Date.now() > deadline) {
         await this.shell('cmd statusbar collapse').catch(() => undefined);
         const texts = nodes.map((n) => n.text).filter((t) => t !== '').slice(0, 12);
-        throw new QuiescoError('DEVICE_ERROR', `openNotification: no notification "${title}" in the shade (texts there: ${texts.map((t) => JSON.stringify(t)).join(', ') || 'none'})`);
+        throw new QuiescoError('DEVICE_ERROR', `openNotification: no notification "${title}" in the shade within ${timeoutMs}ms (texts there: ${texts.map((t) => JSON.stringify(t)).join(', ') || 'none'})`);
       }
       await new Promise((r) => setTimeout(r, NOTIFICATION_POLL_MS));
     }
@@ -1109,7 +1109,6 @@ const FAILURE_LOCKOUT_MS = 1_000;
 const MATCH_CONFIRM_MS = 2_000;
 const MATCH_TOUCHES = 3;
 const AUTH_POLL_MS = 100;
-const NOTIFICATION_WAIT_MS = 5_000;
 const NOTIFICATION_POLL_MS = 300;
 const SHAKE_PUSHES = 12;
 const SHAKE_PUSH_MS = 80;

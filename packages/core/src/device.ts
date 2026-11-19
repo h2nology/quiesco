@@ -426,14 +426,17 @@ export class DeviceApi {
 
   /**
    * Tap the notification titled `title` in the system's notification list, like a user opening it from the
-   * background; resolves when the app is in front and idle.
+   * background; resolves when the app is in front and idle. Waits up to `timeoutMs` (default 10 s) for the
+   * notification to be posted.
    */
-  async openNotification(title: string): Promise<void> {
+  async openNotification(title: string, opts: { timeoutMs?: number } = {}): Promise<void> {
     if (typeof title !== 'string' || title === '') throw new TypeError('openNotification(title) needs a non-empty title');
+    const timeoutMs = opts.timeoutMs ?? SYSTEM_WAIT_MS;
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new TypeError('openNotification: timeoutMs must be a positive number');
     const p = this.host.provider;
     if (p.openNotification === undefined) throw notSupported('openNotification', p.platform, NOTIFICATION_HINT[p.platform]);
     if (this.host.appState === 'terminated') throw notRunning('openNotification');
-    await p.openNotification(title);
+    await p.openNotification(title, timeoutMs);
     this.host.appState = 'running';
     await this.waitForAppState((s) => s === 'active', true);
     await this.host.reapplyConfig();
