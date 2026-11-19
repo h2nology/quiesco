@@ -55,6 +55,20 @@ test('Android only', { tags: ['@android'] }, async ({ app }) => { /* … */ });
 progress bar of `quiesco test` and to `quiesco ui`; it adds its reporter only when they run Vitest, next to
 your own reporters.
 
+**Hooks shared by every file go in `setupFiles`.** Since the files share their modules (`isolate: false`), a
+support module imported by every test file runs once per worker: a `test.beforeEach(…)` at its top level is
+registered for the first file that imports it only, and the later files run without it, silently. Register
+such hooks in each test file, or in a setup file, which runs before every file:
+
+```ts
+// vitest.config.mts
+test: { ...quiesco(), include: ['e2e/**/*.test.ts'], setupFiles: ['e2e/setup.ts'] },
+
+// e2e/setup.ts
+import { test } from '@quiesco/vitest';
+test.beforeEach(async ({ app }) => { await app.openUrl('myapp://home'); });
+```
+
 ## Jest {#jest}
 
 A preset; tests reach the app through the global `quiesco`. `quiesco init --runner jest` writes the config

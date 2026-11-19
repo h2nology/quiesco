@@ -56,6 +56,17 @@ test('Android only', { tags: ['@android'] }, async ({ app }) => { /* … */ });
 
 `quiesco()`はファイルをまたいでアプリを保持し（`isolate: false`）、ファイルを1つずつ実行し（`quiesco({ workers: N })`ならN台のデバイスで実行）、プラットフォームタグを宣言します。`quiescoPlugin()`は実行の進捗を`quiesco test`の進捗バーと`quiesco ui`に送ります。レポーターを追加するのはこの2つがVitestを実行するときだけで、自分で設定したレポーターもそのまま残ります。
 
+**すべてのファイルに共通のフックは `setupFiles` に書きます。** ファイル同士がモジュールを共有する（`isolate: false`）ため、全テストファイルがimportするサポートモジュールはワーカーごとに1回しか実行されません。その最上位に書いた `test.beforeEach(…)` は最初にimportしたファイルにだけ登録され、以降のファイルはフックなしで実行されます（エラーにはなりません）。こうしたフックは各テストファイルに書くか、すべてのファイルの前に実行されるセットアップファイルに書いてください。
+
+```ts
+// vitest.config.mts
+test: { ...quiesco(), include: ['e2e/**/*.test.ts'], setupFiles: ['e2e/setup.ts'] },
+
+// e2e/setup.ts
+import { test } from '@quiesco/vitest';
+test.beforeEach(async ({ app }) => { await app.openUrl('myapp://home'); });
+```
+
 ## Jest {#jest}
 
 プリセットです。テストからはグローバルの`quiesco`を通じてアプリにアクセスします。`quiesco init --runner jest`が設定（`jest.config.cjs`）と最初のテスト（`e2e/app.test.js`）を書き出します。

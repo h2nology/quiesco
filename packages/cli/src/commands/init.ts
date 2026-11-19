@@ -136,7 +136,13 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   plugins: [quiescoPlugin()],
-  test: { ...quiesco(), include: ['e2e/**/*.test.ts'] },
+  test: {
+    ...quiesco(),
+    include: ['e2e/**/*.test.ts'],
+    // Hooks shared by every test file (test.beforeEach …) go in a setup file: a module imported by several
+    // files runs once per worker (files share their modules), so its hooks would only apply to the first.
+    // setupFiles: ['e2e/setup.ts'],
+  },
 });
 `;
 

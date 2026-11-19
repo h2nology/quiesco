@@ -52,7 +52,7 @@ describe('quiesco init', () => {
     freshExpoApp(ctx);
     expect(await main(['init'], ctx)).toBe(0);
     expect(ctx.calls[1]?.args).toEqual(['install', '--save-dev', 'quiesco@9.9.9', '@quiesco/core@9.9.9', '@quiesco/expo-plugin@9.9.9', '@quiesco/vitest@9.9.9', 'vitest', '@quiesco/web@9.9.9', 'playwright']);
-    expect(ctx.file('vitest.config.mts')).toContain('test: { ...quiesco(), include: [\'e2e/**/*.test.ts\'] }');
+    expect(ctx.file('vitest.config.mts')).toMatch(/test: \{\s+\.\.\.quiesco\(\),\s+include: \['e2e\/\*\*\/\*\.test\.ts'\],/);
     expect(ctx.file('vitest.config.mts')).toContain('plugins: [quiescoPlugin()]');
     expect(ctx.file('e2e/app.test.ts')).toContain("await app.expectVisible({ id: 'home' })");
     expect(ctx.file('cucumber.mjs')).toBeNull();
@@ -95,6 +95,7 @@ describe('quiesco init', () => {
     expect(await main(['init', '--skip-install', '--platforms', 'android'], ctx)).toBe(0);
     expect(ctx.file('vitest.config.ts')).toBe('// unit tests\n');
     expect(ctx.file('vitest.e2e.config.mts')).toContain("include: ['e2e/**/*.test.ts']");
+    expect(ctx.file('vitest.e2e.config.mts')).toContain("// setupFiles: ['e2e/setup.ts']"); // #55
     expect(JSON.parse(ctx.file('package.json') as string).scripts['e2e:android']).toBe('quiesco test --platform android --config vitest.e2e.config.mts');
     const jest = fakeContext();
     freshExpoApp(jest);
