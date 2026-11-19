@@ -887,16 +887,63 @@ export class AndroidProvider implements DeviceProvider {
     deny: ['com.android.permissioncontroller:id/permission_deny_button', 'com.android.permissioncontroller:id/permission_deny_and_dont_ask_again_button'],
   } as const;
 
-  /** What uiautomator sees on screen outside the app (a permission dialog is another app's activity). */
+  /**
+   * What uiautomator sees on screen outside the app (a permission dialog is another app's activity), and the
+   * app's own dialog windows (issue #49: DateTimePickerAndroid's dialog, a popup; a React Native Modal is one
+   * too). The app's main window is React's, which the app.* calls reach.
+   */
   async systemNodes(): Promise<SystemNode[]> {
-    return parseUiNodes(await this.uiDump())
-      .filter((n) => n.package !== this.pkg && n.enabled && (n.text !== '' || n.resourceId !== ''))
-      .map((n) => ({ text: n.text, id: n.resourceId, bounds: n.bounds }));
+    const nodes = parseUiNodes(await this.uiDump());
+    const ownDialog = nodes.some((n) => n.package === this.pkg) && hasDialogWindow(await this.shell('dumpsys window windows').catch(() => ''), this.pkg);
+    return nodes
+      .map((n) => ({ n, text: n.text !== '' ? n.text : n.contentDesc !== '' ? n.contentDesc : n.hint }))
+      .filter(({ n, text }) => (ownDialog || n.package !== this.pkg) && n.enabled && (text !== '' || n.resourceId !== ''))
+      .map(({ n, text }) => ({ text, id: n.resourceId, bounds: n.bounds, ...(/EditText$/.test(n.className) ? { field: true } : {}) }));
   }
 
   async tapSystemNode(node: SystemNode): Promise<void> {
     const { x1, y1, x2, y2 } = node.bounds;
     await this.shell(`input tap ${(x1 + x2) >> 1} ${(y1 + y2) >> 1}`);
+  }
+
+  /**
+   * Tap the field, then type (issue #51): printable ASCII as key events (`input text`); other text
+   * (`input text` cannot send it) through the clipboard, set by @quiesco/native, and a paste key.
+   */
+  async typeSystemNode(node: SystemNode, text: string, app: InAppControls): Promise<void> {
+    await this.tapSystemNode(node);
+    if (text === '') return;
+    // `input text` sends printable ASCII; it reads %s as a space and has no escape for a literal "%s".
+    if (/^[\x20-\x7e]+$/.test(text) && !text.includes('%s')) {
+      await this.shell(`input text ${shq(text.replace(/ /g, '%s'))}`);
+      return;
+    }
+    if (!(await app.setClipboard(text)).supported) {
+      throw new QuiescoError('ACTION_NOT_SUPPORTED', 'system.type on Android types ASCII only without @quiesco/native in the app (other text is pasted from the clipboard, which it sets)', {
+        action: 'system.type',
+        platform: 'android',
+        hint: 'rebuild the app with EXPO_PUBLIC_QUIESCO=1 and @quiesco/expo-plugin',
+      });
+    }
+    await this.shell('input keyevent KEYCODE_PASTE');
+  }
+
+  /** `input tap` at a point given in dp (the screen's density converts it). */
+  async tapSystemPoint(x: number, y: number): Promise<void> {
+    const scale = await this.pixelsPerDp();
+    await this.shell(`input tap ${Math.round(x * scale)} ${Math.round(y * scale)}`);
+  }
+
+  private dpScale: number | null = null;
+
+  /** `wm density` (e.g. 420) over Android's baseline 160. */
+  private async pixelsPerDp(): Promise<number> {
+    if (this.dpScale === null) {
+      const out = await this.shell('wm density');
+      const m = /Override density:\s*(\d+)/.exec(out) ?? /Physical density:\s*(\d+)/.exec(out);
+      this.dpScale = m === null ? 1 : Number(m[1]) / 160;
+    }
+    return this.dpScale;
   }
 
   /**
@@ -1126,6 +1173,23 @@ export interface UiNode {
   clickable: boolean;
   enabled: boolean;
   bounds: { x1: number; y1: number; x2: number; y2: number };
+  className: string;
+  /** Accessibility label (content-desc) and placeholder (hint): what an empty field shows. */
+  contentDesc: string;
+  hint: string;
+}
+
+/**
+ * Whether `dumpsys window windows` shows a visible window of `pkg` other than its activity's main window
+ * (TYPE_BASE_APPLICATION): a dialog or popup the app opened (findings L.E.0).
+ */
+export function hasDialogWindow(dumpsys: string, pkg: string): boolean {
+  return dumpsys
+    .split(/\n\s*Window #\d+ /)
+    .some((w) => {
+      const type = / ty=(\w+)/.exec(w)?.[1];
+      return w.includes(`package=${pkg} `) && type !== undefined && type !== 'BASE_APPLICATION' && type !== 'APPLICATION_STARTING' && /mViewVisibility=0x0\b/.test(w);
+    });
 }
 
 /** Nodes of a `uiautomator dump`. */
@@ -1142,6 +1206,9 @@ export function parseUiNodes(xml: string): UiNode[] {
       clickable: attrs['clickable'] === 'true',
       enabled: attrs['enabled'] !== 'false',
       bounds: { x1: Number(b[1]), y1: Number(b[2]), x2: Number(b[3]), y2: Number(b[4]) },
+      className: attrs['class'] ?? '',
+      contentDesc: attrs['content-desc'] ?? '',
+      hint: attrs['hint'] ?? '',
     });
   }
   return nodes;

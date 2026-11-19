@@ -60,6 +60,10 @@ export interface SystemNode {
   id: string;
   /** Where it is, in the provider's own screen units (what `tapSystemNode` expects). */
   bounds: { x1: number; y1: number; x2: number; y2: number };
+  /** iOS: the app or system service it belongs to (its bundle id); where `typeSystemNode` types. */
+  app?: string;
+  /** A text field: what `system.type` prefers when a label next to it has the same text. */
+  field?: boolean;
 }
 
 /** Status bar overrides for clean screenshots (Phase 6.6); unset fields keep the real value. */
@@ -177,6 +181,13 @@ export interface DeviceProvider {
   /** System UI on screen now that does not belong to the app (dialogs, prompts), topmost window first. */
   systemNodes?(): Promise<SystemNode[]>;
   tapSystemNode?(node: SystemNode): Promise<void>;
+  /**
+   * Tap the field `node` and type `text` into it with the device's input (issues #51): iOS through the
+   * system UI runner (XCUITest typeText), Android with `input text` (ASCII) or a paste (any text).
+   */
+  typeSystemNode?(node: SystemNode, text: string, app: InAppControls): Promise<void>;
+  /** A system-level touch at a point of the screen (points / dp), outside or over the app (issue #51). */
+  tapSystemPoint?(x: number, y: number): Promise<void>;
   /**
    * Web: the message of the JS dialog (alert / confirm / prompt) the page is blocked on, or null. While
    * one is open the page runs no script and takes no input until it is answered (findings 6.7 web dialogs).

@@ -138,7 +138,7 @@ export interface IosProviderOptions {
 }
 
 /** What IosProvider uses of IosSystemRunner. */
-export type SystemRunnerLike = Pick<IosSystemRunner, 'running' | 'screen' | 'tap' | 'openNotificationCenter' | 'stop'> & Partial<Pick<IosSystemRunner, 'navigationBar' | 'edgeSwipeBack'>>;
+export type SystemRunnerLike = Pick<IosSystemRunner, 'running' | 'screen' | 'tap' | 'openNotificationCenter' | 'stop'> & Partial<Pick<IosSystemRunner, 'navigationBar' | 'edgeSwipeBack' | 'elements' | 'typeText'>>;
 
 /** `27.0` / `iOS 27.0` / `27` → does the runtime identifier match? */
 export function runtimeMatches(runtime: string, version: string): boolean {
@@ -197,6 +197,28 @@ export function logTime(ms: number): string {
   const d = new Date(ms);
   const p = (n: number): string => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+/**
+ * Apps whose UI system.* sees when they are in front (issue #51): the page of a web authentication session
+ * (ASWebAuthenticationSession, SFSafariViewController) and Safari.
+ */
+const OTHER_APPS = ['com.apple.SafariViewService', 'com.apple.mobilesafari'];
+/** XCUIApplication.State.runningForeground. */
+const RUNNING_FOREGROUND = 4;
+/** XCUIElement.ElementType values left out: the application, windows, scroll bars (no one taps them). */
+const SKIPPED_TYPES = new Set([2, 4, 47]);
+/** searchField, textField, secureTextField, textView. */
+const FIELD_TYPES = new Set([45, 49, 50, 52]);
+
+/** SystemNodes of a runner element tree (`/elements`): the label, else the value (a field's text). */
+export function uikitNodes(elements: readonly { type: number; label: string; id: string; value: string; frame: number[] }[], app: string): SystemNode[] {
+  return elements
+    .filter((e) => !SKIPPED_TYPES.has(e.type) && (e.frame[2] ?? 0) > 0 && (e.frame[3] ?? 0) > 0)
+    .map((e) => {
+      const [x = 0, y = 0, w = 0, h = 0] = e.frame;
+      return { text: e.label !== '' ? e.label : e.value, id: e.id, bounds: { x1: x, y1: y, x2: x + w, y2: y + h }, app, ...(FIELD_TYPES.has(e.type) ? { field: true } : {}) };
+    });
 }
 
 /** Darwin notification state BiometricKit_Sim reads for "enrolled" (1 / 0). */
@@ -680,12 +702,57 @@ export class IosProvider implements DeviceProvider {
   /** Permission alerts have no identifiers and follow the device language: the buttons get ids by position. */
   readonly permissionDialog = { allow: [PERMISSION_ALLOW], deny: [PERMISSION_DENY] } as const;
 
+  /**
+   * SpringBoard's alerts and banners, then the UI of the apps in front that are not React (issues #49–#51):
+   * a web authentication session or Safari, and the app's own UIKit views (an inline date picker, the
+   * keyboard). The app's React views are in that tree too; tapping them is a real touch all the same.
+   */
   async systemNodes(): Promise<SystemNode[]> {
-    return screenNodes(await this.runner.screen());
+    const runner = this.runner;
+    const nodes = screenNodes(await runner.screen());
+    if (runner.elements === undefined) return nodes;
+    for (const bundleId of [...OTHER_APPS, this.bundleId]) {
+      const tree = await runner.elements(bundleId);
+      if (tree.state === RUNNING_FOREGROUND) nodes.push(...uikitNodes(tree.elements, bundleId));
+    }
+    return nodes;
   }
 
   async tapSystemNode(node: SystemNode): Promise<void> {
     await this.runner.tap((node.bounds.x1 + node.bounds.x2) / 2, (node.bounds.y1 + node.bounds.y2) / 2);
+  }
+
+  /**
+   * Tap the field, then type with its app's keyboard (XCUITest typeText: any text, as keys), a character
+   * per request: typed at once, a React Native controlled input loses repeated letters ("ann" → "an").
+   */
+  async typeSystemNode(node: SystemNode, text: string): Promise<void> {
+    const runner = this.runner;
+    if (runner.typeText === undefined) throw new Error('the iOS system UI runner cannot type');
+    await this.tapSystemNode(node);
+    // The keyboard belongs to the app showing the field. A web page in front of the app can show up in the
+    // app's own element tree too (a remote view): then it is another app's keyboard.
+    const apps = [...new Set([node.app ?? 'com.apple.springboard', ...OTHER_APPS, this.bundleId])];
+    let target: string | null = null;
+    for (const { segment } of new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)) {
+      if (target !== null) {
+        await runner.typeText(target, segment);
+        continue;
+      }
+      for (const [i, app] of apps.entries()) {
+        try {
+          await runner.typeText(app, segment);
+          target = app;
+          break;
+        } catch (e) {
+          if (i === apps.length - 1 || !/no keyboard/.test((e as Error).message)) throw e;
+        }
+      }
+    }
+  }
+
+  async tapSystemPoint(x: number, y: number): Promise<void> {
+    await this.runner.tap(x, y);
   }
 
   /**
