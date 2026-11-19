@@ -311,6 +311,20 @@ When('把生日设为 {string}', async function (this: QuiescoWorld, iso: string
   await this.app.setValue({ id: 'birthday' }, new Date(y, m - 1, d, 12));
 });
 
+When('打开生日的日期对话框', async function (this: QuiescoWorld) {
+  await this.app.scrollTo('controls', 'birthday-open');
+  await this.app.tap('birthday-open');
+});
+
+When('在日期对话框里点 {string} 再点确定', async function (this: QuiescoWorld, day: string) {
+  await this.app.device.system.tap({ text: day });
+  await this.app.device.system.tap({ id: 'android:id/button1' }); // OK, in any language
+});
+
+Then('生日是这个月的 25 日', async function (this: QuiescoWorld) {
+  await this.app.expectText({ id: 'birthday-value' }, /-25$/);
+});
+
 Then('生日是 {string}', async function (this: QuiescoWorld, iso: string) {
   await this.app.expectText({ id: 'birthday-value' }, iso);
 });

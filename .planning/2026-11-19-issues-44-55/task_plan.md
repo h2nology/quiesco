@@ -4,10 +4,10 @@
 解决 h2nology/quiesco 的 12 个 open issue（同一位用户在 0.7.0 + Vitest + Expo SDK 58 Release 构建、iOS 27 模拟器 / Android API 36 模拟器上实测的反馈）。每个修复都配测试和三语文档，实跑验收后回复并关闭 issue，最后一起发下一个版本。
 
 ## Current Phase
-L.D CLI：appDir（#54）
+L.E system UI 与原生控件（#49、#50、#51）
 
 ## Next Step
-HU 确认 L.D 的提交 / PR；之后开始 L.E.0（#49–#51 调研）。
+HU 确认 L.E 的提交 / PR（滚动回归的修复作为单独的 commit）；之后进入 L.F（发布 0.8.0）。
 
 ## 背景
 - 前置：0.7.0 已发布（`707bade chore(release): 0.7.0`）。
@@ -107,14 +107,28 @@ HU 确认 L.D 的提交 / PR；之后开始 L.E.0（#49–#51 调研）。
 - [x] 单测：cli `app-dir.test.ts` 8 个（appContext、doctor 通过 / 不设 appDir / --app-dir / 版本不一致、build android / iOS、upgrade、Metro）；core config（appDir 解析）、device-state（bundle 检查看 appDir；去掉 session 改动则失败）；fake context 记录 cwd
 - [x] 实跑：scratchpad 里的独立测试包（appDir 指向 examples/todo-app，node_modules 按包软链）：doctor 全部通过（runner 识别为 Vitest，11 个包 0.7.0）；iOS（Metro 在 app 目录启动、结束后停掉）3/3、web 3/3。原目录：doctor 通过，web actions 9 + 1 skipped
 - [x] `pnpm check` exit 0（938 个测试）；docs:check 通过
-- [ ] HU 确认提交 / PR
-- **Status:** in_progress
+- [x] HU 确认提交 / PR：PR #59（base 是 PR #58 的分支）
+- **Status:** complete
 
 ### L.E system UI 与原生控件（#49、#50、#51）
-- [ ] L.E.0 调研：Android uiautomator dump 里 app 对话框窗口的节点；iOS system UI runner 现在怎么取节点、能否查询 SafariViewService / 分享面板 / 键盘 / app 内 UIKit 控件的 accessibility 元素
-- [ ] 根据调研和 D7 定方案（再问 HU）
-- [ ] 实现 + 文档（platforms.mdx 写明限制）
-- **Status:** pending
+分支 `feat/system-ui-l-e`（叠在 `feat/app-dir` / PR #59 上）。调研见 findings.md「L.E.0 调研」。
+HU 2026-11-19：E1 自动包含 app 自己的原生 UI；E2 其他 app + 关闭分享面板，并装 expo-web-browser 实测认证会话；E3 iOS typeText、Android input text + 剪贴板粘贴。
+- [x] L.E.0 调研（Android 对话框窗口、adb 真实点击；iOS runner snapshot：app 的 UIKit、键盘、inline 日期、Safari、分享面板）
+- [x] 实施计划（HU 2026-11-19 确认）
+- [x] runner：`/elements`（snapshot 一次取整棵树；snapshot 只有根节点时改为按类型查询：分享面板、SafariViewService 的远程视图要靠它）、`/typeText`（先等键盘，没有就 409，不让 XCTest 失败停掉 runner）
+- [x] provider：`SystemNode.app` / `field`；`typeSystemNode`、`tapSystemPoint`。iOS `systemNodes` = SpringBoard + 前台的 SafariViewService / Safari + app 的 UIKit；打字按字发（RN 受控输入框跟不上整段，"ann" → "an"），没有键盘就换前台的其他 app。Android `systemNodes` 在 app 有对话框窗口（dumpsys `ty` ≠ BASE_APPLICATION）时包含 app 的节点；节点文字 text → content-desc → hint；ASCII 用 `input text`（含 `%s` 时改粘贴），其他文字用 @quiesco/native 剪贴板 + KEYCODE_PASTE；`tapSystemPoint` 按 `wm density` 换算
+- [x] DeviceApi：`system.type(query, text)`（同名时优先输入框）、`system.tapAt({ x, y })`
+- [x] example：expo-web-browser（iOS / Android 重建）、mock server `/auth` 登录页、system 页（网页登录、分享、inline 日期、输入框：Android 在 Modal 里，iOS 在页面上）；场景：网页登录（@ios）、分享面板出现 / 关掉（@ios）、inline 日期（@ios）、系统输入 ASCII / 中文（两端）、values「日期对话框真实触摸」（@android）
+- [x] 实测中修的问题：testID 重名（auth-result）；iOS「Wants to Use … to Sign In」先点 Continue；label 和输入框同名 ⇒ 优先输入框；登录页标题和按钮同名 ⇒ 改标题；Android `%` 被多加反斜杠；iOS 整段输入丢重复字母；第二次显示的 RN Modal 在 snapshot 里只剩根节点（按 window snapshot 能拿到但 12 s，弃用）⇒ example 的 iOS 输入框放在页面上，文档写明；分享面板关闭的时机 ⇒ 等出现、点、等消失
+- [x] Android 网页登录：AOSP 镜像只有 WebView shell，不支持 Custom Tabs，app 被重启 ⇒ 场景 @ios，文档写明
+- [x] 单测：android（对话框窗口、hasDialogWindow、type ASCII / 粘贴 / %s、tapAt）、ios（uikitNodes、systemNodes 顺序、按字打字、键盘回退）、device-state（system.type / tapAt）
+- [x] 实跑：system.feature iOS 14 + 4 skipped、Android 11 + 7 skipped；values.feature Android 通过
+- [x] 文档三语（api：system.type / tapAt、系统 UI 包括什么；platforms 表）；`pnpm check` exit 0（945 个测试）
+- [x] 三端全量回归（第一次）：web 84 + 21 skipped；Android 95 / 105（「模拟定位」：AOSP 没有 Google Play，同以前）；iOS 96 / 105，values.feature 2 个失败 = **L.B 的回归**：scrollTo 每步 0.85 视口，拖动起点落在 controls 页的滚轮选择器上（UIPickerView 吃掉拖动）⇒ offset 不变 ⇒ 判断为到头
+- [x] 修复：一步拖动后 offset 没变、但这个方向还有内容（`js.atEdge`）⇒ 这一步改用程序化滚动。runtime 单测（没有修复时失败）；values + actions iOS / Android 各 21 + 1 skipped；`pnpm check` 946
+- [x] iOS 全量回归（第二次）：105 scenarios（98 passed, 7 skipped），0 失败
+- [ ] HU 确认提交 / PR
+- **Status:** in_progress
 
 ### L.F 发布
 - [ ] CHANGELOG、版本号（D8）、三端全量 e2e

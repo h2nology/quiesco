@@ -7,6 +7,9 @@
 //   POST /notificationCenter     → swipe the Notification Center down from the top edge
 //   GET  /navigationBar?bundleId=… → the app's navigation bars: { bars: [{ frame, buttons: [{ label, id, frame, hittable }] }] }
 //   POST /edgeSwipeBack          → drag from the left edge of the screen (the interactive pop gesture)
+//   GET  /elements?bundleId=…    → the UIKit elements of an app (the app under test, Safari, SafariViewService), from
+//                                  one snapshot: { state, elements: [{ type, label, id, value, frame, enabled, selected }] }
+//   POST /typeText?bundleId=…&text=… → type into the focused field of that app with its keyboard (409 without one)
 //   POST /quit                   → end the test
 import Network
 import XCTest
@@ -74,6 +77,39 @@ final class SystemUIServer: XCTestCase {
     case "/edgeSwipeBack":
       let start = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.0, dy: 0.5))
       start.press(forDuration: 0.05, thenDragTo: springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
+      return ("200 OK", ["ok": true])
+    case "/elements":
+      guard let id = q["bundleId"], !id.isEmpty else { return ("400 Bad Request", ["error": "bundleId"]) }
+      let app = XCUIApplication(bundleIdentifier: id)
+      guard app.state != .notRunning, let root = try? app.snapshot() else { return ("200 OK", ["state": app.state.rawValue, "elements": []]) }
+      // One snapshot of the whole tree: querying elements one by one takes seconds each.
+      var out: [[String: Any]] = []
+      func walk(_ e: XCUIElementSnapshot) {
+        let value = (e.value as? String) ?? ""
+        if !(e.label.isEmpty && e.identifier.isEmpty && value.isEmpty) {
+          let f = e.frame
+          out.append(["type": e.elementType.rawValue, "label": e.label, "id": e.identifier, "value": value, "frame": [f.minX, f.minY, f.width, f.height].map { Double($0) }, "enabled": e.isEnabled, "selected": e.isSelected])
+        }
+        for c in e.children { walk(c) }
+      }
+      walk(root)
+      if out.count <= 1 {
+        // The snapshot can stop at the application (a React Native Modal shown a second time): query the
+        // element types system.* uses one by one then (slower, but they are there).
+        for type in [XCUIElement.ElementType.textField, .secureTextField, .searchField, .textView, .button, .staticText, .key, .cell] {
+          for e in app.descendants(matching: type).allElementsBoundByIndex where e.exists {
+            let f = e.frame
+            out.append(["type": type.rawValue, "label": e.label, "id": e.identifier, "value": (e.value as? String) ?? "", "frame": [f.minX, f.minY, f.width, f.height].map { Double($0) }])
+          }
+        }
+      }
+      return ("200 OK", ["state": app.state.rawValue, "elements": out])
+    case "/typeText":
+      guard let id = q["bundleId"], !id.isEmpty, let text = q["text"] else { return ("400 Bad Request", ["error": "bundleId and text"]) }
+      let app = XCUIApplication(bundleIdentifier: id)
+      // typeText without a focused field records a test failure (the runner would stop): check first.
+      guard app.keyboards.firstMatch.waitForExistence(timeout: 5) else { return ("409 Conflict", ["error": "no keyboard: the field did not take the focus"]) }
+      app.typeText(text)
       return ("200 OK", ["ok": true])
     case "/quit":
       done = true

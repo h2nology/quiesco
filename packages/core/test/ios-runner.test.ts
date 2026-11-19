@@ -5,10 +5,10 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Exec } from '../src/devices/exec';
 import { silentLogger } from '../src/logger';
-import { IosProvider } from '../src/devices/ios';
+import { IosProvider, uikitNodes } from '../src/devices/ios';
 import type { SystemRunnerLike } from '../src/devices/ios';
 import { IosSystemRunner, backButton, PERMISSION_ALLOW, isConnectionRefused, PERMISSION_ALLOW_ONCE, PERMISSION_DENY, dismissButton, runnerCacheKey, screenNodes } from '../src/devices/ios-runner';
-import type { RunnerScreen } from '../src/devices/ios-runner';
+import type { RunnerElements, RunnerScreen } from '../src/devices/ios-runner';
 
 const f = (y: number) => [57, y, 140, 48];
 // What the runner reported on the simulator (findings 6.7 batch C), in Japanese.
@@ -270,5 +270,71 @@ describe('goBack on iOS (issue #4)', () => {
     expect(calls).toEqual(['bars com.example.todo', 'swipe']);
     // pressBack stays what it was: iOS has no system back button
     await expect(p.injectInput({ kind: 'back' })).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED' });
+  });
+});
+
+describe('IosProvider: UIKit UI of the app and of other apps (issues #49–#51)', () => {
+  // XCUIElement.ElementType: 2 application, 4 window, 9 button, 48 staticText, 49 textField.
+  const app = (elements: RunnerElements['elements'], state = 4): RunnerElements => ({ state, elements });
+  const picker = app([
+    { type: 2, label: 'Quiesco Todo', id: '', value: '', frame: [0, 0, 402, 874] },
+    { type: 9, label: 'Next Month', id: '', value: '', frame: [340, 500, 30, 30] },
+    { type: 48, label: '25', id: '', value: '', frame: [262, 721, 23, 24] },
+    { type: 49, label: '', id: 'system-input', value: '输入', frame: [16, 400, 370, 34] },
+    { type: 48, label: 'hidden', id: '', value: '', frame: [0, 0, 0, 0] },
+  ]);
+
+  it('maps UIKit elements to nodes: the label, else the value; no application, windows or empty frames', () => {
+    expect(uikitNodes(picker.elements, 'dev.quiesco.todo')).toEqual([
+      { text: 'Next Month', id: '', bounds: { x1: 340, y1: 500, x2: 370, y2: 530 }, app: 'dev.quiesco.todo' },
+      { text: '25', id: '', bounds: { x1: 262, y1: 721, x2: 285, y2: 745 }, app: 'dev.quiesco.todo' },
+      { text: '输入', id: 'system-input', bounds: { x1: 16, y1: 400, x2: 386, y2: 434 }, app: 'dev.quiesco.todo', field: true },
+    ]);
+  });
+
+  function runnerWith(trees: Record<string, RunnerElements>) {
+    const calls: string[] = [];
+    const runner: SystemRunnerLike = {
+      running: true,
+      screen: async () => ({ alerts: [], others: [{ label: 'Banner', id: 'b', frame: [8, 58, 386, 66] }] }),
+      tap: async (x, y) => void calls.push(`tap ${x},${y}`),
+      openNotificationCenter: async () => {},
+      stop: async () => {},
+      elements: async (bundleId) => (calls.push(`elements ${bundleId}`), trees[bundleId] ?? app([], 1)),
+      typeText: async (bundleId, text) => void calls.push(`type ${bundleId} ${text}`),
+    };
+    const p = new IosProvider({ app: { bundleId: 'dev.quiesco.todo' }, systemRunner: runner, exec: async () => ({ stdout: Buffer.from(''), stderr: '' }) });
+    return { p, calls };
+  }
+
+  it('lists SpringBoard first, then the apps in front: a web auth session, Safari, the app (not apps in the background)', async () => {
+    const { p, calls } = runnerWith({
+      'com.apple.SafariViewService': app([{ type: 49, label: 'Email', id: '', value: '', frame: [20, 300, 360, 44] }]),
+      'com.apple.mobilesafari': app([{ type: 49, label: 'Address', id: '', value: 'example.com', frame: [149, 806, 104, 20] }], 3),
+      'dev.quiesco.todo': picker,
+    });
+    const nodes = await p.systemNodes();
+    expect(nodes.map((n) => `${n.app ?? 'springboard'}:${n.text}`)).toEqual(['springboard:Banner', 'com.apple.SafariViewService:Email', 'dev.quiesco.todo:Next Month', 'dev.quiesco.todo:25', 'dev.quiesco.todo:输入']);
+    expect(calls).toEqual(['elements com.apple.SafariViewService', 'elements com.apple.mobilesafari', 'elements dev.quiesco.todo']);
+  });
+
+  it('types with the keyboard of the app that has one: a web page in front shows up in the app\'s tree too', async () => {
+    const { p, calls } = runnerWith({});
+    const runner = (p as unknown as { options: { systemRunner: SystemRunnerLike } }).options.systemRunner;
+    const typed = runner.typeText!;
+    runner.typeText = async (bundleId, text) => {
+      if (bundleId !== 'com.apple.SafariViewService') throw new Error(`iOS system UI runner: /typeText?bundleId=${bundleId}: no keyboard: the field did not take the focus`);
+      await typed(bundleId, text);
+    };
+    await p.typeSystemNode({ text: 'Email', id: '', bounds: { x1: 20, y1: 300, x2: 380, y2: 344 }, app: 'dev.quiesco.todo', field: true }, 'ab');
+    expect(calls).toEqual(['tap 200,322', 'type com.apple.SafariViewService a', 'type com.apple.SafariViewService b']);
+  });
+
+  it('types into a field of its app after tapping it; taps a screen point', async () => {
+    const { p, calls } = runnerWith({});
+    await p.typeSystemNode({ text: 'Email', id: '', bounds: { x1: 20, y1: 300, x2: 380, y2: 344 }, app: 'com.apple.SafariViewService' }, 'ann 你👍🏽');
+    await p.tapSystemPoint(200, 90);
+    // A character per request (a controlled input keeps up with them).
+    expect(calls).toEqual(['tap 200,322', ...['a', 'n', 'n', ' ', '你', '👍🏽'].map((c) => `type com.apple.SafariViewService ${c}`), 'tap 200,90']);
   });
 });

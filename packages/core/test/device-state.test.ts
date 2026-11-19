@@ -130,6 +130,12 @@ class StateProvider extends FakeProvider {
   async tapSystemNode(n: SystemNode) {
     this.calls.push(`systemTap:${n.id || n.text}`);
   }
+  async typeSystemNode(n: SystemNode, text: string) {
+    this.calls.push(`systemType:${n.id || n.text}:${text}`);
+  }
+  async tapSystemPoint(x: number, y: number) {
+    this.calls.push(`systemTapAt:${x},${y}`);
+  }
   readonly permissionDialog = { allow: ['p:id/allow', 'p:id/allow_foreground'], deny: ['p:id/deny', 'p:id/deny_dont_ask'] };
   /** deviceInfo answers before the window takes its reset shape (a rotation still running). */
   resetLag = 0;
@@ -445,6 +451,22 @@ describe('app.device state (Phase 6.6)', () => {
     expect(methods(agents[0])).toEqual(['deviceInfo', 'configure', 'waitForIdle']);
     await app.device.terminate();
     await expect(app.openUrl('myapp://item/3')).rejects.toMatchObject({ errorName: 'APP_NOT_RUNNING' });
+  });
+
+  it('system.type finds the field, types into it and waits for the app; system.tapAt taps a point (#51)', async () => {
+    const { provider, agents } = await start();
+    const device = session!.driver.device;
+    const n = (text: string, id = ''): SystemNode => ({ text, id, bounds: { x1: 0, y1: 0, x2: 1, y2: 1 } });
+    // A label "Email" before its field: the field is typed into.
+    provider.screens = [[], [n('Email', 'label'), { ...n('Email', 'email'), field: true }, n('Sign in')]];
+    agents[0]!.requests.length = 0;
+    await device.system.type({ text: 'Email' }, 'ann@example.com');
+    await device.system.tapAt({ x: 200, y: 90 });
+    expect(provider.calls.filter((c) => /system(Type|TapAt)/.test(c))).toEqual(['systemType:email:ann@example.com', 'systemTapAt:200,90']);
+    expect(methods(agents[0])).toEqual(['waitForIdle', 'waitForIdle']);
+    await expect(device.system.type({ text: 'Nope' }, 'x', { timeoutMs: 300 })).rejects.toMatchObject({ errorName: 'ELEMENT_NOT_FOUND' });
+    await expect(device.system.type({ id: 'email' }, 3 as never)).rejects.toThrow(TypeError);
+    await expect(device.system.tapAt({ x: Number.NaN, y: 0 })).rejects.toThrow(TypeError);
   });
 
   it('system UI (6.7 batch C): waits for it to show up, taps it, then waits for the app', async () => {

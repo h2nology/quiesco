@@ -356,6 +356,31 @@ describe('AgentRuntime', () => {
     expect(listView.scrollTo).not.toHaveBeenCalled();
   });
 
+  it('scrollTo goes on programmatically when a drag moves nothing though there is more content (a wheel picker took it)', async () => {
+    const gesture = vi.fn(async () => ({ handled: true })); // the finger lands on a picker: the list does not move
+    const native = {
+      getLaunchParams: () => ({ port: null, session: null }),
+      locate: async () => ({ found: true, x: 0, y: 200, width: 300, height: 400, windowHasFocus: true }),
+      tap: vi.fn(),
+      swipe: vi.fn(),
+      typeText: vi.fn(),
+      gesture,
+    };
+    const { target, call } = setup({ native });
+    const content = { x: 0, y: 200, width: 300, height: 3000 };
+    const row = { x: 0, y: 200 + 2000, width: 300, height: 40 };
+    const listView = {
+      scrollTo: vi.fn(({ y }: { y: number }) => {
+        content.y = 200 - y;
+        row.y = 200 + 2000 - y;
+      }),
+    };
+    sameRoot(target)(classOf(listView, host('RCTScrollView', { testID: 'list', __rect: { x: 0, y: 200, width: 300, height: 400 } }, host('RCTScrollContentView', { __rect: content }, host('RCTView', { testID: 'row', __rect: row })))));
+    await expect(drive(call('action', { action: { type: 'scrollTo', container: { id: 'list' }, target: { id: 'row' } }, mode: 'native' }), 3000)).resolves.toMatchObject({ element: { testID: 'row' } });
+    expect(gesture).toHaveBeenCalled();
+    expect(listView.scrollTo.mock.calls.length).toBeGreaterThan(0);
+  });
+
   it('scrollTo goes on until the center of the target is visible, not a 1 pt sliver of it (#45)', async () => {
     const { target, call } = setup();
     // A list below a header (y 150–200), 400 high: one step is 0.85 × 400 = 340. Row content y 739, 52 high.

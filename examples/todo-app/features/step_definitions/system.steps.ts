@@ -123,3 +123,54 @@ When('在系统对话框中拒绝', async function (this: QuiescoWorld) {
 Then('系统集成页显示通知权限 {string}', async function (this: QuiescoWorld, status: string) {
   await this.app.expectText('notification-permission', status);
 });
+
+// UI that is not React (issues #49–#51): system.* sees other apps', the app's own dialogs and UIKit views.
+
+When('点击系统界面上 id 为 {string} 的按钮', async function (this: QuiescoWorld, id: string) {
+  await this.app.device.system.tap({ id });
+});
+
+When('在系统界面的 {string} 里输入 {string}', async function (this: QuiescoWorld, field: string, text: string) {
+  await this.app.device.system.type({ text: field }, text);
+});
+
+When('在屏幕上 \\({int}, {int}\\) 处做一次系统点击', async function (this: QuiescoWorld, x: number, y: number) {
+  await this.app.device.system.tapAt({ x, y });
+});
+
+When('点击网页登录', async function (this: QuiescoWorld) {
+  await this.app.tap('sign-in-web');
+});
+
+When('同意 App 使用网站登录', async function (this: QuiescoWorld) {
+  // iOS asks first ("<app> Wants to Use <site> to Sign In"); Android opens the page directly.
+  if (process.env['QUIESCO_PLATFORM'] === 'ios') await this.app.device.system.tap({ text: 'Continue' });
+});
+
+Then('系统集成页显示网页登录结果 {string}', async function (this: QuiescoWorld, result: string) {
+  await this.app.expectText('web-auth-result', result);
+});
+
+When('点击分享', async function (this: QuiescoWorld) {
+  await this.app.tap('share');
+});
+
+When('把内嵌日历滚动到屏幕上', async function (this: QuiescoWorld) {
+  await this.app.scrollTo('system-scroll', 'inline-date');
+});
+
+Then('内嵌日历选中的日期是 {string}', async function (this: QuiescoWorld, date: string) {
+  await this.app.expectText('inline-date-value', date);
+});
+
+When('打开输入对话框', async function (this: QuiescoWorld) {
+  await this.app.scrollTo('system-scroll', 'open-note');
+  await this.app.tap('open-note');
+  // iOS shows the field on the page, below the button (Android: in a dialog window).
+  if (process.env['QUIESCO_PLATFORM'] === 'ios') await this.app.scrollTo('system-scroll', 'note-input');
+});
+
+Then('系统集成页显示输入的内容 {string}', async function (this: QuiescoWorld, text: string) {
+  await this.app.expectText('note-value', text);
+});
+

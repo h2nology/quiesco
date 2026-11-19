@@ -252,6 +252,18 @@ export function scrollBy(s: Scrollable, direction: Direction, distance?: number)
   s.scrollTo(vertical ? x : x + sign * d, vertical ? y + sign * d : y);
 }
 
+/** Whether the content cannot move further in `direction` (`down` = towards its end). */
+export function atEdge(s: Scrollable, direction: Direction): boolean {
+  const vp = s.viewport();
+  const content = s.content();
+  if (vp === null || content === null) return true;
+  const { x, y } = s.offset();
+  if (direction === 'down') return y >= content.height - vp.height - 1;
+  if (direction === 'up') return y <= 1;
+  if (direction === 'right') return x >= content.width - vp.width - 1;
+  return x <= 1;
+}
+
 /** Jump to an edge of the current content (a virtualized list may grow afterwards; callers repeat). */
 export function scrollToEdge(s: Scrollable, edge: Edge): void {
   const vp = s.viewport();

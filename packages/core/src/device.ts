@@ -138,6 +138,32 @@ export class DeviceApi {
         await new Promise((r) => setTimeout(r, STATE_POLL_MS));
       }
     },
+    /**
+     * Tap the field matching `query` and type `text` into it (issue #51): a login page of an auth session,
+     * a browser, a system prompt. iOS types through the keyboard (any text); Android sends ASCII as key
+     * events and pastes anything else (through @quiesco/native's clipboard). Waits for the app afterwards.
+     */
+    type: async (query: SystemQuery, text: string, opts: SystemWaitOptions = {}): Promise<void> => {
+      checkSystemQuery('system.type', query);
+      if (typeof text !== 'string') throw new TypeError('system.type(query, text) needs a string');
+      const p = this.host.provider;
+      if (p.typeSystemNode === undefined) throw notSupported('system.type', p.platform, SYSTEM_UI_HINT[p.platform]);
+      // A field before a label with the same text ("Email" labels its input).
+      const node = await this.findSystemNode('system.type', describeSystemQuery(query), (nodes) => nodes.find((n) => n.field === true && matchesSystemQuery(n, query)) ?? nodes.find((n) => matchesSystemQuery(n, query)), opts);
+      await p.typeSystemNode(node, text, this.inApp);
+      if (this.host.appState === 'running') await this.host.waitForIdle();
+    },
+    /**
+     * A system-level touch at a screen point (points / dp, from the top-left corner), over whatever is
+     * there (issue #51): e.g. outside iOS's share sheet, which closes it. Waits for the app afterwards.
+     */
+    tapAt: async (point: { x: number; y: number }): Promise<void> => {
+      if (typeof point !== 'object' || point === null || !Number.isFinite(point.x) || !Number.isFinite(point.y)) throw new TypeError('system.tapAt({ x, y }) needs numbers');
+      const p = this.host.provider;
+      if (p.tapSystemPoint === undefined) throw notSupported('system.tapAt', p.platform, SYSTEM_UI_HINT[p.platform]);
+      await p.tapSystemPoint(point.x, point.y);
+      if (this.host.appState === 'running') await this.host.waitForIdle();
+    },
     /** Tap the permission dialog's allow button (whatever the device language); waits until the app is back in front. */
     allowPermission: (opts: SystemWaitOptions = {}): Promise<void> => this.answerPermission(true, opts),
     /** Tap the permission dialog's deny button (also "deny and don't ask again"); waits until the app is back in front. */
