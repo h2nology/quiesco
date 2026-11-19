@@ -44,6 +44,7 @@ Feature: 设备状态（设备状态页）
     Then 设备状态页显示位置 "无权限"
 
   # 系统的权限对话框打开期间 App 在后台（Android 暂停 JS 计时器）：点击后的等待照样结束（issue #66）。
+  @native
   Scenario: 请求定位权限并在系统对话框中允许
     Given 定位权限尚未决定
     When 请求定位权限
