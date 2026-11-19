@@ -1,3 +1,7 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { Orientation } from '@quiesco/protocol';
@@ -224,6 +228,26 @@ describe('app.device state (Phase 6.6)', () => {
     expect(agents).toHaveLength(2);
     expect(provider.app.locale).toBe('ja-JP');
     await expect(device.setLocale('日本語')).rejects.toThrow(RangeError);
+  });
+
+  it('checks the app\'s bundle against the app in appDir, not the working directory (#54)', async () => {
+    // A reused Metro that sends no bundle info: Quiesco warns when the app's metro.config.js uses withQuiesco().
+    const app = fs.mkdtempSync(path.join(os.tmpdir(), 'quiesco-app-'));
+    fs.writeFileSync(path.join(app, 'metro.config.js'), "module.exports = require('@quiesco/agent/metro').withQuiesco({});\n");
+    process.env['QUIESCO_DEV_SERVER_REUSED'] = 'http://localhost:8082';
+    try {
+      const warnings: string[] = [];
+      await start({ appDir: app }, { ...silentLogger, warn: (m: string) => void warnings.push(m) });
+      expect(warnings).toEqual([expect.stringMatching(/does not run with this project's metro.config.js/)]);
+      await session?.dispose();
+      session = null;
+      // The working directory (this repository's root) has no metro.config.js: nothing to compare with.
+      const none: string[] = [];
+      await start({}, { ...silentLogger, warn: (m: string) => void none.push(m) });
+      expect(none).toEqual([]);
+    } finally {
+      delete process.env['QUIESCO_DEV_SERVER_REUSED'];
+    }
   });
 
   it('setLocale accepts an app that follows the language in JS only (iOS without CFBundleLocalizations, #53), with a warning', async () => {

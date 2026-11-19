@@ -330,8 +330,13 @@ export class Session {
     await this.provider.shutdown().catch((e: unknown) => this.logger.warn(`device shutdown failed: ${(e as Error).message}`));
   }
 
-  /** Where the project's sources are, for the stale-bundle check: the test runner runs in the project root. */
-  private readonly projectRoot = process.cwd();
+  /**
+   * Where the app's sources are, for the stale-bundle check: `appDir` (issue #54), else the project root
+   * the test runner runs in.
+   */
+  private get projectRoot(): string {
+    return this.config.appDir ?? process.cwd();
+  }
   /** Bundles already checked (by build time): a reconnect of the same bundle is not checked again. */
   private readonly checkedBundles = new Set<number>();
   /** The unknown-bundle warning (issue #19) is given once per session, not on every reconnect. */

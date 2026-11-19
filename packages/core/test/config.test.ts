@@ -69,6 +69,17 @@ describe('config', () => {
     fs.writeFileSync(path.join(dir, 'bad.mjs'), 'export const x = 1;\n');
     await expect(loadConfig({ cwd: dir, file: 'bad.mjs' })).rejects.toThrow(/must default-export/);
   });
+
+  it('resolves appDir against the config file\'s directory (#54)', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'quiesco-config-'));
+    fs.mkdirSync(path.join(root, 'e2e'));
+    fs.writeFileSync(path.join(root, 'e2e', 'quiesco.config.mjs'), 'export default { appDir: "../app", apps: {} };\n');
+    expect((await loadConfig({ cwd: root, file: 'e2e/quiesco.config.mjs' })).config.appDir).toBe(path.join(root, 'app'));
+    fs.writeFileSync(path.join(root, 'e2e', 'none.mjs'), 'export default { apps: {} };\n');
+    expect((await loadConfig({ cwd: root, file: 'e2e/none.mjs' })).config.appDir).toBeUndefined();
+    fs.writeFileSync(path.join(root, 'e2e', 'bad-dir.mjs'), 'export default { appDir: 3, apps: {} };\n');
+    await expect(loadConfig({ cwd: root, file: 'e2e/bad-dir.mjs' })).rejects.toThrow(/appDir .* must be a directory path/);
+  });
 });
 
 describe('ignored app errors', async () => {
