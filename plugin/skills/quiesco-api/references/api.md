@@ -55,8 +55,9 @@ All calls take an optional last argument:
 | `rotate(target, radians, { speed })` | Two fingers turn around the element's center (positive: clockwise on screen) |
 | `multiTouch(fingers, { within })` | Any fingers along timed paths: `fingers[i]` is finger i's `{ x, y, t }` points (t in ms, non-decreasing); element coordinates with `within`, else window coordinates |
 
-Coordinates are logical units (pt on iOS, dp on Android, CSS px on the web). `scrollToEdge` and
-`scrollToIndex` take several steps; each step may wait up to the call timeout for the app to settle.
+Coordinates are logical units (pt on iOS, dp on Android, CSS px on the web). `scrollTo`,
+`scrollToEdge` and `scrollToIndex` take several steps (at most 60); each step may wait up to the call
+timeout for the app to settle.
 
 In `js` mode (callbacks instead of real input), a tap at a point presses the topmost element there, a
 tap on a switch without `onPress` toggles it through `onValueChange`, `pressKey` calls

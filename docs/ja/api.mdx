@@ -52,7 +52,7 @@ description: "this.app（Driver）、マッチャー、アプリ内API、設定�
 | `rotate(target, radians, { speed })` | 2本の指が要素の中心のまわりを回る（正の値：画面上で時計回り） |
 | `multiTouch(fingers, { within })` | 任意の本数の指を、時刻付きの経路に沿って動かす：`fingers[i]`は指iの`{ x, y, t }`の点列（tはms、単調非減少）。`within`があれば要素座標、なければウィンドウ座標 |
 
-座標は論理単位です（iOSではpt、Androidではdp、WebではCSS px）。`scrollToEdge`と`scrollToIndex`は複数のステップに分けて動き、各ステップでアプリが落ち着くまで、呼び出しのタイムアウトを上限に待つことがあります。
+座標は論理単位です（iOSではpt、Androidではdp、WebではCSS px）。`scrollTo`、`scrollToEdge`、`scrollToIndex`は複数のステップ（最大60）に分けて動き、各ステップでアプリが落ち着くまで、呼び出しのタイムアウトを上限に待つことがあります。
 
 `js`モード（実際の入力ではなくコールバックを呼ぶ）では、座標を指定したタップはその位置の最前面の要素を押し、`onPress`のないスイッチへのタップは`onValueChange`で切り替え、`pressKey`は`onSubmitEditing` / `onKeyPress`を呼び、`scrollToEdge`はスクロールオフセットを直接設定し、`from`は無視されます。`drag`はサポートされません（実際のタッチが必要なため）。
 

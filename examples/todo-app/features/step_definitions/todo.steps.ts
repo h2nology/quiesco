@@ -212,6 +212,12 @@ When('在长列表里找到第 {int} 行并点击它', async function (this: Qui
   await this.app.tap({ id: `row-${row}` });
 });
 
+// Issue #63: the timeout bounds each step, not the whole scroll (which takes several of them here).
+When('在长列表里找到第 {int} 行并点击它，每步最多等 {int} ms', async function (this: QuiescoWorld, row: number, timeoutMs: number) {
+  await this.app.scrollTo({ id: 'long-list' }, { id: `row-${row}` }, { timeoutMs });
+  await this.app.tap({ id: `row-${row}` });
+});
+
 When('在横向列表里找到第 {int} 张并点击它', async function (this: QuiescoWorld, slide: number) {
   await this.app.scrollTo({ id: 'carousel' }, { id: `slide-${slide}` });
   await this.app.tap({ id: `slide-${slide}` });

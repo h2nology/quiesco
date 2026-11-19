@@ -85,7 +85,7 @@ const DIALOG: unique symbol = Symbol('dialog');
 const HOST_MARGIN_MS = 5_000;
 /** How many of a scenario's `console.error`s the driver keeps. */
 const MAX_APP_LOG_ERRORS = 50;
-/** Upper bound of steps of scrollToEdge / scrollToIndex in the agent (each may take the call timeout). */
+/** Upper bound of steps of scrollToEdge / scrollToIndex / scrollTo in the agent (each may take the call timeout). */
 const MAX_SCROLL_STEPS = 60;
 
 export class Driver {
@@ -523,7 +523,7 @@ export class Driver {
     this.checkAppRunning(spec.type);
     const params: ParamsOf<AgentMethods['action']> = { action: spec, mode: opts.mode ?? (await this.mode()), ...syncParams(opts) };
     // Multi-step scrolls give every step the full timeout in the agent (bounded number of steps).
-    const steps = spec.type === 'scrollToEdge' || spec.type === 'scrollToIndex' ? MAX_SCROLL_STEPS : 1;
+    const steps = spec.type === 'scrollToEdge' || spec.type === 'scrollToIndex' || spec.type === 'scrollTo' ? MAX_SCROLL_STEPS : 1;
     // A JS dialog the action opens (web alert / confirm / prompt) blocks the page — its scripts, the agent
     // and Playwright's input — until the test answers it: the action is done once the dialog is up.
     const dialog = this.watchDialog();
