@@ -1,6 +1,6 @@
 {
   "name": "@quiesco/web",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Quiesco web DeviceProvider (Playwright library). Install only to test on the web.",
   "license": "MIT",
   "author": "h2nology",
