@@ -78,3 +78,14 @@
 - web：`page.keyboard.type(text)` 已经是逐字按键（没有间隔）。iOS：一次 `insertText`；Android：一次 `commitText`。
 - 逐字可以在 agent JS 里循环调 `bridge.typeText(tag, ch, false)`（不需要重建 native）；JS 模式循环 changeText。
 - D4 原方案「每个字后等 idle」的问题：debounce（300 ms）计时器会让 app 一直「忙」⇒ 每个字都等 debounce 触发 ⇒ 测不到「中间的按键被合并」。
+
+## L.D 调研（2026-11-19）#54 appDir
+- doctor（packages/cli/src/commands/doctor.ts）全部基于 `ctx.cwd`：
+  - app 侧：expoCheck、`@quiesco/agent` 依赖、config plugin（app.json）、metro.config、entry（package.json main）、rootCheck（<QuiescoRoot>）、appIdChecks（app.json / android/ / iOS Info.plist）。
+  - 测试项目侧：runner 包（`RUNNER_PACKAGES[projectRunner(ctx)]`，projectRunner 看 cwd 的 package.json，找不到或有多个 ⇒ cucumber）、legacyChecks（cucumber 配置、tsconfig + features/）、quiesco.config、buildScriptChecks、port。
+  - versionChecks：cwd 的 package.json 里所有 Quiesco 包要同一版本。
+- build.ts：`expo prebuild` / xcodebuild / gradlew 都在 cwd；stamp 在 `cwd/.expo/quiesco`；binaryPath 相对 cwd。
+- upgrade.ts：要求 cwd 的 package.json 有 expo；装包（RUNTIME = agent, native；DEV = quiesco, core, expo-plugin；WEB_DEV）和改文件都在 cwd。
+- dev-server.ts（`quiesco test` 自动起 Metro）：`spawnBackground('npx expo start', { cwd: ctx.cwd })` ⇒ issue 没提，但分目录时同样会坏。
+- core：`loadConfig` 只找 cwd 的 config；session 的 stale-bundle 检查用 `projectRoot = process.cwd()`（metroConfigUsesQuiesco、staleBundleWarning 看的是 app 的源码）。
+- CliContext 是普通对象（方法不依赖 this）⇒ `{ ...ctx, cwd: appDir }` 可以复用现有检查函数。

@@ -4,10 +4,10 @@
 解决 h2nology/quiesco 的 12 个 open issue（同一位用户在 0.7.0 + Vitest + Expo SDK 58 Release 构建、iOS 27 模拟器 / Android API 36 模拟器上实测的反馈）。每个修复都配测试和三语文档，实跑验收后回复并关闭 issue，最后一起发下一个版本。
 
 ## Current Phase
-L.C device / 输入 API（#48、#53、#52）
+L.D CLI：appDir（#54）
 
 ## Next Step
-HU 确认 L.C 的提交 / PR；之后开始 L.D（#54 appDir）。
+HU 确认 L.D 的提交 / PR；之后开始 L.E.0（#49–#51 调研）。
 
 ## 背景
 - 前置：0.7.0 已发布（`707bade chore(release): 0.7.0`）。
@@ -92,14 +92,23 @@ HU 确认 L.C 的提交 / PR；之后开始 L.D（#54 appDir）。
 - [x] 单测：core（device-state 后台 openUrl、JS-only locale + warn；driver type spec / 校验；ios-runner / android provider）、agent（native 逐字 + settle 顺序、js 逐字、characters、host intervalMs、preferredLanguages）、web（intervalMs 节奏）
 - [x] 实跑：actions + device + lifecycle：iOS 34 + 1 skipped；web 31 + 4 skipped；Android 34 / 35，唯一失败「模拟定位」是 AOSP 镜像没有 Google Play 服务（改动前同样失败，已确认）
 - [x] 文档三语（type / openUrl / setLocale）；`pnpm check` exit 0（928 个测试）；docs:check 通过
-- [ ] HU 确认提交 / PR
-- **Status:** in_progress
+- [x] HU 确认提交 / PR：PR #58（base 是 PR #57 的分支）
+- **Status:** complete
 
 ### L.D CLI：appDir（#54）
-- [ ] config schema 加 `appDir`；doctor 把检查分成「app」和「测试项目」两组；build / init --upgrade 用 appDir
-- [ ] runner 包检查按实际 runner
-- [ ] 用 monorepo 结构（app/ + e2e/）的 fixture 测试；cli.mdx 三语
-- **Status:** pending
+分支 `feat/app-dir`（叠在 `feat/device-input-l-c` / PR #58 上）。调研见 findings.md「L.D 调研」。
+- [x] core：`QuiescoConfig.appDir`；`loadConfig` 按 config 文件目录解析成绝对路径（不是非空字符串 ⇒ CONFIG_ERROR）；session 的 bundle 检查用 `config.appDir ?? cwd`
+- [x] cli `app-dir.ts`：`appContext(ctx, config, flag)`（`{ ...ctx, cwd: appDir }`，同目录返回 ctx 本身）、`inApp`（显示路径；离得远就用绝对路径）
+- [x] doctor：先读 config；app 侧（expo、@quiesco/agent、config plugin、Metro、entry、<QuiescoRoot>、app.json / android/）在 appDir，测试侧（runner 包、旧版文件、config、构建脚本）在 cwd；版本检查合并两边（app 的包带 `(app)`）；`--app-dir`；分目录时第一行 `app: …`
+- [x] build：prebuild / xcodebuild / gradle 在 appDir；binaryPath 仍相对 cwd（xcodebuild 的 derivedDataPath 换算成相对 app）；stamp 在 appDir/.expo；`--app-dir`
+- [x] init --upgrade：agent / native / expo-plugin 在 app 里升级，其余在测试包；app.json ID、<QuiescoRoot> 在 app，cucumber / tsconfig / config 占位符 / scripts 在测试包；`--app-dir`
+- [x] `quiesco test`：Metro 在 appDir 启动
+- [x] 帮助文本、cli.mdx 三语新节「测试放在单独的包里」
+- [x] 单测：cli `app-dir.test.ts` 8 个（appContext、doctor 通过 / 不设 appDir / --app-dir / 版本不一致、build android / iOS、upgrade、Metro）；core config（appDir 解析）、device-state（bundle 检查看 appDir；去掉 session 改动则失败）；fake context 记录 cwd
+- [x] 实跑：scratchpad 里的独立测试包（appDir 指向 examples/todo-app，node_modules 按包软链）：doctor 全部通过（runner 识别为 Vitest，11 个包 0.7.0）；iOS（Metro 在 app 目录启动、结束后停掉）3/3、web 3/3。原目录：doctor 通过，web actions 9 + 1 skipped
+- [x] `pnpm check` exit 0（938 个测试）；docs:check 通过
+- [ ] HU 确认提交 / PR
+- **Status:** in_progress
 
 ### L.E system UI 与原生控件（#49、#50、#51）
 - [ ] L.E.0 调研：Android uiautomator dump 里 app 对话框窗口的节点；iOS system UI runner 现在怎么取节点、能否查询 SafariViewService / 分享面板 / 键盘 / app 内 UIKit 控件的 accessibility 元素

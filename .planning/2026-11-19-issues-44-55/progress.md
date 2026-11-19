@@ -24,3 +24,9 @@
 - PR #57（L.B）已开。L.C 分支 `feat/device-input-l-c`。HU 把 D4 改为固定间隔 + 最后等 idle。
 - 实现 #48 / #53 / #52。第一次三端跑：web「一次输入」7 次按键（web 本来逐键）⇒ 场景改 @native；Android「逐字输入」丢第一个字 ⇒ 实验（聚焦后等 500 ms 通过）⇒ 改为 settle（waitForIdle），去掉 settle 3 次里 2 次失败、加上 3/3 通过。Android「模拟定位」失败是环境问题（改动前同样失败）。
 - 最终：三端实跑见 task_plan.md；`pnpm check` 928 通过。未提交，等 HU 确认。
+
+## 2026-11-19 Session 1（L.D）
+- PR #58（L.C）已开。L.D 分支 `feat/app-dir`。
+- 实现 appDir（core / doctor / build / upgrade / dev-server / session）。新测试第一次 2 个失败：Android 设备检查依赖本机（断言里排除）、npm install 参数写错了期望（行为正确）。
+- 实跑：独立测试包里 doctor 通过，iOS / web 测试通过，Metro 在 app 目录启动。实跑时发现 app 路径离得远时显示一长串 ../ ⇒ 改成显示绝对路径。
+- `pnpm check` 938 通过。未提交，等 HU 确认。
