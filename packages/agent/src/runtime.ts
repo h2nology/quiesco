@@ -66,6 +66,8 @@ const LONG_PRESS_AT_MS = 800;
 const MAX_EDGE_STEPS = 60;
 /** Finger direction of a fling towards an edge (to reach the bottom, the finger moves up). */
 const EDGE_FINGER: Record<Edge, Direction> = { top: 'down', bottom: 'up', left: 'right', right: 'left' };
+/** The end a scroll in a direction (content moving that way into view) runs into. */
+const EDGE_OF: Record<Direction, Edge> = { down: 'bottom', up: 'top', right: 'right', left: 'left' };
 /**
  * In the background no frames are drawn and Android pauses React Native's timers, so these trackers
  * would never settle (Phase 6.5 spike); they count as idle until the app is active again.
@@ -95,6 +97,11 @@ type Handlers = { [M in keyof AgentMethods]: (params: ParamsOf<AgentMethods[M]>)
  * skipped (a step is a drag that ends without a fling, issue #46).
  */
 const SCROLL_TO_STEP = 0.85;
+/**
+ * scrollTo: at most this many steps in both directions together (issue #63). Each step waits for idle
+ * up to the call timeout, like scrollToEdge; the host allows for it (MAX_SCROLL_STEPS in core's driver).
+ */
+const MAX_SCROLL_TO_STEPS = 60;
 
 export class AgentRuntime {
   readonly adapter: FiberAdapter;
@@ -626,7 +633,9 @@ export class AgentRuntime {
         hostInput = await perform(spec.matcher).swipe(node, spec.direction, spec.speed, spec.distance, spec.from);
         break;
       case 'scrollTo':
-        node = await this.scrollTo(spec.container, spec.target, opts, deadline, this.loopablePerformer(perform(spec.container)));
+        node = await this.scrollTo(spec.container, spec.target, opts, deadline, (d) =>
+          this.loopablePerformer(this.performer(mode, spec.type, spec.container, d, () => this.syncIfNeeded(opts, Math.max(1, d - this.clock.now())))),
+        );
         break;
       case 'scrollToEdge':
         ({ node, hostInput } = await this.scrollToEdge(spec.matcher, spec.edge, mode, opts, deadline, perform(spec.matcher)));
@@ -707,7 +716,7 @@ export class AgentRuntime {
       return node === undefined ? { hostInput } : { element: this.summarize(node), hostInput };
     }
     // Multi-step scrolls give each step (and the final settle) the full timeout; others share one deadline.
-    const multiStep = spec.type === 'scrollToEdge' || spec.type === 'scrollToIndex';
+    const multiStep = spec.type === 'scrollToEdge' || spec.type === 'scrollToIndex' || spec.type === 'scrollTo';
     await this.syncIfNeeded(opts, multiStep ? timeoutMs : Math.max(1, deadline - this.clock.now()));
     return node === undefined ? {} : { element: this.summarize(node) };
   }
@@ -882,9 +891,13 @@ export class AgentRuntime {
    * the offset stops changing, then up; right / left for a horizontal scroll view (issue #46). Each step
    * waits for idle so lists can render more items. At an end, a visible target whose center stays
    * clipped is returned too.
+   *
+   * A multi-step action (issue #63): `deadline` bounds finding the container; then every step (drag and
+   * settle) gets the full call timeout, and MAX_SCROLL_TO_STEPS bounds the steps.
    */
-  private async scrollTo(container: Matcher, target: Matcher, opts: SyncOption, deadline: number, performer: ActionPerformer): Promise<HostNode> {
+  private async scrollTo(container: Matcher, target: Matcher, opts: SyncOption, deadline: number, performerFor: (deadline: number) => ActionPerformer): Promise<HostNode> {
     const containerNode = await this.resolveTarget(container, opts, deadline);
+    const timeoutMs = this.timeout(opts);
     // Offset readout (layout-based, works in both modes) to notice the end of the content.
     const scrollable = js.findScrollable(containerNode);
     const MAX_STEPS_WITHOUT_OFFSET = 10;
@@ -899,21 +912,26 @@ export class AgentRuntime {
       }
       return visible;
     };
+    let steps = 0;
+    const ends: string[] = [];
     for (const direction of horizontal ? (['right', 'left'] as const) : (['down', 'up'] as const)) {
       for (let step = 0; ; step++) {
         const centered = visibleTargets(true);
         if (centered.length === 1) return centered[0] as HostNode;
-        if (this.clock.now() >= deadline || (scrollable === null && step >= MAX_STEPS_WITHOUT_OFFSET)) break;
+        if (steps >= MAX_SCROLL_TO_STEPS) throw this.scrollToGaveUp(container, target, scrollable, steps, ends);
+        if (scrollable === null && step >= MAX_STEPS_WITHOUT_OFFSET) break;
+        steps++;
+        const stepDeadline = this.clock.now() + timeoutMs;
         const before = scrollable?.offset();
         const current = findAll(this.adapter.getHostRoots(), container)[0] ?? containerNode;
-        await performer.scroll(current, direction, vp == null ? undefined : (horizontal ? vp.width : vp.height) * SCROLL_TO_STEP, undefined, true);
-        await this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now()));
+        await performerFor(stepDeadline).scroll(current, direction, vp == null ? undefined : (horizontal ? vp.width : vp.height) * SCROLL_TO_STEP, undefined, true);
+        await this.syncIfNeeded(opts, Math.max(1, stepDeadline - this.clock.now()));
         let after = scrollable?.offset();
         if (scrollable != null && before !== undefined && after !== undefined && Math.abs(after.x - before.x) < 1 && Math.abs(after.y - before.y) < 1 && !js.atEdge(scrollable, direction)) {
           // The drag did not move the content, though there is more of it: something under the finger took
           // the drag (a wheel picker, a slider). Scroll this step programmatically instead.
           js.scrollBy(scrollable, direction, vp == null ? undefined : (horizontal ? vp.width : vp.height) * SCROLL_TO_STEP);
-          await this.syncIfNeeded(opts, Math.max(1, deadline - this.clock.now()));
+          await this.syncIfNeeded(opts, Math.max(1, stepDeadline - this.clock.now()));
           after = scrollable.offset();
         }
         if (before !== undefined && after !== undefined && Math.abs(after.x - before.x) < 1 && Math.abs(after.y - before.y) < 1) {
@@ -921,11 +939,27 @@ export class AgentRuntime {
           // overlay that clips) is as good as it gets.
           const partly = visibleTargets(false);
           if (partly.length === 1) return partly[0] as HostNode;
+          ends.push(EDGE_OF[direction]);
           break;
         }
       }
     }
-    throw new QuiescoError('ELEMENT_NOT_FOUND', `Scrolled ${describeMatcher(container)} to both ends without finding a visible ${describeMatcher(target)}`, { matcher: target });
+    if (scrollable === null) {
+      throw new QuiescoError('ELEMENT_NOT_FOUND', `Scrolled ${describeMatcher(container)} ${MAX_STEPS_WITHOUT_OFFSET} steps each way without finding a visible ${describeMatcher(target)} (its scroll offset cannot be read, so its ends are unknown)`, { matcher: target });
+    }
+    throw new QuiescoError('ELEMENT_NOT_FOUND', `Scrolled ${describeMatcher(container)} to both ends (${steps} steps) without finding a visible ${describeMatcher(target)}`, { matcher: target });
+  }
+
+  /** scrollTo ran out of steps before reaching both ends (issue #63): say where it stopped. */
+  private scrollToGaveUp(container: Matcher, target: Matcher, scrollable: js.Scrollable | null, steps: number, ends: string[]): QuiescoError {
+    const o = scrollable?.offset();
+    const at = o === undefined ? '' : ` at offset ${JSON.stringify({ x: Math.round(o.x), y: Math.round(o.y) })}`;
+    const reached = ends.length === 0 ? 'no end reached' : `reached the ${ends.join(' end, then the ')} end`;
+    return new QuiescoError(
+      'ELEMENT_NOT_FOUND',
+      `Gave up scrolling ${describeMatcher(container)} after ${steps} steps${at} (${reached}) without finding a visible ${describeMatcher(target)}. Use scrollToIndex for a long list.`,
+      { matcher: target },
+    );
   }
 
   /**

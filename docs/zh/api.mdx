@@ -52,7 +52,7 @@ description: "this.app（Driver）、匹配器、App 内 API、配置、场景�
 | `rotate(target, radians, { speed })` | 两指绕元素中心旋转（正值：屏幕上顺时针） |
 | `multiTouch(fingers, { within })` | 任意数量的手指沿定时路径移动：`fingers[i]` 是第 i 根手指的 `{ x, y, t }` 点列（t 单位为 ms，非递减）；有 `within` 时为元素坐标，否则为窗口坐标 |
 
-坐标使用逻辑单位（iOS 上为 pt，Android 上为 dp，web 上为 CSS px）。`scrollToEdge` 和`scrollToIndex` 分多步完成；每一步最多可等待一个调用超时时长，让 App 稳定下来。
+坐标使用逻辑单位（iOS 上为 pt，Android 上为 dp，web 上为 CSS px）。`scrollTo`、`scrollToEdge` 和 `scrollToIndex` 分多步完成（最多 60 步）；每一步最多可等待一个调用超时时长，让 App 稳定下来。
 
 在 `js` 模式下（用回调代替真实输入），点击某个点会按下该处最上层的元素；点击没有 `onPress` 的开关时，通过 `onValueChange` 切换它；`pressKey` 调用 `onSubmitEditing` / `onKeyPress`；`scrollToEdge` 直接设置滚动偏移；`from` 被忽略；`drag` 不受支持（它需要真实的触摸）。
 

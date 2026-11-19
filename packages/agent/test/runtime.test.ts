@@ -402,6 +402,50 @@ describe('AgentRuntime', () => {
     expect(row.y).toBe(259);
   });
 
+  /** A list 400 high at y 200 whose content is `height` high, with row `id` at content y `rowY`; each scroll keeps the app busy `busyMs`. */
+  function longList(height: number, rowY: number, busyMs = 0) {
+    let busyUntil = 0;
+    const s = setup({ busy: () => Date.now() < busyUntil });
+    const content = { x: 0, y: 200, width: 300, height };
+    const row = { x: 0, y: 200 + rowY, width: 300, height: 52 };
+    const listView = {
+      scrollTo: vi.fn(({ y }: { y: number }) => {
+        const top = Math.min(Math.max(0, y), height - 400);
+        content.y = 200 - top;
+        row.y = 200 + rowY - top;
+        busyUntil = Date.now() + busyMs;
+      }),
+    };
+    sameRoot(s.target)(classOf(listView, host('RCTScrollView', { testID: 'list', __rect: { x: 0, y: 200, width: 300, height: 400 } }, host('RCTScrollContentView', { __rect: content }, host('RCTView', { testID: 'row', __rect: row })))));
+    return { ...s, listView, row };
+  }
+
+  it('scrollTo gives every step the call timeout: a long list takes longer than one timeout (#63)', async () => {
+    // 19 steps of 340 bring the row's center in (offset 6460), each busy for 80 ms: 1.5 s in all, with a 300 ms timeout.
+    const { call, listView } = longList(10_000, 6_800, 80);
+    await expect(drive(call('action', { action: { type: 'scrollTo', container: { id: 'list' }, target: { id: 'row' } }, mode: 'js', timeoutMs: 300 }), 5_000)).resolves.toMatchObject({
+      element: { testID: 'row' },
+    });
+    expect(listView.scrollTo.mock.calls.length).toBe(19);
+  });
+
+  it('scrollTo stops after 60 steps and says where, not "both ends" (#63)', async () => {
+    const { call, listView } = longList(100_000, 90_000);
+    const p = drive(call('action', { action: { type: 'scrollTo', container: { id: 'list' }, target: { id: 'row' } }, mode: 'js', timeoutMs: 300 }), 5_000);
+    await expect(p).rejects.toMatchObject({ errorName: 'ELEMENT_NOT_FOUND' });
+    const message = await p.then(() => '', (e: Error) => e.message);
+    expect(message).toContain('after 60 steps at offset {"x":0,"y":20400} (no end reached)');
+    expect(message).not.toContain('both ends');
+    expect(listView.scrollTo).toHaveBeenCalledTimes(60);
+  });
+
+  it('scrollTo reports both ends only when it reached them, with the steps it took (#63)', async () => {
+    // 1,000 of content in a 400 view: 2 steps down to the end, one more that moves nothing, then 2 + 1 up.
+    const { call } = longList(1_000, 5_000);
+    const p = drive(call('action', { action: { type: 'scrollTo', container: { id: 'list' }, target: { id: 'row' } }, mode: 'js', timeoutMs: 300 }), 2_000);
+    await expect(p).rejects.toMatchObject({ errorName: 'ELEMENT_NOT_FOUND', message: expect.stringContaining('to both ends (6 steps)') });
+  });
+
   it('scrollView (6.9 full-page screenshots): the largest visible one by default, or the one around an element; scrolls it when asked', async () => {
     const { target, call } = setup();
     const big = { x: 0, y: 100, width: 300, height: 500 };
