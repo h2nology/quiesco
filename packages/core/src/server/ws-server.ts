@@ -9,7 +9,7 @@
 import { EventEmitter } from 'node:events';
 import type { AddressInfo } from 'node:net';
 
-import { CloseCode, ErrorCode, JsonRpcErrorCode, PROTOCOL_VERSION } from '@quiesco/protocol';
+import { CloseCode, ErrorCode, HOST_TICK, HOST_TICK_MS, JsonRpcErrorCode, PROTOCOL_VERSION } from '@quiesco/protocol';
 import type { AgentConfig, AgentEvents, AgentMethods, HostMethods, ParamsOf, Platform, ResultOf } from '@quiesco/protocol';
 import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
@@ -36,6 +36,7 @@ export class AgentConnection extends EventEmitter<{
   private nextId = 1;
   private readonly pending = new Map<number, Pending>();
   private _closed = false;
+  private ticker: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private readonly socket: WebSocket,
@@ -72,7 +73,33 @@ export class AgentConnection extends EventEmitter<{
       }, timeoutMs);
       this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer, method });
       this.socket.send(JSON.stringify({ jsonrpc: '2.0', id, method, params }));
+      this.startTicks();
     });
+  }
+
+  /**
+   * While a call is pending, a `tick` notification every HOST_TICK_MS: the agent checks its wait for idle
+   * again on each one, also when the app's JS timers are paused in the background (issue #66).
+   */
+  private startTicks(): void {
+    if (this.ticker !== null) return;
+    this.ticker = setInterval(() => {
+      if (this.pending.size === 0 || this._closed) {
+        this.stopTicks();
+        return;
+      }
+      try {
+        this.socket.send(JSON.stringify({ jsonrpc: '2.0', method: HOST_TICK }));
+      } catch {
+        // The socket is closing: onClosed rejects the pending calls.
+      }
+    }, HOST_TICK_MS);
+    this.ticker.unref?.();
+  }
+
+  private stopTicks(): void {
+    if (this.ticker !== null) clearInterval(this.ticker);
+    this.ticker = null;
   }
 
   close(code: number = CloseCode.NORMAL, reason = ''): void {
@@ -99,6 +126,7 @@ export class AgentConnection extends EventEmitter<{
   onClosed(code: number, reason: string): void {
     if (this._closed) return;
     this._closed = true;
+    this.stopTicks();
     for (const [, p] of this.pending) {
       clearTimeout(p.timer);
       p.reject(new QuiescoError('AGENT_DISCONNECTED', `The app disconnected while handling ${p.method} (close code ${code})`, { method: p.method, code }));

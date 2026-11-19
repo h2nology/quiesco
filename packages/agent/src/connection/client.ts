@@ -35,6 +35,11 @@ export interface AgentClientOptions {
   handle: RequestHandler;
   onReady?: (config: AgentConfig) => void;
   clock: Clock;
+  /**
+   * Every message from the host, before it is handled: a pending wait for idle checks again (the host's
+   * `tick` notifications, issue #66).
+   */
+  onMessage?: () => void;
   /** Diagnostics sink (defaults to nothing; the runtime wires it to the original console). */
   log?: (message: string) => void;
 }
@@ -139,6 +144,11 @@ export class AgentClient {
   }
 
   private onMessage(socket: SocketLike, data: unknown): void {
+    try {
+      this.options.onMessage?.();
+    } catch {
+      // A hook that throws must not stop the message.
+    }
     let msg: Incoming;
     try {
       msg = JSON.parse(String(data)) as Incoming;
@@ -153,7 +163,7 @@ export class AgentClient {
     if (typeof msg.method === 'string' && msg.id !== undefined) {
       void this.onRequest(socket, msg.id, msg.method, msg.params);
     }
-    // Notifications from the host are not used yet.
+    // Notifications from the host (`tick`) only wake waits: onMessage above.
   }
 
   private onHelloResponse(socket: SocketLike, msg: Incoming): void {

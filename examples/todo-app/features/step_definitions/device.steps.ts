@@ -48,6 +48,16 @@ When('撤销 App 的定位权限', async function (this: QuiescoWorld) {
   await openDevicePage(this);
 });
 
+Given('定位权限尚未决定', async function (this: QuiescoWorld) {
+  await this.app.device.setPermission('location', 'reset');
+  await openDevicePage(this);
+});
+
+// Issue #66: the tap opens the permission dialog (the app goes to the background) and waits for idle as usual.
+When('请求定位权限', async function (this: QuiescoWorld) {
+  await this.app.tap('request-location');
+});
+
 When('读取位置', async function (this: QuiescoWorld) {
   await this.app.tap('read-location');
 });

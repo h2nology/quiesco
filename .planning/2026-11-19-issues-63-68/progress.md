@@ -15,3 +15,6 @@
 - 注意：报告里出现「app JS: bundle built 23:37:50, a one-off export」警告（`pnpm build:web` 之后），iOS 的 app 实际用的是 Metro（新按钮存在、能点到），待查这个警告是否误报。
 - 跑 iOS 全量（后台）。
 - iOS 全量第 1 次 96/107（4 failed），原因是锁屏 Open 判断太宽 ⇒ 收紧 + 堆叠展开立即重找。之后通知场景 6/6、system.feature 2×15/15（真机走到锁屏 Open 路径）、Android system.feature 12 passed。`pnpm check` 960 通过。M.B 提交、开 PR。
+- M.B 提交 + PR #70（base fix/scroll-to-steps）。
+- M.C：分支 fix/background-idle-wait。复现 16 次未出现挂住（debug 0 行）。实现 host tick + engine.wake。单元测试、三语文档、requirements §7。定位权限场景 10/10，`pnpm check` 965。Android 全量（后台）进行中。
+- M.C 回归：Android 全量 97/108（2 failed：#63 场景超时太紧 ⇒ 3000 ms；模拟定位 = AOSP 无 GMS 环境问题）；滚动两端 3/3；iOS device.feature 17/17。M.C 提交 + PR。

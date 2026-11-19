@@ -11,6 +11,8 @@ export interface FakeAgent {
   hello: Promise<{ result?: { sessionId: string; config: AgentConfig }; error?: { code: number; message: string; data?: Record<string, unknown> } }>;
   closed: Promise<{ code: number; reason: string }>;
   requests: { method: string; params: Record<string, unknown> }[];
+  /** Notifications the host sent (`tick`). */
+  notifications: string[];
   notify(method: 'log' | 'error', params: Record<string, unknown>): void;
 }
 
@@ -20,6 +22,7 @@ export function connectAgent(
 ): FakeAgent {
   const ws = new WebSocket(`ws://127.0.0.1:${port}`);
   const requests: FakeAgent['requests'] = [];
+  const notifications: string[] = [];
   let resolveHello!: (v: Awaited<FakeAgent['hello']>) => void;
   const hello = new Promise<Awaited<FakeAgent['hello']>>((r) => (resolveHello = r));
   const closed = new Promise<{ code: number; reason: string }>((r) => ws.on('close', (code, reason) => r({ code, reason: reason.toString() })));
@@ -46,6 +49,11 @@ export function connectAgent(
       return;
     }
     if (typeof msg.method !== 'string') return;
+    // Notifications from the host (the `tick` while a call is pending): no reply.
+    if (msg.id === undefined) {
+      notifications.push(msg.method);
+      return;
+    }
     requests.push({ method: msg.method, params: msg.params ?? {} });
     try {
       const result = await (opts.handler ?? (() => ({})))(msg.method, msg.params ?? {});
@@ -61,6 +69,7 @@ export function connectAgent(
     hello,
     closed,
     requests,
+    notifications,
     notify: (method, params) => ws.send(JSON.stringify({ jsonrpc: '2.0', method, params })),
   };
 }

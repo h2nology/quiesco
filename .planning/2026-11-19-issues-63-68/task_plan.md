@@ -4,10 +4,10 @@
 解决 h2nology/quiesco 的 6 个 open issue（同一位用户在 0.8.0 + Vitest 5.1 + Expo SDK 58 Release 构建、iOS 27 模拟器 / Android API 36 模拟器上的实测反馈）。每个修复都配单元测试，必要时更新三语文档；实跑验收后回复并关闭 issue，最后一起发版。
 
 ## Current Phase
-M.C Android 后台 idle 等待（#66）
+M.D 原生模块 promise（#67）
 
 ## Next Step
-从 fix/ios-open-notification 开分支 `fix/background-idle-wait`；M.C.0：example 的 device 页加「请求位置权限」按钮 + 场景，Android 上复现 #66，记录挂住时忙的 tracker。
+从 fix/background-idle-wait 开分支 `feat/native-module-tracker`；按 findings「M.D.0 调研」实现 `native-module` tracker（默认关）+ sync.mdx 三语说明。
 
 ## 背景
 - 前置：0.8.1 已发布（`dc7ca7d chore(release): 0.8.1`）。上一轮计划：`.planning/2026-11-19-issues-44-55/`。
@@ -79,13 +79,17 @@ M.C Android 后台 idle 等待（#66）
 - **Status:** complete
 
 ### M.C Android 后台 idle 等待（#66）
-分支 `fix/background-idle-wait`。
-- [ ] M.C.0 复现：example app 的 `request-location` + 权限对话框，记录挂住时哪个 tracker 忙（加 debug 日志）
-- [ ] 按 D4 改 `wait-for-idle.ts`：tracker 变化事件唤醒；期限检查在每次唤醒时做；后台时的兜底超时
-- [ ] tracker 接口加可选 `onChange(cb)`；network / react / idle-callback 实现
-- [ ] 单元测试：假时钟下「后台 + tracker 忙 + timer 不触发」⇒ tracker 变 idle 时返回；无事件时兜底超时报 SYNC_TIMEOUT
-- [ ] 实测：Android 每次重启模拟器跑 10 次该场景，全部通过；下一个测试的 reset 不再挂
-- **Status:** pending
+分支 `fix/background-idle-wait`（从 fix/ios-open-notification 开，堆叠在 PR #70 上）。
+- [x] M.C.0 复现：example device 页加「请求定位权限」按钮（expo-location requestForegroundPermissionsAsync）+ 场景「请求定位权限并在系统对话框中允许」。临时 debug 日志（后台等待时忙的 tracker）。本模拟器 16 次没复现（1 次失败是改 agent 源码时 Metro 热重载，与 #66 无关），debug 行 0 条 ⇒ 按代码分析 + 确定性单元测试修
+- [x] 方案（D4 的实现调整）：不给每个 tracker 加 onChange，改为 **host 在调用进行中每 500 ms 发 `tick` 通知**，agent 收到任何消息都 `engine.wake()`：唤醒等待、重新检查 tracker 和超时。覆盖「tracker 后来变 idle」和「永远不 idle ⇒ SYNC_TIMEOUT」两种情况，不需要原生定时器（不用重建 app）；旧 agent 忽略通知，兼容
+- [x] protocol：`HOST_TICK` / `HOST_TICK_MS`；core `AgentConnection`：有 pending 请求时 setInterval（unref），无则停；agent `AgentClient` 的 `onMessage` 钩子；`SyncEngine.wake()`（sleepers 集合）；去掉 debug
+- [x] 单元测试：wake 后 tracker 变 idle ⇒ 返回；永远忙 + 超时后 wake ⇒ SYNC_TIMEOUT；无等待时 wake 无副作用；client 对 tick 调 onMessage 且不回复；server 有 pending 时发 tick、结束后停。fake-agent 把通知单独记录（不混进 requests）
+- [x] 文档：platforms.mdx 三语（Android 后台段落）、requirements.md §7（Host → agent 通知）
+- [x] 实测 Android：定位权限场景 10/10（最终代码）；`pnpm check` 965 通过
+- [x] Android 全量 108 场景 97 passed / 2 failed：①#63 的新场景每步 1500 ms 在 Android 太紧（模拟器约 4–5 fps）⇒ 改 3000 ms（iOS 上旧 runtime 用 3000 仍失败，回归测试有效）；②「模拟定位」：AOSP 镜像无 Google Play services（SERVICE_INVALID），上一轮已记录为环境问题，与改动无关
+- [x] 滚动场景 Android 3/3、iOS 3/3；iOS device.feature 17 passed / 1 skipped（含新的定位权限场景）
+- [x] 提交、PR（base fix/ios-open-notification）
+- **Status:** complete
 
 ### M.D 原生模块 promise（#67）
 - [ ] 文档：sync.mdx（en/ja/zh）tracker 表后加说明和推荐写法
@@ -106,6 +110,7 @@ M.C Android 后台 idle 等待（#66）
 | #64/#65/#68 一起改，BANNER_WAIT_MS 保持 2 s | 点中判定改为 app 前台 + 堆叠处理后，不需要退回 0.7.0 的长等待（HU 2026-11-19） |
 | scrollTo 步数上限 60 与 scrollToEdge 一致，不扣除找容器和最后 settle | host 侧 MAX_SCROLL_STEPS 也是 60，scrollToEdge 一直如此；每步很少用满 timeout |
 | #66 事件唤醒 + 原生定时器兜底 | 不依赖后台暂停的 JS timer，且至少能报 SYNC_TIMEOUT（HU 2026-11-19） |
+| #66 用 host tick 代替 tracker onChange + 原生定时器 | 同样解决「不靠 JS timer 唤醒」，且覆盖超时报告；纯 JS，不用重建 app；后台唤醒延迟 ≤ 500 ms |
 | #67 先文档再调研，实现则默认关 | 长期 pending 的原生 promise 有让 app 永远忙的风险（HU 2026-11-19） |
 
 ## Errors Encountered
@@ -113,4 +118,5 @@ M.C Android 后台 idle 等待（#66）
 |-------|---------|------------|
 | iOS 新通知场景 1/5 失败：点了 2 次，app 没到前台，通知中心里该通知被滑开、露出「Open」 | 1 | 锁屏时点通知只会露出 Open ⇒ 点完后找同一行新出现的按钮并点；两次读取之间等 250 ms。之后 6/6 |
 | iOS 全量：锁屏 Open 判断太宽，把展开后移进同一行的别的 app 的通知当成 Open 点了 | 1 | 只认左侧、窄于半行、非通知的新按钮；单元测试覆盖 |
+| Android 全量：#63 场景 1500 ms/步太紧 | 1 | 改 3000 ms，确认旧代码仍失败 |
 | 想用 Cmd+L 锁住模拟器验证锁屏路径：Simulator.app 没开（headless），osascript 失败 | 1 | 不打开用户的 Simulator 窗口；锁屏路径只有单元测试覆盖 |

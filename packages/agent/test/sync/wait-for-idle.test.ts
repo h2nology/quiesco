@@ -183,6 +183,46 @@ describe('SyncEngine.setBackground (6.7 batch C: Android pauses JS timers behind
     expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 
+  it('a tracker still busy when the app went to the background: the next wake() (a host message) finds it idle (#66)', async () => {
+    let busy = true;
+    const engine = new SyncEngine([tracker('react', () => !busy)], pausedClock);
+    engine.setBackground(() => true, () => () => undefined);
+    let done = false;
+    const wait = engine.waitForIdle({ timeoutMs: 10_000 }).then(() => (done = true));
+    await Promise.resolve();
+    expect(done).toBe(false); // react busy, sleeping on a timer that never fires
+    engine.wake(); // a host tick while still busy: checks again and sleeps again
+    await Promise.resolve();
+    expect(done).toBe(false);
+    busy = false;
+    engine.wake();
+    await wait;
+    expect(done).toBe(true);
+  });
+
+  it('a tracker that never settles in the background: a wake() after the timeout reports SYNC_TIMEOUT (#66)', async () => {
+    vi.useFakeTimers({ now: 0 });
+    try {
+      const engine = new SyncEngine([tracker('react', () => false)], pausedClock);
+      engine.setBackground(() => true, () => () => undefined);
+      const wait = engine.waitForIdle({ timeoutMs: 1000 });
+      wait.catch(() => undefined);
+      vi.setSystemTime(1500);
+      engine.wake();
+      await expect(wait).rejects.toMatchObject({ errorName: 'SYNC_TIMEOUT' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('wake() with nothing waiting does nothing; a finished wait is not woken again', async () => {
+    const engine = new SyncEngine([tracker('network', () => true)], pausedClock);
+    engine.setBackground(() => true);
+    engine.wake();
+    await engine.waitForIdle({ timeoutMs: 1000 });
+    expect(() => engine.wake()).not.toThrow();
+  });
+
   it('keeps the two-macrotask confirmation in the foreground', async () => {
     const engine = new SyncEngine([tracker('network', () => true)], pausedClock);
     engine.setBackground(() => false, () => () => undefined);

@@ -205,6 +205,7 @@ export class AgentRuntime {
         createSocket: (url) => this.deps.createSocket(url),
         handle: (method, p) => this.handle(method, p),
         onReady: (config) => this.configure(config),
+        onMessage: () => this.engine.wake(),
         clock: this.clock,
         log: this.log,
       });

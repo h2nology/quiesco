@@ -439,6 +439,7 @@ export default defineConfig({
   | `getIdleState` | 返回各 tracker 当前状态（调试用） |
 
 - 事件（agent → Host）：`log`（App 侧日志转发，可配置级别）、`error`（未捕获异常、红屏）。
+- 通知（Host → agent）：`tick`，调用进行中每 500 ms 一条，不带参数。agent 收到任何消息都会让正在进行的等待空闲重新检查一次（Android 后台时 JS 计时器暂停，issue #66）；不认识它的 agent 直接忽略。
 - 错误码：定义统一的错误码枚举（元素未找到、多个匹配、同步超时、后门未注册、协议不兼容等），放在 `@quiesco/protocol` 中。
 - App 出现未捕获异常或红屏时，当前步骤立即失败，并附上异常信息。
 

@@ -101,7 +101,7 @@ description: "iOS、Android 和 Web 并列对比：输入、权限、系统弹�
 - `DateTimePicker` 以及 picker 的对话框 / 下拉框位于独立的窗口中，App 内的触摸无法到达：`setValue` 通过它们的回调来设置（日期 picker 按 testID 定位，因为它不渲染任何视图）。
 - 无障碍操作会像 TalkBack 一样，在读取节点信息之后执行：React Native 的 delegate 只处理它在节点信息中列出的操作。
 - 字体缩放或语言变更会重建 activity（React Native 默认的 `configChanges` 不包括 `fontScale` / `locale`）。此时 React 的根组件会在同一个 JS 上下文中重新挂载，而 expo-router 58 的命令式 router 会停止工作（"unavailable before the first render has finished"），直到 App 重启。因此 `setFontScale` / `setLocale` 会重新启动 App（保留数据），在下一个场景开始前撤销这些设置时也会如此。
-- 在后台，Android 会暂停 React Native 的定时器，也不进行任何绘制；App 处于非活动状态时，agent 会把定时器、帧和 native 跟踪器都视为空闲。
+- 在后台，Android 会暂停 React Native 的定时器，也不进行任何绘制；App 处于非活动状态时，agent 会把定时器、帧和 native 跟踪器都视为空闲。这期间等待空闲会在每次收到 host 的消息时（调用进行中每 500 ms 一条）重新检查其余的跟踪器，所以打开系统对话框的操作也会正常结束，或以 `SYNC_TIMEOUT` 失败。
 - 模拟器通常带有硬件键盘，因此输入时不会出现软键盘。要测试与键盘相关的行为：`adb shell settings put secure show_ime_with_hard_keyboard 1`。
 - `setNetwork('offline')` 会关闭整个模拟器的 Wi-Fi 和移动数据；`adb reverse` 仍然有效，因此 host 端上的 Quiesco、Metro 和 mock 后端仍可访问——App 对它们的请求由 agent 让其失败。在下一个场景开始前会恢复之前的 Wi-Fi / 数据状态。
 - adb 没有剪贴板命令：`clipboard.*` 需要 App 中有 `@quiesco/native` ≥ Phase 6.6。

@@ -96,6 +96,22 @@ describe('AgentConnection', () => {
     });
   });
 
+  it('ticks while a call is pending, and stops when none is (#66)', async () => {
+    const { server, port } = await start();
+    server.expectSession('s1');
+    let answer: (() => void) | null = null;
+    const agent = connectAgent(port, { sessionId: 's1', handler: () => new Promise((r) => (answer = () => r({ waitedMs: 0 }))) });
+    const conn = await server.waitForConnection('s1', 1000, () => '');
+    const pending = conn.request('waitForIdle', {}, 5000);
+    await new Promise((r) => setTimeout(r, 1200));
+    expect(agent.notifications.filter((n) => n === 'tick').length).toBeGreaterThanOrEqual(2);
+    (answer as (() => void) | null)?.();
+    await pending;
+    const after = agent.notifications.length;
+    await new Promise((r) => setTimeout(r, 700));
+    expect(agent.notifications.length).toBe(after);
+  });
+
   it('fails a request when the agent does not answer in time, and when it disconnects', async () => {
     const { server, port } = await start();
     server.expectSession('s1');

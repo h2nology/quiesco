@@ -138,7 +138,9 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
   app restarts. So `setFontScale` / `setLocale` start the app again (data kept), and so does undoing
   them before the next scenario.
 - In the background Android pauses React Native's timers and nothing is drawn; the agent counts the
-  timer, frame and native trackers as idle while the app is not active.
+  timer, frame and native trackers as idle while the app is not active. A wait for idle then checks the
+  other trackers again on every message from the host (sent every 500 ms while a call is pending), so an
+  action that opens a system dialog still ends, or fails with `SYNC_TIMEOUT`.
 - Emulators usually have a hardware keyboard, so the software keyboard does not appear while typing.
   To test keyboard-related behavior: `adb shell settings put secure show_ime_with_hard_keyboard 1`.
 - `setNetwork('offline')` turns Wi-Fi and mobile data off for the whole emulator; `adb reverse` keeps
