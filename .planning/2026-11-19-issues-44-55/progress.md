@@ -13,3 +13,9 @@
 - 实跑：#44 在 Android 上先复现（去掉修复 ⇒ 场景失败），修复后通过；actions.feature 三端各 5/5。#55 的 setupFiles 写法在 web 上实跑确认。
 - `pnpm check` 第一次失败 1 个：init.test 断言旧的单行 vitest config ⇒ 改成匹配多行；plugin references 过期 ⇒ 重新生成。第二次 exit 0（910 个测试）。
 - 未提交，等 HU 确认。
+
+## 2026-11-19 Session 1（L.B）
+- PR #56（L.A）已开。L.B 分支 `fix/scroll-tap-clipping`。
+- 调研 #46：方向（根因）和惯性（iOS 速度阈值）；停顿松手无效，ease-out 有效。
+- 实现 #45 三处 + #46 两处。第一次三端跑：iOS / Android scrollTo 第 120 行超时（650 ms 每步太慢）⇒ 每步 0.85 视口 + scrollTo 的一步 400 ms；web 失败 ⇒ 发现 RNW 的 refresh 包装层（L.A 的 web 验证用了旧 dist）⇒ 改成结构判断。
+- 最终：actions.feature 三端 8/8，`pnpm check` 917 通过。未提交，等 HU 确认。

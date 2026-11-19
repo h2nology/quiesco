@@ -36,3 +36,32 @@
 - #46 每次 ~445 pt 的来源：drag 是否用了外层竖列表的 rect，或 native drag 在嵌套 scroll view 里被外层吃掉一部分后变成 fling。
 - #49 Android uiautomator dump 是否能拿到 app 的 Dialog window 节点（应该能，过滤条件要从 package 改为 window）。
 - #50 / #51 iOS system UI runner 的实现方式（XCUITest？）以及能否 `XCUIApplication(bundleIdentifier:)` 查询 SafariViewService / springboard / 键盘。
+
+## L.B 调研（2026-11-19，iOS 27 iPhone 17 模拟器 / Android API 36 模拟器，example app playground）
+实验装置：playground 长列表的 `ListHeaderComponent` 放一个横向 FlatList `carousel`（10 张，每张 240 宽）；临时 vitest 测试 `e2e/vitest/tmp-probe.test.ts` + `vitest.tmpprobe.config.mts`（`quiesco test --runner vitest --config …` 跑，结果写文件）。
+
+### #46 scrollTo 横列表失败：根因确认
+`runtime.ts scrollTo` 固定按 `['down','up']` 滚。横向 carousel 上竖着拖 ⇒ 外层竖列表在动，carousel 的 offset 不变 ⇒ 第一步就判断「到头了」。Android 报 both ends；iOS 报 ELEMENT_OBSCURED（竖拖把 carousel 挪走了一部分）。
+实验修复：按 `content.width > viewport.width + 1 && content.height <= viewport.height + 1` 判定横向，改用 `['right','left']` ⇒ 两端 `scrollTo('carousel','slide-8')` 都成功，外层列表不动（row-1 的 y 不变）。
+
+### #46 scroll 的 distance：iOS 上有惯性
+| 平台 | distance | 原来（匀速 500 ms 后松手） | 末尾停 150 ms（gesture，停顿中没有 move） | ease-out（cubic，10 段，共 650 ms） |
+|---|---|---|---|---|
+| iOS 横 | 240 / 300 | 457 / 554 | 446 / 565 | 230 / 290 |
+| iOS 竖 | 100 / 240 | 90 / 456 | 90 / 449 | 90 / 230 |
+| Android 横 | 240 / 300 | 217 / 281 | 224 / 1308 | 235 / 297 |
+| Android 竖 | 100 / 240 | 90 / 271 | 158 / 5038 | 91 / 218 |
+- 原因：匀速拖到终点就松手，松手时速度 = distance / 500 ms；iOS 超过约 200 pt/s 就会有惯性滑动（distance 100 时没有）。
+- 停顿再松手无效（iOS 不变，Android 反而甩得很远：停顿期间没有 MOVE 事件）。
+- ease-out 让手指在松开前真的减速 ⇒ 两端都接近 distance（少的约 10 pt 是触摸 slop）。用 `bridge.gesture`（Phase 6.2 起都有），没有 gesture 的旧 app 退回 swipe。
+
+### #45 代码定位
+- `runtime.ts scrollTo`：`isVisible`（ratio > 0）就返回。
+- native `tap` / `longPress`：`bridge.tap(tag, 0, 0, …)` ⇒ 原生侧打 view 的中心（iOS `target()` = view bounds 的 mid）；带 `point` 时走 `pressAt` ⇒ `bridge.gesture`。
+- `ready(node, point)` 的 JS hit test 用 `center(js)`；host performer（web）`tapAt` 用 `center(rect)`。
+- `hitTest`：子节点不受 `clipsContent` 祖先的 rect 限制。`visibility.ts visiblePart(node, viewport, rect)` 已有按祖先裁剪后的可见 rect，可以复用。
+
+### L.B 实现后的测量（最终参数）
+- 距离（distance → 实际移动）：iOS 横/竖 100→90、240→230、300→290；Android（650 ms）100→86、240→224、300→280（400 ms 时 240→207）；web 完全一致。
+- scrollTo 到第 120 行：iOS 7.3 s、Android 7.7 s、web 2.6 s。scroll 用 650 ms 做 scrollTo 时 iOS 超过 10 s。0.7.0 的代码：iOS 10 s 内到不了（超时）。
+- RNW 0.21 ScrollView：`cloneElement(refreshControl, { style: props.style }, scrollView)`，`props.style` 含 baseVertical（overflowY: auto）⇒ 包装 div 也裁剪；包装层比 ScrollView 大一圈边框（358×412 vs 356×410）。

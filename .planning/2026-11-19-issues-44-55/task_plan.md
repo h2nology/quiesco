@@ -4,10 +4,10 @@
 解决 h2nology/quiesco 的 12 个 open issue（同一位用户在 0.7.0 + Vitest + Expo SDK 58 Release 构建、iOS 27 模拟器 / Android API 36 模拟器上实测的反馈）。每个修复都配测试和三语文档，实跑验收后回复并关闭 issue，最后一起发下一个版本。
 
 ## Current Phase
-L.A 根因明确的小 bug（#47、#55、#44）
+L.B scroll / tap 正确性（#45、#46）
 
 ## Next Step
-HU 确认 L.A 的提交 / PR；之后开始 L.B（#45、#46）。
+HU 确认 L.B 的提交 / PR（以及要不要在 PR #56 上补充 web 的说明）；之后开始 L.C（#48、#53、#52）。
 
 ## 背景
 - 前置：0.7.0 已发布（`707bade chore(release): 0.7.0`）。
@@ -61,14 +61,24 @@ HU 确认 L.A 的提交 / PR；之后开始 L.B（#45、#46）。
 - [x] #44 `findScrollable`：第一个 host 是 `AndroidSwipeRefreshLayout` 时取它的子节点（`SCROLL_WRAPPERS`）。单测用 issue 的树。example app playground 的 200 行 FlatList 加了 `refreshControl`
 - [x] #44 实测：Android 去掉修复 ⇒「长列表滚动到指定行和两端」失败（scrollToEdge bottom 后 row-200 不可见），加上修复 ⇒ 通过；actions.feature Android / iOS / web 各 5/5
 - [x] `pnpm check` exit 0（910 个测试），`docs:check --no-mint` 通过，plugin references 已重新生成
-- [ ] HU 确认提交 / PR
-- **Status:** in_progress
+- [x] HU 确认提交 / PR：4 个 commit，PR #56
+- **Status:** complete
 
 ### L.B scroll / tap 正确性（#45、#46）
-- [ ] #45 按 D1 改 scrollTo 停止条件 / 可见部分中心 / hitTest 裁剪；单测（header + 列表，目标只露出 1 pt）
-- [ ] #46 调研：iOS 上嵌套横向 FlatList 的 offset 读取和 drag 距离（每次 ~445 pt 而不是 240 pt；疑似 drag 方向取了外层容器的 span 或 distance 被 `span * 0.45` 截断逻辑以外的地方覆盖）；定位后修复并加 example app 场景
-- [ ] iOS / Android / web e2e 实跑
-- **Status:** pending
+分支 `fix/scroll-tap-clipping`（叠在 `fix/issues-44-47-55` / PR #56 上）。调研结果见 findings.md「L.B 调研」。
+- [x] 调研：#46 两个问题都定位并做了实验修复（方向、ease-out）
+- [x] #46 方向：`scrollTo` 按内容 / 视口尺寸判断横向 ⇒ right / left
+- [x] #46 距离：native `scroll` 用 `easeOutPath`（cubic，10 段）经 `bridge.gesture`；`scroll()` 650 ms，scrollTo 的一步 400 ms（`ActionPerformer.scroll` 第 5 个参数 `step`）；没有 gesture 的旧 app 仍是 500 ms 匀速 swipe
+- [x] #45 ①：`scrollTo` 等 `isCenterVisible`；滚到头时退回到 `isVisible`；每步 0.85 × 视口（不跳过元素）
+- [x] #45 ②：native `tap` / `longPress` 和 host（web）`tapAt`（含 multiTap）在只露出一部分时点 `visibleCenterPoint`
+- [x] #45 ③：`hitTest` 里 clipsContent 的节点不包含该点时，不再访问它的子节点
+- [x] #44 补充（web）：RNW 的 RefreshControl 也包了一层 View，并带 ScrollView 的 style（overflowY auto）⇒ L.A 的按名字判断不够。改成结构判断：唯一子节点也裁剪内容、两者 rect 相差 ≤ 4 ⇒ 包装层（三端通用，去掉了名字表）。L.A 时 web 的「5/5」用的是旧 dist（没有 refreshControl），不能算 #44 在 web 上的验证
+- [x] example：playground 长列表加横向 carousel 表头（10 张）；行和张可点击（结果写到 tap-result）；actions.feature +3 场景（长列表 scrollTo + 点击、横向列表 scrollTo + 点击、@needs-touch 按距离滚动 ±20%）
+- [x] 单测：runtime（横向 scrollTo、1 pt 时继续滚）、hitTest 裁剪、native / host 点可见部分中心、easeOutPath、web 包装层；没有修复时 runtime 两个新测试都失败（已确认）
+- [x] 实跑：actions.feature 三端各 8/8；距离（distance → 实际）iOS 240→230，Android 240→224，web 240→240；scrollTo 到第 120 行 iOS 7.3 s / Android 7.7 s / web 2.6 s（0.7.0 的代码在 iOS 上 10 s 内到不了）
+- [x] 文档三语 api.mdx（tap、scroll、scrollTo、ELEMENT_OBSCURED）；`pnpm check` exit 0（917 个测试）；docs:check 通过
+- [ ] HU 确认提交 / PR
+- **Status:** in_progress
 
 ### L.C device / 输入 API（#48、#53、#52）
 - [ ] #48 按 D2 实现后台 openUrl（core `driver.ts:623` / `device.ts:572` 的前台检查 + providers）
@@ -103,6 +113,8 @@ HU 确认 L.A 的提交 / PR；之后开始 L.B（#45、#46）。
 | D8 全部完成后发 0.8.0 | 有新 API / 新配置 |
 | #47 默认等 10 s（不是 sync.timeoutMs） | DeviceHost 没有 sync 配置；和 system.* 的默认值一致，调用方可传 timeoutMs |
 | #44 按 host 名跳过 AndroidSwipeRefreshLayout | 结构判断（同 rect）会和内容不足一屏的普通 ScrollView 混淆 |
+| #44 包装层用结构判断（唯一子节点也裁剪、rect 基本相同） | RNW 的包装层是普通 div，Android 的带 overflow: scroll；名字和 clipsContent 都不能单独区分 |
+| scroll() 650 ms / scrollTo 一步 400 ms | 650 ms 时 iOS 的 scrollTo（120 行）超过 10 s；400 ms 时 Android 距离少 14% |
 | #55 按源码判断 hook 调用 | Vitest 静态解析的结果里没有调用的方法名，只有位置 |
 
 ## Errors Encountered
