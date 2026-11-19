@@ -30,3 +30,8 @@
 - 实现 appDir（core / doctor / build / upgrade / dev-server / session）。新测试第一次 2 个失败：Android 设备检查依赖本机（断言里排除）、npm install 参数写错了期望（行为正确）。
 - 实跑：独立测试包里 doctor 通过，iOS / web 测试通过，Metro 在 app 目录启动。实跑时发现 app 路径离得远时显示一长串 ../ ⇒ 改成显示绝对路径。
 - `pnpm check` 938 通过。未提交，等 HU 确认。
+
+## 2026-11-19 Session 1（L.E）
+- PR #59（L.D）已开。L.E 分支 `feat/system-ui-l-e`。HU：E1 自动包含、E2 其他 app + 装 expo-web-browser 实测、E3 iOS typeText / Android input text + 粘贴。
+- example 装 expo-web-browser，iOS / Android 重建成功。实现 runner / provider / DeviceApi / example。实测中修了 8 处（见 task_plan.md L.E）。
+- 全量回归发现 L.B 的回归（滚轮选择器吃掉 scrollTo 的拖动），已修，等 iOS 第二次全量。

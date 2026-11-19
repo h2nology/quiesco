@@ -89,3 +89,24 @@
 - dev-server.ts（`quiesco test` 自动起 Metro）：`spawnBackground('npx expo start', { cwd: ctx.cwd })` ⇒ issue 没提，但分目录时同样会坏。
 - core：`loadConfig` 只找 cwd 的 config；session 的 stale-bundle 检查用 `projectRoot = process.cwd()`（metroConfigUsesQuiesco、staleBundleWarning 看的是 app 的源码）。
 - CliContext 是普通对象（方法不依赖 this）⇒ `{ ...ctx, cwd: appDir }` 可以复用现有检查函数。
+
+## L.E.0 调研（2026-11-19，iOS 27 iPhone 17 / Android API 36 AOSP）
+实验装置：example system 页临时加了 inline DateTimePicker（iOS）、分享按钮（Share.share）、TextInput、在 Safari 打开链接；runner（ios-runner/Runner/SystemUIServer.swift）临时加了 `/elements?bundleId=`（XCUIApplication.snapshot() 一次取整棵树；逐个查询元素每个要几秒，会超时）和 `/typeText?bundleId=&text=`。
+
+### Android #49（app 自己的对话框）
+- 对话框打开时，默认的 `uiautomator dump` 只有获得焦点的窗口 = 对话框（日期 1–31、CANCEL / OK），package 都是 app 自己 ⇒ 现在的 `systemNodes()` 按 package 过滤掉了。`--windows` 也只有对话框、状态栏、导航栏（主窗口在模态对话框后面，不在列表里）。
+- `mCurrentFocus` 的组件名两者相同（MainActivity），窗口实例不同；`dumpsys window windows` 的 `ty=` 能分：主窗口 BASE_APPLICATION，对话框 APPLICATION（RN Modal 也是对话框窗口）。
+- adb `input tap` 点对话框里的「25」和 OK ⇒ 生日变成 2026-01-25（真实触摸能操作）。
+### Android system.type
+- `adb shell input text` 遇到非 ASCII（日本）直接抛异常；ASCII 打到 app 自己的 TextInput 上没有生效（原因未查；issue 说 Custom Tab 里可以）。非 ASCII 的候选：@quiesco/native 写剪贴板 + `input keyevent KEYCODE_PASTE`（未验证）。
+### iOS
+- app 自己的 UIKit 元素都能拿到（runner 对 app 的 bundle id 做 snapshot）：inline 日期选择器（Month / Previous Month / December 2026 / 日期 1–31 是 staticText）、键盘按键（Q W E …）。用 runner 点日期「25」⇒ app 的 onChange 得到 2026-12-25（#50 可做）。
+- runner 的 `typeText`（XCUITest）往 app 里获得焦点的输入框打「héllo 日本」⇒ UIKit 的值就是这个（非 ASCII 也行）。
+- 其他 app：Safari（com.apple.mobilesafari）68 个元素，地址栏（textField `Address`，值 example.com）能拿到。ASWebAuthenticationSession 的页面在 com.apple.SafariViewService（Applications/SafariViewService.app，普通 app bundle）⇒ 应该能连上，但 example 没有 expo-web-browser（要重建 native），未验证。
+- 分享面板是 UIKit 扩展 `com.apple.UIKit.ShareUI.appex`：`XCUIApplication(bundleIdentifier:)` 连不上（state=notRunning），app 的树里也没有它的元素（打开时 app 的元素从 59 减到 27）⇒ 读不到「Copy」。但 runner 的系统级点击（面板上方 200,90）能关掉它（元素数回到 59，之后 app 可以正常点击）。
+
+### L.E 实现中的更正（2026-11-19）
+- 分享面板：snapshot 只返回 app 的根节点，但按类型查询（`descendants(matching:)`）能拿到它的元素（Copy、Save to Files…）⇒ `system.expectVisible({ text: 'Copy' })` 可用（L.E.0 的「读不到」不对）。
+- SafariViewService 的认证页面：系统先弹「“<app>” Wants to Use “<site>” to Sign In」（Continue）；页面元素可以读、点、打字（实测登录成功）。页面显示时 app 的 snapshot 也只剩根节点，按类型查询的结果里会混进远程视图的元素（被当成 app 的）⇒ 打字时没有键盘就换 SafariViewService / Safari。
+- 同一进程里第二次显示 RN Modal（iOS）：app 的 snapshot 拿不到 Modal 的内容（只有根节点或只有键盘）；按 window 分别 snapshot 能拿到但要 12 s。没有做进 runner，文档写明，`app.*` 能操作这些 React 视图。
+- XCUITest typeText 一次整段：RN 受控输入框丢重复字母（"ann" → "an"）；一个请求一个字就不丢。
