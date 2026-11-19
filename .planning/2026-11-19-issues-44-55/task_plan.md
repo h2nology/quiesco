@@ -4,10 +4,10 @@
 解决 h2nology/quiesco 的 12 个 open issue（同一位用户在 0.7.0 + Vitest + Expo SDK 58 Release 构建、iOS 27 模拟器 / Android API 36 模拟器上实测的反馈）。每个修复都配测试和三语文档，实跑验收后回复并关闭 issue，最后一起发下一个版本。
 
 ## Current Phase
-L.B scroll / tap 正确性（#45、#46）
+L.C device / 输入 API（#48、#53、#52）
 
 ## Next Step
-HU 确认 L.B 的提交 / PR（以及要不要在 PR #56 上补充 web 的说明）；之后开始 L.C（#48、#53、#52）。
+HU 确认 L.C 的提交 / PR；之后开始 L.D（#54 appDir）。
 
 ## 背景
 - 前置：0.7.0 已发布（`707bade chore(release): 0.7.0`）。
@@ -39,7 +39,7 @@ HU 确认 L.B 的提交 / PR（以及要不要在 PR #56 上补充 web 的说明
 | D1 | #45 修哪几处 | 三处都修：① `scrollTo` 停下的条件改为「目标的中心点在滚动容器的可见区域内」（不是 ratio > 0）；② native tap 的点改为「元素可见部分（按祖先裁剪后的 rect）」的中心；③ `hitTest` 考虑 `clipsContent` 祖先的裁剪，点落在被裁掉的部分 ⇒ `ELEMENT_OBSCURED`。 |
 | D2 | #48 怎么支持后台 openUrl | `app.openUrl` 在后台时不再报错：从 app 外打开（iOS `simctl openurl`，Android `am start -a VIEW -d … <package>`），iOS 出现「在 … 中打开？」时自动点「打开」，然后等 app 回到前台并 idle。不另加 `device.openUrl`。 |
 | D3 | #53 setLocale 的校验 | 去掉 CFBundleLocalizations 前提；重启后读 agent 报告的 JS locale（`Intl` / expo-localization 同源）。和请求的不一致才报错，错误信息里提 CFBundleLocalizations 作为可能原因。 |
-| D4 | #52 的 API 形式 | `type(target, text, { perCharacter: true })`：每个字符单独提交（iOS `insertText` / Android `commitText`），每个字符之后等 idle（不加固定延时）。不做 `delayMs`（违背禁止固定等待的约定）。 |
+| D4 | #52 的 API 形式 | **HU 2026-11-19 改为**：`type(target, text, { perCharacter: true, intervalMs? })`，字间隔默认 80 ms（内部节奏，像拖动手势的时长），打完后等 idle。原方案（每个字后等 idle）会让 debounce 每个字都触发 |
 | D5 | #54 appDir | `quiesco.config` 加 `appDir`（相对 config 文件），`--app-dir` 可覆盖；doctor 的 app 检查、`build`、`init --upgrade` 都用它。runner 包检查改为按 config 里实际的 runner（Vitest / Jest / Cucumber）来查。 |
 | D6 | #55 共享 hook 的处理 | `list` 忽略 `test.beforeEach / afterEach / beforeAll / afterAll`（以及 `describe` 级同名）；runners 文档写明 hook 要在每个文件里注册或用 `setupFiles`；init 生成的 vitest config 带 `setupFiles: ['e2e/setup.ts']` 的注释示例（不默认生成文件）。 |
 | D7 | #49–#51 的范围 | 先做 L.E.0 调研再定。初步：#49 Android 的 `system.*` 包含 app 自己的非主窗口（按 window 区分而不是按 package）；#51 Android 加 `system.type`（`input text` / 剪贴板）；iOS 的「其他进程 UI」「inline picker 的日期」「system.type」要看现有 iOS system UI runner 能做到哪一步，做不到的写进文档。 |
@@ -77,15 +77,23 @@ HU 确认 L.B 的提交 / PR（以及要不要在 PR #56 上补充 web 的说明
 - [x] 单测：runtime（横向 scrollTo、1 pt 时继续滚）、hitTest 裁剪、native / host 点可见部分中心、easeOutPath、web 包装层；没有修复时 runtime 两个新测试都失败（已确认）
 - [x] 实跑：actions.feature 三端各 8/8；距离（distance → 实际）iOS 240→230，Android 240→224，web 240→240；scrollTo 到第 120 行 iOS 7.3 s / Android 7.7 s / web 2.6 s（0.7.0 的代码在 iOS 上 10 s 内到不了）
 - [x] 文档三语 api.mdx（tap、scroll、scrollTo、ELEMENT_OBSCURED）；`pnpm check` exit 0（917 个测试）；docs:check 通过
-- [ ] HU 确认提交 / PR
-- **Status:** in_progress
+- [x] HU 确认提交 / PR：PR #57（base 是 PR #56 的分支；PR 正文里更正了 #56 的 web 说明）
+- **Status:** complete
 
 ### L.C device / 输入 API（#48、#53、#52）
-- [ ] #48 按 D2 实现后台 openUrl（core `driver.ts:623` / `device.ts:572` 的前台检查 + providers）
-- [ ] #53 按 D3 改 `device.ts:399` 的校验，agent 报告 JS locale
-- [ ] #52 按 D4 加 `perCharacter`（protocol + agent + native iOS / Android）
-- [ ] api.mdx 三语；e2e 实跑
-- **Status:** pending
+分支 `feat/device-input-l-c`（叠在 `fix/scroll-tap-clipping` / PR #57 上）。调研见 findings.md「L.C 调研」。
+- [x] 调研：#48 iOS 确认框可由 runner 点掉（实测）；#53 Intl 和首选语言的差别；#52 web 已逐字
+- [x] D4 重新确认（HU 2026-11-19）：固定间隔（默认 80 ms），打完后等 idle；不是每个字等 idle
+- [x] #48 provider `openUrlFromOutside`（iOS：simctl openurl + runner 点 2 按钮 alert 的右边按钮，5 s 内没有确认框就不点；Android：am start VIEW）；`Driver.openUrl` 在 background 时交给 `DeviceApi.openUrlInBackground`（等 active → reapplyConfig → idle）；terminated 仍是 APP_NOT_RUNNING
+- [x] #53 protocol `DeviceInfo.preferredLanguages`；agent 从 SettingsManager（TurboModuleRegistry，退回 NativeModules）读 AppleLanguages；setLocale：首选语言或 Intl 对上即通过，只有首选语言对上时 warn
+- [x] #52 `type(target, text, { perCharacter, intervalMs })`（core `TypeOptions`，默认 80 ms；intervalMs 没有 perCharacter ⇒ TypeError）；protocol `intervalMs`；native / js 按字素（`characters()`，Intl.Segmenter，退回码点）；web `keyboard.type(text, { delay })`
+- [x] #52 Android 实测：聚焦点击后马上逐字提交会丢第一个字（IME 启动，3 次里 2 次「tem 04」）⇒ native `type` 在聚焦后先 `settle()`（runtime 注入的 waitForIdle）⇒ 3/3 通过
+- [x] example：设备页加「首选语言」（iOS Settings.get('AppleLanguages')）；playground 加 300 ms 防抖搜索框；场景：actions「逐字输入」「一次输入（@native；web 本来就逐键）」、device「切换到 App 没有声明的语言（fr-FR）」、lifecycle「在后台时打开深链接（@native）」
+- [x] 单测：core（device-state 后台 openUrl、JS-only locale + warn；driver type spec / 校验；ios-runner / android provider）、agent（native 逐字 + settle 顺序、js 逐字、characters、host intervalMs、preferredLanguages）、web（intervalMs 节奏）
+- [x] 实跑：actions + device + lifecycle：iOS 34 + 1 skipped；web 31 + 4 skipped；Android 34 / 35，唯一失败「模拟定位」是 AOSP 镜像没有 Google Play 服务（改动前同样失败，已确认）
+- [x] 文档三语（type / openUrl / setLocale）；`pnpm check` exit 0（928 个测试）；docs:check 通过
+- [ ] HU 确认提交 / PR
+- **Status:** in_progress
 
 ### L.D CLI：appDir（#54）
 - [ ] config schema 加 `appDir`；doctor 把检查分成「app」和「测试项目」两组；build / init --upgrade 用 appDir
@@ -115,6 +123,8 @@ HU 确认 L.B 的提交 / PR（以及要不要在 PR #56 上补充 web 的说明
 | #44 按 host 名跳过 AndroidSwipeRefreshLayout | 结构判断（同 rect）会和内容不足一屏的普通 ScrollView 混淆 |
 | #44 包装层用结构判断（唯一子节点也裁剪、rect 基本相同） | RNW 的包装层是普通 div，Android 的带 overflow: scroll；名字和 clipsContent 都不能单独区分 |
 | scroll() 650 ms / scrollTo 一步 400 ms | 650 ms 时 iOS 的 scrollTo（120 行）超过 10 s；400 ms 时 Android 距离少 14% |
+| #52 逐字输入前先 settle（waitForIdle） | Android 上 IME 启动时会丢掉刚提交的字；固定等待 500 ms 也能过，但 idle 等待不依赖时长 |
+| web 的 type 默认行为不变（本来就逐键） | 改成一次写入会影响依赖 keydown 的 web app |
 | #55 按源码判断 hook 调用 | Vitest 静态解析的结果里没有调用的方法名，只有位置 |
 
 ## Errors Encountered

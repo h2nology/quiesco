@@ -19,3 +19,8 @@
 - 调研 #46：方向（根因）和惯性（iOS 速度阈值）；停顿松手无效，ease-out 有效。
 - 实现 #45 三处 + #46 两处。第一次三端跑：iOS / Android scrollTo 第 120 行超时（650 ms 每步太慢）⇒ 每步 0.85 视口 + scrollTo 的一步 400 ms；web 失败 ⇒ 发现 RNW 的 refresh 包装层（L.A 的 web 验证用了旧 dist）⇒ 改成结构判断。
 - 最终：actions.feature 三端 8/8，`pnpm check` 917 通过。未提交，等 HU 确认。
+
+## 2026-11-19 Session 1（L.C）
+- PR #57（L.B）已开。L.C 分支 `feat/device-input-l-c`。HU 把 D4 改为固定间隔 + 最后等 idle。
+- 实现 #48 / #53 / #52。第一次三端跑：web「一次输入」7 次按键（web 本来逐键）⇒ 场景改 @native；Android「逐字输入」丢第一个字 ⇒ 实验（聚焦后等 500 ms 通过）⇒ 改为 settle（waitForIdle），去掉 settle 3 次里 2 次失败、加上 3/3 通过。Android「模拟定位」失败是环境问题（改动前同样失败）。
+- 最终：三端实跑见 task_plan.md；`pnpm check` 928 通过。未提交，等 HU 确认。

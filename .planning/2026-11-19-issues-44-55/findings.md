@@ -65,3 +65,16 @@
 - 距离（distance → 实际移动）：iOS 横/竖 100→90、240→230、300→290；Android（650 ms）100→86、240→224、300→280（400 ms 时 240→207）；web 完全一致。
 - scrollTo 到第 120 行：iOS 7.3 s、Android 7.7 s、web 2.6 s。scroll 用 650 ms 做 scrollTo 时 iOS 超过 10 s。0.7.0 的代码：iOS 10 s 内到不了（超时）。
 - RNW 0.21 ScrollView：`cloneElement(refreshControl, { style: props.style }, scrollView)`，`props.style` 含 baseVertical（overflowY: auto）⇒ 包装 div 也裁剪；包装层比 ScrollView 大一圈边框（358×412 vs 356×410）。
+
+## L.C 调研（2026-11-19）
+### #48 后台 openUrl
+- 现状：`Driver.checkAppRunning` 在 background 时抛 APP_IN_BACKGROUND；前台时 agent 经 @quiesco/native 在 app 内打开（iOS 用 native 避开确认框）。Android 的 `injectInput('navigate')` 已经是 `am start -W -a VIEW -d <url> <pkg>`。
+- 实测（iOS 27，app 在后台，`xcrun simctl openurl booted quiescotodo://lifecycle`）：206 ms 返回；SpringBoard 弹出 alert「Open in “Quiesco Todo”?」，按钮 Cancel / Open（跟系统语言）。`system.tap({ text: 'Open' })`（XCUITest runner）后 app 回到前台并打开了 lifecycle 页。⇒ 「确认框关不掉」（ios.ts 的旧注释）在有 runner 之后不成立了。按钮按位置选右边那个（2 个按钮的 alert：Cancel, Open）。
+### #53 setLocale
+- 校验读 agent 的 `Intl.DateTimeFormat().resolvedOptions().locale`。没有 CFBundleLocalizations 时 iOS 把 app 的语言解析成开发语言 ⇒ Intl = `en-JP`；expo-localization 读 `Locale.preferredLanguages`（= -AppleLanguages）⇒ ja。
+- 方案：agent 另外报告 iOS 的 `AppleLanguages`（RN SettingsManager 的 constants = NSUserDefaults，含启动参数域；Android / web 没有这个模块 ⇒ 不报告）。首选语言对上 ⇒ 通过；Intl 没对上 ⇒ warn（app 的 Intl / 原生字符串仍是旧语言，要的话加 CFBundleLocalizations）。
+- example 声明了 en / ja ⇒ 用 `fr-FR` 复现（不需要重建 app）。
+### #52 逐字输入
+- web：`page.keyboard.type(text)` 已经是逐字按键（没有间隔）。iOS：一次 `insertText`；Android：一次 `commitText`。
+- 逐字可以在 agent JS 里循环调 `bridge.typeText(tag, ch, false)`（不需要重建 native）；JS 模式循环 changeText。
+- D4 原方案「每个字后等 idle」的问题：debounce（300 ms）计时器会让 app 一直「忙」⇒ 每个字都等 debounce 触发 ⇒ 测不到「中间的按键被合并」。
