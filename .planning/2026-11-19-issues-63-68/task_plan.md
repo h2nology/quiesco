@@ -7,7 +7,7 @@
 M.E 验收、回复、发版
 
 ## Next Step
-HU 执行 `pnpm -r publish`（0.9.0）；之后 tag v0.9.0、push、GitHub Release。
+全部完成（0.9.0 已发布）。
 
 ## 背景
 - 前置：0.8.1 已发布（`dc7ca7d chore(release): 0.8.1`）。上一轮计划：`.planning/2026-11-19-issues-44-55/`。
@@ -112,5 +112,5 @@ HU 执行 `pnpm -r publish`（0.9.0）；之后 tag v0.9.0、push、GitHub Relea
 - [x] 合并 PR #69 → #70 → #71 → #72（2026-11-20；#72 追加 b09df4b：firefox 的 setViewportSize 挂住，见 findings）
 - [x] 逐个回复 #63–#68（已全部关闭）
 - [x] 0.9.0：版本号、release:check（12 个包）、`chore(release): 0.9.0` 本地提交（新配置 sync.nativeCallThresholdMs / ignoreNativeCalls、新 tracker；发布要 HU 确认）
-- [ ] HU `pnpm -r publish`；tag v0.9.0、push main 和 tag、GitHub Release
-- **Status:** in_progress
+- [x] HU `pnpm -r publish`（npm view：12 个包 0.9.0）；tag v0.9.0（7b57af9）、push main 和 tag（[skip ci]，未触发 CI）、GitHub Release 0.9.0（Latest）
+- **Status:** complete
