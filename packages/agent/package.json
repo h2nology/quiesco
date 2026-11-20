@@ -1,6 +1,6 @@
 {
   "name": "@quiesco/agent",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Quiesco in-app agent (React Native / Expo, iOS / Android / Web)",
   "license": "MIT",
   "author": "h2nology",
