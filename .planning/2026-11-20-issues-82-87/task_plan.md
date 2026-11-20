@@ -4,7 +4,7 @@
 解决 h2nology/quiesco 的 6 个 open issue（0.10.0 上的实测反馈，主要是 iOS 系统 UI）。每个修复配单元测试、必要时更新三语文档；实跑验收后回复并关闭 issue，然后发版。
 
 ## Next Step
-全部完成（0.11.0 已发布）。剩余：main 的 prod-strip（a201e0e）结果待确认；已合并的 4 个远端分支、本地 tmp/integration-82-87 待 HU 删除。
+全部完成（0.11.0 已发布；main a201e0e 的 ci / prod-strip / sdk-compat 全部通过；已合并分支和 4 个旧本地分支已删除，只剩 main）。
 
 ## Current Phase
 完成
@@ -85,7 +85,7 @@
 - [x] 三端全量（集成分支 #88–#91）：web 85/24/0；Android 99/9/1（定位，已知）；iOS 重跑 102/7/0
 - [x] 合并 #88 → #89（先改 base）→ #90 → #91；main a201e0e 与集成分支内容一致
 - [x] 版本 0.11.0、release:check（clean、999 tests、12 包）、本地提交 0dbc1ef（未 push）
-- [x] main 的 ci / sdk-compat 通过；prod-strip web 通过，android / ios 运行中
+- [x] main 的 ci / sdk-compat / prod-strip（android、web、ios）全部通过
 - [x] HU `pnpm -r publish`（第一次没发出去，registry 无 0.11.0；第二次 12 包 latest=0.11.0；tarball 无 TEMP 调试输出）；tag v0.11.0（0dbc1ef）、push main + tag、GitHub Release 0.11.0（Latest，含 #91）
 - [x] 回复并关闭 #82–#87；open issue 0
 - **Status:** complete
