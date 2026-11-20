@@ -187,14 +187,48 @@ static void QSSendMany(NSArray<UITouch *> *touches, NSArray<NSNumber *> *indexes
   return out;
 }
 
+/** Every view under `view` (itself included) with `tag` that conforms to `protocol` (any, when nil). */
+static void QSCollectTagged(UIView *view, NSInteger tag, Protocol *protocol, NSMutableArray<UIView *> *out) {
+  if (view.tag == tag && (protocol == nil || [view conformsToProtocol:protocol])) [out addObject:view];
+  for (UIView *child in view.subviews) QSCollectTagged(child, tag, protocol, out);
+}
+
+/** Windows UIKit adds for text editing and the keyboard: never where the app's React views are mounted. */
+static BOOL QSIsTextOrKeyboardWindow(UIWindow *w) {
+  NSString *name = NSStringFromClass([w class]);
+  return [name isEqualToString:@"UITextEffectsWindow"] || [name isEqualToString:@"UIRemoteKeyboardWindow"];
+}
+
+static BOOL QSIsShown(UIView *view) {
+  if (view.bounds.size.width <= 0 || view.bounds.size.height <= 0) return NO;
+  for (UIView *v = view; v != nil; v = v.superview) {
+    if (v.hidden || v.alpha <= 0.01) return NO;
+  }
+  return YES;
+}
+
+/**
+ * The React view with `tag`. UIView tags are not unique: after the keyboard was used, UITextEffectsWindow
+ * (above the app's window) holds a hidden, 0.33 pt wide component view with a small tag too, and
+ * `viewWithTag:` returns only the first match per window. So every match is collected and the one in an
+ * ordinary window that is shown wins (else one in an ordinary window, else any), topmost window first.
+ */
 + (UIView *)viewWithReactTag:(NSInteger)tag {
   if (tag <= 0) return nil;
   Protocol *componentView = NSProtocolFromString(@"RCTComponentViewProtocol");
+  UIView *ordinary = nil;
+  UIView *any = nil;
   for (UIWindow *w in [[self windows] reverseObjectEnumerator]) {
-    UIView *v = [w viewWithTag:tag];
-    if (v && (componentView == nil || [v conformsToProtocol:componentView])) return v;
+    NSMutableArray<UIView *> *found = [NSMutableArray array];
+    QSCollectTagged(w, tag, componentView, found);
+    for (UIView *v in found) {
+      if (any == nil) any = v;
+      if (QSIsTextOrKeyboardWindow(w)) continue;
+      if (QSIsShown(v)) return v;
+      if (ordinary == nil) ordinary = v;
+    }
   }
-  return nil;
+  return ordinary ?: any;
 }
 
 + (UIView *)touchDownAt:(CGPoint)point inWindow:(UIWindow *)window tapCount:(NSUInteger)tapCount {
