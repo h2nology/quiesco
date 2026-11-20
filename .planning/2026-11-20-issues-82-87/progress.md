@@ -15,3 +15,4 @@
 - N.E 完成：原生单独实测通过；PR #91。集成分支加入 #91，三端全量依次后台运行（full2-*.log）。
 - 全量2：web 85/24/0、Android 99/9/1（定位，已知）、iOS 100/7/2（通知 ⇒ 修 BANNER_WAIT 5 s，×12 通过；showcase 空白画面偶发）。iOS 全量重跑中（full3-ios.log）。
 - iOS 全量重跑 102/7/0。合并 #88–#91（main a201e0e）；0.11.0 release:check ok（999 tests），本地提交 0dbc1ef；等 main workflows。
+- 发版：HU publish（第一次未生效，第二次 12 包 0.11.0）；tag v0.11.0、push、GitHub Release；#82–#87 回复并关闭。prod-strip android / ios 运行中。
