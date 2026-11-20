@@ -1,0 +1,35 @@
+# Progress
+
+## 2026-11-20
+- 新建计划 `.planning/2026-11-20-issues-73-78/`（PLAN_ID=2026-11-20-issues-73-78）
+- 读了 open issues #73–#78，写 findings，定位代码
+- 确认 #75：本地 `packages/core/dist` 现在仍含 DBG 行，src 没有 ⇒ dist 过期
+- 等 HU 确认 D1–D4
+- HU 决定：D1 构建时开启；D2 全部做完一起发；D3/D4 按推荐
+- 分支 fix/issues-73-75
+- #73/#74 代码：metro.cjs `build-config.dev.js` / `build-config.export.js`；`withQuiesco(config, { nativeModules })` / `EXPO_PUBLIC_QUIESCO_NATIVE_MODULES=1` ⇒ build-config `nativeModules: true`；agent 只有这时才 install 包装；tracker 开但没包装 ⇒ console.warn 一次
+- 单元测试：metro 2 个新、runtime 1 个、native-module 1 个；agent 3 个测试文件 81 passed
+- 下一步：example 加 reanimated + worklets + ReanimatedSwipeable 行，实测复现/修复；开了 nativeModules 时默认 skip RNGH/Reanimated/Worklets 模块
+- 默认 skip：QuiescoNative、RNGestureHandlerModule、ReanimatedModule、WorkletsModule（从库源码确认模块名）
+- example：加 react-native-reanimated 4.7.1 + react-native-worklets 0.13.0；手势页加 ReanimatedSwipeable 行；features/swipeable.feature（@native @needs-touch）
+- #75：`scripts/clean.mjs` + `pnpm clean`；`release:check` = clean → check → check-release；check-release 新检查「dist 的 console 调用多于 source map 指向的源文件」⇒ 对当前过期 dist 正好报出 core 的 device.js / session.js，其他包无误报
+- 文档三语：sync.mdx 原生模块一节加构建开关；api.mdx withQuiesco options.nativeModules；plugin:refs、docs:check ok
+- 后台：iOS → Android 原生构建（scratchpad build-ios.log / build-android.log）
+- 提交 N.A：9705ab0（#75）、fc0d6b1（#73 #74），分支 fix/issues-73-75
+- N.C #78 提前做（构建期间）：分支 fix/scroll-to-step-context 叠在 fix/issues-73-75 上；protocol StepTiming、agent 步记录 + SYNC_TIMEOUT 包步信息、timeline 子 span（trace + html）、文档三语；测试 runtime 2 + artifacts 1；提交
+- iOS 构建 exit 0；Android 构建中
+- #74 实测：0.9.0 agent ⇒ iOS / Android 都报 `[Worklets] Tried to synchronously call a Remote Function. Called "wrapper"`（Debug 是 redbox）；修复后 swipeable + gestures iOS 7/7、Android 6 passed 1 skipped（iOS 专用）；EXPO_PUBLIC_QUIESCO_NATIVE_MODULES=1 + tracker 开：swipeable + login 两端 3/3
+- 发现 agent 的 console.warn 到不了测试输出 ⇒ 改为 host 警告（hello nativeModulesWrapped），实测出现；提交 310c521
+- #73 实测：Metro 运行中 build:web ⇒ 两个文件分开，iOS 显示 `Metro started 14:01:49, watching files`，无警告
+- `pnpm clean && pnpm check` 978 passed，DBG 消失，check-release ok ⇒ PR #79（Refs，发版后回复关闭）
+- #78：iOS actions.feature:55 + QUIESCO_ARTIFACTS=all ⇒ trace 有 step 1..N down + wait for idle；check 981 passed ⇒ PR #80（叠在 #79）
+- N.B：实测 iOS kill -ABRT 后进程 0.4 s 内消失、.ips 约 1 s 后出现；Android am crash 后进程 1.5–17 s 才消失
+- 临时场景（未提交）：iOS 首次 AGENT_DISCONNECTED（6.9 s，未解释），之后 5 次 APP_CRASHED 2.7–4.0 s；Android 3 次 APP_CRASHED；evidence 两端都有 crash.txt（iOS + .ips）
+- 调试行只加在 src，用 pnpm clean 重建后 dist 无残留；check 989 passed；PR #81
+- N.D：三端全量后台运行（scratchpad full-ios.log / full-android.log / full-web.log）；issue 回复草稿在 scratchpad replies/73–78.md（VERSION 待定）
+- HU：全量跑完后合并 PR #79–#81，版本 0.10.0
+- 全量 1：Android 99 passed / 1 failed（模拟定位，AOSP 无 GMS，已知）；web 85 passed / 24 skipped / 0 failed；iOS 90 passed / 12 failed
+- iOS 失败原因：模拟器 13:45–13:47 被抹掉重置（.GlobalPreferences.plist 新建于 13:47），系统语言随 Mac 变成 ja-JP ⇒ system.feature 找不到 "Copy" 等 ⇒ 分享面板没关 ⇒ values.feature 连锁失败（单独跑 11/11 通过）
+- 处理：模拟器 AppleLanguages=en、AppleLocale=en_US，重启；system.feature 4 次：首次（刚启动）3 failed，之后 0 / 1（通知场景，单独跑通过）/ 0 / 0
+- iOS 全量重跑（后台，full-ios-2.log）
+- iOS 全量重跑（en）102 passed / 7 skipped / 0 failed；合并 #79 #80 #81；0.10.0 release:check ok，本地提交 d1d0f37；回复草稿版本号已填 0.10.0
