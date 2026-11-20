@@ -4,7 +4,7 @@
  * import of the app entry, so the DevTools hook and scheduler patch precede the renderer).
  */
 import { SyncDefaults, WEBVIEW_HOOK } from '@quiesco/protocol';
-import type { Direction, Edge, LogBoxMode, Point, Speed } from '@quiesco/protocol';
+import type { Direction, Edge, ErrorDataMap, LogBoxMode, Point, Speed, StepTiming } from '@quiesco/protocol';
 import type {
   ActionSpec,
   ActionType,
@@ -356,10 +356,14 @@ export class AgentRuntime {
     if (h === undefined) throw new MethodNotFound(method);
     await this.calibrateCoordinates();
     if (!TIMED.has(method)) return h(params ?? {});
-    // Phase 6.9 timeline: how much of the call was spent waiting for idle (calls run one at a time).
+    // Phase 6.9 timeline: how much of the call was spent waiting for idle (calls run one at a time), and
+    // the steps of a multi-step action (issue #78).
     this.syncSpent = 0;
+    this.callStart = this.clock.now();
+    this.steps = [];
     const r = await h(params ?? {});
-    return typeof r === 'object' && r !== null ? { ...r, syncMs: Math.round(this.syncSpent) } : r;
+    if (typeof r !== 'object' || r === null) return r;
+    return { ...r, syncMs: Math.round(this.syncSpent), ...(this.steps.length > 0 ? { steps: this.steps } : {}) };
   }
 
   /** When calibrateCoordinates last measured, and the window size then. */
@@ -392,6 +396,9 @@ export class AgentRuntime {
 
   /** Time spent in syncIfNeeded during the current timed call. */
   private syncSpent = 0;
+  /** When the current call started, and the steps of a multi-step action so far (issue #78). */
+  private callStart = 0;
+  private steps: StepTiming[] = [];
 
   private readonly handlers: Partial<Handlers> = {
     query: async (p) => {
@@ -951,19 +958,28 @@ export class AgentRuntime {
         if (steps >= MAX_SCROLL_TO_STEPS) throw this.scrollToGaveUp(container, target, scrollable, steps, ends);
         if (scrollable === null && step >= MAX_STEPS_WITHOUT_OFFSET) break;
         steps++;
-        const stepDeadline = this.clock.now() + timeoutMs;
+        const stepStart = this.clock.now();
+        const stepSync = this.syncSpent;
+        const stepDeadline = stepStart + timeoutMs;
         const before = scrollable?.offset();
         const current = findAll(this.adapter.getHostRoots(), container)[0] ?? containerNode;
-        await performerFor(stepDeadline).scroll(current, direction, vp == null ? undefined : (horizontal ? vp.width : vp.height) * SCROLL_TO_STEP, undefined, true);
-        await this.syncIfNeeded(opts, Math.max(1, stepDeadline - this.clock.now()));
-        let after = scrollable?.offset();
-        if (scrollable != null && before !== undefined && after !== undefined && Math.abs(after.x - before.x) < 1 && Math.abs(after.y - before.y) < 1 && !js.atEdge(scrollable, direction)) {
-          // The drag did not move the content, though there is more of it: something under the finger took
-          // the drag (a wheel picker, a slider). Scroll this step programmatically instead.
-          js.scrollBy(scrollable, direction, vp == null ? undefined : (horizontal ? vp.width : vp.height) * SCROLL_TO_STEP);
+        let after: { x: number; y: number } | undefined;
+        try {
+          await performerFor(stepDeadline).scroll(current, direction, vp == null ? undefined : (horizontal ? vp.width : vp.height) * SCROLL_TO_STEP, undefined, true);
           await this.syncIfNeeded(opts, Math.max(1, stepDeadline - this.clock.now()));
-          after = scrollable.offset();
+          after = scrollable?.offset();
+          if (scrollable != null && before !== undefined && after !== undefined && Math.abs(after.x - before.x) < 1 && Math.abs(after.y - before.y) < 1 && !js.atEdge(scrollable, direction)) {
+            // The drag did not move the content, though there is more of it: something under the finger took
+            // the drag (a wheel picker, a slider). Scroll this step programmatically instead.
+            js.scrollBy(scrollable, direction, vp == null ? undefined : (horizontal ? vp.width : vp.height) * SCROLL_TO_STEP);
+            await this.syncIfNeeded(opts, Math.max(1, stepDeadline - this.clock.now()));
+            after = scrollable.offset();
+          }
+        } catch (e) {
+          this.recordStep(stepStart, stepSync, direction);
+          throw this.inScrollToStep(e, container, target, scrollable, steps, direction);
         }
+        this.recordStep(stepStart, stepSync, direction);
         if (before !== undefined && after !== undefined && Math.abs(after.x - before.x) < 1 && Math.abs(after.y - before.y) < 1) {
           // Reached the end: a target this far in that still has its center clipped (e.g. under an
           // overlay that clips) is as good as it gets.
@@ -977,7 +993,32 @@ export class AgentRuntime {
     if (scrollable === null) {
       throw new QuiescoError('ELEMENT_NOT_FOUND', `Scrolled ${describeMatcher(container)} ${MAX_STEPS_WITHOUT_OFFSET} steps each way without finding a visible ${describeMatcher(target)} (its scroll offset cannot be read, so its ends are unknown)`, { matcher: target });
     }
-    throw new QuiescoError('ELEMENT_NOT_FOUND', `Scrolled ${describeMatcher(container)} to both ends (${steps} steps) without finding a visible ${describeMatcher(target)}`, { matcher: target });
+    throw new QuiescoError('ELEMENT_NOT_FOUND', `Scrolled ${describeMatcher(container)} to both ends (${steps} steps) without finding a visible ${describeMatcher(target)}`, { matcher: target, steps: [...this.steps] });
+  }
+
+  /** Record a step of a multi-step action that started at `start` with `syncSpent` at `syncBefore` (issue #78). */
+  private recordStep(start: number, syncBefore: number, label: string): void {
+    const now = this.clock.now();
+    this.steps.push({ atMs: Math.round(start - this.callStart), ms: Math.round(now - start), syncMs: Math.round(this.syncSpent - syncBefore), label });
+  }
+
+  /**
+   * A SYNC_TIMEOUT inside a scrollTo step, with the step it happened in (issue #78): which step of how
+   * many, the scroll offset, the direction and how long the earlier steps took. Other errors pass.
+   */
+  private inScrollToStep(e: unknown, container: Matcher, target: Matcher, scrollable: js.Scrollable | null, step: number, direction: string): unknown {
+    if (!(e instanceof QuiescoError) || e.errorName !== 'SYNC_TIMEOUT') return e;
+    const data = e.data as ErrorDataMap['SYNC_TIMEOUT'];
+    const o = scrollable?.offset();
+    const at = o === undefined ? '' : `, offset ${JSON.stringify({ x: Math.round(o.x), y: Math.round(o.y) })}`;
+    const earlier = this.steps.slice(0, -1).map((s) => s.ms);
+    const sec = (ms: number) => (ms / 1000).toFixed(1);
+    const previous = earlier.length === 0 ? '' : `, previous steps ${earlier.length === 1 || Math.min(...earlier) === Math.max(...earlier) ? sec(earlier[0] as number) : `${sec(Math.min(...earlier))}–${sec(Math.max(...earlier))}`} s`;
+    return new QuiescoError(
+      'SYNC_TIMEOUT',
+      `scrollTo ${describeMatcher(container)} → ${describeMatcher(target)}: step ${step} of at most ${MAX_SCROLL_TO_STEPS}${at}, direction ${direction}${previous}: ${e.message}`,
+      { ...data, steps: [...this.steps] },
+    );
   }
 
   /** scrollTo ran out of steps before reaching both ends (issue #63): say where it stopped. */
@@ -988,7 +1029,7 @@ export class AgentRuntime {
     return new QuiescoError(
       'ELEMENT_NOT_FOUND',
       `Gave up scrolling ${describeMatcher(container)} after ${steps} steps${at} (${reached}) without finding a visible ${describeMatcher(target)}. Use scrollToIndex for a long list.`,
-      { matcher: target },
+      { matcher: target, steps: [...this.steps] },
     );
   }
 

@@ -43,7 +43,7 @@ import { ElementExpectation, checkRatio } from './expect.js';
 import type { AgentConnection } from './server/ws-server.js';
 import type { AppRunState, DeviceApi } from './device.js';
 import type { SyncApi } from './sync-api.js';
-import type { Timeline } from './timeline.js';
+import type { CallTiming, Timeline } from './timeline.js';
 import { WebView } from './webview.js';
 import { cropToRect } from './screenshots.js';
 import type { WebViewHost } from './webview.js';
@@ -668,7 +668,7 @@ export class Driver {
       }
     };
     const timeline = this.options.timeline;
-    const run = timeline === undefined || !TIMELINED.has(method) ? attempt() : timeline.measure(method, describeCall(method, params), attempt, (r) => (r as { syncMs?: number }).syncMs);
+    const run = timeline === undefined || !TIMELINED.has(method) ? attempt() : timeline.measure(method, describeCall(method, params), attempt, (r) => r as CallTiming);
     try {
       return await run;
     } catch (e) {

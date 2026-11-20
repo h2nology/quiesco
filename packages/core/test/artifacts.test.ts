@@ -144,7 +144,7 @@ describe('timeline', () => {
   it('records calls with their idle wait and errors; writes a trace and an HTML page', async () => {
     const t = new Timeline();
     t.reset('保存 <b>');
-    await t.measure('action', 'tap {"id":"save"}', async () => ({ syncMs: 12 }), (r) => r.syncMs);
+    await t.measure('action', 'tap {"id":"save"}', async () => ({ syncMs: 12 }), (r) => r);
     await expect(t.measure('assert', 'text', async () => Promise.reject(new Error('expected "a"')))).rejects.toThrow();
     expect(t.all.map((e) => [e.method, e.syncMs, e.error])).toEqual([
       ['action', 12, undefined],
@@ -156,6 +156,28 @@ describe('timeline', () => {
     expect(html).toContain('保存 &lt;b&gt;');
     expect(html).toContain('class="row failed"');
     expect(html).toContain('expected &quot;a&quot;');
+  });
+
+  it('nests the steps of a multi-step action, also of a failed one (#78)', async () => {
+    const t = new Timeline();
+    t.reset('scroll');
+    const steps = [
+      { atMs: 5, ms: 600, syncMs: 400, label: 'down' },
+      { atMs: 605, ms: 900, syncMs: 700, label: 'down' },
+    ];
+    await t.measure('action', 'scrollTo', async () => ({ syncMs: 1100, steps }), (r) => r);
+    const failure = Object.assign(new Error('scrollTo … step 2 of at most 60 …'), { data: { steps } });
+    await expect(t.measure('action', 'scrollTo', async () => Promise.reject(failure))).rejects.toThrow();
+    expect(t.all.map((e) => e.steps?.length)).toEqual([2, 2]);
+    const trace = JSON.parse(t.toTrace()) as { traceEvents: { name: string; cat?: string }[] };
+    expect(trace.traceEvents.map((e) => e.name)).toEqual([
+      'process_name',
+      'action scrollTo', 'step 1 down', 'wait for idle', 'step 2 down', 'wait for idle',
+      'action scrollTo', 'step 1 down', 'wait for idle', 'step 2 down', 'wait for idle',
+    ]);
+    const html = t.toHtml();
+    expect(html.match(/class="row step"/g)).toHaveLength(4);
+    expect(html).toContain('step 2 down</div><div class="ms">900 ms (idle wait 700 ms)');
   });
 });
 
