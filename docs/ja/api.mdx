@@ -535,6 +535,7 @@ export default defineConfig({
 | `CONNECT_TIMEOUT` | 起動後にアプリが接続しなかった（メッセージにチェックリストがあります） |
 | `AGENT_TIMEOUT` | アプリが応答しなくなった。たいていはJSスレッドがブロックされています |
 | `AGENT_DISCONNECTED`、`DEVICE_ERROR`、`CONFIG_ERROR` | 接続の切断、デバイス用ツールの失敗（adb / simctl / Playwright）、不正な設定 |
+| `APP_CRASHED` | アプリのプロセスが終了しました（iOS / Android）。メッセージにはデバイスが記録したクラッシュの原因が入ります。Androidはlogcatの`FATAL EXCEPTION`（ネイティブなら`Fatal signal`）、iOSはクラッシュレポートの例外の種類とクラッシュしたスレッドの先頭のフレームで、レポートのパスも示します。エビデンスには`crash.txt`、iOSではレポート自体も入ります。次のシナリオはすぐにアプリを起動し直します |
 | `APP_NOT_RUNNING` / `APP_IN_BACKGROUND` | テストがアプリを終了させた / バックグラウンドに送った（`this.app.device`）。先に再起動する / 前面に戻す必要があります |
 | `DIALOG_OPEN` | Web：ページがJavaScriptダイアログを表示している（`data.message`）。先に`app.device.system.tap({ text: 'OK' })` / `{ text: 'Cancel' }`で応答してください |
 

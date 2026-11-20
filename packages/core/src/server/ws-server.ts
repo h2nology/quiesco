@@ -216,23 +216,33 @@ export class QuiescoServer {
 
   /**
    * Resolves with the current connection, or the next one for this session. `exclude` skips a
-   * connection that is about to go away (the old app process during a hard reset).
+   * connection that is about to go away (the old app process during a hard reset). `signal`: stop
+   * waiting (rejects with its reason).
    */
-  waitForConnection(sessionId: string, timeoutMs: number, describeTimeout: () => string, exclude: AgentConnection | null = null): Promise<AgentConnection> {
+  waitForConnection(sessionId: string, timeoutMs: number, describeTimeout: () => string, exclude: AgentConnection | null = null, signal?: AbortSignal): Promise<AgentConnection> {
     const s = this.sessions.get(sessionId);
     if (s === undefined) return Promise.reject(new Error(`unknown session ${sessionId}`));
     const current = this.connection(sessionId);
     if (current !== null && current !== exclude) return Promise.resolve(current);
     return new Promise((resolve, reject) => {
+      const onAbort = (): void => {
+        clearTimeout(timer);
+        s.waiters = s.waiters.filter((w) => w !== waiter);
+        reject(signal?.reason);
+      };
       const waiter = (c: AgentConnection): void => {
         clearTimeout(timer);
+        signal?.removeEventListener('abort', onAbort);
         resolve(c);
       };
       const timer = setTimeout(() => {
         s.waiters = s.waiters.filter((w) => w !== waiter);
+        signal?.removeEventListener('abort', onAbort);
         reject(new QuiescoError('CONNECT_TIMEOUT', describeTimeout(), { sessionId, timeoutMs, port: this._port }));
       }, timeoutMs);
       s.waiters.push(waiter);
+      if (signal?.aborted === true) onAbort();
+      else signal?.addEventListener('abort', onAbort, { once: true });
     });
   }
 

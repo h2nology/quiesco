@@ -25,6 +25,7 @@ export { AndroidProvider } from './devices/android.js';
 export { IosProvider, IOS_DEV_MENU_ARGS } from './devices/ios.js';
 export type { IosProviderOptions } from './devices/ios.js';
 export type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions, SystemNode, WorkerInfo } from './devices/provider.js';
+export type { CrashReport } from './devices/crash.js';
 export type { SystemQuery, SystemWaitOptions } from './system-ui.js';
 export { DeviceApi } from './device.js';
 export type { AppRunState, RelaunchOptions } from './device.js';

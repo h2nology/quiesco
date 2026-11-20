@@ -42,6 +42,8 @@ export const DEV_MENU_PREFS =
   '    <boolean name="motionGestureEnabled" value="false" />\n' +
   '</map>\n';
 
+import { androidCrash } from './crash.js';
+import type { CrashReport } from './crash.js';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -227,6 +229,17 @@ export class AndroidProvider implements DeviceProvider {
 
   private shell(command: string): Promise<string> {
     return this.adbRun(['shell', command]);
+  }
+
+  async isAppRunning(): Promise<boolean> {
+    return (await this.shell(`pidof ${shq(this.pkg)}`).catch(() => '')).trim() !== '';
+  }
+
+  /** The crash in logcat's crash buffer (times as epoch seconds, so the host's clock can pick the recent one). */
+  async crashReport(sinceMs: number): Promise<CrashReport | null> {
+    const log = await this.adbRun(['logcat', '-d', '-b', 'crash', '-v', 'threadtime', '-v', 'epoch']).catch(() => '');
+    const summary = androidCrash(log, this.pkg, sinceMs);
+    return summary === null ? null : { summary };
   }
 
   /** Online devices from `adb devices`. */

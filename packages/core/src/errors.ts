@@ -13,7 +13,9 @@ export type HostErrorName =
   /** The app was sent to the background by the test; bring it to the foreground first. */
   | 'APP_IN_BACKGROUND'
   /** A web page is blocked on a JS dialog (alert / confirm / prompt); answer it with app.device.system.tap first. */
-  | 'DIALOG_OPEN';
+  | 'DIALOG_OPEN'
+  /** The app's process died (issue #76): the message carries the crash's reason when the device kept one. */
+  | 'APP_CRASHED';
 
 /**
  * Every failure surfaced by @quiesco/core. Agent errors keep their protocol code and structured data

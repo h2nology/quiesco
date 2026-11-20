@@ -682,6 +682,7 @@ the WebSocket library's frames.
 | `CONNECT_TIMEOUT` | The app did not connect after launch (the message has a checklist) |
 | `AGENT_TIMEOUT` | The app stopped answering — usually its JS thread is blocked |
 | `AGENT_DISCONNECTED`, `DEVICE_ERROR`, `CONFIG_ERROR` | Lost connection, device tooling failure (adb / simctl / Playwright), invalid config |
+| `APP_CRASHED` | The app's process died (iOS / Android). The message has the crash's reason from the device: Android's `FATAL EXCEPTION` (or native `Fatal signal`) from logcat, iOS's exception type and the crashing thread's top frames from the crash report, whose path it gives; the evidence has `crash.txt` and, on iOS, the report. The next scenario starts the app again at once |
 | `APP_NOT_RUNNING` / `APP_IN_BACKGROUND` | The test terminated the app / sent it to the background (`this.app.device`); relaunch it / bring it back first |
 | `DIALOG_OPEN` | Web: the page shows a JavaScript dialog (`data.message`); answer it with `app.device.system.tap({ text: 'OK' })` / `{ text: 'Cancel' }` first |
 

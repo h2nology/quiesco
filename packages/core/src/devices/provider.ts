@@ -1,4 +1,5 @@
 /** Device abstraction (requirements.md §6.9). One implementation per platform; platform branches live here. */
+import type { CrashReport } from './crash.js';
 import type { GestureSlop, HostInput, Orientation, Platform, Rect } from '@quiesco/protocol';
 
 import type { Permission } from './permissions.js';
@@ -115,6 +116,13 @@ export interface DeviceProvider {
   /** Perform input the agent cannot do itself (system back, opening a URL, web real input). */
   injectInput?(input: HostInput): Promise<void>;
   shutdown(): Promise<void>;
+  /**
+   * Whether the app's process is alive (issue #76/#77): after a disconnect, a dead process means a crash
+   * (no point waiting for the app to reconnect). Missing where the platform cannot tell (web).
+   */
+  isAppRunning?(): Promise<boolean>;
+  /** The app's crash at or after `sinceMs` (ms since the epoch): the reason in a few lines, and the report file (issue #76). */
+  crashReport?(sinceMs: number): Promise<CrashReport | null>;
   /** Extra lines for the "app did not connect" message (e.g. adb reverse state). */
   diagnose?(params: LaunchParams): Promise<string[]>;
 
