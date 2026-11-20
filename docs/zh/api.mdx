@@ -267,7 +267,7 @@ await this.app.device.system.tap({ text: 'Cancel' });  // App 之外的任意系
 | `system.allowPermission()` / `system.denyPermission()` | 无论设备语言是什么，都能应答运行时权限弹窗（Android：根据按钮的 id，也包括“仅在使用该 App 时允许”和“不再询问”；iOS：按 iOS 的布局根据位置）；App 回到前台并空闲后 resolve |
 
 这些在 web 上都不存在（`ACTION_NOT_SUPPORTED`；请给此类场景加上 `@native` 标签），只有 `system.tap` /
-`expectVisible` / `expectNotVisible` 例外，用于页面的 JavaScript 对话框（见下文）。在 Android 上，它们需要模拟器（由其控制台模拟传感器）。在 iOS 上，系统 UI 属于 SpringBoard：Quiesco 会在第一次需要时构建一个小型的 XCUITest runner（每个 Xcode 版本一次，缓存在 `~/Library/Caches/quiesco/ios-runner`，约 10 s），并在模拟器上启动它（2–4 s，每个会话一次）。弹窗的生命周期比 App 更长：上一个场景遗留的弹窗会在下一个场景之前被关闭（取消 / 拒绝）。要再次请求某项权限，请先重置它：`setPermission('notifications', 'reset')`。
+`expectVisible` / `expectNotVisible` 例外，用于页面的 JavaScript 对话框（见下文）。在 Android 上，它们需要模拟器（由其控制台模拟传感器）。在 iOS 上，系统 UI 属于 SpringBoard：Quiesco 会在第一次需要时构建一个小型的 XCUITest runner（每个 Xcode 版本一次，缓存在 `~/Library/Caches/quiesco/ios-runner`，约 10 s），并在模拟器上启动它（2–4 s，每个会话一次）。弹窗的生命周期比 App 更长：上一个场景遗留的弹窗会在下一个场景之前被关闭（取消，否则第一个按钮）。权限弹窗例外：无论怎么回答都会留下结果（通知被拒绝后只有重装 App 才能恢复），所以下一个场景会以指明该弹窗的 `RESET_FAILED` 失败。请在弹出它的场景里回答它。要再次请求某项权限，请先重置它：`setPermission('notifications', 'reset')`。
 
 **系统 UI 包括什么。** 除了系统自己的 UI（iOS 的 SpringBoard、Android 的其他 package），`system.*` 也能看到不是 React 的 UI（issues #49–#51）：
 

@@ -563,8 +563,11 @@ export class Driver {
       const covered = e instanceof QuiescoError && (e.errorName === 'ELEMENT_OBSCURED' || (e.errorName === 'ELEMENT_NOT_FOUND' && e.data['reason'] === 'not-in-window'));
       if (!covered || dismiss === undefined) throw e;
       const closed = await dismiss().catch(() => [] as string[]);
-      if (closed.length === 0) throw e;
-      return this.call('action', params, timeoutMs, steps);
+      if (closed.length > 0) return this.call('action', params, timeoutMs, steps);
+      // One Quiesco leaves up (a permission alert, issue #86) is the likely reason: say so.
+      const unanswered = await this.options.provider.unansweredSystemAlert?.().catch(() => undefined);
+      if (unanswered === undefined) throw e;
+      throw new QuiescoError(e.errorName, `${e.message}\n${unanswered}`, e.data as never);
     }
   }
 

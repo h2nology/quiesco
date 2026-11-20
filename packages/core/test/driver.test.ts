@@ -386,6 +386,16 @@ describe('Driver and system "isn\'t responding" dialogs (Phase 6.12)', () => {
     expect(attempts).toBe(2);
   });
 
+  it('names a permission alert it does not answer when the element stays covered (#86)', async () => {
+    const provider = new AnrProvider(0);
+    Object.assign(provider, { unansweredSystemAlert: async () => 'A system permission alert is up over the app: "Allow?" [Don’t Allow, Allow]' });
+    const { driver } = await setup((m) => {
+      if (m === 'action') throw obscured;
+      return {};
+    }, { provider });
+    await expect(driver.tap('x')).rejects.toMatchObject({ errorName: 'ELEMENT_OBSCURED', message: /is covered by another window\nA system permission alert is up over the app/ });
+  });
+
   it('also retries when the element is outside any window (an iOS alert over the app)', async () => {
     let attempts = 0;
     const { driver } = await setup(

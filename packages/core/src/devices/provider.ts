@@ -203,6 +203,11 @@ export interface DeviceProvider {
    * for none (act on it now). Without this method: systemNodes().
    */
   systemNodeReread?(node: SystemNode): (() => Promise<SystemNode[]>) | null;
+  /**
+   * A system alert over the app that dismissSystemAlerts leaves up (iOS: a permission alert, issue #86),
+   * described for an error message; undefined when there is none.
+   */
+  unansweredSystemAlert?(): Promise<string | undefined>;
   tapSystemNode?(node: SystemNode): Promise<void>;
   /**
    * Tap the field `node` and type `text` into it with the device's input (issues #51): iOS through the

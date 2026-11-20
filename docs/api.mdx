@@ -335,7 +335,9 @@ None of these exist on the web (`ACTION_NOT_SUPPORTED`; tag such scenarios `@nat
 sensors). On iOS, system UI belongs to SpringBoard: Quiesco builds a small XCUITest runner the first time
 it is needed (once per Xcode version, cached in `~/Library/Caches/quiesco/ios-runner`, about 10 s) and starts
 it on the simulator (2–4 s, once per session). Alerts outlive the app: one left by a scenario is dismissed
-(cancel / deny) before the next. To ask for a permission again, reset it first: `setPermission('notifications', 'reset')`.
+(cancel, else its first button) before the next, except a permission alert: either answer sticks (a denied notification
+permission only goes away with a reinstall), so the next scenario fails with `RESET_FAILED` naming it. Answer it in the
+scenario that brings it up. To ask for a permission again, reset it first: `setPermission('notifications', 'reset')`.
 
 **What system UI includes.** Besides the system's own UI (SpringBoard on iOS, other packages on Android),
 `system.*` sees UI that is not React (issues #49–#51):
