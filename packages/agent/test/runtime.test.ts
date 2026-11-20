@@ -404,7 +404,7 @@ describe('AgentRuntime', () => {
   });
 
   /** A list 400 high at y 200 whose content is `height` high, with row `id` at content y `rowY`; each scroll keeps the app busy `busyMs`. */
-  function longList(height: number, rowY: number, busyMs = 0) {
+  function longList(height: number, rowY: number, busyMs: number | ((scroll: number) => number) = 0) {
     let busyUntil = 0;
     const s = setup({ busy: () => Date.now() < busyUntil });
     const content = { x: 0, y: 200, width: 300, height };
@@ -414,7 +414,7 @@ describe('AgentRuntime', () => {
         const top = Math.min(Math.max(0, y), height - 400);
         content.y = 200 - top;
         row.y = 200 + rowY - top;
-        busyUntil = Date.now() + busyMs;
+        busyUntil = Date.now() + (typeof busyMs === 'number' ? busyMs : busyMs(listView.scrollTo.mock.calls.length));
       }),
     };
     sameRoot(s.target)(classOf(listView, host('RCTScrollView', { testID: 'list', __rect: { x: 0, y: 200, width: 300, height: 400 } }, host('RCTScrollContentView', { __rect: content }, host('RCTView', { testID: 'row', __rect: row })))));
@@ -428,6 +428,25 @@ describe('AgentRuntime', () => {
       element: { testID: 'row' },
     });
     expect(listView.scrollTo.mock.calls.length).toBe(19);
+  });
+
+  it('scrollTo reports its steps for the timeline (#78)', async () => {
+    const { call } = longList(10_000, 6_800, 80);
+    const r = (await drive(call('action', { action: { type: 'scrollTo', container: { id: 'list' }, target: { id: 'row' } }, mode: 'js', timeoutMs: 300 }), 5_000)) as { steps: { atMs: number; ms: number; syncMs: number; label: string }[] };
+    expect(r.steps).toHaveLength(19);
+    expect(r.steps.every((s) => s.label === 'down' && s.syncMs >= 80 && s.ms >= s.syncMs)).toBe(true);
+    expect(r.steps.map((s) => s.atMs)).toEqual([...r.steps.map((s) => s.atMs)].sort((a, b) => a - b));
+  });
+
+  it('a SYNC_TIMEOUT inside a scrollTo step says which step, where and how long the earlier ones took (#78)', async () => {
+    // Steps 1 and 2 settle after 80 ms; step 3 never does.
+    const { call } = longList(10_000, 6_800, (n) => (n < 3 ? 80 : 60_000));
+    const p = drive(call('action', { action: { type: 'scrollTo', container: { id: 'list' }, target: { id: 'row' } }, mode: 'js', timeoutMs: 300 }), 5_000);
+    const e = (await p.then(() => null, (err: unknown) => err)) as { errorName: string; message: string; data: { timeoutMs: number; steps: unknown[] } };
+    expect(e.errorName).toBe('SYNC_TIMEOUT');
+    expect(e.message).toMatch(/^scrollTo \{ id: "list" \} → \{ id: "row" \}: step 3 of at most 60, offset \{"x":0,"y":1020\}, direction down, previous steps 0\.\d s: App did not become idle/);
+    expect(e.data.timeoutMs).toBe(300);
+    expect(e.data.steps).toHaveLength(3);
   });
 
   it('scrollTo stops after 60 steps and says where, not "both ends" (#63)', async () => {

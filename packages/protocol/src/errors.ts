@@ -2,7 +2,7 @@ import type { ActionType } from './actions.js';
 import type { ElementSummary } from './element.js';
 import type { JsonValue } from './json.js';
 import type { Matcher } from './matcher.js';
-import type { TrackerState } from './methods.js';
+import type { StepTiming, TrackerState } from './methods.js';
 
 /** Standard JSON-RPC 2.0 error codes. */
 export const JsonRpcErrorCode = {
@@ -36,9 +36,11 @@ export type ErrorName = keyof typeof ErrorCode;
 /** Structured `error.data` for each Quiesco error code. */
 export interface ErrorDataMap {
   /** `reason: 'not-in-window'`: React rendered it, but no window shows it (e.g. a system alert is over the app; Phase 6.12). */
-  ELEMENT_NOT_FOUND: { matcher: Matcher; reason?: 'not-in-window' };
+  /** `steps`: a multi-step action's steps before it gave up (issue #78). */
+  ELEMENT_NOT_FOUND: { matcher: Matcher; reason?: 'not-in-window'; steps?: StepTiming[] };
   MULTIPLE_MATCHES: { matcher: Matcher; matches: ElementSummary[] };
-  SYNC_TIMEOUT: { timeoutMs: number; busy: TrackerState[] };
+  /** `steps`: a multi-step action's steps, the last one the step that timed out (issue #78). */
+  SYNC_TIMEOUT: { timeoutMs: number; busy: TrackerState[]; steps?: StepTiming[] };
   ASSERTION_FAILED: { expected: JsonValue; actual: JsonValue; elements: ElementSummary[] };
   ACTION_NOT_SUPPORTED: { action: ActionType | 'webview'; platform: string; hint?: string };
   BACKDOOR_NOT_REGISTERED: { name: string; registered: string[] };
