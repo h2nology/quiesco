@@ -200,6 +200,43 @@ describe('IosProvider system UI (6.7 batch C)', () => {
     expect(calls).toEqual(['tap 200,340', 'tap 59,340']);
   });
 
+  it('taps a revealed "Open" button as soon as it stands still, before iOS withdraws it (#82)', async () => {
+    const cell = { label: '今, Reminder, body', id: 'ListCell', frame: [0, 300, 400, 80] };
+    const screens: RunnerScreen[] = [{ alerts: [], others: [cell] }];
+    let revealedAt = 0;
+    let openTappedAfter = -1;
+    const { runner, calls } = stateful(screens, 2, (n) => {
+      if (n === 1) {
+        revealedAt = Date.now();
+        screens.splice(0, screens.length, { alerts: [], others: [{ ...cell, frame: [110, 300, 290, 80] }, { label: 'Open', id: 'swipe-action-button-identifier', frame: [14, 300, 90, 80] }] });
+        // The hint is withdrawn after a while (~3 s on iOS 27; shorter here).
+        setTimeout(() => screens.splice(0, screens.length, { alerts: [], others: [cell] }), 1_500);
+      }
+      if (n === 2) openTappedAfter = Date.now() - revealedAt;
+    });
+    await make(runner).openNotification('Reminder', 10_000);
+    expect(calls).toEqual(['tap 200,340', 'tap 59,340']);
+    expect(openTappedAfter).toBeGreaterThanOrEqual(0);
+    expect(openTappedAfter).toBeLessThan(1_500);
+  });
+
+  it('re-reads SpringBoard for the settle check, never an app\'s slow element tree (#87)', async () => {
+    const { runner } = fakeRunner([{ alerts: [FACE_ID_ALERT], others: [] }]);
+    const p = make(runner);
+    const reread = p.systemNodeReread({ text: 'Cancel', id: '', bounds: { x1: 0, y1: 0, x2: 1, y2: 1 } });
+    expect((await reread!()).map((n) => n.id)).toContain('com.apple.localauthentication.ax.authentication.button.cancel');
+    expect(p.systemNodeReread({ text: 'Email', id: '', bounds: { x1: 0, y1: 0, x2: 1, y2: 1 }, app: 'com.apple.SafariViewService' })).toBeNull();
+  });
+
+  it('starts the runner while the app goes to the background, once for a system UI call too (#82)', async () => {
+    let starts = 0;
+    const { runner } = fakeRunner([{ alerts: [], others: [] }], 0, { start: () => (starts++, new Promise((r) => setTimeout(r, 100))) });
+    const p = make(runner);
+    await p.sendToBackground({ suspend: async () => true } as never);
+    await p.prepareSystemUi();
+    expect(starts).toBe(1);
+  });
+
   it('never taps another notification, or a button on the right, as the "Open" button', async () => {
     const screens: RunnerScreen[] = [{ alerts: [], others: [{ label: '今, Reminder, body', id: 'ListCell', frame: [0, 300, 400, 80] }] }];
     const { runner, calls } = stateful(screens, Number.MAX_SAFE_INTEGER, (n) => {

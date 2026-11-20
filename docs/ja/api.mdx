@@ -261,10 +261,10 @@ await this.app.device.system.tap({ text: 'Cancel' });  // アプリ外の任意�
 | `sendNotification({ title, body?, data? })` | iOS：擬似的なリモートプッシュ（`simctl push`、`data`は`aps`と並べて配置）。アプリが前面にある間はアプリのプッシュライブラリが受け取り、システムが通知を表示するのはアプリが通知を表示できる場合だけです（シミュレーターでは事前に許可できません）。Android：エミュレーターにはプッシュサービスがないため、通知はアプリとして投稿されます（`notifications`権限が必要）。タップすると`data`をintentのextrasとしてアプリが開き、プッシュライブラリのコールバックは呼ばれません。アプリがバックグラウンドにあっても動作します |
 | `openNotification(title, { timeoutMs }?)` | 通知をタップします。iOSではバナー、バナーが消えていれば通知センターで。Androidでは通知シェードで。通知が届くまで `timeoutMs`（10秒）待つので、数秒後に予約した通知も見つかります。iOSではシステムUIランナーの起動時間は含みません。タップはアプリが前面に来て初めて成功とみなします（iOSでは来なければもう一度探し、同じアプリの通知がまとまっていれば最新の通知をタップします）。アプリが前面に来てアイドルになった時点で解決します |
 | `clearKeychain()` | iOS：シミュレーターのキーチェーン（全アプリ分）をリセットします。Androidにはキーチェーンがないため`ACTION_NOT_SUPPORTED`。`relaunch({ clearData: true })`を使ってください |
-| `system.tap(query, { timeoutMs }?)` | アプリ外のシステムUI（権限ダイアログ、生体認証のプロンプト、WebページのJSダイアログ）をタップします。`query`：`{ text }`（完全一致。タイポグラフィ用の引用符は区別しません。またはRegExp）、および / または`{ id }`（Androidのresource-id、または`:id/`より後ろの部分）。表示されるまで`timeoutMs`（10秒）を上限に待ち、その後アプリがアイドルになるのを待ちます |
+| `system.tap(query, { timeoutMs }?)` | アプリ外のシステムUI（権限ダイアログ、生体認証のプロンプト、WebページのJSダイアログ）をタップします。`query`：`{ text }`（完全一致。タイポグラフィ用の引用符は区別しません。またはRegExp）、および / または`{ id }`（Androidのresource-id、または`:id/`より後ろの部分）。表示されるまで`timeoutMs`（10秒）を上限に待ち、その後アプリがアイドルになるのを待ちます。iOSのシステムUIはスライドして現れるため、250 ms空けた2回の読み取りで位置が一致してからタップします（`expectVisible`、`type`、権限ダイアログも同じ） |
 | `system.expectVisible(query)` / `system.expectNotVisible(query)` | そのシステムUIが画面に表示される（されなくなる）まで待ちます。`ELEMENT_NOT_FOUND` / `ASSERTION_FAILED`には見つかったテキストが列挙されます |
 | `system.type(query, text, { timeoutMs }?)` | `query`に一致する入力欄（同じテキストのラベルより入力欄を優先）をタップし、デバイスの入力で`text`を入力します。iOSはキーボード経由（どの文字でも可）、Androidはキーイベント（`input text`、印字可能なASCII）、それ以外の文字は@quiesco/nativeのクリップボード経由で貼り付けます。その後アプリがアイドルになるのを待ちます |
-| `system.tapAt({ x, y })` | 画面上の点（左上からのpt / dp）にシステムレベルのタッチをします。そこにあるものに関係なく届きます。たとえばiOSの共有シートの上側をタップすると閉じられます |
+| `system.tapAt({ x, y })` | 画面上の点（左上からのpt / dp）にシステムレベルのタッチをします。そこにあるものに関係なく届きます。たとえばiOSの共有シートの上側をタップすると閉じられます。iOSでは、画面上のシステムUIが動かなくなるまで（最大2秒）待ってからタッチします |
 | `system.allowPermission()` / `system.denyPermission()` | デバイスの言語に関係なく、実行時の権限ダイアログに応答します（Android：ボタンのIDで判別し、「アプリの使用中のみ」や「今後表示しない」にも対応。iOS：iOSのレイアウトに従い位置で判別）。アプリが前面に来てアイドルになった時点で解決します |
 
 これらはWebには存在しません（`ACTION_NOT_SUPPORTED`。こうしたシナリオには`@native`タグを付けてください）。ただし`system.tap` /

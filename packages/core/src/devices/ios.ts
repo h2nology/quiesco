@@ -229,7 +229,7 @@ export function uikitNodes(elements: readonly { type: number; label: string; id:
 }
 
 /**
- * Whether `frame` ([x, y, w, h]) looks like the "Open" button a locked device shows beside the tapped
+ * Whether `frame` ([x, y, w, h]) looks like the "Open" button a locked device (or iOS 27 Notification Center, #82) shows beside the tapped
  * notification `b`: in its row, on its left, less than half its width.
  */
 function revealedOpen(frame: number[], b: { x1: number; x2: number; y1: number; y2: number }): boolean {
@@ -244,6 +244,8 @@ const BIOMETRIC_ENROLLMENT = 'com.apple.BiometricKit.enrollmentChanged';
 /** openNotification: after BANNER_WAIT_MS (at most half the timeout) without a banner, it looks in Notification Center. */
 const BANNER_WAIT_MS = 2_000;
 const NOTIFICATION_POLL_MS = 250;
+/** System UI slides in for ~430–615 ms: two reads this far apart must agree before a touch (issue #87). */
+const SYSTEM_UI_SETTLE_MS = 250;
 /** openUrlFromOutside: how long SpringBoard's "Open in …?" confirmation may take to show up. */
 const OPEN_URL_CONFIRM_MS = 5_000;
 /**
@@ -272,6 +274,8 @@ export class IosProvider implements DeviceProvider {
   private readonly logger: Logger;
   /** XCUITest runner for SpringBoard's UI, started on first use (Phase 6.7 batch C). */
   private runnerInstance: SystemRunnerLike | null = null;
+  /** A runner start in progress: a warm-up (sendToBackground) and a system UI call share it. */
+  private runnerStarting: Promise<void> | null = null;
   /** Phase 6.9 artifacts: the running recorder and log stream. */
   private recorder: { child: ChildLike; file: string } | null = null;
   private logStream: ChildLike | null = null;
@@ -489,6 +493,9 @@ export class IosProvider implements DeviceProvider {
   }
 
   async sendToBackground(app: InAppControls): Promise<void> {
+    // What follows is often openNotification: a runner that starts only then (7–15 s cold) misses the
+    // banner (issue #82). Started in the background; a failure shows up when the runner is used.
+    this.startRunner().catch((e: unknown) => this.logger.debug(`warming up the iOS system UI runner failed: ${(e as Error).message}`));
     if (await app.suspend().catch(() => false)) return;
     // No @quiesco/native (or an older one): another app in front puts ours in the background too.
     this.logger.debug('sendToBackground: the app cannot suspend itself; opening the Settings app instead');
@@ -731,8 +738,17 @@ export class IosProvider implements DeviceProvider {
    */
   /** Start the system UI runner: system UI waits start their clock after it (a cold start takes 7–15 s, issue #64). */
   async prepareSystemUi(): Promise<void> {
-    await this.runner.start?.();
+    await this.startRunner();
   }
+
+  private startRunner(): Promise<void> {
+    this.runnerStarting ??= (async () => this.runner.start?.())().finally(() => {
+      this.runnerStarting = null;
+    });
+    return this.runnerStarting;
+  }
+
+  readonly systemUiSettleMs = SYSTEM_UI_SETTLE_MS;
 
   async systemNodes(): Promise<SystemNode[]> {
     const runner = this.runner;
@@ -743,6 +759,15 @@ export class IosProvider implements DeviceProvider {
       if (tree.state === RUNNING_FOREGROUND) nodes.push(...uikitNodes(tree.elements, bundleId));
     }
     return nodes;
+  }
+
+  /**
+   * SpringBoard's UI (alerts, the Face ID prompt, banners) slides in: read it again. Not a node of an app's
+   * element tree: a read of that takes seconds (18 s with a web page in it), the animation is over by then.
+   */
+  systemNodeReread(node: SystemNode): (() => Promise<SystemNode[]>) | null {
+    if (node.app !== undefined) return null;
+    return async () => screenNodes(await this.runner.screen());
   }
 
   async tapSystemNode(node: SystemNode): Promise<void> {
@@ -863,18 +888,12 @@ export class IosProvider implements DeviceProvider {
         taps++;
         // A stack that expanded shows more matching notifications: look again right away.
         const expanded = async () => (await find(), shown.filter(matches).length > matching);
-        if (await this.tapOpened(appState !== undefined, inFront, find, deadline, expanded)) return;
-        // On a locked device a tap only slides the notification to the right and shows an "Open" button on
-        // its left (in the device's language): a new, small button, not a notification, left in that row.
-        // Not one on the right ("Clear", "Options"), nor another notification.
-        await find();
-        const revealed = shown.find((o) => !before.has(o.label) && !matches(o) && !o.label.includes(', ') && revealedOpen(o.frame, b));
-        if (revealed !== undefined) {
-          const r = screenNodes({ alerts: [], others: [revealed] })[0]!.bounds;
-          this.logger.warn(`openNotification: tapping "${title}" showed ${JSON.stringify(revealed.label)} (a locked device); tapping it`);
-          await runner.tap((r.x1 + r.x2) / 2, (r.y1 + r.y2) / 2);
-          if (await this.tapOpened(appState !== undefined, inFront, find, deadline, async () => false)) return;
-        }
+        // On a locked device, and in Notification Center on iOS 27 (the Cover Sheet), a tap may only slide
+        // the notification to the right and show an "Open" button on its left (in the device's language),
+        // withdrawn ~3 s later (issue #82): a new, small button, not a notification, left in that row. Not
+        // one on the right ("Clear", "Options"), nor another notification. Read from the last `find`.
+        const revealed = () => shown.find((o) => !before.has(o.label) && !matches(o) && !o.label.includes(', ') && revealedOpen(o.frame, b));
+        if (await this.tapOpened(appState !== undefined, inFront, find, deadline, expanded, revealed, title)) return;
         this.logger.warn(`openNotification: the app did not come to the front after tapping "${title}"; looking again`);
         continue;
       }
@@ -898,13 +917,37 @@ export class IosProvider implements DeviceProvider {
   /**
    * Whether a notification tap opened the app: the app is in front within NOTIFICATION_FRONT_MS
    * (`knowsState`), else (a runner that cannot tell) the notification went away within NOTIFICATION_TAP_CONFIRM_MS.
+   * An "Open" button the tap revealed (`revealed`, read after each look) is tapped as soon as two looks
+   * agree on where it is, and the wait starts again (issue #82: it is withdrawn ~3 s later).
    */
-  private async tapOpened(knowsState: boolean, inFront: () => Promise<boolean>, find: () => Promise<unknown>, deadline: number, expanded: () => Promise<boolean>): Promise<boolean> {
+  private async tapOpened(
+    knowsState: boolean,
+    inFront: () => Promise<boolean>,
+    find: () => Promise<unknown>,
+    deadline: number,
+    expanded: () => Promise<boolean>,
+    revealed: () => RunnerScreen['others'][number] | undefined,
+    title: string,
+  ): Promise<boolean> {
     // Not past the call's deadline (but one look at least).
-    const until = Math.min(Date.now() + (knowsState ? NOTIFICATION_FRONT_MS : NOTIFICATION_TAP_CONFIRM_MS), Math.max(deadline, Date.now()));
+    const waitUntil = () => Math.min(Date.now() + (knowsState ? NOTIFICATION_FRONT_MS : NOTIFICATION_TAP_CONFIRM_MS), Math.max(deadline, Date.now()));
+    let until = waitUntil();
+    let openAt: string | undefined;
+    let openTapped = false;
     for (;;) {
       if (knowsState ? await inFront() : (await find()) === undefined) return true;
       if (knowsState && (await expanded())) return false;
+      const open = openTapped ? undefined : revealed();
+      const at = open === undefined ? undefined : JSON.stringify(open.frame);
+      if (open !== undefined && at === openAt) {
+        const r = screenNodes({ alerts: [], others: [open] })[0]!.bounds;
+        this.logger.warn(`openNotification: tapping "${title}" showed ${JSON.stringify(open.label)} (Notification Center on iOS 27, or a locked device); tapping it`);
+        await this.runner.tap((r.x1 + r.x2) / 2, (r.y1 + r.y2) / 2);
+        openTapped = true;
+        until = waitUntil();
+        continue;
+      }
+      openAt = at;
       if (Date.now() >= until) return false;
       await new Promise((r) => setTimeout(r, NOTIFICATION_POLL_MS));
     }

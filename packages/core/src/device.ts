@@ -68,6 +68,9 @@ export interface DeviceHost {
 /** How long sendToBackground / bringToForeground wait for the app to report its new AppState. */
 const STATE_WAIT_MS = 5_000;
 const STATE_POLL_MS = 100;
+/** system.tapAt waits at most this long for the system UI to stop moving (issue #87). */
+const SYSTEM_SETTLE_MAX_MS = 2_000;
+const sameBounds = (a: SystemNode, b: SystemNode): boolean => a.bounds.x1 === b.bounds.x1 && a.bounds.y1 === b.bounds.y1 && a.bounds.x2 === b.bounds.x2 && a.bounds.y2 === b.bounds.y2;
 
 /** How long a device-state change may take to reach the app (it is read back from the app). */
 const SETTLE_MS = 8_000;
@@ -162,6 +165,7 @@ export class DeviceApi {
       if (typeof point !== 'object' || point === null || !Number.isFinite(point.x) || !Number.isFinite(point.y)) throw new TypeError('system.tapAt({ x, y }) needs numbers');
       const p = this.host.provider;
       if (p.tapSystemPoint === undefined) throw notSupported('system.tapAt', p.platform, SYSTEM_UI_HINT[p.platform]);
+      await this.systemUiSettled(point);
       await p.tapSystemPoint(point.x, point.y);
       if (this.host.appState === 'running') await this.host.waitForIdle();
     },
@@ -641,6 +645,30 @@ export class DeviceApi {
     return { systemNodes: () => p.systemNodes!(), tapSystemNode: (n) => p.tapSystemNode!(n) };
   }
 
+  /**
+   * Before a touch at a point (system.tapAt): on a platform whose system UI animates in (issue #87), until
+   * two reads systemUiSettleMs apart show the same system UI, for at most SYSTEM_SETTLE_MAX_MS.
+   */
+  private async systemUiSettled(point: { x: number; y: number }): Promise<void> {
+    const p = this.host.provider;
+    const settleMs = p.systemUiSettleMs;
+    if (settleMs === undefined || p.systemNodes === undefined) return;
+    // The system UI over the point (iOS: SpringBoard's), not an app's element tree.
+    const here: SystemNode = { text: '', id: '', bounds: { x1: point.x, y1: point.y, x2: point.x, y2: point.y } };
+    const read = p.systemNodeReread === undefined ? () => p.systemNodes!() : p.systemNodeReread(here);
+    if (read === null) return;
+    await p.prepareSystemUi?.();
+    const shape = async () => JSON.stringify((await read()).map((n) => [n.text, n.id, n.bounds]));
+    const until = Date.now() + SYSTEM_SETTLE_MAX_MS;
+    let before = await shape();
+    while (Date.now() < until) {
+      await new Promise((r) => setTimeout(r, settleMs));
+      const now = await shape();
+      if (now === before) return;
+      before = now;
+    }
+  }
+
   /** Poll the system UI until a node matches (each listing may take a while: uiautomator dumps take ~2 s). */
   private async findSystemNode(action: string, what: string, pick: (nodes: SystemNode[]) => SystemNode | undefined, opts: SystemWaitOptions): Promise<SystemNode> {
     const p = this.systemProvider(action);
@@ -648,10 +676,24 @@ export class DeviceApi {
     // Not counted: starting the system UI runner (issue #64).
     await this.host.provider.prepareSystemUi?.();
     const deadline = Date.now() + timeoutMs;
+    const settleMs = this.host.provider.systemUiSettleMs;
     for (;;) {
-      const nodes = await p.systemNodes();
+      let nodes = await p.systemNodes();
       const node = pick(nodes);
-      if (node !== undefined) return node;
+      if (node !== undefined && settleMs === undefined) return node;
+      if (node !== undefined) {
+        // Still animating in, a touch is lost (issue #87): only once two reads agree on where it is. One
+        // that keeps moving until the deadline is acted on all the same.
+        const provider = this.host.provider;
+        const reread = provider.systemNodeReread === undefined ? () => p.systemNodes() : provider.systemNodeReread(node);
+        if (reread === null) return node;
+        await new Promise((r) => setTimeout(r, settleMs));
+        nodes = await reread();
+        const again = pick(nodes);
+        if (again !== undefined && (sameBounds(again, node) || Date.now() >= deadline)) return again;
+        this.host.logger.debug(`${action}: ${what} is still moving (${JSON.stringify(node.bounds)} → ${JSON.stringify(again?.bounds ?? null)}); looking again`);
+        continue;
+      }
       if (Date.now() >= deadline) {
         const seen = seenTexts(nodes);
         throw new QuiescoError('ELEMENT_NOT_FOUND', `${action}: no system UI matching ${what} within ${timeoutMs}ms (on screen outside the app: ${seen.map((t) => JSON.stringify(t)).join(', ') || 'nothing'})`, {
