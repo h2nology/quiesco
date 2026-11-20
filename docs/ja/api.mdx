@@ -549,7 +549,7 @@ export default defineConfig({
 | 保存したスクリーンショット | `screenshot(…, { name })` | `<name>.png` |
 | `video` | ポリシーによる | iOSは`simctl io recordVideo`（MP4）、Androidは`screenrecord`（MP4、3分ごとに新しいセグメント）、WebはPlaywrightのスクリーンキャスト（WebM）。ファイルパスとして添付されます |
 | `logs` | ポリシーによる | `device.log`：iOSはアプリプロセスの統合ログ（`log stream`、info以上）、Androidはアプリのuidのlogcat、Webはページのコンソールとキャッチされないエラー。最後の300行はインラインで添付されます |
-| `timeline` | ポリシーによる | アプリに対するすべての呼び出しと、その所要時間およびそのうちアイドル待ちに費やした時間、失敗した呼び出しとそのエラー、`scrollTo`の各ステップはその下に：`timeline.html`（インライン）と`timeline.trace.json`（Chromeのトレース形式：`chrome://tracing`、ui.perfetto.dev） |
+| `timeline` | ポリシーによる | アプリに対するすべての呼び出しと、その所要時間およびそのうちアイドル待ちに費やした時間、失敗した呼び出しとそのエラー、`scrollTo`の各ステップはその下に（テストランナーのタイムアウトで先に終わった呼び出しも、それまでのステップとともに「still running when the scenario ended」として残ります）：`timeline.html`（インライン）と`timeline.trace.json`（Chromeのトレース形式：`chrome://tracing`、ui.perfetto.dev） |
 
 ```ts
 export default defineConfig({

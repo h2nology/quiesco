@@ -430,12 +430,15 @@ describe('AgentRuntime', () => {
     expect(listView.scrollTo.mock.calls.length).toBe(19);
   });
 
-  it('scrollTo reports its steps for the timeline (#78)', async () => {
-    const { call } = longList(10_000, 6_800, 80);
+  it('scrollTo reports its steps for the timeline (#78), each one as it is done too (#84)', async () => {
+    const { call, rt } = longList(10_000, 6_800, 80);
+    const notify = vi.fn();
+    (rt as unknown as { client: unknown }).client = { notify, stop() {} };
     const r = (await drive(call('action', { action: { type: 'scrollTo', container: { id: 'list' }, target: { id: 'row' } }, mode: 'js', timeoutMs: 300 }), 5_000)) as { steps: { atMs: number; ms: number; syncMs: number; label: string }[] };
     expect(r.steps).toHaveLength(19);
     expect(r.steps.every((s) => s.label === 'down' && s.syncMs >= 80 && s.ms >= s.syncMs)).toBe(true);
     expect(r.steps.map((s) => s.atMs)).toEqual([...r.steps.map((s) => s.atMs)].sort((a, b) => a - b));
+    expect(notify.mock.calls.filter(([e]) => e === 'step').map(([, p]) => p)).toEqual(r.steps);
   });
 
   it('a SYNC_TIMEOUT inside a scrollTo step says which step, where and how long the earlier ones took (#78)', async () => {

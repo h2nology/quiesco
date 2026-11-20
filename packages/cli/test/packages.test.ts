@@ -32,6 +32,18 @@ describe('scriptCommands', () => {
     ]);
     expect(scriptCommands(undefined)).toEqual([]);
   });
+
+  it('skips an environment variable whose value is quiesco (#83)', () => {
+    expect(
+      scriptCommands({
+        'build:ios': 'E2E_TOOL=quiesco quiesco build ios --clean',
+        'build:android': 'E2E_TOOL=quiesco GRADLE_OPTS=-Xmx4g quiesco build android --clean',
+      }),
+    ).toEqual([
+      { script: 'build:ios', command: 'build' },
+      { script: 'build:android', command: 'build' },
+    ]);
+  });
 });
 
 describe('installedVersion', () => {

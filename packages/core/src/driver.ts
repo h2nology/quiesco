@@ -736,6 +736,10 @@ export class Driver {
       this.logErrors.push(l.message);
       if (this.logErrors.length > MAX_APP_LOG_ERRORS) this.logErrors.shift();
     });
+    // Steps of the running call, in the timeline before the call returns (issue #84).
+    conn.on('step', (s) => {
+      if (this.watched === conn) this.options.timeline?.step(s);
+    });
     conn.on('appError', (e) => {
       if (this.watched !== conn) return;
       if (this.options.ignoreAppErrors?.some((re) => re.test(e.message)) === true) {
@@ -752,7 +756,8 @@ export class Driver {
 function describeCall(method: string, params: unknown): string {
   const p = (params ?? {}) as Record<string, unknown>;
   const spec = (p['action'] ?? p['assertion']) as Record<string, unknown> | undefined;
-  const matcher = spec?.['matcher'] ?? p['matcher'];
+  // scrollTo: the element it looks for.
+  const matcher = spec?.['matcher'] ?? spec?.['target'] ?? p['matcher'];
   const what = spec !== undefined ? String(spec['type']) : method === 'backdoor' ? String(p['name']) : '';
   const m = matcher === undefined ? '' : JSON.stringify(matcher);
   return [what, m.length > 120 ? `${m.slice(0, 117)}...` : m].filter((x) => x !== '').join(' ');

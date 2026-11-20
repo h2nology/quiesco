@@ -999,7 +999,9 @@ export class AgentRuntime {
   /** Record a step of a multi-step action that started at `start` with `syncSpent` at `syncBefore` (issue #78). */
   private recordStep(start: number, syncBefore: number, label: string): void {
     const now = this.clock.now();
-    this.steps.push({ atMs: Math.round(start - this.callStart), ms: Math.round(now - start), syncMs: Math.round(this.syncSpent - syncBefore), label });
+    const step = { atMs: Math.round(start - this.callStart), ms: Math.round(now - start), syncMs: Math.round(this.syncSpent - syncBefore), label };
+    this.steps.push(step);
+    this.client?.notify('step', step);
   }
 
   /**

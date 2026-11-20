@@ -2,7 +2,8 @@ import type { ActionType } from './actions.js';
 import type { ElementSummary } from './element.js';
 import type { JsonValue } from './json.js';
 import type { Matcher } from './matcher.js';
-import type { StepTiming, TrackerState } from './methods.js';
+import type { TrackerState } from './methods.js';
+import type { StepTiming } from './timing.js';
 
 /** Standard JSON-RPC 2.0 error codes. */
 export const JsonRpcErrorCode = {

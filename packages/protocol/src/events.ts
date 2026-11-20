@@ -1,3 +1,5 @@
+import type { StepTiming } from './timing.js';
+
 /** Notifications sent by the agent (no `id`, no response). requirements.md §7. */
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -6,6 +8,11 @@ export interface AgentEvents {
   log: { level: LogLevel; message: string; timestamp: number };
   /** Uncaught exception / red box / unhandled rejection: the current step must fail immediately. */
   error: { kind: 'uncaught' | 'unhandledRejection' | 'redbox'; message: string; stack?: string; timestamp: number };
+  /**
+   * A step of the running multi-step action (scrollTo…), as soon as it is done (issue #84): a call the test
+   * ends first (its own timeout) never returns its steps. The call's result / error still carries them all.
+   */
+  step: StepTiming;
 }
 
 export type AgentEventName = keyof AgentEvents;

@@ -36,7 +36,8 @@ export function installedVersion(ctx: CliContext, name: string, dir: string = ct
 export function scriptCommands(scripts: Record<string, string> | undefined): { script: string; command: string }[] {
   const found: { script: string; command: string }[] = [];
   for (const [script, line] of Object.entries(scripts ?? {})) {
-    for (const m of line.matchAll(/(?:^|[^\w@/.-])quiesco\s+([a-z][\w:-]*)/g)) found.push({ script, command: m[1] as string });
+    // `=` is not a word boundary: `E2E_TOOL=quiesco quiesco build` sets a variable, then runs `build` (issue #83).
+    for (const m of line.matchAll(/(?:^|[^\w@/.=-])quiesco\s+([a-z][\w:-]*)/g)) found.push({ script, command: m[1] as string });
   }
   return found;
 }
