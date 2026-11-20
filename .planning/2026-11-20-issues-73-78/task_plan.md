@@ -4,7 +4,7 @@
 解决 h2nology/quiesco 的 6 个 open issue（同一位用户在 0.9.0 上的实测反馈）。每个修复配单元测试、必要时更新三语文档；实跑验收后回复并关闭 issue，然后发版。
 
 ## Next Step
-等 HU 执行 `pnpm -r publish`；之后 tag、push、Release，回复关闭 #73–#78。
+全部完成（0.10.0 已发布）。剩余：已合并的 3 个远端分支待 HU 删除。
 
 ## Current Phase
 N.D
@@ -70,9 +70,9 @@ N.D
 - [x] 三端全量：Android 99/1（模拟定位，已知）、web 85/0、iOS 第一次 90/12（模拟器被重置成日语）⇒ 改回 en 后 iOS 102/0
 - [x] 合并 PR #79 → #80 → #81（先改 base 再合并）；远端分支删除被 auto mode 拦下，留给 HU
 - [x] 版本 0.10.0、release:check（clean 构建、989 tests、12 包）、本地提交 d1d0f37（未 push）
-- [ ] HU `pnpm -r publish`；之后 tag v0.10.0、push main + tag、GitHub Release
-- [ ] 回复并关闭 #73–#78
-- **Status:** in_progress
+- [x] HU `pnpm -r publish`（npm view：12 包 0.10.0，core 无调试行）；tag v0.10.0（d1d0f37）、push main + tag、GitHub Release 0.10.0（Latest）
+- [x] 回复并关闭 #73–#78
+- **Status:** complete
 
 ## Decisions Made
 | Decision | Rationale |

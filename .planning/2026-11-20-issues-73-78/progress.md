@@ -33,3 +33,4 @@
 - 处理：模拟器 AppleLanguages=en、AppleLocale=en_US，重启；system.feature 4 次：首次（刚启动）3 failed，之后 0 / 1（通知场景，单独跑通过）/ 0 / 0
 - iOS 全量重跑（后台，full-ios-2.log）
 - iOS 全量重跑（en）102 passed / 7 skipped / 0 failed；合并 #79 #80 #81；0.10.0 release:check ok，本地提交 d1d0f37；回复草稿版本号已填 0.10.0
+- HU 发布 0.10.0；tag v0.10.0、push、GitHub Release；#73–#78 回复并关闭
