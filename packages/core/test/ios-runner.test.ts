@@ -106,8 +106,9 @@ describe('IosProvider system UI (6.7 batch C)', () => {
     await make(banner.runner).openNotification('Reminder', 10_000);
     expect(banner.calls).toEqual(['tap 201,91']);
 
+    // No banner: Notification Center after BANNER_WAIT_MS, at most half the timeout (2 s here).
     const gone = fakeRunner([{ alerts: [], others: [] }]);
-    await make(gone.runner).openNotification('Reminder', 10_000);
+    await make(gone.runner).openNotification('Reminder', 4_000);
     expect(gone.calls).toEqual(['center', 'tap 200,340']);
   });
 

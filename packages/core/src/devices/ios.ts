@@ -241,8 +241,13 @@ function revealedOpen(frame: number[], b: { x1: number; x2: number; y1: number; 
 /** Darwin notification state BiometricKit_Sim reads for "enrolled" (1 / 0). */
 const BIOMETRIC_ENROLLMENT = 'com.apple.BiometricKit.enrollmentChanged';
 
-/** openNotification: after BANNER_WAIT_MS (at most half the timeout) without a banner, it looks in Notification Center. */
-const BANNER_WAIT_MS = 2_000;
+/**
+ * openNotification: after BANNER_WAIT_MS (at most half the timeout) without a banner, it looks in
+ * Notification Center. Long enough for a notification scheduled a few seconds ahead to show as a banner:
+ * opened earlier, Notification Center receives it, and on iOS 27 a tap on a notification that just
+ * arrived there does nothing (2 s: 1 run in 4 failed once the runner was warm, issue #82).
+ */
+const BANNER_WAIT_MS = 5_000;
 const NOTIFICATION_POLL_MS = 250;
 /** System UI slides in for ~430–615 ms: two reads this far apart must agree before a touch (issue #87). */
 const SYSTEM_UI_SETTLE_MS = 250;
