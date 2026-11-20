@@ -19,6 +19,8 @@
  *   screen), or opening the Settings app for apps without @quiesco/native; foreground = `simctl launch`
  *   without terminating (the running process is activated, its arguments are ignored).
  */
+import { newestIosCrash } from './crash.js';
+import type { CrashReport } from './crash.js';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -136,6 +138,10 @@ export interface IosProviderOptions {
   worker?: WorkerInfo;
   /** How long match() / fail() wait for the app's authentication to start (tests). Default 10 s. */
   biometricWaitMs?: number;
+  /** Where crash reports are written (tests). Default ~/Library/Logs/DiagnosticReports. */
+  crashReportDir?: string;
+  /** How long crashReport() waits for the report to appear (tests). Default 5 s. */
+  crashReportWaitMs?: number;
 }
 
 /** What IosProvider uses of IosSystemRunner. */
@@ -1100,6 +1106,25 @@ export class IosProvider implements DeviceProvider {
     await this.runnerInstance?.stop().catch(() => undefined);
     if (this.sim === null) return;
     if (this.bootedByUs && this.options.device?.shutdown === true) await this.simctl(['shutdown', this.sim.udid]).catch(() => undefined);
+  }
+
+  async isAppRunning(): Promise<boolean> {
+    const services = await this.simctl(['spawn', this.udid, 'launchctl', 'list']);
+    return services.split('\n').some((l) => l.includes(`UIKitApplication:${this.bundleId}[`) && /^\d+\s/.test(l));
+  }
+
+  /**
+   * The app's crash report (`.ips`), written by ReportCrash about a second after the crash: waits up to
+   * `crashReportWaitMs` for it.
+   */
+  async crashReport(sinceMs: number): Promise<CrashReport | null> {
+    const dir = this.options.crashReportDir ?? path.join(os.homedir(), 'Library', 'Logs', 'DiagnosticReports');
+    const deadline = Date.now() + (this.options.crashReportWaitMs ?? 5_000);
+    for (;;) {
+      const report = await newestIosCrash(dir, this.bundleId, sinceMs);
+      if (report !== null || Date.now() >= deadline) return report;
+      await new Promise((r) => setTimeout(r, 250));
+    }
   }
 
   async diagnose(params: LaunchParams): Promise<string[]> {

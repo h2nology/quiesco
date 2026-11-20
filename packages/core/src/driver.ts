@@ -67,6 +67,8 @@ export interface DriverOptions {
   appState?: () => AppRunState;
   /** Where calls are recorded (Phase 6.9 timeline). */
   timeline?: Timeline;
+  /** A call lost its connection: say whether the app crashed (APP_CRASHED, issue #76), else return the error. */
+  explainDisconnect?: (e: QuiescoError) => Promise<QuiescoError>;
 }
 
 /** type({ perCharacter: true }): time between two characters, about a quick typist's (issue #52). */
@@ -663,7 +665,11 @@ export class Driver {
       } catch (e) {
         // A page reload / relaunch dropped the connection mid-call: read-only calls are safe to repeat
         // once the app is back (requirements.md §6.2: reconnecting is not an error).
-        if (e instanceof QuiescoError && e.errorName === 'AGENT_DISCONNECTED' && RETRYABLE.has(method)) return send();
+        if (e instanceof QuiescoError && e.errorName === 'AGENT_DISCONNECTED') {
+          // send() waits for the app to reconnect, and fails at once when it crashed (issue #77).
+          if (RETRYABLE.has(method)) return send();
+          if (this.options.explainDisconnect !== undefined) throw await this.options.explainDisconnect(e);
+        }
         throw e;
       }
     };

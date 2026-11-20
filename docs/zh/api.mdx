@@ -534,6 +534,7 @@ export default defineConfig({
 | `CONNECT_TIMEOUT` | App 启动后没有连接上（消息中附有检查清单） |
 | `AGENT_TIMEOUT` | App 不再响应——通常是其 JS 线程被阻塞 |
 | `AGENT_DISCONNECTED`、`DEVICE_ERROR`、`CONFIG_ERROR` | 连接丢失、设备工具失败（adb / simctl / Playwright）、配置无效 |
+| `APP_CRASHED` | App 的进程没了（iOS / Android）。消息里有设备记录的崩溃原因：Android 是 logcat 的 `FATAL EXCEPTION`（或原生的 `Fatal signal`），iOS 是崩溃报告里的异常类型和崩溃线程栈顶的几帧，并给出报告的路径；证据里有 `crash.txt`，iOS 还有报告本身。下一个场景会立即重新启动 App |
 | `APP_NOT_RUNNING` / `APP_IN_BACKGROUND` | 测试终止了 App / 把 App 切到了后台（`this.app.device`）；请先重新启动 / 切回前台 |
 | `DIALOG_OPEN` | Web：页面正在显示 JavaScript 对话框（`data.message`）；请先用 `app.device.system.tap({ text: 'OK' })` / `{ text: 'Cancel' }` 应答它 |
 

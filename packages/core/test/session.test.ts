@@ -6,10 +6,32 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import type { QuiescoConfig } from '../src/config';
 import { NATIVE_MODULES_NOT_WRAPPED, Session } from '../src/session';
-import { connectAgent } from './helpers/fake-agent';
+import { NO_REPLY, connectAgent } from './helpers/fake-agent';
 import type { FakeAgent, Handler } from './helpers/fake-agent';
 import { FakeProvider } from './helpers/fake-provider';
 import { silentLogger } from '../src/logger';
+import type { CrashReport } from '../src/devices/crash';
+import type { LaunchParams } from '../src/devices/provider';
+
+/** A device whose app can crash: the process is gone and the device kept a report (issue #76). */
+class CrashingProvider extends FakeProvider {
+  alive = true;
+  reportSince: number | null = null;
+  constructor(onLaunch: (p: LaunchParams) => void, private readonly report: CrashReport | null) {
+    super(onLaunch);
+  }
+  override async launch(p: LaunchParams) {
+    this.alive = true;
+    await super.launch(p);
+  }
+  async isAppRunning() {
+    return this.alive;
+  }
+  async crashReport(sinceMs: number) {
+    this.reportSince = sinceMs;
+    return this.report;
+  }
+}
 
 let session: Session | null = null;
 afterEach(async () => {
@@ -126,6 +148,72 @@ describe('Session', () => {
     expect(msg).toMatch(/fake diagnosis for port \d+/);
     expect(msg).toMatch(/Refused connections:\n {2}- Unknown session "someone-else"/);
     expect(provider.calls).toContain('shutdown'); // cleaned up after the failure
+  });
+
+  describe('when the app crashes (#76, #77)', () => {
+    const tap = { action: { type: 'tap', matcher: { id: 'row' } }, mode: 'js' } as const;
+    function crashing(report: CrashReport | null) {
+      const agents: FakeAgent[] = [];
+      const provider: CrashingProvider = new CrashingProvider(
+        (p) => agents.push(connectAgent(p.port, { sessionId: null, handler: (m) => (m === 'action' ? NO_REPLY : m === 'getTree' ? { root: null } : m === 'reset' ? { durationMs: 1 } : {}) })),
+        report,
+      );
+      return { provider, agents };
+    }
+    /** The app dies while handling a tap. */
+    async function crashDuringTap(provider: CrashingProvider, agents: FakeAgent[]) {
+      const call = session!.driver.request('action', tap);
+      call.catch(() => undefined);
+      await expect.poll(() => agents[0]!.requests.some((r) => r.method === 'action')).toBe(true);
+      provider.alive = false;
+      agents[0]!.ws.terminate();
+      return call.then(() => null, (e: unknown) => e as { errorName: string; message: string; data: Record<string, unknown> });
+    }
+
+    it('fails the call with APP_CRASHED and the crash\'s reason, without waiting for the app to reconnect', async () => {
+      const { provider, agents } = crashing({ summary: 'FATAL EXCEPTION: main\nProcess: p, PID: 1\njava.lang.RuntimeException: boom', file: '/tmp/x.ips' });
+      session = await Session.create({ config: config({ connectTimeoutMs: 60_000 }), platform: 'android', provider, logger: silentLogger, crashPollMs: 10 });
+      const started = Date.now();
+      const e = await crashDuringTap(provider, agents);
+      expect(Date.now() - started).toBeLessThan(3_000);
+      expect(e?.errorName).toBe('APP_CRASHED');
+      expect(e?.message).toBe('The app crashed while handling action:\n  FATAL EXCEPTION: main\n  Process: p, PID: 1\n  java.lang.RuntimeException: boom\nCrash report: /tmp/x.ips');
+      expect(e?.data).toMatchObject({ method: 'action', report: '/tmp/x.ips' });
+      expect(provider.reportSince).toBeGreaterThan(0);
+      // Later calls fail at once with the same error, until the app is started again.
+      await expect(session!.driver.getTree()).rejects.toMatchObject({ errorName: 'APP_CRASHED' });
+    });
+
+    it('evidence leaves out what needs the app and keeps the crash; the next scenario starts the app at once', async () => {
+      const { provider, agents } = crashing(null);
+      session = await Session.create({ config: config({ connectTimeoutMs: 60_000 }), platform: 'android', provider, logger: silentLogger, crashPollMs: 10 });
+      const e = await crashDuringTap(provider, agents);
+      expect(e?.message).toBe('The app crashed while handling action: its process is gone (the device kept no crash report)');
+      const ev = await session!.collectEvidence();
+      expect(ev).toMatchObject({ screenshot: Buffer.from('png'), errors: [], crash: { errorName: 'APP_CRASHED' } });
+      expect(ev.tree).toBeUndefined();
+      expect(agents[0]!.requests.map((r) => r.method)).toEqual(['action']);
+      provider.calls.length = 0;
+      const started = Date.now();
+      await session!.beforeScenario({});
+      expect(Date.now() - started).toBeLessThan(3_000);
+      expect(provider.calls).toEqual(['terminate', 'launch']);
+      expect(agents[1]!.requests.map((r) => r.method)).toEqual(['reset']);
+      await expect(session!.driver.getTree()).resolves.toBeNull();
+    });
+
+    it('a dropped connection of a live app stays AGENT_DISCONNECTED', async () => {
+      const { provider, agents } = crashing(null);
+      session = await Session.create({ config: config({ connectTimeoutMs: 60_000 }), platform: 'android', provider, logger: silentLogger, crashPollMs: 10 });
+      const call = session.driver.request('action', tap);
+      call.catch(() => undefined);
+      await expect.poll(() => agents[0]!.requests.some((r) => r.method === 'action')).toBe(true);
+      agents[0]!.ws.terminate();
+      await agents[0]!.closed;
+      connectAgent(session.launchParams.port, { sessionId: session.launchParams.sessionId, handler: () => ({ root: null }) });
+      await expect(call).rejects.toMatchObject({ errorName: 'AGENT_DISCONNECTED' });
+      await expect(session.driver.getTree()).resolves.toBeNull();
+    });
   });
 
   it('follows the app when it reconnects (web page reload) without failing the next call', async () => {

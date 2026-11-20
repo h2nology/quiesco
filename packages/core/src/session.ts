@@ -4,6 +4,8 @@
  * → dispose (AfterAll). Nothing here knows about Cucumber.
  */
 import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 
 import type { AgentConfig, AgentMethods, Platform, ResultOf, TrackerState, TreeNode } from '@quiesco/protocol';
 
@@ -39,7 +41,12 @@ export const FIRST_LAUNCH_CONNECT_FACTOR = 3;
 export const NATIVE_MODULES_NOT_WRAPPED =
   "sync.trackers: { 'native-module': true }, but the app's build does not wrap native modules, so the tracker counts nothing. Build it with withQuiesco(config, { nativeModules: true }) in metro.config.js (or EXPO_PUBLIC_QUIESCO_NATIVE_MODULES=1) and restart Metro.";
 
-const RESTART_ON: ReadonlySet<string> = new Set(['CONNECT_TIMEOUT', 'AGENT_DISCONNECTED', 'AGENT_TIMEOUT']);
+const RESTART_ON: ReadonlySet<string> = new Set(['CONNECT_TIMEOUT', 'AGENT_DISCONNECTED', 'AGENT_TIMEOUT', 'APP_CRASHED']);
+
+/** While waiting for the app to reconnect, how often its process is checked (issue #77). */
+const CRASH_POLL_MS = 500;
+/** After a call lost its connection, how long to watch for a crash (the process takes a moment to die). */
+const CRASH_CHECK_MS = 5_000;
 
 /**
  * How long a launch waits for the app. The session's first launch comes right after installing the app
@@ -63,6 +70,8 @@ export interface SessionOptions {
    * (`server.port + index`) and artifacts directory. Default: the only worker.
    */
   worker?: WorkerInfo;
+  /** How often the app's process is checked while waiting for it to reconnect (issue #77; tests). Default 500 ms. */
+  crashPollMs?: number;
 }
 
 export interface Evidence {
@@ -73,6 +82,8 @@ export interface Evidence {
   idle?: TrackerState[];
   /** Why a piece could not be collected. */
   errors: string[];
+  /** The app crashed (issue #76): element tree, list and idle state are not collected. */
+  crash?: QuiescoError;
 }
 
 export interface ScenarioInfo {
@@ -142,6 +153,7 @@ export class Session {
     readonly launchParams: LaunchParams,
     private readonly logger: Logger,
     readonly worker: WorkerInfo = SERIAL_WORKER,
+    private readonly crashPollMs = CRASH_POLL_MS,
   ) {
     this.defaultArgs = config.launchArgs === undefined ? {} : checkLaunchArgs(config.launchArgs, 'config launchArgs');
     this.artifacts = new Artifacts({ ...(config.artifacts !== undefined ? { config: config.artifacts } : {}), provider, logger, worker });
@@ -149,6 +161,7 @@ export class Session {
       timeline: this.artifacts.timeline,
       provider,
       connection: () => this.currentConnection(),
+      explainDisconnect: (e) => this.explainDisconnect(e),
       defaultTimeoutMs: toAgentConfig(config).sync.timeoutMs,
       ...(config.actions?.mode !== undefined ? { mode: config.actions.mode } : {}),
       ignoreAppErrors: ignoredAppErrors(config),
@@ -181,7 +194,7 @@ export class Session {
     const sessionId = randomUUID();
     // JS-only builds cannot read launch parameters and say `sessionId: null`; accept them for this session.
     server.expectSession(sessionId, { acceptAnonymous: true });
-    const session = new Session(config, provider, server, { port, sessionId }, logger, worker);
+    const session = new Session(config, provider, server, { port, sessionId }, logger, worker, options.crashPollMs);
     try {
       await provider.boot();
       await provider.install();
@@ -200,6 +213,14 @@ export class Session {
    * `reset.default: 'hard'`).
    */
   async beforeScenario(info: ScenarioInfo = {}): Promise<void> {
+    if (this.crash !== null) {
+      // Issue #77: the app crashed in the previous scenario; no point waiting for it to reconnect.
+      this.logger.warn(`the app crashed in the previous scenario; starting it again`);
+      await this.provider.terminate().catch(() => undefined);
+      this.appState = 'terminated';
+      await this.launch({}, { recovering: true });
+      this.appState = 'running';
+    }
     try {
       await this.resetForScenario(info);
     } catch (e) {
@@ -272,6 +293,14 @@ export class Session {
       if (ev.tree !== undefined) evidence.push({ data: JSON.stringify({ elementTree: ev.tree }, null, 2), mediaType: 'application/json', fileName: 'element-tree.json' });
       if (ev.idle !== undefined) evidence.push({ data: JSON.stringify({ idleState: ev.idle }, null, 2), mediaType: 'application/json', fileName: 'idle-state.json' });
       if (ev.errors.length > 0) evidence.push({ data: `Quiesco could not collect: ${ev.errors.join('; ')}`, mediaType: 'text/plain', fileName: 'evidence-errors.txt' });
+      if (ev.crash !== undefined) {
+        evidence.push({ data: `${ev.crash.message}\n`, mediaType: 'text/plain', fileName: 'crash.txt' });
+        const report = ev.crash.data['report'];
+        if (typeof report === 'string') {
+          const data = await fs.promises.readFile(report).catch(() => null);
+          if (data !== null) evidence.push({ data, mediaType: 'text/plain', fileName: path.basename(report) });
+        }
+      }
       // Issue #31: what the app logged with console.error in this scenario, oldest first.
       const logged = this.driver.appLogErrors;
       if (logged.length > 0) evidence.push({ data: `${logged.join('\n\n')}\n`, mediaType: 'text/plain', fileName: 'app-errors.txt' });
@@ -279,9 +308,22 @@ export class Session {
     return this.artifacts.endScenario({ failed: result.failed, evidence });
   }
 
-  /** Best effort: each piece is collected independently, failures are listed in `errors`. */
+  /**
+   * Best effort: each piece is collected independently, failures are listed in `errors`. After a crash
+   * only what does not need the app (issue #77), and the crash.
+   */
   async collectEvidence(): Promise<Evidence> {
     const ev: Evidence = { errors: [] };
+    // A lost connection: find out now whether the app crashed, rather than per piece.
+    if (this.crash === null && this.connection?.closed === true) await this.currentConnection().catch(() => undefined);
+    if (this.crash !== null) {
+      ev.crash = this.crash;
+      await this.provider.screenshot().then(
+        (b) => void (ev.screenshot = b),
+        (e: unknown) => ev.errors.push(`screenshot: ${(e as Error).message}`),
+      );
+      return ev;
+    }
     await Promise.all([
       this.provider.screenshot().then(
         async (b) => (ev.screenshot = await this.framed(b)),
@@ -383,14 +425,66 @@ export class Session {
     const c = this.connection;
     if (c !== null && !c.closed) return c;
     const timeoutMs = this.config.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
-    const conn = await this.server.waitForConnection(
-      this.launchParams.sessionId,
-      timeoutMs,
-      () => `The app disconnected and did not reconnect within ${timeoutMs}ms (did it crash or get closed?)`,
-      c,
-    );
+    const conn = await this.waitForApp(timeoutMs, () => `The app disconnected and did not reconnect within ${timeoutMs}ms (did it crash or get closed?)`, c);
     this.adopt(conn);
     return conn;
+  }
+
+  /** When the app was last started: crash reports from before then are not about it (issue #76). */
+  private launchedAt = Date.now();
+  /** The app's process died since it was started (issue #76 / #77); cleared by the next launch. */
+  private crash: QuiescoError | null = null;
+
+  /**
+   * Wait for the app to (re)connect; fail with APP_CRASHED as soon as its process is gone (issue #77),
+   * instead of waiting out the connect timeout.
+   */
+  private async waitForApp(timeoutMs: number, describeTimeout: () => string, exclude: AgentConnection | null, method?: string): Promise<AgentConnection> {
+    if (this.crash !== null) throw this.crash;
+    const isRunning = this.provider.isAppRunning?.bind(this.provider);
+    if (isRunning === undefined) return this.server.waitForConnection(this.launchParams.sessionId, timeoutMs, describeTimeout, exclude);
+    const stop = new AbortController();
+    const watch = async (): Promise<never> => {
+      for (;;) {
+        await new Promise((r) => setTimeout(r, this.crashPollMs));
+        if (stop.signal.aborted) throw stop.signal.reason;
+        // Unknown (the device did not answer): keep waiting for the reconnect.
+        if (!(await isRunning().catch(() => true)) && !stop.signal.aborted) throw await this.crashed(method);
+      }
+    };
+    const watching = watch();
+    try {
+      return await Promise.race([this.server.waitForConnection(this.launchParams.sessionId, timeoutMs, describeTimeout, exclude, stop.signal), watching]);
+    } finally {
+      stop.abort(new Error('stopped'));
+      watching.catch(() => undefined);
+    }
+  }
+
+  /** The app's process is gone: an APP_CRASHED error with the crash report's summary (issue #76), kept until the next launch. */
+  private async crashed(method?: string): Promise<QuiescoError> {
+    if (this.crash !== null) return this.crash;
+    const report = (await this.provider.crashReport?.(this.launchedAt).catch(() => null)) ?? null;
+    const during = method !== undefined ? ` while handling ${method}` : '';
+    const message =
+      report === null
+        ? `The app crashed${during}: its process is gone (the device kept no crash report)`
+        : `The app crashed${during}:\n${report.summary.replace(/^/gm, '  ')}${report.file !== undefined ? `\nCrash report: ${report.file}` : ''}`;
+    this.crash = new QuiescoError('APP_CRASHED', message, { ...(method !== undefined ? { method } : {}), ...(report !== null ? { summary: report.summary } : {}), ...(report?.file !== undefined ? { report: report.file } : {}) });
+    return this.crash;
+  }
+
+  /** A call lost its connection (issue #76): APP_CRASHED when the app's process dies, else the error as it was. */
+  private async explainDisconnect(e: QuiescoError): Promise<QuiescoError> {
+    if (this.provider.isAppRunning === undefined) return e;
+    const method = typeof e.data['method'] === 'string' ? e.data['method'] : undefined;
+    try {
+      const conn = await this.waitForApp(Math.min(CRASH_CHECK_MS, this.config.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS), () => '', this.connection, method);
+      this.adopt(conn);
+      return e;
+    } catch (err) {
+      return err instanceof QuiescoError && err.errorName === 'APP_CRASHED' ? err : e;
+    }
   }
 
   private adopt(conn: AgentConnection): void {
@@ -475,6 +569,8 @@ export class Session {
   private async launch(extra: { args?: LaunchArgs; url?: string } = {}, how: { recovering?: boolean } = {}): Promise<LaunchUrlHandling | void> {
     const previous = this.connection;
     const params = this.paramsFor(extra);
+    this.launchedAt = Date.now();
+    this.crash = null;
     const urlHandling = await this.provider.launch(params);
     // A start after the app was lost is as slow as the first (Android is still busy compiling it).
     const timeoutMs = launchConnectTimeout(this.config, { first: previous === null || how.recovering === true });
