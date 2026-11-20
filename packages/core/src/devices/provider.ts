@@ -193,6 +193,16 @@ export interface DeviceProvider {
   prepareSystemUi?(): Promise<void>;
   /** System UI on screen now that does not belong to the app (dialogs, prompts), topmost window first. */
   systemNodes?(): Promise<SystemNode[]>;
+  /**
+   * System UI slides or fades in here and a touch during that animation is lost (iOS, issue #87): system
+   * taps, types and expectVisible act on a match only once two reads this many ms apart agree on where it is.
+   */
+  readonly systemUiSettleMs?: number;
+  /**
+   * The settle check's second read (issue #87): only the part of the system UI `node` came from, or null
+   * for none (act on it now). Without this method: systemNodes().
+   */
+  systemNodeReread?(node: SystemNode): (() => Promise<SystemNode[]>) | null;
   tapSystemNode?(node: SystemNode): Promise<void>;
   /**
    * Tap the field `node` and type `text` into it with the device's input (issues #51): iOS through the

@@ -260,10 +260,10 @@ await this.app.device.system.tap({ text: 'Cancel' });  // App 之外的任意系
 | `sendNotification({ title, body?, data? })` | iOS：模拟一次远程推送（`simctl push`，`data` 与 `aps` 并列）；App 在前台时，推送库会收到它，而系统只在 App 被允许显示通知时才显示它（模拟器上无法预先授予该权限）。Android：模拟器没有推送服务，因此通知以 App 的身份发出（需要 `notifications` 权限）；点击它会以 `data` 作为 intent extras 打开 App，推送库的回调不会触发。App 在后台时也可用 |
 | `openNotification(title, { timeoutMs }?)` | 点击通知：iOS 上点击横幅，横幅消失后在通知中心中点击；Android 上在通知栏中点击。最多等 `timeoutMs`（10 秒）让通知出现，所以几秒后才发出的通知也能找到；iOS 上 system UI runner 的启动时间不计入。App 回到前台才算点中（iOS 上没回到前台就重新找；同一 App 的通知叠在一起时点最新的那条）。App 回到前台并空闲后 resolve |
 | `clearKeychain()` | iOS：重置模拟器的钥匙串（所有 App 的）。Android 没有钥匙串：`ACTION_NOT_SUPPORTED`，请使用 `relaunch({ clearData: true })` |
-| `system.tap(query, { timeoutMs }?)` | 点击 App 之外的系统 UI（权限弹窗、生物识别提示、网页的 JS 对话框）。`query`：`{ text }`（精确匹配，忽略弯引号与直引号的差别，或一个 RegExp）和 / 或 `{ id }`（Android resource-id，或 `:id/` 之后的部分）。最多等待 `timeoutMs`（10 s）让它出现，然后等待 App 空闲 |
+| `system.tap(query, { timeoutMs }?)` | 点击 App 之外的系统 UI（权限弹窗、生物识别提示、网页的 JS 对话框）。`query`：`{ text }`（精确匹配，忽略弯引号与直引号的差别，或一个 RegExp）和 / 或 `{ id }`（Android resource-id，或 `:id/` 之后的部分）。最多等待 `timeoutMs`（10 s）让它出现，然后等待 App 空闲。iOS 的系统 UI 是滑入的：间隔 250 ms 的两次读取位置一致后才点击（`expectVisible`、`type` 和权限弹窗也一样） |
 | `system.expectVisible(query)` / `system.expectNotVisible(query)` | 等待此类系统 UI 出现在 / 离开屏幕；`ELEMENT_NOT_FOUND` / `ASSERTION_FAILED` 会列出看到的文本 |
 | `system.type(query, text, { timeoutMs }?)` | 点击与 `query` 匹配的输入框（同名的标签和输入框，优先输入框），用设备的输入方式输入 `text`：iOS 经由键盘（任何文字都可以），Android 作为按键事件（`input text`，可打印的 ASCII），其他文字经由 @quiesco/native 的剪贴板粘贴。然后等待 App 空闲 |
-| `system.tapAt({ x, y })` | 在屏幕上的一个点（从左上角算起的 pt / dp）做一次系统级的触摸，不管那里是什么：例如点击 iOS 分享面板的上方可以关掉它 |
+| `system.tapAt({ x, y })` | 在屏幕上的一个点（从左上角算起的 pt / dp）做一次系统级的触摸，不管那里是什么：例如点击 iOS 分享面板的上方可以关掉它。在 iOS 上会先等屏幕上的系统 UI 不再移动（最多 2 s）再触摸 |
 | `system.allowPermission()` / `system.denyPermission()` | 无论设备语言是什么，都能应答运行时权限弹窗（Android：根据按钮的 id，也包括“仅在使用该 App 时允许”和“不再询问”；iOS：按 iOS 的布局根据位置）；App 回到前台并空闲后 resolve |
 
 这些在 web 上都不存在（`ACTION_NOT_SUPPORTED`；请给此类场景加上 `@native` 标签），只有 `system.tap` /

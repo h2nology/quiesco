@@ -214,7 +214,10 @@ describe('IosProvider lifecycle (Phase 6.5)', () => {
   });
 
   it('suspends inside the app, or opens Settings when the app cannot; foreground without terminating', async () => {
-    const { p, calls } = provider([]);
+    // The system UI runner is warmed up on the way (#82): a stand-in here.
+    let starts = 0;
+    const systemRunner = { running: false, start: async () => void starts++, screen: async () => ({ alerts: [], others: [] }), tap: async () => {}, openNotificationCenter: async () => {}, stop: async () => {} };
+    const { p, calls } = provider([], { systemRunner });
     await p.boot();
     calls.length = 0;
     await p.sendToBackground({ suspend: async () => true });
@@ -226,6 +229,7 @@ describe('IosProvider lifecycle (Phase 6.5)', () => {
     await p.uninstall();
     expect(calls.slice(-2)).toEqual(['xcrun simctl terminate NEW-17 com.example.todo', 'xcrun simctl uninstall NEW-17 com.example.todo']);
     await p.reversePort();
+    expect(starts).toBe(2);
   });
 });
 

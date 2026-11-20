@@ -499,6 +499,21 @@ describe('app.device state (Phase 6.6)', () => {
     await expect(device.system.tap({})).rejects.toThrow(TypeError);
   });
 
+  it('system UI that animates in: acts only once two reads agree on where it is (#87)', async () => {
+    const { provider } = await start();
+    const device = session!.driver.device;
+    (provider as { systemUiSettleMs?: number }).systemUiSettleMs = 10;
+    const at = (y: number): SystemNode[] => [{ text: 'Cancel', id: 'cancel', bounds: { x1: 0, y1: y, x2: 100, y2: y + 40 } }];
+    provider.screens = [at(900), at(700), at(515), at(515)];
+    await device.system.tap({ text: 'Cancel' });
+    expect(provider.calls.filter((c) => /system/.test(c))).toEqual(['systemNodes', 'systemNodes', 'systemNodes', 'systemNodes', 'systemTap:cancel']);
+    // tapAt: once the screen is the same twice.
+    provider.calls.length = 0;
+    provider.screens = [at(900), at(515), at(515)];
+    await device.system.tapAt({ x: 50, y: 535 });
+    expect(provider.calls.filter((c) => /system/.test(c))).toEqual(['systemNodes', 'systemNodes', 'systemNodes', 'systemTapAt:50,535']);
+  });
+
   it('permission dialogs: the preferred button by id, then waits until the app is in front and idle', async () => {
     const { provider, agents } = await start();
     const device = session!.driver.device;
