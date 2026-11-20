@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { QuiescoError } from '../src/errors';
 import type { AppDeps } from '../src/platform';
-import { AgentRuntime } from '../src/runtime';
+import { AgentRuntime, NATIVE_MODULES_NOT_WRAPPED } from '../src/runtime';
 import type { Clock, IdleTracker } from '../src/sync';
 import { fakeScheduler, host, makeRoot, renderWith, text } from './helpers/fake-fiber';
 import { CONFIG, FakeSocket } from './helpers/fake-socket';
@@ -12,7 +12,7 @@ const clock: Clock = { setTimeout: (cb, ms) => setTimeout(cb, ms), clearTimeout:
 const R = (y: number) => ({ __rect: { x: 0, y, width: 100, height: 40 } });
 
 function setup(
-  opts: { platform?: 'ios' | 'android' | 'web'; busy?: () => boolean; native?: ReturnType<AppDeps['nativeModule']>; keyboard?: () => ReturnType<AppDeps['keyboardFrame']>; appState?: () => ReturnType<AppDeps['appState']>; globals?: Record<string, unknown>; logBox?: { clearAllLogs(): void; ignoreAllLogs(v?: boolean): void }; trackerName?: string } = {},
+  opts: { platform?: 'ios' | 'android' | 'web'; busy?: () => boolean; native?: ReturnType<AppDeps['nativeModule']>; keyboard?: () => ReturnType<AppDeps['keyboardFrame']>; appState?: () => ReturnType<AppDeps['appState']>; globals?: Record<string, unknown>; logBox?: { clearAllLogs(): void; ignoreAllLogs(v?: boolean): void }; trackerName?: string; nativeModules?: boolean } = {},
 ) {
   const target: Record<string, unknown> = { ...opts.globals };
   const sockets: FakeSocket[] = [];
@@ -41,6 +41,7 @@ function setup(
     trackers: () => [tracker],
     storage: () => [{ name: 'mem', clear: () => void storageCleared.push(Date.now()) }],
     ...(opts.logBox !== undefined ? { logBox: () => opts.logBox ?? null } : {}),
+    ...(opts.nativeModules !== undefined ? { nativeModules: opts.nativeModules } : {}),
   });
   rt.installEarly();
   return { rt, deps, sockets, target, storageCleared, call: (m: string, p: unknown) => rt.handle(m, p) };
@@ -493,6 +494,20 @@ describe('AgentRuntime', () => {
     await expect(call('getIdleState', {})).resolves.toEqual({ trackers: [{ name: 'native-module', idle: false, busy: ['fake busy'] }] });
     rt.configure(CONFIG);
     await expect(call('getIdleState', {})).resolves.toEqual({ trackers: [] });
+  });
+
+  it('warns once when the native-module tracker is on but the build does not wrap native modules (#74)', () => {
+    const warn = vi.fn();
+    const off = setup({ trackerName: 'native-module', globals: { console: { warn } } });
+    const on = { ...CONFIG, sync: { ...CONFIG.sync, trackers: { 'native-module': true } } };
+    off.rt.configure(CONFIG);
+    expect(warn).not.toHaveBeenCalled();
+    off.rt.configure(on);
+    off.rt.configure(on);
+    expect(warn.mock.calls).toEqual([[`[quiesco] ${NATIVE_MODULES_NOT_WRAPPED}`]]);
+    const warn2 = vi.fn();
+    setup({ trackerName: 'native-module', nativeModules: true, globals: { console: { warn: warn2 } } }).rt.configure(on);
+    expect(warn2).not.toHaveBeenCalled();
   });
 
   it('getTree / getIdleState / unknown methods', async () => {

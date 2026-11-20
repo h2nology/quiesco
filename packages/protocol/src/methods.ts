@@ -154,6 +154,8 @@ export interface HostMethods {
       nativeModule: boolean;
       /** The JS bundle (issue #3); missing without `withQuiesco()` in the Metro config. */
       bundle?: BundleInfo;
+      /** Whether the build wraps native modules for the `native-module` tracker (issue #74); missing from older agents. */
+      nativeModulesWrapped?: boolean;
     };
     result: { accepted: true; sessionId: string; config: AgentConfig };
   };

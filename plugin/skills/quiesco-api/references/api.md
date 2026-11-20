@@ -517,7 +517,9 @@ The app imports the agent on the first line of its entry file and wraps its root
 an HMR update for every watched file that changes, and the dev client's "Refreshing..." window would cover
 the app while another worker taps. `options.artifactsDir` (default `'artifacts'`, relative to the project
 root) must match `artifacts.dir` when you change it (`false`: none). `.expo/devices.json` is excluded too:
-Expo's dev server rewrites it every time a dev client app starts.
+Expo's dev server rewrites it every time a dev client app starts. `options.nativeModules` (default: whether
+`EXPO_PUBLIC_QUIESCO_NATIVE_MODULES` is `1`) builds the app with native modules wrapped for the
+`native-module` tracker ([native module calls](./sync.md#native-module-calls)).
 
 ```ts
 import { QuiescoRoot, quiesco } from '@quiesco/agent';

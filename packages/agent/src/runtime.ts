@@ -74,6 +74,16 @@ const EDGE_OF: Record<Direction, Edge> = { down: 'bottom', up: 'top', right: 'ri
  */
 const BACKGROUND_SKIPPED: ReadonlySet<string> = new Set(['frame-stable', 'timer', 'native']);
 const NONE: ReadonlySet<string> = new Set();
+/**
+ * Native modules the `native-module` tracker never wraps: the agent's own, and modules whose methods are
+ * called from worklets on the UI runtime and must stay native host functions (issue #74).
+ */
+const NATIVE_MODULES_NOT_TRACKED = ['QuiescoNative', 'RNGestureHandlerModule', 'ReanimatedModule', 'WorkletsModule'];
+
+/** The `native-module` tracker is on, but the build does not wrap native modules (issue #74). */
+export const NATIVE_MODULES_NOT_WRAPPED =
+  "The native-module tracker is on, but this build does not wrap native modules, so it counts nothing. Build the app with withQuiesco(config, { nativeModules: true }) in metro.config.js (or EXPO_PUBLIC_QUIESCO_NATIVE_MODULES=1) to track native module calls.";
+
 /** Trackers that count only when the config enables them (`sync.trackers: { 'native-module': true }`, issue #67). */
 const TRACKERS_OFF_BY_DEFAULT: Readonly<Record<string, false>> = { 'native-module': false };
 /** Calls whose results report the time spent waiting for idle (`syncMs`, Phase 6.9 timeline). */
@@ -86,6 +96,8 @@ export interface RuntimeOptions {
   globalObject?: Record<string, unknown>;
   /** Trackers to use instead of the default set (tests). */
   trackers?: (runtime: AgentRuntime) => IdleTracker[];
+  /** Wrap native modules for the `native-module` tracker (default: the build config's `nativeModules`, issue #74). */
+  nativeModules?: boolean;
   /** Built-in storage adapters (default: AsyncStorage on native, web storage on web). */
   storage?: () => StorageAdapter[];
   /** React Native's LogBox (default: from react-native on iOS / Android, none on the web). */
@@ -134,6 +146,8 @@ export class AgentRuntime {
   private readonly global: Record<string, unknown>;
   private network: NetworkTracker | null = null;
   private nativeCalls: NativeModuleTracker | null = null;
+  private readonly nativeModulesWrapped: boolean;
+  private nativeModulesWarned = false;
   private timer: TimerTracker | null = null;
   private frames: FrameStableTracker | null = null;
   private idleCallbacks: IdleCallbackTracker | null = null;
@@ -160,6 +174,7 @@ export class AgentRuntime {
     const c = this.global['console'] as { warn?: (...a: unknown[]) => void } | undefined;
     const warn = c?.warn;
     this.log = (m) => warn?.call(c, `[quiesco] ${m}`);
+    this.nativeModulesWrapped = options.nativeModules ?? buildConfig.nativeModules === true;
     this.engine = new SyncEngine(options.trackers?.(this) ?? this.defaultTrackers(), this.clock);
     this.engine.setEnabled(TRACKERS_OFF_BY_DEFAULT);
     this.engine.setSkipped(() => (this.deps.appState() === 'background' ? BACKGROUND_SKIPPED : NONE));
@@ -205,7 +220,7 @@ export class AgentRuntime {
       this.network?.setExempt(ownConnection(params.port));
       this.client = new AgentClient({
         params,
-        hello: { platform: this.deps.platform(), agentVersion: AGENT_VERSION, nativeModule: native !== null, ...(buildConfig.bundle !== undefined ? { bundle: buildConfig.bundle } : {}) },
+        hello: { platform: this.deps.platform(), agentVersion: AGENT_VERSION, nativeModule: native !== null, nativeModulesWrapped: this.nativeModulesWrapped, ...(buildConfig.bundle !== undefined ? { bundle: buildConfig.bundle } : {}) },
         createSocket: (url) => this.deps.createSocket(url),
         handle: (method, p) => this.handle(method, p),
         onReady: (config) => this.configure(config),
@@ -285,8 +300,13 @@ export class AgentRuntime {
     this.timer?.configure({ thresholdMs: config.sync.timerThresholdMs, countIntervals: config.sync.countIntervals });
     this.frames?.setFrames(config.sync.stableFrames);
     this.engine.setEnabled({ ...TRACKERS_OFF_BY_DEFAULT, ...config.sync.trackers });
+    const nativeCallsOn = config.sync.trackers['native-module'] === true;
+    if (nativeCallsOn && !this.nativeModulesWrapped && !this.nativeModulesWarned) {
+      this.nativeModulesWarned = true;
+      this.log(NATIVE_MODULES_NOT_WRAPPED);
+    }
     this.nativeCalls?.configure({
-      enabled: config.sync.trackers['native-module'] === true,
+      enabled: nativeCallsOn,
       thresholdMs: config.sync.nativeCallThresholdMs ?? SyncDefaults.nativeCallThresholdMs,
       ignore: (config.sync.ignoreNativeCalls ?? []).map(toRegExp),
     });
@@ -1148,7 +1168,8 @@ export class AgentRuntime {
           expo: () => this.deps.nativeModuleSources?.().expo ?? null,
         },
         clock: this.clock,
-        skip: ['QuiescoNative'],
+        skip: NATIVE_MODULES_NOT_TRACKED,
+        wrap: this.nativeModulesWrapped,
       })),
     ];
   }

@@ -33,11 +33,12 @@ function storageModule() {
   return { module, calls, pending };
 }
 
-function setup(sources: { registry?: ModuleRegistryLike | null; expo?: { modules?: Record<string, unknown> } | null }) {
+function setup(sources: { registry?: ModuleRegistryLike | null; expo?: { modules?: Record<string, unknown> } | null }, wrap?: boolean) {
   const tracker = new NativeModuleTracker({
     sources: { registry: () => sources.registry ?? null, expo: () => sources.expo ?? null },
     clock,
     skip: ['QuiescoNative'],
+    ...(wrap !== undefined ? { wrap } : {}),
   });
   tracker.install();
   return tracker;
@@ -105,6 +106,24 @@ describe('NativeModuleTracker (#67)', () => {
     void (expo.modules['Storage'] as typeof s.module).setItem('x');
     expect(tracker.isIdle()).toBe(true);
     expect(expo.modules['QuiescoNative']).toBe(own);
+  });
+
+  it('leaves the registry and Expo\'s modules alone when the build does not ask for wrapping (#74)', () => {
+    const s = storageModule();
+    const get = () => s.module;
+    const registry: ModuleRegistryLike = { get, getEnforcing: get };
+    const modules = { Storage: s.module };
+    const expo = { modules };
+    const tracker = setup({ registry, expo }, false);
+    expect(tracker.wraps).toBe(false);
+    expect(registry.get).toBe(get);
+    expect(registry.getEnforcing).toBe(get);
+    expect(expo.modules).toBe(modules);
+    // a method taken from the module is the module's own function (a worklet can call it on the UI runtime)
+    expect(registry.getEnforcing!('Storage')).toBe(s.module);
+    tracker.configure({ enabled: true });
+    void s.module.setItem('x');
+    expect(tracker.isIdle()).toBe(true);
   });
 
   it('uninstall restores the registry and Expo\'s modules; no sources (the web) is fine', () => {

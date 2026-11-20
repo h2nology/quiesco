@@ -5,7 +5,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { QuiescoConfig } from '../src/config';
-import { Session } from '../src/session';
+import { NATIVE_MODULES_NOT_WRAPPED, Session } from '../src/session';
 import { connectAgent } from './helpers/fake-agent';
 import type { FakeAgent, Handler } from './helpers/fake-agent';
 import { FakeProvider } from './helpers/fake-provider';
@@ -38,6 +38,20 @@ describe('Session', () => {
     expect(provider.calls).toEqual(['boot', 'install', 'grant:camera', 'launch']);
     expect(agents).toHaveLength(1);
     await expect(session.driver.getTree()).resolves.toEqual({ type: 'RCTView', children: [] });
+  });
+
+  it('warns once when the config turns the native-module tracker on but the build does not wrap native modules (#74)', async () => {
+    const run = async (hello: Record<string, unknown>, on: boolean) => {
+      const warnings: string[] = [];
+      const provider = new FakeProvider((p) => void connectAgent(p.port, { sessionId: null, hello }));
+      const s = await Session.create({ config: config(on ? { sync: { trackers: { 'native-module': true } } } : {}), platform: 'android', provider, logger: { ...silentLogger, warn: (m) => warnings.push(m) } });
+      await s.dispose();
+      return warnings.filter((w) => w === NATIVE_MODULES_NOT_WRAPPED).length;
+    };
+    expect(await run({ nativeModulesWrapped: false }, true)).toBe(1);
+    expect(await run({ nativeModulesWrapped: true }, true)).toBe(0);
+    expect(await run({ nativeModulesWrapped: false }, false)).toBe(0);
+    expect(await run({}, true)).toBe(0); // an older agent does not say
   });
 
   it('closes the app before it stops, so the app does not reconnect to a later run', async () => {

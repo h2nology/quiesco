@@ -18,7 +18,7 @@ export interface FakeAgent {
 
 export function connectAgent(
   port: number,
-  opts: { sessionId?: string | null; protocolVersion?: number; nativeModule?: boolean; handler?: Handler } = {},
+  opts: { sessionId?: string | null; protocolVersion?: number; nativeModule?: boolean; handler?: Handler; hello?: Record<string, unknown> } = {},
 ): FakeAgent {
   const ws = new WebSocket(`ws://127.0.0.1:${port}`);
   const requests: FakeAgent['requests'] = [];
@@ -38,6 +38,7 @@ export function connectAgent(
           protocolVersion: opts.protocolVersion ?? PROTOCOL_VERSION,
           agentVersion: '0.0.0',
           nativeModule: opts.nativeModule ?? false,
+          ...opts.hello,
         },
       }),
     );

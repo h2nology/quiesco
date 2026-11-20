@@ -392,6 +392,15 @@ Given('打开手势页', async function (this: QuiescoWorld) {
   await this.app.expectVisible({ id: 'gestures' });
 });
 
+When('把可滑动的行向左滑动并点删除', async function (this: QuiescoWorld) {
+  await this.app.swipe({ id: 'swipe-row' }, 'left');
+  await this.app.tap({ id: 'swipe-row-delete' });
+});
+
+Then('可滑动的行已删除', async function (this: QuiescoWorld) {
+  await this.app.expectVisible({ id: 'swipe-row-deleted' });
+});
+
 When('在捏合方块上双指放大到 {float} 倍', async function (this: QuiescoWorld, scale: number) {
   await this.app.pinch({ id: 'pinch-box' }, scale);
 });

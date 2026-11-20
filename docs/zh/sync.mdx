@@ -40,6 +40,15 @@ sync: {
 }
 ```
 
+这个跟踪器需要一个包装原生模块的构建：在 `metro.config.js` 里给 `withQuiesco()` 传 `nativeModules: true`
+（或者启动 Metro 时设置 `EXPO_PUBLIC_QUIESCO_NATIVE_MODULES=1`），然后重启 Metro。
+
+```js
+module.exports = withQuiesco(getDefaultConfig(__dirname), { nativeModules: true });
+```
+
+不这样做，agent 就不碰原生模块；即使打开了跟踪器，它也什么都不算（App 会输出一条警告）。包装会把模块的方法换成 JS 函数。Gesture Handler、Reanimated 和 Worklets 会在 UI 线程的 worklet 里调用自己模块的方法，这需要原生函数，所以这些模块永远不包装。
+
 这个跟踪器会包装 agent 加载之后 App 从 React Native 的 `TurboModuleRegistry` 和 Expo（`requireNativeModule`）取得的模块。React Native 启动时自己取得的模块不跟踪。有些原生调用要等用户操作（权限请求、认证面板、选择器），在测试回应之前一直未完成：一个调用超过 `nativeCallThresholdMs` 就不再算忙，所以这样的步骤最多多等这么久。永远不该算忙的调用列在 `ignoreNativeCalls` 里。
 
 React 跟踪器的工作原理，以及为什么 agent 必须在 React Native 的渲染器之前加载，见[docs/spikes/02-react-idle.md](https://github.com/h2nology/quiesco/blob/main/docs/spikes/02-react-idle.md)。`metro.config.js` 中的 `withQuiesco()` 会处理好加载顺序（React Native 0.88 会在 App 的入口文件之前加载渲染器）。
