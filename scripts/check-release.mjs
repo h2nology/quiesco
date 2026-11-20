@@ -12,7 +12,10 @@
  *     publishConfig.access public for scoped packages;
  *   - contents: README.md, LICENSE and package.json present; every main / types / bin / exports target
  *     present; no tests, test configs, tsconfig / tsbuildinfo, generator scripts or source maps whose
- *     sources are missing; no absolute local paths in any text file.
+ *     sources are missing; no absolute local paths in any text file;
+ *   - compiled files match their sources: a `dist` file with more `console.*` calls than the source its
+ *     source map names was edited by hand (issue #75: debug lines in a published build). `pnpm
+ *     release:check` also starts from a clean build (`pnpm clean`).
  *
  * `--keep <dir>`: leave the tarballs in <dir> (for the cold smoke test or a publish dry run).
  * Exit code: 0 all good, 1 a check failed.
@@ -69,6 +72,8 @@ const FORBIDDEN = [
   [/\.rb$/, 'generator script'],
   [/(^|\/)node_modules\//, 'node_modules'],
 ];
+/** How many `console.log(` / `console.error(` … calls a file has (a count, not a parse). */
+const consoleCalls = (/** @type {string} */ text) => (text.match(/\bconsole\s*\.\s*(log|error|warn|info|debug|trace)\s*\(/g) ?? []).length;
 const TEXT = /\.(c?m?[jt]sx?|json|map|md|swift|kt|java|h|m|mm|gradle|podspec|pbxproj|xcscheme|cjs)$/;
 const ABSOLUTE = /(\/Users\/|\/home\/|[A-Z]:\\\\Users\\\\)[^/\\"'\s]+/;
 
@@ -132,6 +137,11 @@ for (const [name, { dir }] of ours) {
       for (const s of JSON.parse(text).sources ?? []) {
         const src = path.posix.normalize(path.posix.join(path.posix.dirname(f), s));
         if (!has(src)) fail(name, `${f} points at ${src}, which is not in the tarball`);
+        else if (f.endsWith('.js.map') && has(f.slice(0, -4))) {
+          const compiled = consoleCalls(fs.readFileSync(path.join(base, f.slice(0, -4)), 'utf8'));
+          const source = consoleCalls(fs.readFileSync(path.join(base, src), 'utf8'));
+          if (compiled > source) fail(name, `${f.slice(0, -4)} has ${compiled} console call(s), its source ${src} ${source}: dist was not built from these sources (run pnpm clean && pnpm build)`);
+        }
       }
     }
   }
