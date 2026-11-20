@@ -57,3 +57,9 @@ Quiesco 0.8.0，Vitest 5.1.1，Expo SDK 58（RN 0.88.1，New Architecture，Expo
 - 难点：等用户操作的原生 promise（`requestPermissionsAsync`、`authenticateAsync`、WebBrowser `openAuthSessionAsync`、picker、Share…）会一直 pending。按名字猜不全 ⇒ 用**时间上限**：一个原生调用最多算忙 N ms（类似 `timerThresholdMs`），超过就不再算（UI 等用户的调用最多拖慢 N ms），外加可选忽略列表。
 - iOS 权限弹窗时 app 是 inactive 不是 background ⇒ 不能只靠后台跳过。
 - 方案草案：新 tracker `native-module`，默认关（`sync.trackers: { 'native-module': true }` 开启）；`sync.nativeCallThresholdMs`（默认 2000）；`sync.ignoreNativeCalls`（字符串 / RegExp，匹配 `Module.method`）。⇒ 新配置 ⇒ 0.9.0（D6）。
+
+## M.E CI：firefox reset 挂住（2026-11-20）
+- #71 起 SDK 58 firefox 的「上一个场景的横屏已恢复」在 reset app 里 180 s 超时，两次都复现，本地也复现。
+- 二分：去掉 host tick、去掉 agent wake 都还挂；main + 只加 device.tsx 的 `request-location` 按钮就挂 ⇒ 示例布局变化触发。
+- 卡在 Playwright firefox `page.setViewportSize`（横屏转回竖屏）：页面已经是 390×844 且能 evaluate，但 promise 不 resolve。独立 Playwright 脚本（无 agent）复现不了。
+- 修复 b09df4b：web provider `resizeViewport` = setViewportSize 与 `waitForFunction(innerWidth/innerHeight 一致)` 取先完成者；waitForFunction 失败则照旧等 Playwright。三浏览器 web 全量 85 passed。

@@ -7,7 +7,7 @@
 M.E 验收、回复、发版
 
 ## Next Step
-等 HU 决定：合并 PR #69–#72（堆叠，按 stacked-pr-merge）、回复 issue、发 0.9.0。
+HU 执行 `pnpm -r publish`（0.9.0）；之后 tag v0.9.0、push、GitHub Release。
 
 ## 背景
 - 前置：0.8.1 已发布（`dc7ca7d chore(release): 0.8.1`）。上一轮计划：`.planning/2026-11-19-issues-44-55/`。
@@ -109,7 +109,8 @@ M.E 验收、回复、发版
 ### M.E 验收、回复、发版
 - [x] 全量单元测试 + lint + typecheck + dependency-cruiser（`pnpm check` 973）
 - [x] example app 三端全量：iOS 101 passed / 7 skipped / 0 failed（M.D 期间，native-module tracker 开）；Android 98 passed / 1 failed（模拟定位 = AOSP 无 GMS，已知）；web 85 passed / 22 skipped / 1 failed ⇒ 新的定位权限场景没有 @native ⇒ 补上（PR #72 的追加提交），device.feature web 16 passed / 2 skipped
-- [ ] HU 合并 PR #69 → #70 → #71 → #72（堆叠：先把下一个 PR 的 base 改成 main 再合并，见 memory stacked-pr-merge）
-- [ ] 逐个回复 #63–#68（PR 描述里有 Fixes / Closes，合并时自动关闭；#67 回复说明默认关和打开方法）
-- [ ] 发 0.9.0（新配置 sync.nativeCallThresholdMs / ignoreNativeCalls、新 tracker；发布要 HU 确认）
+- [x] 合并 PR #69 → #70 → #71 → #72（2026-11-20；#72 追加 b09df4b：firefox 的 setViewportSize 挂住，见 findings）
+- [x] 逐个回复 #63–#68（已全部关闭）
+- [x] 0.9.0：版本号、release:check（12 个包）、`chore(release): 0.9.0` 本地提交（新配置 sync.nativeCallThresholdMs / ignoreNativeCalls、新 tracker；发布要 HU 确认）
+- [ ] HU `pnpm -r publish`；tag v0.9.0、push main 和 tag、GitHub Release
 - **Status:** in_progress
