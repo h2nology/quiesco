@@ -1,6 +1,6 @@
 {
   "name": "quiesco",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "description": "Quiesco command line: init, test (with a progress bar), ui, list, doctor, tree",
   "license": "MIT",
   "author": "h2nology",
