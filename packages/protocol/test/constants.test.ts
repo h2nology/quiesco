@@ -26,6 +26,6 @@ describe('constants', () => {
   });
 
   it('matches the sync defaults of requirements.md §6.2', () => {
-    expect(SyncDefaults).toEqual({ timeoutMs: 10_000, timerThresholdMs: 1_500, stableFrames: 2, countIntervals: false, retryIntervalMs: 50 });
+    expect(SyncDefaults).toEqual({ timeoutMs: 10_000, timerThresholdMs: 1_500, stableFrames: 2, countIntervals: false, nativeCallThresholdMs: 2_000, retryIntervalMs: 50 });
   });
 });

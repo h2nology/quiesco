@@ -12,7 +12,7 @@ const clock: Clock = { setTimeout: (cb, ms) => setTimeout(cb, ms), clearTimeout:
 const R = (y: number) => ({ __rect: { x: 0, y, width: 100, height: 40 } });
 
 function setup(
-  opts: { platform?: 'ios' | 'android' | 'web'; busy?: () => boolean; native?: ReturnType<AppDeps['nativeModule']>; keyboard?: () => ReturnType<AppDeps['keyboardFrame']>; appState?: () => ReturnType<AppDeps['appState']>; globals?: Record<string, unknown>; logBox?: { clearAllLogs(): void; ignoreAllLogs(v?: boolean): void } } = {},
+  opts: { platform?: 'ios' | 'android' | 'web'; busy?: () => boolean; native?: ReturnType<AppDeps['nativeModule']>; keyboard?: () => ReturnType<AppDeps['keyboardFrame']>; appState?: () => ReturnType<AppDeps['appState']>; globals?: Record<string, unknown>; logBox?: { clearAllLogs(): void; ignoreAllLogs(v?: boolean): void }; trackerName?: string } = {},
 ) {
   const target: Record<string, unknown> = { ...opts.globals };
   const sockets: FakeSocket[] = [];
@@ -32,7 +32,7 @@ function setup(
     settings: () => ({ colorScheme: 'dark', fontScale: 1.235, locale: 'ja-JP' }),
   };
   const storageCleared: number[] = [];
-  const tracker: IdleTracker = { name: 'fake', isIdle: () => !(opts.busy?.() ?? false), describeBusy: () => ['fake busy'], install() {}, uninstall() {} };
+  const tracker: IdleTracker = { name: opts.trackerName ?? 'fake', isIdle: () => !(opts.busy?.() ?? false), describeBusy: () => ['fake busy'], install() {}, uninstall() {} };
   const rt = new AgentRuntime({
     globalObject: target,
     deps,
@@ -484,6 +484,15 @@ describe('AgentRuntime', () => {
     await expect(drive(call('action', { action: { type: 'drag', matcher: { id: 'card' }, to: { matcher: { id: 'slot' } }, speed: 'fast' }, mode: 'native' }))).resolves.toMatchObject({
       hostInput: { kind: 'drag', from: { x: 50, y: 20 }, to: { x: 100, y: 350 }, durationMs: 250, holdMs: 800 },
     });
+  });
+
+  it('the native-module tracker counts only when the config enables it (#67)', async () => {
+    const { rt, call } = setup({ trackerName: 'native-module', busy: () => true });
+    await expect(call('getIdleState', {})).resolves.toEqual({ trackers: [] });
+    rt.configure({ ...CONFIG, sync: { ...CONFIG.sync, trackers: { 'native-module': true } } });
+    await expect(call('getIdleState', {})).resolves.toEqual({ trackers: [{ name: 'native-module', idle: false, busy: ['fake busy'] }] });
+    rt.configure(CONFIG);
+    await expect(call('getIdleState', {})).resolves.toEqual({ trackers: [] });
   });
 
   it('getTree / getIdleState / unknown methods', async () => {

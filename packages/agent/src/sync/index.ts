@@ -13,5 +13,7 @@ export type { FrameStableTrackerOptions } from './frame-stable';
 export { SyncEngine } from './wait-for-idle';
 export type { WaitForIdleOptions } from './wait-for-idle';
 export { NativeSettleTracker } from './native-settle';
+export { NATIVE_CALL_THRESHOLD_MS, NativeModuleTracker } from './native-module';
+export type { ModuleRegistryLike, NativeModuleSources } from './native-module';
 export type { NativeSettleSource } from './native-settle';
 export { OfflineGate, ownConnection } from './offline';

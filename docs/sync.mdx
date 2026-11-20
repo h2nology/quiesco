@@ -18,8 +18,40 @@ in the same tick does not slip through).
 | `idle-callback` | a `requestIdleCallback` is pending (and `InteractionManager` work on React Native versions that still have it) | |
 | `native` (iOS) | a view-controller transition (navigation, modal presentation) runs, or the keyboard is moving / was just used | Reported by `@quiesco/native`; covers UIKit work invisible to JavaScript. |
 | `frame-stable` | the element tree (type, testID, text, rounded position and size of every element) changed during the last `sync.stableFrames` (2) frames | The fallback for animations on the UI thread (Reanimated, native-driver `Animated`). Only sampled while a call waits. |
+| `native-module` (off by default) | a promise returned by a native module method (TurboModule / NativeModules, Expo modules) has not settled, for at most `sync.nativeCallThresholdMs` (2 s) | See [native module calls](#native-module-calls). |
 
-Turn a tracker off with `sync: { trackers: { 'frame-stable': false } }`.
+Turn a tracker off with `sync: { trackers: { 'frame-stable': false } }`, and `native-module` on with
+`{ 'native-module': true }`.
+
+### Native module calls {#native-module-calls}
+
+By default, a pending native module call does not keep the app busy. A handler that awaits one between
+two tracked steps looks idle in between:
+
+```ts
+await api.login(email, password);             // fetch: tracked
+await AsyncStorage.setItem(TOKEN_KEY, token);  // native module promise: not tracked by default
+router.replace('/');                           // the next screen mounts and fetches in an effect
+```
+
+`tap('login-submit')` can return while `setItem` is pending, before the navigation and the next screen's
+request have started. Either wait for what the next step needs (`await app.expectVisible('item-row-1')`),
+or turn the `native-module` tracker on:
+
+```ts
+sync: {
+  trackers: { 'native-module': true },
+  nativeCallThresholdMs: 2000,                    // a pending call counts for at most this long
+  ignoreNativeCalls: ['ExpoLocation.watch'],      // "Module.method"; strings match as substrings
+}
+```
+
+The tracker wraps the modules the app gets from React Native's `TurboModuleRegistry` and from Expo
+(`requireNativeModule`) after the agent has loaded. React Native's own modules, taken during its startup,
+are not tracked. Some native calls wait for the user — a permission request, an authentication sheet, a
+picker — and stay pending until the test answers them: a call stops counting after
+`nativeCallThresholdMs`, so such a step waits that long at most. List calls that should never count in
+`ignoreNativeCalls`.
 
 How the React tracker works, and why the agent must load before React Native's renderer, is described in
 [docs/spikes/02-react-idle.md](https://github.com/h2nology/quiesco/blob/main/docs/spikes/02-react-idle.md). `withQuiesco()` in `metro.config.js` takes care

@@ -16,7 +16,31 @@ Quiesco 会在每次查询和断言之前、每次操作之后，等待 App 进�
 | `native`（iOS） | 正在进行 view controller 转场（导航、模态展示），或键盘正在移动 / 刚被使用过 | 由 `@quiesco/native` 上报；覆盖 JavaScript 看不到的 UIKit 工作。|
 | `frame-stable` | 元素树（每个元素的类型、testID、文本，以及取整后的位置和尺寸）在最近 `sync.stableFrames`（2）帧内发生了变化 | 用于兜底 UI 线程上的动画（Reanimated、native driver 的 `Animated`）。只在有调用等待时采样。|
 
-用 `sync: { trackers: { 'frame-stable': false } }` 关闭某个跟踪器。
+| `native-module`（默认关闭） | 原生模块方法（TurboModule / NativeModules、Expo 模块）返回的 Promise 尚未完成，最长 `sync.nativeCallThresholdMs`（2 秒） | 见[原生模块调用](#native-module-calls)。 |
+
+用 `sync: { trackers: { 'frame-stable': false } }` 关闭某个跟踪器，用 `{ 'native-module': true }` 打开 `native-module`。
+
+### 原生模块调用 {#native-module-calls}
+
+默认情况下，未完成的原生模块调用不会让 App 处于忙碌状态。处理函数在两个被跟踪的步骤之间 await 一个原生调用时，中间这段会被判为空闲：
+
+```ts
+await api.login(email, password);             // fetch：会被跟踪
+await AsyncStorage.setItem(TOKEN_KEY, token);  // 原生模块的 Promise：默认不跟踪
+router.replace('/');                           // 下一屏挂载，在 effect 里发请求
+```
+
+`tap('login-submit')` 可能在 `setItem` 完成之前、也就是跳转和下一屏的请求开始之前就返回。要么等下一步需要的东西（`await app.expectVisible('item-row-1')`），要么打开 `native-module` 跟踪器：
+
+```ts
+sync: {
+  trackers: { 'native-module': true },
+  nativeCallThresholdMs: 2000,                    // 未完成的调用最多算忙这么久
+  ignoreNativeCalls: ['ExpoLocation.watch'],      // "Module.method"；字符串按子串匹配
+}
+```
+
+这个跟踪器会包装 agent 加载之后 App 从 React Native 的 `TurboModuleRegistry` 和 Expo（`requireNativeModule`）取得的模块。React Native 启动时自己取得的模块不跟踪。有些原生调用要等用户操作（权限请求、认证面板、选择器），在测试回应之前一直未完成：一个调用超过 `nativeCallThresholdMs` 就不再算忙，所以这样的步骤最多多等这么久。永远不该算忙的调用列在 `ignoreNativeCalls` 里。
 
 React 跟踪器的工作原理，以及为什么 agent 必须在 React Native 的渲染器之前加载，见[docs/spikes/02-react-idle.md](https://github.com/h2nology/quiesco/blob/main/docs/spikes/02-react-idle.md)。`metro.config.js` 中的 `withQuiesco()` 会处理好加载顺序（React Native 0.88 会在 App 的入口文件之前加载渲染器）。
 

@@ -147,8 +147,15 @@ export interface QuiescoConfig {
     countIntervals?: boolean;
     stableFrames?: number;
     ignoreUrls?: (RegExp | string)[];
-    /** Disable individual trackers, e.g. `{ 'frame-stable': false }`. */
+    /**
+     * Disable individual trackers, e.g. `{ 'frame-stable': false }`, or enable `native-module` (off by
+     * default): `{ 'native-module': true }`.
+     */
     trackers?: Partial<Record<TrackerName, boolean>>;
+    /** `native-module` tracker: how long a pending native module call counts as busy (default 2000 ms). */
+    nativeCallThresholdMs?: number;
+    /** `native-module` tracker: calls that never count, as "Module.method" (strings match as substrings). */
+    ignoreNativeCalls?: (RegExp | string)[];
     /**
      * Elements whose changes never keep the app busy for the frame-stable check (they and their
      * subtrees are left out), e.g. `['logo-glow']` for a decorative animation that runs for minutes.
@@ -285,6 +292,8 @@ export function toAgentConfig(config: QuiescoConfig, gestureSlop?: GestureSlop, 
       stableFrames: s.stableFrames ?? SyncDefaults.stableFrames,
       ignoreUrls: (s.ignoreUrls ?? []).map(toTextMatch),
       trackers: { ...s.trackers },
+      nativeCallThresholdMs: s.nativeCallThresholdMs ?? SyncDefaults.nativeCallThresholdMs,
+      ignoreNativeCalls: (s.ignoreNativeCalls ?? []).map(toTextMatch),
       ignoreElements: (s.ignoreElements ?? []).map(toMatcher),
     },
     logLevel: config.logLevel ?? 'warn',

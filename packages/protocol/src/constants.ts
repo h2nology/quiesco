@@ -41,6 +41,8 @@ export const SyncDefaults = {
   timerThresholdMs: 1_500,
   stableFrames: 2,
   countIntervals: false,
+  /** `native-module` tracker: a pending native module call counts as busy for at most this long. */
+  nativeCallThresholdMs: 2_000,
   /** Interval between re-checks while an assertion fails or an action target is not ready yet. */
   retryIntervalMs: 50,
 } as const;
