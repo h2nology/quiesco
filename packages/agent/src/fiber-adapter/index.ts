@@ -137,7 +137,7 @@ export class FiberAdapter {
    * Differences under half a unit are rounding and count as 0. Returns the offset in use, or null when
    * nothing could be measured (the previous offset stays).
    */
-  async calibrateCoordinates(locate: (tag: number) => Promise<{ x: number; y: number } | null>): Promise<CoordinateOffset | null> {
+  async calibrateCoordinates(locate: (tag: number) => Promise<{ x: number; y: number; width?: number; height?: number } | null>): Promise<CoordinateOffset | null> {
     for (const [rendererID, roots] of this.requireHook().roots) {
       const platform = this.platformFor(rendererID);
       const offset = platform.coordinateOffset;
@@ -154,6 +154,9 @@ export class FiberAdapter {
         tried++;
         const native = await locate(tag);
         if (native === null) continue;
+        // Another view with the same tag (iOS: a hidden one in UITextEffectsWindow once the keyboard was
+        // used, with an older @quiesco/native): its size gives it away. Not a measure of this host.
+        if (native.width !== undefined && native.height !== undefined && (Math.abs(native.width - rect.width) > 1 || Math.abs(native.height - rect.height) > 1)) continue;
         // measured again: a commit may have moved it while `locate` crossed to the UI thread
         const after = node.measure();
         if (after === null || after.x !== rect.x || after.y !== rect.y) return null;

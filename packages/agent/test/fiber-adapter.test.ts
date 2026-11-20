@@ -266,6 +266,17 @@ describe('host tree (native)', () => {
     expect(locate).toHaveBeenCalledTimes(2);
   });
 
+  it('skips a located view whose size is not the host\'s: another view with the same tag (iOS keyboard window)', async () => {
+    const { adapter, target } = setup();
+    renderWith(target, makeRoot(host('RCTView', { __rect: { x: 0, y: 0, width: 402, height: 874 } }, host('RCTView', { __rect: { x: 0, y: 116, width: 402, height: 758 } }))));
+    const [root] = adapter.getHostRoots();
+    const rootTag = root!.nativeTag();
+    // The root's tag finds a hidden 0.33 × 41 view in UITextEffectsWindow; the child is measured right.
+    const locate = vi.fn(async (tag: number) => (tag === rootTag ? { x: 314.67, y: 712, width: 0.33, height: 41 } : { x: 0, y: 116, width: 402, height: 758 }));
+    expect(await adapter.calibrateCoordinates(locate)).toEqual({ x: 0, y: 0 });
+    expect(locate).toHaveBeenCalledTimes(2);
+  });
+
   it('keeps the offset when no view can be located', async () => {
     const { adapter, target } = setup();
     renderWith(target, makeRoot(host('RCTView', { __rect: { x: 0, y: -24, width: 411, height: 914 } })));

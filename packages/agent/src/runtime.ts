@@ -387,7 +387,8 @@ export class AgentRuntime {
     try {
       await this.adapter.calibrateCoordinates(async (tag) => {
         const loc = await native.locate(tag);
-        return loc.found && typeof loc.x === 'number' && typeof loc.y === 'number' ? { x: loc.x, y: loc.y } : null;
+        if (!loc.found || typeof loc.x !== 'number' || typeof loc.y !== 'number') return null;
+        return { x: loc.x, y: loc.y, ...(typeof loc.width === 'number' && typeof loc.height === 'number' ? { width: loc.width, height: loc.height } : {}) };
       });
     } catch {
       // keep the previous offset; the call itself reports what is wrong
