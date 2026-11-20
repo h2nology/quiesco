@@ -696,7 +696,7 @@ Per scenario, under `artifacts/<date-time>-<platform>/<nnn>-<scenario>/`, and at
 | Saved screenshots | `screenshot(…, { name })` | `<name>.png` |
 | `video` | per policy | iOS `simctl io recordVideo` (MP4); Android `screenrecord` (MP4, a new segment every 3 minutes); web Playwright's screencast (WebM). Attached as a file path |
 | `logs` | per policy | `device.log`: iOS the app process's unified log (`log stream`, info and above), Android logcat of the app's uid, web the page console and uncaught errors. The last 300 lines inline |
-| `timeline` | per policy | every call on the app with its duration and how much of it was waiting for idle, failed calls with their error, the steps of a `scrollTo` under it: `timeline.html` (inline) and `timeline.trace.json` (Chrome trace: `chrome://tracing`, ui.perfetto.dev) |
+| `timeline` | per policy | every call on the app with its duration and how much of it was waiting for idle, failed calls with their error, the steps of a `scrollTo` under it (also of one the test runner's timeout ended first: marked "still running when the scenario ended"): `timeline.html` (inline) and `timeline.trace.json` (Chrome trace: `chrome://tracing`, ui.perfetto.dev) |
 
 ```ts
 export default defineConfig({

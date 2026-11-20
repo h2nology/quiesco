@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Driver } from '../src/driver';
 import type { QuiescoError } from '../src/errors';
@@ -7,7 +7,7 @@ import { QuiescoServer } from '../src/server/ws-server';
 import { AGENT_CONFIG, NO_REPLY, connectAgent } from './helpers/fake-agent';
 import type { Handler } from './helpers/fake-agent';
 import { FakeProvider } from './helpers/fake-provider';
-import { Timeline } from '../src/timeline';
+import { STILL_RUNNING, Timeline } from '../src/timeline';
 
 /** A web-like provider whose page can open a JS dialog that blocks input until answered. */
 class DialogProvider extends FakeProvider {
@@ -201,6 +201,23 @@ describe('Driver', () => {
       ['assert', 'text {"id":"title"}', undefined, true],
     ]);
     expect(driver.lastFailure?.data).toMatchObject({ elements: [{ rect: { x: 1, y: 2, width: 3, height: 4 } }] });
+  });
+
+  it('shows a call the test ends first in the timeline, with the steps the agent reported so far (#84)', async () => {
+    const timeline = new Timeline();
+    timeline.reset('s');
+    const { driver, agent } = await setup((m) => (m === 'action' ? NO_REPLY : {}), { timeline });
+    const call = driver.scrollTo('list', 'row-400', { timeoutMs: 60_000 });
+    call.catch(() => undefined);
+    await vi.waitFor(() => expect(agent.requests.some((r) => r.method === 'action')).toBe(true));
+    agent.notify('step', { atMs: 0, ms: 3700, syncMs: 3500, label: 'down' });
+    agent.notify('step', { atMs: 3700, ms: 3600, syncMs: 3400, label: 'down' });
+    await vi.waitFor(() => expect(timeline.all[0]?.steps).toHaveLength(2));
+    expect(timeline.all).toMatchObject([{ method: 'action', label: 'scrollTo {"id":"row-400"}', error: STILL_RUNNING, steps: [{ label: 'down', ms: 3700 }, { label: 'down', atMs: 3700 }] }]);
+    expect(timeline.toTrace()).toContain('step 2 down');
+    // The next scenario's timeline does not get it, nor its late result.
+    timeline.reset('next');
+    expect(timeline.all).toEqual([]);
   });
 
   it('backdoor checks arguments on the host and returns the value; reset returns the duration', async () => {

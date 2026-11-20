@@ -31,6 +31,7 @@ interface Pending {
 export class AgentConnection extends EventEmitter<{
   log: [AgentEvents['log']];
   appError: [AgentEvents['error']];
+  step: [AgentEvents['step']];
   close: [code: number, reason: string];
 }> {
   private nextId = 1;
@@ -120,6 +121,7 @@ export class AgentConnection extends EventEmitter<{
     }
     if (msg.method === 'log') this.emit('log', msg.params as AgentEvents['log']);
     else if (msg.method === 'error') this.emit('appError', msg.params as AgentEvents['error']);
+    else if (msg.method === 'step') this.emit('step', msg.params as AgentEvents['step']);
   }
 
   /** @internal */

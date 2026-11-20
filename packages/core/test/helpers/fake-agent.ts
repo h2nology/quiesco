@@ -13,7 +13,7 @@ export interface FakeAgent {
   requests: { method: string; params: Record<string, unknown> }[];
   /** Notifications the host sent (`tick`). */
   notifications: string[];
-  notify(method: 'log' | 'error', params: Record<string, unknown>): void;
+  notify(method: 'log' | 'error' | 'step', params: Record<string, unknown>): void;
 }
 
 export function connectAgent(

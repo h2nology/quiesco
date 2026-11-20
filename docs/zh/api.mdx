@@ -548,7 +548,7 @@ export default defineConfig({
 | 保存的截图 | `screenshot(…, { name })` | `<name>.png` |
 | `video` | 按策略 | iOS 用 `simctl io recordVideo`（MP4）；Android 用 `screenrecord`（MP4，每 3 分钟一个新片段）；web 用 Playwright 的录屏（WebM）。以文件路径的形式附加 |
 | `logs` | 按策略 | `device.log`：iOS 为 App 进程的统一日志（`log stream`，info 及以上级别），Android 为 App uid 的 logcat，web 为页面控制台和未捕获的错误。最后 300 行内联显示 |
-| `timeline` | 按策略 | 对 App 的每次调用及其耗时、其中等待空闲所占的时间，以及失败调用的错误，`scrollTo` 的每一步列在它下面：`timeline.html`（内联）和 `timeline.trace.json`（Chrome trace：`chrome://tracing`、ui.perfetto.dev） |
+| `timeline` | 按策略 | 对 App 的每次调用及其耗时、其中等待空闲所占的时间，以及失败调用的错误，`scrollTo` 的每一步列在它下面（被测试 runner 的超时提前结束的调用也会连同已完成的步骤一起保留，标为「still running when the scenario ended」）：`timeline.html`（内联）和 `timeline.trace.json`（Chrome trace：`chrome://tracing`、ui.perfetto.dev） |
 
 ```ts
 export default defineConfig({

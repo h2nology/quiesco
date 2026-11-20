@@ -27,14 +27,23 @@ export interface CallTiming {
   steps?: StepTiming[];
 }
 
+/** What a call still running when the timeline is written says (issue #84). */
+export const STILL_RUNNING = 'still running when the scenario ended (the test ended it first: its timeout?)';
+
 export class Timeline {
   private entries: TimelineEntry[] = [];
+  /** Calls not returned yet, with the steps the agent reported so far (issue #84). */
+  private running: TimelineEntry[] = [];
+  /** Bumped by reset: a call of an earlier scenario that returns late does not land in this one. */
+  private generation = 0;
   private started = Date.now();
   private name = '';
 
   /** Start a new scenario's timeline. */
   reset(name: string): void {
     this.entries = [];
+    this.running = [];
+    this.generation++;
     this.started = Date.now();
     this.name = name;
   }
@@ -48,28 +57,44 @@ export class Timeline {
   /** Measure `fn` as one entry. */
   async measure<T>(method: string, label: string, fn: () => Promise<T>, timing?: (r: T) => CallTiming | undefined): Promise<T> {
     const start = Date.now();
+    const running: TimelineEntry = { method, label, start, end: start, steps: [] };
+    this.running.push(running);
+    const generation = this.generation;
+    const add = (entry: TimelineEntry): void => {
+      if (generation === this.generation) this.add(entry);
+    };
     try {
       const r = await fn();
       const t = timing?.(r);
-      this.add({ method, label, start, end: Date.now(), ...(t?.syncMs !== undefined ? { syncMs: t.syncMs } : {}), ...(t?.steps !== undefined && t.steps.length > 0 ? { steps: t.steps } : {}) });
+      add({ method, label, start, end: Date.now(), ...(t?.syncMs !== undefined ? { syncMs: t.syncMs } : {}), ...(t?.steps !== undefined && t.steps.length > 0 ? { steps: t.steps } : {}) });
       return r;
     } catch (e) {
       // A multi-step action that failed still reports its steps (issue #78).
       const steps = (e as { data?: { steps?: unknown } } | null)?.data?.steps;
-      this.add({ method, label, start, end: Date.now(), ...(Array.isArray(steps) && steps.length > 0 ? { steps: steps as StepTiming[] } : {}), error: e instanceof Error ? e.message : String(e) });
+      add({ method, label, start, end: Date.now(), ...(Array.isArray(steps) && steps.length > 0 ? { steps: steps as StepTiming[] } : {}), error: e instanceof Error ? e.message : String(e) });
       throw e;
+    } finally {
+      this.running = this.running.filter((r) => r !== running);
     }
   }
 
+  /** A step of the running call (calls to the agent run one at a time), reported before it returns (issue #84). */
+  step(s: StepTiming): void {
+    this.running.at(-1)?.steps?.push(s);
+  }
+
+  /** The calls, then those still running (ending now, with the steps so far). */
   get all(): readonly TimelineEntry[] {
-    return this.entries;
+    if (this.running.length === 0) return this.entries;
+    const now = Date.now();
+    return [...this.entries, ...this.running.map(({ steps, ...r }) => ({ ...r, end: now, ...(steps !== undefined && steps.length > 0 ? { steps: [...steps] } : {}), error: STILL_RUNNING }))];
   }
 
   /** Chrome trace event format: complete events ("X"), sync waits nested inside their calls. */
   toTrace(): string {
     const us = (t: number): number => Math.round((t - this.started) * 1000);
     const events: Record<string, unknown>[] = [{ name: 'process_name', ph: 'M', pid: 1, tid: 1, args: { name: `Quiesco: ${this.name}` } }];
-    for (const e of this.entries) {
+    for (const e of this.all) {
       events.push({ name: `${e.method} ${e.label}`.trim(), cat: e.method, ph: 'X', ts: us(e.start), dur: Math.max(1, us(e.end) - us(e.start)), pid: 1, tid: 1, args: e.error !== undefined ? { error: e.error } : {} });
       if (e.steps !== undefined) {
         e.steps.forEach((s, i) => {
@@ -86,8 +111,9 @@ export class Timeline {
 
   /** One page: a bar per call (sync wait shaded), failed calls in red with their message. */
   toHtml(): string {
-    const total = Math.max(1, ...this.entries.map((e) => e.end - this.started));
-    const rows = this.entries
+    const entries = this.all;
+    const total = Math.max(1, ...entries.map((e) => e.end - this.started));
+    const rows = entries
       .map((e) => {
         const left = ((e.start - this.started) / total) * 100;
         const width = Math.max(0.3, ((e.end - e.start) / total) * 100);
@@ -112,7 +138,7 @@ body{font:13px system-ui,sans-serif;margin:16px;color:#222}h1{font-size:16px}
 .track{position:relative;height:12px;background:#f4f4f4}.bar{position:absolute;top:0;height:12px;background:#6b8de3}.sync{height:12px;background:#b9c9f3}
 .step .name{padding-left:16px;color:#555}.step .bar{background:#9aa9cc}
 .failed .bar{background:#d9534f}.failed .name{color:#c00}.err{grid-column:1/-1;color:#c00;white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:12px;padding:4px 0 6px}
-</style></head><body><h1>${esc(this.name)}</h1><p>${this.entries.length} calls, ${total} ms. Light part of a bar: waiting for the app to be idle.</p>
+</style></head><body><h1>${esc(this.name)}</h1><p>${entries.length} calls, ${total} ms. Light part of a bar: waiting for the app to be idle.</p>
 ${rows}
 </body></html>`;
   }

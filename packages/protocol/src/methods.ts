@@ -4,6 +4,9 @@ import type { AgentConfig } from './config.js';
 import type { ElementBrief, ElementSummary, Rect, TreeNode } from './element.js';
 import type { JsonValue } from './json.js';
 import type { Matcher } from './matcher.js';
+import type { StepTiming } from './timing.js';
+
+export type { StepTiming } from './timing.js';
 
 export type Platform = 'ios' | 'android' | 'web';
 
@@ -21,18 +24,6 @@ export interface SyncTiming {
   syncMs?: number;
   /** The steps of a multi-step action (scrollTo, issue #78), for the timeline. */
   steps?: StepTiming[];
-}
-
-/** One step of a multi-step action (issue #78). */
-export interface StepTiming {
-  /** ms from the start of the call to the start of the step (agent clock). */
-  atMs: number;
-  /** How long the step took (drag and wait for idle). */
-  ms: number;
-  /** Of which waiting for idle. */
-  syncMs: number;
-  /** What the step did, e.g. `down`. */
-  label: string;
 }
 
 export interface SyncOption {
