@@ -397,7 +397,7 @@ await this.app.sync.enable();
 
 アプリはエントリーファイルの1行目でエージェントをimportし、ルートを`<QuiescoRoot>`でラップします（`npx quiesco init`が両方を設定します）。`EXPO_PUBLIC_QUIESCO=1`なしのビルドでは、`metro.config.js`の`withQuiesco()`がこのパッケージを何もしないスタブに置き換えるので、このコードはアプリに残しておけます。
 
-`withQuiesco(config, options?)`は、Metroが成果物ディレクトリを監視しないようにもします。Metroは監視中のファイルが変わるたびにアプリへHMRの更新を送るため、dev clientの「Refreshing...」ウィンドウが、別のワーカーがタップしている最中のアプリを覆ってしまいます。`options.artifactsDir`（デフォルトは`'artifacts'`、プロジェクトルートからの相対パス）は、`artifacts.dir`を変更した場合はそれに合わせる必要があります（`false`：除外しない）。`.expo/devices.json`も除外されます。Expoの開発サーバーが、dev clientアプリが起動するたびにこのファイルを書き換えるためです。
+`withQuiesco(config, options?)`は、Metroが成果物ディレクトリを監視しないようにもします。Metroは監視中のファイルが変わるたびにアプリへHMRの更新を送るため、dev clientの「Refreshing...」ウィンドウが、別のワーカーがタップしている最中のアプリを覆ってしまいます。`options.artifactsDir`（デフォルトは`'artifacts'`、プロジェクトルートからの相対パス）は、`artifacts.dir`を変更した場合はそれに合わせる必要があります（`false`：除外しない）。`.expo/devices.json`も除外されます。Expoの開発サーバーが、dev clientアプリが起動するたびにこのファイルを書き換えるためです。`options.nativeModules`（デフォルト：`EXPO_PUBLIC_QUIESCO_NATIVE_MODULES`が`1`かどうか）を指定すると、`native-module`トラッカーのためにネイティブモジュールをラップしてビルドします（[ネイティブモジュールの呼び出し](./sync#native-module-calls)）。
 
 ```ts
 import { QuiescoRoot, quiesco } from '@quiesco/agent';

@@ -10,6 +10,11 @@
  * installed at app start, before the host's config says whether the tracker is on (the modules are taken
  * when the app's modules load); while it is off a wrapped call only passes through.
  *
+ * The wrapping is installed only when the build asks for it (`wrap`, from `withQuiesco(config, {
+ * nativeModules: true })`, issue #74): a wrapped method is a JS function, not the native host function,
+ * and libraries that take a module's methods and call them from worklets on the UI runtime (Gesture
+ * Handler 3) crash with it. Without it the tracker never counts anything.
+ *
  * Some native calls wait for the user (a permission request, an authentication sheet, a picker) and stay
  * pending until the test answers them: a call counts as busy for at most `thresholdMs` (default 2 s), and
  * calls matching `ignore` ("Module.method"; strings match as substrings) never count.
@@ -35,6 +40,8 @@ export interface NativeModuleTrackerOptions {
   clock?: Clock;
   /** Modules never wrapped (the agent's own). */
   skip?: readonly string[];
+  /** Install the wrapping at all (the build asked for it, issue #74). Default true. */
+  wrap?: boolean;
 }
 
 /** How long a pending native call counts as busy by default. */
@@ -84,8 +91,13 @@ export class NativeModuleTracker implements IdleTracker {
     return this.counting().map((p) => `${p.name}() ${now - p.since}ms`);
   }
 
+  /** Whether this build wraps native modules (without it the tracker cannot count anything). */
+  get wraps(): boolean {
+    return this.options.wrap !== false;
+  }
+
   install(): void {
-    if (this.undo.length > 0) return;
+    if (!this.wraps || this.undo.length > 0) return;
     this.installRegistry();
     this.installExpo();
   }

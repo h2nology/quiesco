@@ -46,6 +46,18 @@ sync: {
 }
 ```
 
+The tracker needs a build that wraps native modules: pass `nativeModules: true` to `withQuiesco()` in
+`metro.config.js` (or start Metro with `EXPO_PUBLIC_QUIESCO_NATIVE_MODULES=1`) and restart Metro.
+
+```js
+module.exports = withQuiesco(getDefaultConfig(__dirname), { nativeModules: true });
+```
+
+Without it the agent leaves native modules alone, and the tracker, if turned on, counts nothing (the app
+logs a warning). The wrapping replaces a module's methods with JS functions. Gesture Handler, Reanimated
+and Worklets call their modules' methods from worklets on the UI thread, which needs the native
+functions, so those modules are never wrapped.
+
 The tracker wraps the modules the app gets from React Native's `TurboModuleRegistry` and from Expo
 (`requireNativeModule`) after the agent has loaded. React Native's own modules, taken during its startup,
 are not tracked. Some native calls wait for the user — a permission request, an authentication sheet, a

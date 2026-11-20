@@ -40,6 +40,14 @@ sync: {
 }
 ```
 
+このトラッカーには、ネイティブモジュールをラップするビルドが必要です。`metro.config.js`の`withQuiesco()`に`nativeModules: true`を渡し（またはMetroを`EXPO_PUBLIC_QUIESCO_NATIVE_MODULES=1`付きで起動し）、Metroを再起動してください。
+
+```js
+module.exports = withQuiesco(getDefaultConfig(__dirname), { nativeModules: true });
+```
+
+指定しない場合、エージェントはネイティブモジュールに手を加えません。トラッカーをオンにしても何も数えません（アプリが警告を出します）。ラップするとモジュールのメソッドがJSの関数に置き換わります。Gesture Handler、Reanimated、WorkletsはUIスレッドのworkletから自身のモジュールのメソッドを呼び出し、それにはネイティブの関数が必要なため、これらのモジュールはラップしません。
+
 このトラッカーは、エージェントの読み込み後にアプリがReact Nativeの`TurboModuleRegistry`とExpo（`requireNativeModule`）から取得するモジュールをラップします。React Nativeが起動時に取得する自身のモジュールは追跡されません。権限のリクエスト、認証シート、ピッカーなど、ユーザーの操作を待つネイティブ呼び出しは、テストが応答するまで未完了のままです。呼び出しは`nativeCallThresholdMs`を過ぎるとビジーとみなされなくなるので、そうしたステップの待ち時間は最長でもその長さです。ビジーとみなさない呼び出しは`ignoreNativeCalls`に列挙します。
 
 Reactトラッカーの仕組みと、エージェントをReact Nativeのレンダラーより先に読み込む必要がある理由は、[docs/spikes/02-react-idle.md](https://github.com/h2nology/quiesco/blob/main/docs/spikes/02-react-idle.md)で説明しています。読み込み順は`metro.config.js`の`withQuiesco()`が面倒を見ます（React Native 0.88はアプリのエントリーファイルより先にレンダラーを読み込みます）。

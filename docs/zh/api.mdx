@@ -396,7 +396,7 @@ await this.app.sync.enable();
 
 App 在入口文件的第一行导入 agent，并用 `<QuiescoRoot>` 包裹其根组件（`npx quiesco init` 会把两者都配置好）。在没有 `EXPO_PUBLIC_QUIESCO=1` 的构建中，`metro.config.js` 里的 `withQuiesco()` 会把该包替换为一个空实现的桩，因此这些代码可以一直留在 App 中。
 
-`withQuiesco(config, options?)` 还会让 Metro 不监听产物目录：每当被监听的文件发生变化，Metro 都会向 App 发送一次 HMR 更新，dev client 的 “Refreshing...” 窗口会在另一个 worker 点击时遮住 App。修改 `artifacts.dir` 时，`options.artifactsDir`（默认 `'artifacts'`，相对于项目根目录）必须与之一致（`false`：不排除任何目录）。`.expo/devices.json` 也会被排除：每次有 dev client App 启动，Expo 的开发服务器都会重写它。
+`withQuiesco(config, options?)` 还会让 Metro 不监听产物目录：每当被监听的文件发生变化，Metro 都会向 App 发送一次 HMR 更新，dev client 的 “Refreshing...” 窗口会在另一个 worker 点击时遮住 App。修改 `artifacts.dir` 时，`options.artifactsDir`（默认 `'artifacts'`，相对于项目根目录）必须与之一致（`false`：不排除任何目录）。`.expo/devices.json` 也会被排除：每次有 dev client App 启动，Expo 的开发服务器都会重写它。`options.nativeModules`（默认：`EXPO_PUBLIC_QUIESCO_NATIVE_MODULES` 是否为 `1`）让构建为 `native-module` 跟踪器包装原生模块（[原生模块调用](./sync#native-module-calls)）。
 
 ```ts
 import { QuiescoRoot, quiesco } from '@quiesco/agent';

@@ -5,4 +5,10 @@ import type { BundleInfo } from '@quiesco/protocol';
  * generated one in e2e builds (docs/spikes/00-summary.md agent §6: in JS-only mode there are no
  * launch parameters, and `EXPO_PUBLIC_*` is not inlined inside node_modules).
  */
-export const buildConfig: { port: number | null; session: string | null; bundle?: BundleInfo } = { port: null, session: null };
+export const buildConfig: {
+  port: number | null;
+  session: string | null;
+  bundle?: BundleInfo;
+  /** Wrap native modules for the `native-module` tracker (`withQuiesco(config, { nativeModules: true })`, issue #74). */
+  nativeModules?: boolean;
+} = { port: null, session: null };

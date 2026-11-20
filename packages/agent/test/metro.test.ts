@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 const require = createRequire(import.meta.url);
 const { withQuiesco, watchMode } = require('../metro.cjs') as {
   watchMode: (env: Record<string, string>, argv: readonly string[]) => { watching: boolean; reason?: string };
-  withQuiesco: <T extends object>(config: T, options?: { enabled?: boolean; env?: Record<string, string>; projectRoot?: string; artifactsDir?: string | false }) => T & {
+  withQuiesco: <T extends object>(config: T, options?: { enabled?: boolean; env?: Record<string, string>; projectRoot?: string; artifactsDir?: string | false; nativeModules?: boolean; argv?: readonly string[] }) => T & {
     resolver: { resolveRequest: (ctx: unknown, name: string, platform: string | null) => unknown; blockList?: RegExp[] };
     serializer?: { getModulesRunBeforeMainModule?: (entry: string) => string[] };
     symbolicator?: { customizeFrame?: (frame: { file?: string }) => unknown };
@@ -37,10 +37,39 @@ describe('withQuiesco', () => {
     expect(config.resolver.resolveRequest(c, '@quiesco/agent', 'ios')).toBe('upstream');
     const fromAgent = { ...c, originModulePath: path.join(agentSrc, 'runtime.ts') };
     const resolved = config.resolver.resolveRequest(fromAgent, './build-config', 'ios') as { filePath: string };
-    expect(resolved.filePath).toBe(path.join(root, '.expo', 'quiesco', 'build-config.js'));
+    expect(resolved.filePath).toBe(path.join(root, '.expo', 'quiesco', 'build-config.dev.js'));
     expect(fs.readFileSync(resolved.filePath, 'utf8')).toMatch(/export const buildConfig = \{"port":7999,"session":null,"bundle":\{"builtAt":\d+,"watching":true\}\};/);
     // a './build-config' import from app code is not touched
     expect(config.resolver.resolveRequest(c, './build-config', 'ios')).toBe('upstream');
+  });
+});
+
+describe('withQuiesco: build-config per mode (issue #73) and native modules (issue #74)', () => {
+  const e2e = { EXPO_PUBLIC_QUIESCO: '1' };
+  const fromAgent = { originModulePath: path.join(agentSrc, 'runtime.ts'), resolveRequest: vi.fn() };
+  const buildConfigOf = (config: ReturnType<typeof withQuiesco>) => {
+    const file = (config.resolver.resolveRequest(fromAgent, './build-config', 'ios') as { filePath: string }).filePath;
+    return { file, source: fs.readFileSync(file, 'utf8') };
+  };
+
+  it('an export while the dev server is up leaves the dev server\'s build-config as it was', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'quiesco-metro-'));
+    const dev = buildConfigOf(withQuiesco({ projectRoot: root, resolver: {} }, { env: e2e, argv: ['start', '--dev-client'] }));
+    const exported = buildConfigOf(withQuiesco({ projectRoot: root, resolver: {} }, { env: e2e, argv: ['export', '--platform', 'web'] }));
+    expect(dev.file).toBe(path.join(root, '.expo', 'quiesco', 'build-config.dev.js'));
+    expect(exported.file).toBe(path.join(root, '.expo', 'quiesco', 'build-config.export.js'));
+    expect(fs.readFileSync(dev.file, 'utf8')).toBe(dev.source);
+    expect(dev.source).toContain('"watching":true');
+    expect(exported.source).toContain('"watching":false,"reason":"export"');
+  });
+
+  it('asks the agent to wrap native modules only with nativeModules: true or EXPO_PUBLIC_QUIESCO_NATIVE_MODULES=1', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'quiesco-metro-'));
+    const argv = ['start'];
+    expect(buildConfigOf(withQuiesco({ projectRoot: root, resolver: {} }, { env: e2e, argv })).source).not.toContain('nativeModules');
+    expect(buildConfigOf(withQuiesco({ projectRoot: root, resolver: {} }, { env: e2e, argv, nativeModules: true })).source).toContain('"nativeModules":true');
+    expect(buildConfigOf(withQuiesco({ projectRoot: root, resolver: {} }, { env: { ...e2e, EXPO_PUBLIC_QUIESCO_NATIVE_MODULES: '1' }, argv })).source).toContain('"nativeModules":true');
+    expect(buildConfigOf(withQuiesco({ projectRoot: root, resolver: {} }, { env: { ...e2e, EXPO_PUBLIC_QUIESCO_NATIVE_MODULES: '1' }, argv, nativeModules: false })).source).not.toContain('nativeModules');
   });
 });
 
