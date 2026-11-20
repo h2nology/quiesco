@@ -52,9 +52,9 @@ describe('iOS system UI runner screens (6.7 batch C)', () => {
     expect(nodes.map((n) => n.id)).toEqual(['com.apple.localauthentication.ax.authentication.button.try-again', 'com.apple.localauthentication.ax.authentication.button.cancel', 'ShortLook.Platter.Content.Seamless']);
   });
 
-  it('dismisses leftover alerts with cancel, else deny, else the first button', () => {
+  it('dismisses leftover alerts with cancel, else the first button; never answers a permission alert (#86)', () => {
     expect(dismissButton(FACE_ID_ALERT)?.frame).toEqual(f(491));
-    expect(dismissButton(NOTIFICATION_ALERT)?.frame).toEqual([57, 504, 140, 48]);
+    expect(dismissButton(NOTIFICATION_ALERT)).toBeUndefined();
     expect(dismissButton({ ...FACE_ID_ALERT, id: 'x', buttons: [{ label: 'OK', id: 'ok', frame: f(1) }] })?.frame).toEqual(f(1));
   });
 
@@ -270,6 +270,22 @@ describe('IosProvider system UI (6.7 batch C)', () => {
     expect(calls).toEqual(['tap 127,515']); // the cancel button
     await p.shutdown();
     expect(calls.at(-1)).toBe('stop');
+  });
+
+  it('fails the next scenario on a permission alert the previous one left, without answering it (#86)', async () => {
+    const { runner, calls } = fakeRunner([{ alerts: [], others: [] }, { alerts: [NOTIFICATION_ALERT], others: [] }]);
+    const p = make(runner);
+    await p.systemNodes(); // the runner is in use
+    await expect(p.resetDeviceState({} as never)).rejects.toMatchObject({ errorName: 'RESET_FAILED', message: /permission alert left by the previous scenario is still up: ".*" \[.*\]/ });
+    expect(await p.dismissSystemAlerts()).toEqual([]);
+    expect(await p.unansweredSystemAlert()).toMatch(/^A system permission alert is up over the app: ".+" \[.+\]/);
+    expect(calls).toEqual([]);
+  });
+
+  it('lists a system alert when no notification shows up (#85)', async () => {
+    // The alert stays over Notification Center.
+    const { runner } = fakeRunner([{ alerts: [NOTIFICATION_ALERT], others: [] }], 0, { openNotificationCenter: async () => {} });
+    await expect(make(runner).openNotification('Reminder', 300)).rejects.toThrow(/seen: nothing; a system alert is up: ".+" \[.+, .+\]\)\. Answer the permission alert first/);
   });
 
   it('dismissSystemAlerts starts the runner when needed and closes an alert covering the app (Phase 6.12)', async () => {

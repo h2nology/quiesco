@@ -268,7 +268,7 @@ await this.app.device.system.tap({ text: 'Cancel' });  // アプリ外の任意�
 | `system.allowPermission()` / `system.denyPermission()` | デバイスの言語に関係なく、実行時の権限ダイアログに応答します（Android：ボタンのIDで判別し、「アプリの使用中のみ」や「今後表示しない」にも対応。iOS：iOSのレイアウトに従い位置で判別）。アプリが前面に来てアイドルになった時点で解決します |
 
 これらはWebには存在しません（`ACTION_NOT_SUPPORTED`。こうしたシナリオには`@native`タグを付けてください）。ただし`system.tap` /
-`expectVisible` / `expectNotVisible`は、ページのJavaScriptダイアログに対して使えます（後述）。Androidではエミュレーターが必要です（エミュレーターのコンソールでセンサーを偽装するため）。iOSでは、システムUIはSpringBoardに属します。Quiescoは、初めて必要になったときに小さなXCUITestランナーをビルドし（Xcodeのバージョンごとに1回。`~/Library/Caches/quiesco/ios-runner`にキャッシュされ、約10秒）、シミュレーター上で起動します（2–4秒、セッションごとに1回）。アラートはアプリより長く残ります。シナリオが残したアラートは次のシナリオの前に閉じられます（キャンセル / 拒否）。権限を再び要求させるには、先にリセットします：`setPermission('notifications', 'reset')`。
+`expectVisible` / `expectNotVisible`は、ページのJavaScriptダイアログに対して使えます（後述）。Androidではエミュレーターが必要です（エミュレーターのコンソールでセンサーを偽装するため）。iOSでは、システムUIはSpringBoardに属します。Quiescoは、初めて必要になったときに小さなXCUITestランナーをビルドし（Xcodeのバージョンごとに1回。`~/Library/Caches/quiesco/ios-runner`にキャッシュされ、約10秒）、シミュレーター上で起動します（2–4秒、セッションごとに1回）。アラートはアプリより長く残ります。シナリオが残したアラートは次のシナリオの前に閉じられます（キャンセル、なければ最初のボタン）。ただし権限のアラートは例外です。どちらを答えても結果が残る（通知の拒否は再インストールしないと消えない）ため、次のシナリオがそのアラートを示す`RESET_FAILED`で失敗します。アラートを出すシナリオの中で答えてください。権限を再び要求させるには、先にリセットします：`setPermission('notifications', 'reset')`。
 
 **システムUIに含まれるもの。** システム自身のUI（iOSのSpringBoard、Androidの他パッケージ）に加えて、`system.*`はReactではないUIも扱います（issue #49–#51）。
 

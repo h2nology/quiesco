@@ -36,7 +36,7 @@ import type { Exec } from './exec.js';
 import { execCommand } from './exec.js';
 import { LogBuffer, exited, spawnProcess } from './streams.js';
 import type { ChildLike, SpawnProcess } from './streams.js';
-import { IosSystemRunner, PERMISSION_ALLOW, PERMISSION_DENY, backButton, dismissButton, screenNodes } from './ios-runner.js';
+import { IosSystemRunner, PERMISSION_ALLOW, PERMISSION_DENY, backButton, describeAlert, dismissButton, isPermissionAlert, screenNodes } from './ios-runner.js';
 import type { RunnerScreen } from './ios-runner.js';
 import type { Permission } from './permissions.js';
 import { SERIAL_WORKER } from './provider.js';
@@ -899,11 +899,15 @@ export class IosProvider implements DeviceProvider {
       }
       if (taps > 0 && (await inFront())) return;
       if (Date.now() > deadline) {
-        const seen = (await runner.screen().catch(() => ({ alerts: [], others: [] }))).others.map((o) => JSON.stringify(o.label)).slice(0, 8);
+        const screen = await runner.screen().catch((): RunnerScreen => ({ alerts: [], others: [] }));
+        // A system alert is often the reason (issue #85: the permission prompt, so nothing was scheduled).
+        const alerts = screen.alerts.length === 0 ? '' : `; a system alert is up: ${screen.alerts.map(describeAlert).join(', ')}`;
+        const seen = `${screen.others.map((o) => JSON.stringify(o.label)).slice(0, 8).join(', ') || 'nothing'}${alerts}`;
         if (taps > 0) {
-          throw new QuiescoError('DEVICE_ERROR', `openNotification: tapped "${title}" ${taps} time(s), but the app did not come to the front within ${timeoutMs}ms (seen: ${seen.join(', ') || 'nothing'})`);
+          throw new QuiescoError('DEVICE_ERROR', `openNotification: tapped "${title}" ${taps} time(s), but the app did not come to the front within ${timeoutMs}ms (seen: ${seen})`);
         }
-        throw new QuiescoError('DEVICE_ERROR', `openNotification: no notification "${title}" in a banner or Notification Center within ${timeoutMs}ms (seen: ${seen.join(', ') || 'nothing'}). Can the app show notifications (system.allowPermission())?`);
+        const hint = screen.alerts.some(isPermissionAlert) ? 'Answer the permission alert first (system.allowPermission())' : 'Can the app show notifications (system.allowPermission())?';
+        throw new QuiescoError('DEVICE_ERROR', `openNotification: no notification "${title}" in a banner or Notification Center within ${timeoutMs}ms (seen: ${seen}). ${hint}`);
       }
       // The banner goes away after a few seconds (also after a tap that missed it); then the notification is in Notification Center.
       if (!centerOpened && (taps > 0 || Date.now() > start + Math.min(BANNER_WAIT_MS, timeoutMs / 2))) {
@@ -953,15 +957,26 @@ export class IosProvider implements DeviceProvider {
     }
   }
 
-  /** Alerts outlive the app (a relaunch keeps a permission alert up): dismiss what an earlier scenario left. */
+  /**
+   * Alerts outlive the app (a relaunch keeps a permission alert up): dismiss what an earlier scenario left.
+   * Not a permission alert (issue #86): either answer sticks (a denied notification permission only goes
+   * away with a reinstall), so the scenario fails, saying which alert is up.
+   */
   private async dismissLeftoverAlerts(): Promise<void> {
     if (this.runnerInstance?.running !== true) return;
     for (let i = 0; i < 3; i++) {
       const alert = (await this.runner.screen().catch(() => null))?.alerts[0];
       if (alert === undefined) return;
+      if (isPermissionAlert(alert)) {
+        const message =
+          `a system permission alert left by the previous scenario is still up: ${describeAlert(alert)}. Quiesco does not answer it for you ` +
+          `(on iOS "Don't Allow" for notifications sticks until the app is reinstalled). Answer it in the scenario that brings it up ` +
+          `(app.device.system.allowPermission() / denyPermission()), or grant the permission before the app starts (config \`permissions\`)`;
+        throw new QuiescoError('RESET_FAILED', message, { step: 'system alert', message });
+      }
       const button = dismissButton(alert);
       if (button === undefined) return;
-      this.logger.warn(`dismissing a system alert left by the previous scenario: ${JSON.stringify(alert.label)}`);
+      this.logger.warn(`dismissing a system alert left by the previous scenario: ${describeAlert(alert)}; tapping ${JSON.stringify(button.label)}`);
       const [x = 0, y = 0, w = 0, h = 0] = button.frame;
       await this.runner.tap(x + w / 2, y + h / 2).catch(() => undefined);
     }
@@ -979,12 +994,18 @@ export class IosProvider implements DeviceProvider {
       if (alert === undefined) break;
       const button = dismissButton(alert);
       if (button === undefined) break;
-      this.logger.warn(`dismissing a system alert covering the app: ${JSON.stringify(alert.label)}`);
+      this.logger.warn(`dismissing a system alert covering the app: ${describeAlert(alert)}; tapping ${JSON.stringify(button.label)}`);
       const [x = 0, y = 0, w = 0, h = 0] = button.frame;
       await this.runner.tap(x + w / 2, y + h / 2).catch(() => undefined);
       closed.push(alert.label);
     }
     return closed;
+  }
+
+  async unansweredSystemAlert(): Promise<string | undefined> {
+    const alert = (await this.runner.screen().catch(() => null))?.alerts.find(isPermissionAlert);
+    if (alert === undefined) return undefined;
+    return `A system permission alert is up over the app: ${describeAlert(alert)}. Quiesco does not answer it for you: answer it in the scenario (app.device.system.allowPermission() / denyPermission())`;
   }
 
   async resetDeviceState(app: InAppControls): Promise<StateChange> {

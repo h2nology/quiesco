@@ -82,12 +82,25 @@ export function screenNodes(screen: RunnerScreen): SystemNode[] {
   return out;
 }
 
-/** The button that dismisses a leftover alert with the least effect: cancel, deny, else the first one. */
-export function dismissButton(alert: RunnerScreen['alerts'][number]): { frame: number[] } | undefined {
-  const nodes = screenNodes({ alerts: [alert], others: [] });
-  const pick = nodes.find((n) => /cancel/i.test(n.id)) ?? nodes.find((n) => n.id === PERMISSION_DENY);
-  if (pick !== undefined) return { frame: [pick.bounds.x1, pick.bounds.y1, pick.bounds.x2 - pick.bounds.x1, pick.bounds.y2 - pick.bounds.y1] };
-  return alert.buttons[0];
+/** A system permission alert: no identifiers at all, two or three buttons (see screenNodes). */
+export function isPermissionAlert(alert: RunnerScreen['alerts'][number]): boolean {
+  return alert.id === '' && alert.buttons.every((b) => b.id === '') && (alert.buttons.length === 2 || alert.buttons.length === 3);
+}
+
+/** `"<title>" [<button>, <button>]`, for messages. */
+export function describeAlert(alert: RunnerScreen['alerts'][number]): string {
+  return `${JSON.stringify(alert.label)} [${alert.buttons.map((b) => b.label).join(', ')}]`;
+}
+
+/**
+ * The button that dismisses a leftover alert with the least effect: cancel, else the first one, with
+ * its label. None for a permission alert (issue #86): its "Don't Allow" leaves a denied permission
+ * (notifications: until the app is reinstalled), its "Allow" a grant the test did not ask for.
+ */
+export function dismissButton(alert: RunnerScreen['alerts'][number]): { frame: number[]; label: string } | undefined {
+  if (isPermissionAlert(alert)) return undefined;
+  const cancel = alert.buttons.find((b) => /cancel/i.test(b.id));
+  return cancel ?? alert.buttons[0];
 }
 
 /** Where the runner sources are: <package>/ios-runner (from dist/devices or src/devices). */
