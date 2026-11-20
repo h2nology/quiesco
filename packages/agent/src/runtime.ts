@@ -220,7 +220,7 @@ export class AgentRuntime {
       this.network?.setExempt(ownConnection(params.port));
       this.client = new AgentClient({
         params,
-        hello: { platform: this.deps.platform(), agentVersion: AGENT_VERSION, nativeModule: native !== null, ...(buildConfig.bundle !== undefined ? { bundle: buildConfig.bundle } : {}) },
+        hello: { platform: this.deps.platform(), agentVersion: AGENT_VERSION, nativeModule: native !== null, nativeModulesWrapped: this.nativeModulesWrapped, ...(buildConfig.bundle !== undefined ? { bundle: buildConfig.bundle } : {}) },
         createSocket: (url) => this.deps.createSocket(url),
         handle: (method, p) => this.handle(method, p),
         onReady: (config) => this.configure(config),

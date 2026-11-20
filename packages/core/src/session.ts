@@ -35,6 +35,10 @@ import { tagNames } from './tags.js';
 export const FIRST_LAUNCH_CONNECT_FACTOR = 3;
 
 /** Errors of the per-scenario reset after which the app is started again instead of failing the scenario. */
+/** Issue #74. */
+export const NATIVE_MODULES_NOT_WRAPPED =
+  "sync.trackers: { 'native-module': true }, but the app's build does not wrap native modules, so the tracker counts nothing. Build it with withQuiesco(config, { nativeModules: true }) in metro.config.js (or EXPO_PUBLIC_QUIESCO_NATIVE_MODULES=1) and restart Metro.";
+
 const RESTART_ON: ReadonlySet<string> = new Set(['CONNECT_TIMEOUT', 'AGENT_DISCONNECTED', 'AGENT_TIMEOUT']);
 
 /**
@@ -342,6 +346,15 @@ export class Session {
   /** The unknown-bundle warning (issue #19) is given once per session, not on every reconnect. */
   private unknownBundleWarned = false;
 
+  private nativeModulesWarned = false;
+
+  /** Issue #74: the config turns the native-module tracker on, but the app's build does not wrap native modules. Once per session. */
+  private checkNativeModules(conn: AgentConnection): void {
+    if (this.nativeModulesWarned || conn.info.nativeModulesWrapped !== false || this.config.sync?.trackers?.['native-module'] !== true) return;
+    this.nativeModulesWarned = true;
+    this.logger.warn(NATIVE_MODULES_NOT_WRAPPED);
+  }
+
   /** Issue #3: say when the app's JS bundle cannot have the project's latest changes. Once per bundle. */
   private checkBundle(conn: AgentConnection): void {
     const bundle = conn.info.bundle;
@@ -384,6 +397,7 @@ export class Session {
     if (this.connection === conn) return;
     this.connection = conn;
     this.checkBundle(conn);
+    this.checkNativeModules(conn);
     conn.on('log', (l) => this.logger[l.level](`[app] ${l.message}`));
     this.driver.attach(conn);
   }
