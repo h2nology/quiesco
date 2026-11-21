@@ -116,13 +116,15 @@ describe('appDir (issue #54)', () => {
     expect(await upgradeCommand(['--platforms', 'android'], ctx, { loadConfig: async () => config() })).toBe(0);
     const installs = ctx.calls.filter((c) => c.command === 'npm' && c.args[0] === 'install');
     expect(installs.map((c) => `${c.cwd ?? '.'}: ${c.args.join(' ')}`)).toEqual([
-      'app: install @quiesco/agent@9.9.9 @quiesco/native@9.9.9',
-      'app: install --save-dev @quiesco/expo-plugin@9.9.9',
-      '.: install --save-dev quiesco@9.9.9 @quiesco/core@9.9.9 @quiesco/vitest@9.9.9',
+      // Exact versions (0.6.0) stay exact (#95)
+      'app: install --save-exact @quiesco/agent@9.9.9 @quiesco/native@9.9.9',
+      'app: install --save-dev --save-exact @quiesco/expo-plugin@9.9.9',
+      '.: install --save-dev --save-exact quiesco@9.9.9 @quiesco/core@9.9.9 @quiesco/vitest@9.9.9',
     ]);
-    // app.json's IDs in the app; the e2e scripts in the test package.
+    // app.json's IDs in the app; the scripts are left alone (#95), the missing ones named for the test package.
     expect(JSON.parse(ctx.file('app/app.json') as string).expo.android.package).toBe('com.anonymous.shop');
-    expect(JSON.parse(ctx.file('package.json') as string).scripts['e2e:android']).toBeDefined();
+    expect(JSON.parse(ctx.file('package.json') as string).scripts?.['e2e:android']).toBeUndefined();
+    expect(ctx.lines.join('\n')).toMatch(/= scripts — left as they are \(quiesco init would add e2e:start, e2e:android\)/);
     expect(JSON.parse(ctx.file('app/package.json') as string).scripts).toBeUndefined();
   });
 
