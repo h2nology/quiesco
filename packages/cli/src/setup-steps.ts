@@ -94,17 +94,31 @@ function pnpmOverrides(pins: Record<string, string>): string {
   return `overrides:\n${Object.entries(pins).map(([n, f]) => `  ${JSON.stringify(n)}: ${JSON.stringify(f)}\n`).join('')}`;
 }
 
-export function addCommand(pm: PackageManager, dev: boolean, specs: string[]): { command: string; args: string[] } {
+/** `exact`: save the version as given, not as a ^range (issue #95: the project pins exact versions). */
+export function addCommand(pm: PackageManager, dev: boolean, specs: string[], exact = false): { command: string; args: string[] } {
   switch (pm) {
     case 'pnpm':
-      return { command: 'pnpm', args: ['add', ...(dev ? ['-D'] : []), ...specs] };
+      return { command: 'pnpm', args: ['add', ...(dev ? ['-D'] : []), ...(exact ? ['--save-exact'] : []), ...specs] };
     case 'yarn':
-      return { command: 'yarn', args: ['add', ...(dev ? ['-D'] : []), ...specs] };
+      return { command: 'yarn', args: ['add', ...(dev ? ['-D'] : []), ...(exact ? ['--exact'] : []), ...specs] };
     case 'bun':
-      return { command: 'bun', args: ['add', ...(dev ? ['-d'] : []), ...specs] };
+      return { command: 'bun', args: ['add', ...(dev ? ['-d'] : []), ...(exact ? ['--exact'] : []), ...specs] };
     case 'npm':
-      return { command: 'npm', args: ['install', ...(dev ? ['--save-dev'] : []), ...specs] };
+      return { command: 'npm', args: ['install', ...(dev ? ['--save-dev'] : []), ...(exact ? ['--save-exact'] : []), ...specs] };
   }
+}
+
+/** A version spec that names one version (`0.10.0`, `=0.10.0`, `1.0.0-rc.1`), not a range or a tag. */
+export function isExactVersion(spec: string): boolean {
+  return /^=?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(spec.trim());
+}
+
+/** The project pins its Quiesco packages to exact versions (all of those it has; issue #95). */
+export function pinsQuiescoExactly(pkg: PackageJson): boolean {
+  const specs = Object.entries({ ...pkg.dependencies, ...pkg.devDependencies })
+    .filter(([name]) => isQuiescoPackage(name))
+    .map(([, spec]) => spec);
+  return specs.length > 0 && specs.every(isExactVersion);
 }
 
 export interface InstallOptions {
@@ -114,6 +128,8 @@ export interface InstallOptions {
   /** `--packages <dir>`: install from the tarballs in it. */
   packagesDir?: string;
   skipInstall: boolean;
+  /** Save exact versions, not ^ranges (issue #95). Not with packagesDir (file: specs). */
+  exact?: boolean;
 }
 
 /**
@@ -165,7 +181,7 @@ export async function installPackages(log: StepLog, o: InstallOptions): Promise<
   }
   /** One command per dependency group that has packages (an upgrade may have no runtime ones to change). */
   const commands = (names: (list: readonly string[]) => readonly string[]): { command: string; args: string[] }[] =>
-    ([[false, o.runtime], [true, o.dev]] as const).filter(([, list]) => names(list).length > 0).map(([dev, list]) => addCommand(o.pm, dev, names(list).map(spec)));
+    ([[false, o.runtime], [true, o.dev]] as const).filter(([, list]) => names(list).length > 0).map(([dev, list]) => addCommand(o.pm, dev, names(list).map(spec), o.exact === true && o.packagesDir === undefined));
   const installs = commands((list) => list);
   for (const cmd of installs) {
     const line = `${cmd.command} ${cmd.args.join(' ')}`;
