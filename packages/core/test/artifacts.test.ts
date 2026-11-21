@@ -11,7 +11,7 @@ import { LogBuffer } from '../src/devices/streams';
 import { decodePng, drawRects, encodePng, stackPng } from '../src/png';
 import { failureRects, fullElementScreenshot, fullPageScreenshot, highlight } from '../src/screenshots';
 import type { ScreenshotHost } from '../src/screenshots';
-import { Timeline } from '../src/timeline';
+import { NOT_COUNTED_NOTE, Timeline } from '../src/timeline';
 import { FakeProvider } from './helpers/fake-provider';
 
 const silent = { debug() {}, info() {}, warn() {}, error() {} };
@@ -156,6 +156,24 @@ describe('timeline', () => {
     expect(html).toContain('保存 &lt;b&gt;');
     expect(html).toContain('class="row failed"');
     expect(html).toContain('expected &quot;a&quot;');
+  });
+
+  it('says what an idle wait ended on (#93) and which native calls an action did not wait for (#94)', async () => {
+    const t = new Timeline();
+    t.reset('date');
+    const syncBusy = ['native-module: RNCDatePicker.open() 1990ms'];
+    await t.measure('action', 'tap {"id":"control-date"}', async () => ({ syncMs: 2000, syncBusy }), (r) => r);
+    await t.measure('action', 'tap {"id":"login"}', async () => ({ syncMs: 3, nativeCallsNotCounted: ['RNCAsyncStorage.multiSet() 2ms'] }), (r) => r);
+    expect(t.all.map((e) => [e.syncBusy, e.nativeCallsNotCounted])).toEqual([
+      [syncBusy, undefined],
+      [undefined, ['RNCAsyncStorage.multiSet() 2ms']],
+    ]);
+    const trace = JSON.parse(t.toTrace()) as { traceEvents: { name: string; args?: Record<string, unknown> }[] };
+    expect(trace.traceEvents.filter((e) => e.name === 'wait for idle').map((e) => e.args)).toEqual([{ busy: syncBusy }, {}]);
+    expect(trace.traceEvents.find((e) => e.name === 'action tap {"id":"login"}')?.args).toEqual({ nativeCallsNotCounted: ['RNCAsyncStorage.multiSet() 2ms'], note: NOT_COUNTED_NOTE });
+    const html = t.toHtml();
+    expect(html).toContain('idle wait ended on: native-module: RNCDatePicker.open() 1990ms');
+    expect(html).toContain('native-module tracker is off: RNCAsyncStorage.multiSet() 2ms');
   });
 
   it('nests the steps of a multi-step action, also of a failed one (#78)', async () => {

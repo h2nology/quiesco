@@ -72,6 +72,19 @@ describe('SyncEngine.waitForIdle', () => {
     expect(done).toBe(true);
   });
 
+  it('says what the busy trackers were busy with at the last busy check (#93)', async () => {
+    let netIdleAt = 30;
+    const engine = new SyncEngine([tracker('timer', () => Date.now() >= 10, () => ['setTimeout 10ms']), tracker('network', () => Date.now() >= netIdleAt, () => [`GET /items ${Date.now()}ms`])], clock);
+    const p = engine.waitForIdle({ pollIntervalMs: 5 });
+    await vi.advanceTimersByTimeAsync(100);
+    // The reasons are read again when the busy trackers change (timer done at 10 ms), not on every check.
+    await expect(p).resolves.toEqual({ waitedMs: expect.any(Number), busy: ['network: GET /items 10ms'] });
+    netIdleAt = 0;
+    const idle = engine.waitForIdle();
+    await vi.advanceTimersByTimeAsync(0);
+    await expect(idle).resolves.toEqual({ waitedMs: 0 });
+  });
+
   it('times out with SYNC_TIMEOUT listing every busy tracker', async () => {
     const engine = new SyncEngine(
       [

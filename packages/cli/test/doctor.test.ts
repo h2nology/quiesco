@@ -169,6 +169,17 @@ describe('quiesco doctor', () => {
     expect((await runChecks(ctx, undefined, nativeConfig)).map((r) => r.name)).not.toContain('build scripts');
   });
 
+  it('warns when the config turns the native-module tracker on and Metro does not wrap native modules (#94)', async () => {
+    const { ctx } = setUpProject();
+    const on = deps({ loadConfig: async () => ({ apps: {}, sync: { trackers: { 'native-module': true } } }) as never });
+    const check = async () => (await runChecks(ctx, 'web', on)).find((r) => r.name === 'native-module tracker');
+    ctx.put('metro.config.js', "module.exports = withQuiesco(getDefaultConfig(__dirname));\n");
+    expect(await check()).toMatchObject({ status: 'warn', fix: expect.stringContaining('nativeModules: true') });
+    ctx.put('metro.config.js', "module.exports = withQuiesco(getDefaultConfig(__dirname), { nativeModules: true });\n");
+    expect(await check()).toBeUndefined();
+    expect((await runChecks(ctx, 'web', deps({ loadConfig: async () => ({ apps: {} }) as never }))).map((r) => r.name)).not.toContain('native-module tracker');
+  });
+
   describe('app IDs (issue #34)', () => {
     const native = (android: Record<string, unknown> = { package: 'com.anonymous.qt', devClient: { scheme: 'qt' } }, ios: Record<string, unknown> = { bundleId: 'com.anonymous.qt' }) =>
       deps({ loadConfig: async () => ({ apps: { ios, android } }) as never });

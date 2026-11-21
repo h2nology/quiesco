@@ -518,6 +518,27 @@ describe('AgentRuntime', () => {
     await expect(call('getIdleState', {})).resolves.toEqual({ trackers: [] });
   });
 
+  it('the native-module tracker is on by default when the build wraps native modules; the config can turn it off (#94)', async () => {
+    const { rt, call } = setup({ trackerName: 'native-module', busy: () => true, nativeModules: true });
+    await expect(call('getIdleState', {})).resolves.toEqual({ trackers: [{ name: 'native-module', idle: false, busy: ['fake busy'] }] });
+    rt.configure(CONFIG);
+    await expect(call('getIdleState', {})).resolves.toEqual({ trackers: [{ name: 'native-module', idle: false, busy: ['fake busy'] }] });
+    rt.configure({ ...CONFIG, sync: { ...CONFIG.sync, trackers: { 'native-module': false } } });
+    await expect(call('getIdleState', {})).resolves.toEqual({ trackers: [] });
+  });
+
+  it('a call\'s result says what its waits for idle ended on (#93)', async () => {
+    let busyUntil = 0;
+    const { target, call } = setup({ busy: () => Date.now() < busyUntil });
+    sameRoot(target)(host('RCTView', { testID: 'a', ...R(0) }));
+    busyUntil = Date.now() + 50;
+    const r = (await drive(call('query', { matcher: { id: 'a' } }), 200)) as { syncMs: number; syncBusy?: string[] };
+    expect(r.syncMs).toBeGreaterThanOrEqual(50);
+    expect(r.syncBusy).toEqual(['fake: fake busy']);
+    const idle = (await drive(call('query', { matcher: { id: 'a' } }))) as { syncBusy?: string[] };
+    expect(idle.syncBusy).toBeUndefined();
+  });
+
   it('warns once when the native-module tracker is on but the build does not wrap native modules (#74)', () => {
     const warn = vi.fn();
     const off = setup({ trackerName: 'native-module', globals: { console: { warn } } });

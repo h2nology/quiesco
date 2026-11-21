@@ -148,14 +148,21 @@ export interface QuiescoConfig {
     stableFrames?: number;
     ignoreUrls?: (RegExp | string)[];
     /**
-     * Disable individual trackers, e.g. `{ 'frame-stable': false }`, or enable `native-module` (off by
-     * default): `{ 'native-module': true }`.
+     * Disable individual trackers, e.g. `{ 'frame-stable': false }`. `native-module` is on when the app's
+     * build wraps native modules (`withQuiesco(config, { nativeModules: true })`, issue #94); turn it off
+     * with `{ 'native-module': false }`.
      */
     trackers?: Partial<Record<TrackerName, boolean>>;
     /** `native-module` tracker: how long a pending native module call counts as busy (default 2000 ms). */
     nativeCallThresholdMs?: number;
-    /** `native-module` tracker: calls that never count, as "Module.method" (strings match as substrings). */
+    /**
+     * `native-module` tracker: calls that never count, as "Module.method" (strings match as substrings).
+     * Added to the calls that wait for the user, ignored by default (permission requests, pickers,
+     * authentication and share sheets, issue #93).
+     */
     ignoreNativeCalls?: (RegExp | string)[];
+    /** `native-module` tracker: `false` counts the calls that wait for the user too (default true). */
+    defaultIgnoreNativeCalls?: boolean;
     /**
      * Elements whose changes never keep the app busy for the frame-stable check (they and their
      * subtrees are left out), e.g. `['logo-glow']` for a decorative animation that runs for minutes.
@@ -294,6 +301,7 @@ export function toAgentConfig(config: QuiescoConfig, gestureSlop?: GestureSlop, 
       trackers: { ...s.trackers },
       nativeCallThresholdMs: s.nativeCallThresholdMs ?? SyncDefaults.nativeCallThresholdMs,
       ignoreNativeCalls: (s.ignoreNativeCalls ?? []).map(toTextMatch),
+      ...(s.defaultIgnoreNativeCalls === false ? { defaultIgnoreNativeCalls: false } : {}),
       ignoreElements: (s.ignoreElements ?? []).map(toMatcher),
     },
     logLevel: config.logLevel ?? 'warn',

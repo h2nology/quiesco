@@ -32,12 +32,16 @@ import { consoleLogger } from './logger.js';
 import type { AgentConnection } from './server/ws-server.js';
 import { QuiescoServer } from './server/ws-server.js';
 import { tagNames } from './tags.js';
+import { NOT_COUNTED_NOTE } from './timeline.js';
 
 /** The session's first launch waits this many times the default connect timeout. */
 export const FIRST_LAUNCH_CONNECT_FACTOR = 3;
 
 /** Errors of the per-scenario reset after which the app is started again instead of failing the scenario. */
 /** Issue #74. */
+/** The latest calls whose native calls were not waited for, in idle-state.json (issue #94). */
+const NOT_COUNTED_IN_EVIDENCE = 10;
+
 export const NATIVE_MODULES_NOT_WRAPPED =
   "sync.trackers: { 'native-module': true }, but the app's build does not wrap native modules, so the tracker counts nothing. Build it with withQuiesco(config, { nativeModules: true }) in metro.config.js (or EXPO_PUBLIC_QUIESCO_NATIVE_MODULES=1) and restart Metro.";
 
@@ -291,7 +295,16 @@ export class Session {
       if (ev.screenshot !== undefined) evidence.push({ data: ev.screenshot, mediaType: 'image/png', fileName: 'failure.png' });
       if (ev.elements !== undefined) evidence.push({ data: JSON.stringify(ev.elements, null, 2), mediaType: 'application/json', fileName: 'elements.json' });
       if (ev.tree !== undefined) evidence.push({ data: JSON.stringify({ elementTree: ev.tree }, null, 2), mediaType: 'application/json', fileName: 'element-tree.json' });
-      if (ev.idle !== undefined) evidence.push({ data: JSON.stringify({ idleState: ev.idle }, null, 2), mediaType: 'application/json', fileName: 'idle-state.json' });
+      if (ev.idle !== undefined) {
+        // Issue #94: an action that returned while the app awaited a native call races the test; the failure
+        // shows up later. The calls of this scenario that did that, for the native-module tracker being off.
+        const notCounted = this.artifacts.timeline.all
+          .filter((e) => e.nativeCallsNotCounted !== undefined)
+          .slice(-NOT_COUNTED_IN_EVIDENCE)
+          .map((e) => ({ call: `${e.method} ${e.label}`.trim(), pending: e.nativeCallsNotCounted }));
+        const idle = { idleState: ev.idle, ...(notCounted.length > 0 ? { nativeCallsNotCounted: { note: NOT_COUNTED_NOTE, calls: notCounted } } : {}) };
+        evidence.push({ data: JSON.stringify(idle, null, 2), mediaType: 'application/json', fileName: 'idle-state.json' });
+      }
       if (ev.errors.length > 0) evidence.push({ data: `Quiesco could not collect: ${ev.errors.join('; ')}`, mediaType: 'text/plain', fileName: 'evidence-errors.txt' });
       if (ev.crash !== undefined) {
         evidence.push({ data: `${ev.crash.message}\n`, mediaType: 'text/plain', fileName: 'crash.txt' });

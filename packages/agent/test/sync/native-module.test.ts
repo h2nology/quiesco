@@ -98,14 +98,55 @@ describe('NativeModuleTracker (#67)', () => {
     expect(tracker.isIdle()).toBe(true);
   });
 
-  it('records nothing while off (the default); the agent\'s own module is not wrapped', () => {
+  it('while off, records calls without counting them and names them (#94); the agent\'s own module is not wrapped', () => {
     const s = storageModule();
     const own = { locate: () => Promise.resolve() };
     const expo = { modules: { Storage: s.module, QuiescoNative: own } as Record<string, unknown> };
     const tracker = setup({ expo });
+    tracker.configure({ enabled: false });
     void (expo.modules['Storage'] as typeof s.module).setItem('x');
+    vi.advanceTimersByTime(5);
     expect(tracker.isIdle()).toBe(true);
+    expect(tracker.notCounted()).toEqual(['Storage.setItem() 5ms']);
+    tracker.configure({ enabled: true });
+    expect(tracker.isIdle()).toBe(false);
+    expect(tracker.notCounted()).toEqual([]);
     expect(expo.modules['QuiescoNative']).toBe(own);
+  });
+
+  it('ignores calls that wait for the user by default; the config adds to them or turns them off (#93)', () => {
+    const never = () => new Promise(() => undefined);
+    const names = [
+      'ExpoLocation.requestForegroundPermissionsAsync',
+      'ExpoNotificationPermissionsModule.requestPermissionsAsync',
+      'PermissionsAndroid.requestPermission',
+      'PermissionsAndroid.requestMultiplePermissions',
+      'RNCDatePicker.open',
+      'RNCTimePicker.open',
+      'ExpoLocalAuthentication.authenticateAsync',
+      'ShareModule.share',
+      'ExpoWebBrowser.openAuthSessionAsync',
+      'ExponentImagePicker.launchImageLibraryAsync',
+    ];
+    const modules: Record<string, Record<string, () => Promise<unknown>>> = {};
+    for (const n of [...names, 'ExpoLocation.getCurrentPositionAsync', 'RNCDatePicker.dismiss']) {
+      const [m, f] = n.split('.') as [string, string];
+      (modules[m] ??= {})[f] = never;
+    }
+    const expo = { modules: modules as Record<string, unknown> };
+    const tracker = setup({ expo });
+    const call = (n: string) => {
+      const [m, f] = n.split('.') as [string, string];
+      void (expo.modules[m] as Record<string, () => Promise<unknown>>)[f]!();
+    };
+    tracker.configure({ enabled: true, ignore: ['Storage.'] });
+    for (const n of names) call(n);
+    expect(tracker.isIdle()).toBe(true);
+    call('ExpoLocation.getCurrentPositionAsync');
+    call('RNCDatePicker.dismiss');
+    expect(tracker.describeBusy()).toEqual(['ExpoLocation.getCurrentPositionAsync() 0ms', 'RNCDatePicker.dismiss() 0ms']);
+    tracker.configure({ enabled: true, defaultIgnore: false });
+    expect(tracker.describeBusy()).toHaveLength(names.length + 2);
   });
 
   it('leaves the registry and Expo\'s modules alone when the build does not ask for wrapping (#74)', () => {
