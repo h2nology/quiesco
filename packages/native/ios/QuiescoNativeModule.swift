@@ -790,13 +790,58 @@ public class QuiescoNativeModule: Module {
 }
 
 /**
- * Whether the software keyboard is sliding in or out: between UIKeyboardWill{Show,Hide} and the matching
- * Did notification. Its window covers part of the screen while it moves; afterwards a hit test sees
- * its final frame.
+ * Whether the software keyboard is sliding in or out: between UIKeyboardWill{Show,Hide,ChangeFrame} and
+ * the matching Did notification. Its window covers part of the screen while it moves; afterwards a hit
+ * test sees its final frame.
+ *
+ * The Did notification can come late: issue #104, didShow 10.4 s after willShow (animation 0.38 s) while
+ * UIKit waited for a pasteboard read, with the keyboard in place all along. So the motion ends at the
+ * latest when the Will notification's animation duration plus `lateSeconds` has passed.
  */
 final class KeyboardMotion {
   static let shared = KeyboardMotion()
-  private(set) var moving = false
+  /** After the animation duration, how long to wait for the Did notification before taking the keyboard as settled. */
+  static let lateSeconds: CFTimeInterval = 0.5
+  /** The latest Will notification without its Did notification yet, e.g. "willShow". */
+  private var pending: String?
+  private var pendingSince: CFTimeInterval = 0
+  private var pendingDuration: CFTimeInterval = 0
+  private var reportedLate = false
+
+  /** Main thread. Between a Will notification and its Did, bounded by the animation duration + lateSeconds. */
+  var moving: Bool {
+    guard let name = pending else { return false }
+    let elapsed = CACurrentMediaTime() - pendingSince
+    if elapsed < pendingDuration + Self.lateSeconds { return true }
+    if !reportedLate {
+      reportedLate = true
+      NSLog("[Quiesco] keyboard: no Did notification %.2fs after %@ (animation %.2fs); taking the keyboard as settled", elapsed, name, pendingDuration)
+    }
+    return false
+  }
+
+  /** The busy reason while moving, e.g. "keyboard moving (willShow 0.12s ago, animation 0.38s)". */
+  var movingReason: String {
+    guard let name = pending else { return "keyboard moving" }
+    return String(format: "keyboard moving (%@ %.2fs ago, animation %.2fs)", name, CACurrentMediaTime() - pendingSince, pendingDuration)
+  }
+
+  private func willMove(_ name: String, _ note: Notification) {
+    pending = name
+    pendingSince = CACurrentMediaTime()
+    pendingDuration = (note.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? NSNumber)?.doubleValue ?? 0.25
+    reportedLate = false
+    touch()
+  }
+
+  private func didMove() {
+    if reportedLate {
+      NSLog("[Quiesco] keyboard: Did notification %.2fs after %@", CACurrentMediaTime() - pendingSince, pending ?? "?")
+      reportedLate = false
+    }
+    pending = nil
+    touch()
+  }
   /** Between UIKeyboardWillShow and UIKeyboardDidHide. */
   private(set) var visible = false
   /**
@@ -821,20 +866,21 @@ final class KeyboardMotion {
   func start() {
     guard observers.isEmpty else { return }
     let center = NotificationCenter.default
-    observers.append(center.addObserver(forName: UIResponder.keyboardWillShowNotification, object: nil, queue: .main) { [weak self] _ in
-      self?.moving = true
+    observers.append(center.addObserver(forName: UIResponder.keyboardWillShowNotification, object: nil, queue: .main) { [weak self] note in
       self?.visible = true
-      self?.touch()
+      self?.willMove("willShow", note)
     })
-    observers.append(center.addObserver(forName: UIResponder.keyboardWillHideNotification, object: nil, queue: .main) { [weak self] _ in self?.moving = true; self?.touch() })
-    observers.append(center.addObserver(forName: UIResponder.keyboardDidShowNotification, object: nil, queue: .main) { [weak self] _ in self?.moving = false; self?.touch() })
+    observers.append(center.addObserver(forName: UIResponder.keyboardWillHideNotification, object: nil, queue: .main) { [weak self] note in self?.willMove("willHide", note) })
+    observers.append(center.addObserver(forName: UIResponder.keyboardDidShowNotification, object: nil, queue: .main) { [weak self] _ in self?.didMove() })
     // The keyboard also changes height while shown (e.g. a secure field switches the suggestion bar).
-    observers.append(center.addObserver(forName: UIResponder.keyboardWillChangeFrameNotification, object: nil, queue: .main) { [weak self] _ in self?.moving = true; self?.touch() })
-    observers.append(center.addObserver(forName: UIResponder.keyboardDidChangeFrameNotification, object: nil, queue: .main) { [weak self] _ in self?.moving = false; self?.touch() })
+    observers.append(center.addObserver(forName: UIResponder.keyboardWillChangeFrameNotification, object: nil, queue: .main) { [weak self] note in
+      // willShow / willHide come with a willChangeFrame; keep the more telling name.
+      self?.willMove(self?.pending ?? "willChangeFrame", note)
+    })
+    observers.append(center.addObserver(forName: UIResponder.keyboardDidChangeFrameNotification, object: nil, queue: .main) { [weak self] _ in self?.didMove() })
     observers.append(center.addObserver(forName: UIResponder.keyboardDidHideNotification, object: nil, queue: .main) { [weak self] _ in
-      self?.moving = false
       self?.visible = false
-      self?.touch()
+      self?.didMove()
     })
   }
 }
@@ -863,7 +909,7 @@ final class NativeSettleMonitor: NSObject {
     for w in QSTouchInjector.windows() where QuiescoNativeModule.isTransitioning(w) {
       r.append("view controller transition in \(String(describing: type(of: w)))")
     }
-    if KeyboardMotion.shared.moving { r.append("keyboard moving") } else if KeyboardMotion.shared.recentlyActive { r.append("keyboard just used") }
+    if KeyboardMotion.shared.moving { r.append(KeyboardMotion.shared.movingReason) } else if KeyboardMotion.shared.recentlyActive { r.append("keyboard just used") }
     lock.lock()
     reasons = r
     lock.unlock()
