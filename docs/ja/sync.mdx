@@ -13,7 +13,7 @@ Quiescoは、すべてのクエリとアサーションの前、そしてすべ�
 | `timer` | 遅延が`sync.timerThresholdMs`（1.5秒）以下の`setTimeout`が保留中 | それより長いタイマー（セッションの有効期限、30秒ごとのポーリング）はブロックしません。`setInterval`は`sync.countIntervals: true`のときだけカウントされます。 |
 | `react` | Reactに未コミットの作業がある：保留中のレーンやスケジュール済みのコールバックを持つルート、またはReactのスケジューラーに保留中のタスク（レンダリング作業、パッシブエフェクト） | DevToolsフック経由でReact自身の管理情報を読み取ります。アプリ側の変更は不要です。 |
 | `idle-callback` | `requestIdleCallback`が保留中（`InteractionManager`がまだあるReact Nativeのバージョンでは、その作業も） | |
-| `native`（iOS） | ビューコントローラーの遷移（ナビゲーション、モーダル表示）が実行中、またはキーボードが動いている / 使われた直後 | `@quiesco/native`が報告します。JavaScriptからは見えないUIKitの処理をカバーします。 |
+| `native`（iOS） | ビューコントローラーの遷移（ナビゲーション、モーダル表示）が実行中、またはキーボードが動いている / 使われた直後 | `@quiesco/native`が報告します。JavaScriptからは見えないUIKitの処理をカバーします。「キーボードが動いている」はUIKitの`keyboardWill…`通知から対応する`keyboardDid…`までで、長くてもアニメーション時間に0.5秒を足した時間です。iOSはキーボードがすでに表示されているのに`keyboardDidShow`を数秒遅れて送ることがあります（そのときデバイスログに`[Quiesco] keyboard: no Did notification …`が出ます）。 |
 | `frame-stable` | 要素ツリー（すべての要素の型、testID、テキスト、丸めた位置とサイズ）が直近の`sync.stableFrames`（2）フレームの間に変化した | UIスレッド上のアニメーション（Reanimated、native driverの`Animated`）のためのフォールバックです。呼び出しが待機している間だけサンプリングされます。 |
 
 | `native-module`（ネイティブモジュールをラップするビルドではオン） | ネイティブモジュールのメソッド（TurboModule / NativeModules、Expoモジュール）が返したPromiseが未解決。最長`sync.nativeCallThresholdMs`（2秒） | [ネイティブモジュールの呼び出し](#native-module-calls)を参照してください。 |

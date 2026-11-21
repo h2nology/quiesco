@@ -13,7 +13,7 @@ Quiesco 会在每次查询和断言之前、每次操作之后，等待 App 进�
 | `timer` | 有延迟 ≤ `sync.timerThresholdMs`（1.5 s）的 `setTimeout` 尚未触发 | 更长的定时器（会话过期、每 30 s 一次的轮询）不会阻塞。`setInterval` 仅在 `sync.countIntervals: true` 时计入。|
 | `react` | React 有未提交的工作：某个 root 有待处理的 lane 或已调度的回调，或 React 调度器中有待处理的任务（渲染工作、passive effect） | 通过 DevTools hook 读取 React 自身的记录—— App 无需任何改动。|
 | `idle-callback` | 有尚未执行的 `requestIdleCallback`（以及仍提供 `InteractionManager` 的 React Native 版本中的相应任务） | |
-| `native`（iOS） | 正在进行 view controller 转场（导航、模态展示），或键盘正在移动 / 刚被使用过 | 由 `@quiesco/native` 上报；覆盖 JavaScript 看不到的 UIKit 工作。|
+| `native`（iOS） | 正在进行 view controller 转场（导航、模态展示），或键盘正在移动 / 刚被使用过 | 由 `@quiesco/native` 上报；覆盖 JavaScript 看不到的 UIKit 工作。「键盘正在移动」从 UIKit 的 `keyboardWill…` 通知开始，到对应的 `keyboardDid…` 结束，最长为动画时长加 0.5 秒：iOS 有时在键盘早已就位后才晚几秒发出 `keyboardDidShow`（此时设备日志里会有 `[Quiesco] keyboard: no Did notification …`）。|
 | `frame-stable` | 元素树（每个元素的类型、testID、文本，以及取整后的位置和尺寸）在最近 `sync.stableFrames`（2）帧内发生了变化 | 用于兜底 UI 线程上的动画（Reanimated、native driver 的 `Animated`）。只在有调用等待时采样。|
 
 | `native-module`（构建包装原生模块时开启） | 原生模块方法（TurboModule / NativeModules、Expo 模块）返回的 Promise 尚未完成，最长 `sync.nativeCallThresholdMs`（2 秒） | 见[原生模块调用](#native-module-calls)。 |
