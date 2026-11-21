@@ -105,7 +105,13 @@ export class SyncEngine {
   getIdleState(): TrackerState[] {
     return this.active().map((t) => {
       const idle = safe(() => t.isIdle(), false);
-      return { name: t.name, idle, busy: idle ? [] : safe(() => t.describeBusy(), ['describeBusy() threw']) };
+      const lastWait = safe(() => t.describeLastWait?.() ?? [], []);
+      return {
+        name: t.name,
+        idle,
+        busy: idle ? [] : safe(() => t.describeBusy(), ['describeBusy() threw']),
+        ...(idle && lastWait.length > 0 ? { lastWait } : {}),
+      };
     });
   }
 

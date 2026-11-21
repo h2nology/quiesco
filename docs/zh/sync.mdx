@@ -71,7 +71,7 @@ App did not become idle within the 10000ms timeout. Busy:
 
 - **network**——一个永不结束的请求（长轮询、卡住的后端）：把它加入 `sync.ignoreUrls`，或修复后端 / mock。可以在 mock 服务器中加入类似 `MOCK_STALL` 的开关，有意复现这种情况。
 - **timer**——一个被反复重新设置的短定时器（用 `setTimeout` 实现的轮询循环、会重新调度自身的 toast）。对该步骤跳过同步（`{ sync: false }`），只在该场景中关闭 timer tracker（`this.app.sync.disableTracker('timer')`），或在 e2e 构建中停止该循环。只有延迟不超过 `sync.timerThresholdMs` 的定时器才会计入，所以把阈值调低到循环间隔以下也能解决，但整个 App 里所有这么短的定时器都会因此不再计入。
-- **frame-stable**——有东西一直在动：无限循环的动画（spinner、shimmer、跑马灯、缓慢的装饰性光晕）或计数器。报告会指出第一个发生变化的元素。如果该元素只是装饰，给它一个 testID 并列入 `sync.ignoreElements`——它及其子树会被排除在这项检查之外，其余部分照常检查。否则用 `{ sync: false }` 调用该步骤，之后再断言需要的内容，或在 e2e 构建中禁用该动画。如果相对于等待时间，`frames sampled` 非常少，说明 UI 线程被饿死了（模拟器过载），而不是在播放动画。
+- **frame-stable**——有东西一直在动：无限循环的动画（spinner、shimmer、跑马灯、缓慢的装饰性光晕）或计数器。报告会指出第一个发生变化的元素。如果该元素只是装饰，给它一个 testID 并列入 `sync.ignoreElements`——它及其子树会被排除在这项检查之外，其余部分照常检查。否则用 `{ sync: false }` 调用该步骤，之后再断言需要的内容，或在 e2e 构建中禁用该动画。如果相对于等待时间，`frames sampled` 非常少，说明 UI 线程被饿死了（模拟器过载），而不是在播放动画。`recent changes` 列出最近几次变化（距等待开始的时间、节点数、第一个不同的节点）。如果同一个元素一直在来回变化（即使元素树的其他部分也在变），报告会指出是哪个元素。如果每次都是添加又删除一个元素，通常是列表造成的：没有 `getItemLayout`、行高又略有差异的 `FlatList` / `VirtualizedList`，在滚动后可能会在渲染窗口边缘反复添加和删除同一项。加大 `timeoutMs` 没有用；加上 `getItemLayout` 或固定行高通常就能停止。这是真实发生的活动，所以 Quiesco 仍然把它算作忙碌。frame-stable 只在调用等待时采样，所以超时后 `idle-state.json` 里它显示为空闲；它的 `lastWait` 保留了等待结束时报告的内容。
 - **react**——渲染循环（effect 中没有加条件判断的状态更新）永远无法稳定：这是一个真实的 bug。
 
 `AGENT_TIMEOUT` 则不同：agent 完全没有响应，通常是因为 JS 线程被一个长时间的同步任务阻塞。

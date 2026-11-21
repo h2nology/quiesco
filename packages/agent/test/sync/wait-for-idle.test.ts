@@ -139,6 +139,12 @@ describe('SyncEngine.waitForIdle', () => {
       { name: 'a', idle: true, busy: [] },
       { name: 'b', idle: false, busy: ['why'] },
     ]);
+    a.describeLastWait = () => ['changing at the end of the last wait'];
+    b.describeLastWait = () => ['not listed while busy'];
+    expect(engine.getIdleState()).toEqual([
+      { name: 'a', idle: true, busy: [], lastWait: ['changing at the end of the last wait'] },
+      { name: 'b', idle: false, busy: ['why'] },
+    ]);
     engine.uninstall();
     engine.uninstall();
     expect(a.calls).toEqual(['install', 'uninstall']);
