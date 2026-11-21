@@ -221,6 +221,57 @@ describe('IosProvider system UI (6.7 batch C)', () => {
     expect(openTappedAfter).toBeLessThan(1_500);
   });
 
+  it('taps a revealed "Open" button past the deadline: a grouped notification takes a tap to expand (#100)', async () => {
+    const cell = (x: number, y: number, label: string) => ({ label, id: 'ListCell', frame: [x, y, 400 - x, 80] });
+    const screens: RunnerScreen[] = [{ alerts: [], others: [cell(0, 300, 'now, Reminder, body')] }];
+    const { runner, calls } = stateful(screens, 3, (n) => {
+      // The first tap expands the group (two older ones below), the second reveals "Open".
+      if (n === 1) screens.splice(0, screens.length, { alerts: [], others: [cell(0, 280, 'now, Reminder, body'), cell(0, 380, 'Yesterday, Reminder, old')] });
+      if (n === 2) screens.splice(0, screens.length, { alerts: [], others: [cell(110, 280, 'now, Reminder, body'), { label: 'Open', id: '', frame: [14, 280, 90, 80] }, cell(0, 380, 'Yesterday, Reminder, old')] });
+    });
+    // The second tap ends after the deadline (a slow runner); "Open" shows up only then.
+    const tap = runner.tap;
+    let taps = 0;
+    runner.tap = async (x, y) => {
+      if (++taps === 2) await new Promise((r) => setTimeout(r, 1_100));
+      await tap(x, y);
+    };
+    await make(runner).openNotification('Reminder', 1_000);
+    expect(calls).toEqual(['tap 200,340', 'tap 200,320', 'tap 59,320']);
+  });
+
+  it('taps again at once when the notification moved under the tap: Notification Center was still laying out (#100)', async () => {
+    const cell = (y: number) => ({ label: 'now, Reminder, body', id: 'ListCell', frame: [14, y, 374, 66] });
+    const screens: RunnerScreen[] = [{ alerts: [], others: [cell(648)] }];
+    let missedAt = 0;
+    let retapAfter = -1;
+    const { runner, calls } = stateful(screens, 2, (n) => {
+      // Another app's notifications show up below and push this one up; the tap missed.
+      if (n === 1) {
+        missedAt = Date.now();
+        screens.splice(0, screens.length, { alerts: [], others: [cell(574), { label: '2 hours ago, Other app', id: 'ListCell', frame: [14, 664, 374, 66] }] });
+      }
+      if (n === 2) retapAfter = Date.now() - missedAt;
+    });
+    await make(runner).openNotification('Reminder', 10_000);
+    expect(calls).toEqual(['tap 201,681', 'tap 201,607']);
+    expect(retapAfter).toBeLessThan(1_500); // not after the 3 s wait for the app
+  });
+
+  it('counts the banner wait from the call: a runner that started late missed the banner (#100)', async () => {
+    let ready = 0;
+    let centerAt = 0;
+    const { runner, calls } = fakeRunner([{ alerts: [], others: [] }], 0, {
+      start: () => new Promise((r) => setTimeout(() => ((ready = Date.now()), r()), 1_100)),
+    });
+    const center = runner.openNotificationCenter;
+    runner.openNotificationCenter = async () => ((centerAt = Date.now()), center());
+    // Banner wait: half the timeout (1 s), over by the time the runner is ready.
+    await make(runner).openNotification('Reminder', 2_000);
+    expect(calls).toEqual(['center', 'tap 200,340']);
+    expect(centerAt - ready).toBeLessThan(500);
+  });
+
   it('re-reads SpringBoard for the settle check, never an app\'s slow element tree (#87)', async () => {
     const { runner } = fakeRunner([{ alerts: [FACE_ID_ALERT], others: [] }]);
     const p = make(runner);
@@ -253,14 +304,15 @@ describe('IosProvider system UI (6.7 batch C)', () => {
         });
       }
     });
-    await expect(make(runner).openNotification('Reminder', 600)).rejects.toThrow(/tapped "Reminder" 1 time/);
-    expect(calls).toEqual(['tap 200,340']);
+    // Within the tap grace (#100) it taps the notification again in Notification Center; never "Clear".
+    await expect(make(runner).openNotification('Reminder', 600)).rejects.toThrow(/tapped "Reminder" 2 time/);
+    expect(calls).toEqual(['tap 200,340', 'center', 'tap 200,340']);
   });
 
   it('says it tapped when the app never comes to the front (#68)', async () => {
     const banner = { alerts: [], others: [{ label: '今, Reminder, body', id: 'ShortLook.Platter.Content.Seamless', frame: [8, 58, 386, 66] }] };
     const { runner } = stateful([banner], Number.MAX_SAFE_INTEGER);
-    await expect(make(runner).openNotification('Reminder', 600)).rejects.toThrow(/tapped "Reminder" 1 time\(s\), but the app did not come to the front within 600ms/);
+    await expect(make(runner).openNotification('Reminder', 600)).rejects.toThrow(/tapped "Reminder" 2 time\(s\), but the app did not come to the front within 600ms and 3000ms more after tapping/);
   });
 
   it('dismisses alerts left over by the previous scenario before the next one, and stops the runner', async () => {
