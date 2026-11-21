@@ -247,8 +247,8 @@ function revealedOpen(frame: number[], b: { x1: number; x2: number; y1: number; 
 const BIOMETRIC_ENROLLMENT = 'com.apple.BiometricKit.enrollmentChanged';
 
 /**
- * openNotification: after BANNER_WAIT_MS (at most half the timeout) without a banner, it looks in
- * Notification Center. Long enough for a notification scheduled a few seconds ahead to show as a banner:
+ * openNotification: BANNER_WAIT_MS (at most half the timeout) after the call without a banner, it looks
+ * in Notification Center. Long enough for a notification scheduled a few seconds ahead to show as a banner:
  * opened earlier, Notification Center receives it, and on iOS 27 a tap on a notification that just
  * arrived there does nothing (2 s: 1 run in 4 failed once the runner was warm, issue #82).
  */
@@ -266,6 +266,12 @@ const NOTIFICATION_TAP_CONFIRM_MS = 1_500;
 /** The same for a runner that reads the app's state: an app resuming from suspension may take a moment. */
 const NOTIFICATION_FRONT_MS = 3_000;
 const NOTIFICATION_TAPS = 3;
+/**
+ * openNotification's deadline bounds finding the notification. A tap made by then may be followed by
+ * more (up to NOTIFICATION_TAPS) this much longer (#100): the first tap may land while Notification
+ * Center still moves, or only expand a group, and the app takes up to NOTIFICATION_FRONT_MS to come up.
+ */
+const NOTIFICATION_TAP_GRACE_MS = NOTIFICATION_FRONT_MS;
 
 export class IosProvider implements DeviceProvider {
   readonly platform = 'ios' as const;
@@ -866,7 +872,7 @@ export class IosProvider implements DeviceProvider {
   /**
    * Tap the notification titled `title`: its banner while it is shown, else in Notification Center
    * (swiped down from the top edge). Banners read "<time>, <title>, <body>". Waits up to `timeoutMs` for it,
-   * counted once the system UI runner is up (issue #64).
+   * counted once the system UI runner is up (issue #64), and NOTIFICATION_TAP_GRACE_MS more once tapped.
    *
    * A tap counts once the app is in front (issue #68): a banner that slides away by itself under the tap
    * also leaves the screen, but the app stays suspended. Otherwise Quiesco looks again — in Notification
@@ -874,6 +880,7 @@ export class IosProvider implements DeviceProvider {
    * the app's notifications only expands it (issue #65).
    */
   async openNotification(title: string, timeoutMs: number): Promise<void> {
+    const called = Date.now();
     await this.prepareSystemUi();
     const runner = this.runner;
     const matches = (o: { label: string }) => o.label.split(', ').includes(title) || o.label.includes(title);
@@ -887,11 +894,15 @@ export class IosProvider implements DeviceProvider {
     const inFront = async () => appState !== undefined && (await appState(this.bundleId).catch(() => 0)) === RUNNING_FOREGROUND;
     const start = Date.now();
     const deadline = start + timeoutMs;
+    const tapsUntil = deadline + NOTIFICATION_TAP_GRACE_MS;
+    // The banner wait counts from the call, not from the runner being ready: a runner that took longer to
+    // start than the banner stays up missed it, and the notification is in Notification Center (#100).
+    const centerAfter = Math.max(start, called + Math.min(BANNER_WAIT_MS, timeoutMs / 2));
     let centerOpened = false;
     let taps = 0;
     for (;;) {
       const hit = await find();
-      if (hit !== undefined && taps < NOTIFICATION_TAPS && (taps === 0 || Date.now() <= deadline)) {
+      if (hit !== undefined && taps < NOTIFICATION_TAPS && (taps === 0 || Date.now() <= tapsUntil)) {
         // The banner slides in, Notification Center slides down: tap only once two reads a moment apart
         // agree on where it is (a tap during the animation misses; the app then stays in the background,
         // suspended — batch D 2026-11-13).
@@ -910,24 +921,30 @@ export class IosProvider implements DeviceProvider {
         // withdrawn ~3 s later (issue #82): a new, small button, not a notification, left in that row. Not
         // one on the right ("Clear", "Options"), nor another notification. Read from the last `find`.
         const revealed = () => shown.find((o) => !before.has(o.label) && !matches(o) && !o.label.includes(', ') && revealedOpen(o.frame, b));
-        if (await this.tapOpened(appState !== undefined, inFront, find, deadline, expanded, revealed, title)) return;
+        // The notification is still there, higher or lower: the list moved under the tap (Notification Center
+        // lays out what it loads after it slid down), and the tap missed (#100). Revealing "Open" moves it sideways.
+        const moved = () => {
+          const now = shown.filter(matches).sort((a, z) => (a.frame[1] ?? 0) - (z.frame[1] ?? 0))[0];
+          return now !== undefined && now.frame[1] !== again.frame[1];
+        };
+        if (await this.tapOpened(appState !== undefined, inFront, find, tapsUntil, expanded, revealed, moved, title)) return;
         this.logger.warn(`openNotification: the app did not come to the front after tapping "${title}"; looking again`);
         continue;
       }
       if (taps > 0 && (await inFront())) return;
-      if (Date.now() > deadline) {
+      if (Date.now() > (taps > 0 ? tapsUntil : deadline)) {
         const screen = await runner.screen().catch((): RunnerScreen => ({ alerts: [], others: [] }));
         // A system alert is often the reason (issue #85: the permission prompt, so nothing was scheduled).
         const alerts = screen.alerts.length === 0 ? '' : `; a system alert is up: ${screen.alerts.map(describeAlert).join(', ')}`;
         const seen = `${screen.others.map((o) => JSON.stringify(o.label)).slice(0, 8).join(', ') || 'nothing'}${alerts}`;
         if (taps > 0) {
-          throw new QuiescoError('DEVICE_ERROR', `openNotification: tapped "${title}" ${taps} time(s), but the app did not come to the front within ${timeoutMs}ms (seen: ${seen})`);
+          throw new QuiescoError('DEVICE_ERROR', `openNotification: tapped "${title}" ${taps} time(s), but the app did not come to the front within ${timeoutMs}ms and ${NOTIFICATION_TAP_GRACE_MS}ms more after tapping (seen: ${seen})`);
         }
         const hint = screen.alerts.some(isPermissionAlert) ? 'Answer the permission alert first (system.allowPermission())' : 'Can the app show notifications (system.allowPermission())?';
         throw new QuiescoError('DEVICE_ERROR', `openNotification: no notification "${title}" in a banner or Notification Center within ${timeoutMs}ms (seen: ${seen}). ${hint}`);
       }
       // The banner goes away after a few seconds (also after a tap that missed it); then the notification is in Notification Center.
-      if (!centerOpened && (taps > 0 || Date.now() > start + Math.min(BANNER_WAIT_MS, timeoutMs / 2))) {
+      if (!centerOpened && (taps > 0 || Date.now() > centerAfter)) {
         await runner.openNotificationCenter();
         centerOpened = true;
       }
@@ -940,6 +957,8 @@ export class IosProvider implements DeviceProvider {
    * (`knowsState`), else (a runner that cannot tell) the notification went away within NOTIFICATION_TAP_CONFIRM_MS.
    * An "Open" button the tap revealed (`revealed`, read after each look) is tapped as soon as two looks
    * agree on where it is, and the wait starts again (issue #82: it is withdrawn ~3 s later).
+   * `deadline` bounds the wait, but not a revealed "Open" button (#100): it gets its second look, and the
+   * wait after its tap. A notification that moved up or down (`moved`) was missed: no wait (#100).
    */
   private async tapOpened(
     knowsState: boolean,
@@ -948,11 +967,14 @@ export class IosProvider implements DeviceProvider {
     deadline: number,
     expanded: () => Promise<boolean>,
     revealed: () => RunnerScreen['others'][number] | undefined,
+    moved: () => boolean,
     title: string,
   ): Promise<boolean> {
-    // Not past the call's deadline (but one look at least).
-    const waitUntil = () => Math.min(Date.now() + (knowsState ? NOTIFICATION_FRONT_MS : NOTIFICATION_TAP_CONFIRM_MS), Math.max(deadline, Date.now()));
-    let until = waitUntil();
+    const confirmMs = knowsState ? NOTIFICATION_FRONT_MS : NOTIFICATION_TAP_CONFIRM_MS;
+    // Not past the deadline (but one look at least), except for a revealed "Open" button.
+    let until = Math.min(Date.now() + confirmMs, Math.max(deadline, Date.now()));
+    // How long a button that keeps moving may be looked at (iOS withdraws it after ~3 s anyway).
+    const lookUntil = Math.max(deadline, Date.now()) + NOTIFICATION_FRONT_MS;
     let openAt: string | undefined;
     let openTapped = false;
     for (;;) {
@@ -965,9 +987,12 @@ export class IosProvider implements DeviceProvider {
         this.logger.warn(`openNotification: tapping "${title}" showed ${JSON.stringify(open.label)} (Notification Center on iOS 27, or a locked device); tapping it`);
         await this.runner.tap((r.x1 + r.x2) / 2, (r.y1 + r.y2) / 2);
         openTapped = true;
-        until = waitUntil();
+        until = Date.now() + confirmMs;
         continue;
       }
+      if (open === undefined && !openTapped && moved()) return false;
+      // A newly seen "Open" button: look again once it had time to settle.
+      if (open !== undefined) until = Math.max(until, Math.min(Date.now() + 2 * NOTIFICATION_POLL_MS, lookUntil));
       openAt = at;
       if (Date.now() >= until) return false;
       await new Promise((r) => setTimeout(r, NOTIFICATION_POLL_MS));
