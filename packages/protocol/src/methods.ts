@@ -16,6 +16,11 @@ export interface TrackerState {
   idle: boolean;
   /** Human-readable busy reasons, e.g. `GET https://api.example.com/todos (1200ms)`. */
   busy: string[];
+  /**
+   * frame-stable only samples while a call waits, so after a sync timeout it reports idle: these are its
+   * busy reasons when the latest wait for idle ended while the element tree was still changing (issue #102).
+   */
+  lastWait?: string[];
 }
 
 /** Common option: disable the automatic wait-for-idle around a single call (§6.2 `{ sync: false }`). */

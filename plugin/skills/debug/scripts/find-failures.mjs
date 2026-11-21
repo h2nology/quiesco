@@ -123,4 +123,8 @@ for (const sdir of failed) {
   } else if (idle) {
     console.log('Busy: nothing (the app was idle when the evidence was taken)');
   }
+  // frame-stable only samples while a call waits: what it saw when the last wait ended busy.
+  for (const t of idle?.idleState ?? []) {
+    if (Array.isArray(t.lastWait) && t.lastWait.length) console.log(`Busy at the end of the last wait: ${t.name}: ${JSON.stringify(t.lastWait)}`);
+  }
 }

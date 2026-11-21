@@ -33,6 +33,8 @@ App 始终没有进入空闲状态；错误会列出所有处于忙碌状态的�
 
 如果帧稳定那一行显示在等待期间采样到的帧非常少，说明设备资源不足（过载机器上的模拟器），而不是在播放动画。请关闭其他模拟器。
 
+如果在列表上 `scrollTo` 或滑动之后，报告说同一处变化在来回切换（添加又删除一个元素），说明列表在渲染窗口边缘反复添加和删除同一项。加大 `timeoutMs` 没有用：给 `FlatList` 加上 `getItemLayout`，或让各行高度一致（[同步](./sync#when-the-app-never-becomes-idle)）。
+
 ## `ELEMENT_OBSCURED` {#element-obscured}
 
 真实的触摸会点到别的东西上。错误会指出是什么（`obscuredBy`；在 iOS 上是原生的命中链）。常见原因：对话框或底部弹层仍然打开、toast、内容位于半透明导航栏下方（iOS 26+）、元素仍在以动画移动到位。遮住目标的软键盘会被自动收起。React Native 在 `<QuiescoRoot>` 之外画在 App 上面的元素也算：LogBox 的 toast 会直接点名（[见下文](#logbox)），其他元素会说明是「drawn over the app outside `<QuiescoRoot>`」。

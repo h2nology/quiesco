@@ -107,6 +107,14 @@ What to do depends on the tracker:
   this check, everything else still is. Otherwise call the step with `{ sync: false }` and assert what
   you need afterwards, or disable the animation in e2e builds. If `frames sampled` is very
   low for the time waited, the UI thread is starved (an overloaded emulator), not animating.
+  `recent changes` lists the latest changes (time into the wait, node count, first different node).
+  When the same element keeps changing back and forth, even while other parts of the tree change, the
+  report names it. If an element is added and removed each time, it is usually a list: a `FlatList` / `VirtualizedList` without
+  `getItemLayout` and with rows of slightly different heights can keep adding and removing the item at
+  the edge of its render window after a scroll. A longer `timeoutMs` does not help; `getItemLayout`
+  or fixed row heights usually stop it. Quiesco still counts this as busy, since it is real activity.
+  frame-stable only samples while a call waits, so `idle-state.json` shows it idle after a timeout;
+  its `lastWait` keeps what it reported when the wait ended.
 - **react** — a render loop (a state update in an effect without a guard) never settles: a real bug.
 
 `AGENT_TIMEOUT` is different: the agent did not answer at all, usually because the JS thread is blocked

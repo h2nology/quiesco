@@ -54,6 +54,11 @@ animations). For a screen with an endless animation, pass `{ sync: false }` to t
 If the frame-stable line says very few frames were sampled in the time waited, the device was starved
 (an emulator on an overloaded machine), not animating. Close other simulators / emulators.
 
+If it says the same change went back and forth, with an element added and removed, after a `scrollTo`
+or a swipe on a list, the list keeps adding and removing an item at the edge of its render window.
+Raising `timeoutMs` does not help: give the `FlatList` `getItemLayout`, or make its rows the same height
+([synchronization](../../quiesco-api/references/sync.md#when-the-app-never-becomes-idle)).
+
 ## `ELEMENT_OBSCURED` {#element-obscured}
 
 A real touch would hit something else. The error names it (`obscuredBy`; on iOS the native hit chain).

@@ -9,6 +9,8 @@ export interface IdleTracker {
   /** Optional: called when a waitForIdle starts / ends (frame-stable only samples while waiting). */
   beginWait?(): void;
   endWait?(): void;
+  /** Optional: for a tracker that only samples while waiting, its busy reasons when the latest wait ended busy. */
+  describeLastWait?(): string[];
 }
 
 /** Timer functions the agent uses for its own scheduling. They must NOT be the tracked ones. */
