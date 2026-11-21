@@ -123,7 +123,7 @@ function projectChecks(ctx: CliContext, app: CliContext): CheckResult[] {
 
   const appJson = readJson<{ expo?: { plugins?: unknown[] } }>(app, path.join(app.cwd, 'app.json'));
   const plugins = appJson?.expo?.plugins ?? [];
-  const listed = plugins.some((p) => p === '@quiesco/expo-plugin' || (Array.isArray(p) && p[0] === '@quiesco/expo-plugin'));
+  const listed = listsQuiescoPlugin(plugins);
   const dynamic = ['app.config.ts', 'app.config.js', 'app.config.mjs'].some((f) => app.exists(path.join(app.cwd, f)));
   results.push(
     listed
@@ -286,6 +286,29 @@ interface AppJsonIds {
   expo?: { scheme?: string | string[]; ios?: { bundleIdentifier?: string }; android?: { package?: string } };
 }
 
+type ExpoIds = NonNullable<AppJsonIds['expo']> & { plugins?: unknown[] };
+
+function listsQuiescoPlugin(plugins: readonly unknown[]): boolean {
+  return plugins.some((p) => p === '@quiesco/expo-plugin' || (Array.isArray(p) && p[0] === '@quiesco/expo-plugin'));
+}
+
+
+/**
+ * The app config as Expo resolves it (issue #96: app.config.ts on top of app.json), with the environment of
+ * an e2e build (EXPO_PUBLIC_QUIESCO=1). Null when `expo config` fails (it may need variables that are not
+ * set) or prints something else than JSON.
+ */
+async function resolveAppConfig(app: CliContext): Promise<ExpoIds | null> {
+  const r = await app.exec('npx', ['expo', 'config', '--json', '--type', 'public'], { cwd: app.cwd, env: { ...process.env, EXPO_PUBLIC_QUIESCO: '1' } }).catch(() => null);
+  if (r === null || r.code !== 0) return null;
+  try {
+    const config: unknown = JSON.parse(r.stdout);
+    return typeof config === 'object' && config !== null && !Array.isArray(config) ? (config as ExpoIds) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Issue #94: the native-module tracker needs the build to wrap native modules. Turned on in the config
  * without that, it counts nothing (the run warns too, once it connects).
@@ -311,7 +334,7 @@ function nativeModuleChecks(app: CliContext, config: QuiescoConfig): CheckResult
  * uses) and, when they exist, with the prebuilt Android project and the iOS build. Placeholders left by
  * init fail.
  */
-async function appIdChecks(ctx: CliContext, app: CliContext, config: QuiescoConfig): Promise<CheckResult[]> {
+async function appIdChecks(ctx: CliContext, app: CliContext, config: QuiescoConfig, resolvedAppConfig: () => Promise<ExpoIds | null>): Promise<CheckResult[]> {
   const { ios, android } = config.apps;
   if (ios === undefined && android === undefined) return [];
   const configFile = CONFIG_FILES.find((f) => ctx.exists(path.join(ctx.cwd, f)));
@@ -328,26 +351,29 @@ async function appIdChecks(ctx: CliContext, app: CliContext, config: QuiescoConf
   }
   const dynamic = DYNAMIC_APP_CONFIGS.find((f) => app.exists(path.join(app.cwd, f)));
   const results: CheckResult[] = [];
-  if (dynamic !== undefined) {
-    results.push({ name: 'app IDs', status: 'warn', detail: `${dynamic} found; cannot compare the app IDs with it`, fix: 'Make sure apps.ios.bundleId, apps.android.package and devClient.scheme are the values your app config sets.' });
+  // A dynamic config (issue #96): resolved the way Expo does, with the environment the e2e build has.
+  const resolved = dynamic !== undefined ? await resolvedAppConfig() : null;
+  if (dynamic !== undefined && resolved === null) {
+    results.push({ name: 'app IDs', status: 'warn', detail: `${dynamic} found, and \`npx expo config\` could not resolve it; cannot compare the app IDs`, fix: 'Make sure apps.ios.bundleId, apps.android.package and devClient.scheme are the values your app config sets.' });
   } else {
-    const expo = readJson<AppJsonIds>(app, path.join(app.cwd, 'app.json'))?.expo ?? {};
+    const source = dynamic !== undefined ? `${dynamic} (resolved)` : 'app.json';
+    const expo = resolved ?? readJson<AppJsonIds>(app, path.join(app.cwd, 'app.json'))?.expo ?? {};
     const schemes = expo.scheme === undefined ? [] : Array.isArray(expo.scheme) ? expo.scheme : [expo.scheme];
     const problems: string[] = [];
     const compare = (what: string, want: string, have: string | undefined): void => {
-      if (have === undefined) problems.push(`app.json has no expo.${what} (the build gets Expo's default, not ${want})`);
-      else if (have !== want) problems.push(`quiesco.config has ${want}, app.json expo.${what} is ${have}`);
+      if (have === undefined) problems.push(`${source} has no expo.${what} (the build gets Expo's default, not ${want})`);
+      else if (have !== want) problems.push(`quiesco.config has ${want}, ${source} expo.${what} is ${have}`);
     };
     if (ios !== undefined) compare('ios.bundleIdentifier', ios.bundleId, expo.ios?.bundleIdentifier);
     if (android !== undefined) compare('android.package', android.package, expo.android?.package);
     const scheme = android?.devClient?.scheme;
     if (scheme !== undefined && !schemes.includes(scheme)) {
-      problems.push(schemes.length === 0 ? `app.json has no expo.scheme (the dev client cannot be opened with ${scheme}://)` : `devClient.scheme is ${scheme}, app.json expo.scheme is ${schemes.join(', ')}`);
+      problems.push(schemes.length === 0 ? `${source} has no expo.scheme (the dev client cannot be opened with ${scheme}://)` : `devClient.scheme is ${scheme}, ${source} expo.scheme is ${schemes.join(', ')}`);
     }
     results.push(
       problems.length === 0
-        ? { name: 'app IDs', status: 'ok', detail: 'quiesco.config matches app.json' }
-        : { name: 'app IDs', status: 'fail', detail: problems.join('; '), fix: 'Use the same IDs in app.json and quiesco.config, then build again (npx quiesco build ios / android).' },
+        ? { name: 'app IDs', status: 'ok', detail: `quiesco.config matches ${source}` }
+        : { name: 'app IDs', status: 'fail', detail: problems.join('; '), fix: `Use the same IDs in ${dynamic ?? 'app.json'} and quiesco.config, then build again (npx quiesco build ios / android).` },
     );
   }
   // The builds: an app built before the IDs changed is another app.
@@ -539,11 +565,22 @@ export async function runChecks(ctx: CliContext, only: CliPlatform | undefined, 
   const app = appContext(ctx, config, appDirFlag);
   if (app !== ctx) results.push({ name: 'app', status: 'ok', detail: `${inApp(ctx, app)} (${appDirFlag !== undefined ? APP_DIR_OPTION : 'appDir'}); the test setup in ${ctx.cwd}` });
   results.push(...projectChecks(ctx, app));
+  // Run once, when a check needs it (~0.5 s).
+  let resolving: Promise<ExpoIds | null> | undefined;
+  const resolvedAppConfig = (): Promise<ExpoIds | null> => (resolving ??= resolveAppConfig(app));
+  // The config plugin of a dynamic app config (issue #96): from the config as Expo resolves it.
+  const plugin = results.findIndex((r) => r.name === 'config plugin' && r.status === 'warn' && r.detail.startsWith('app.config'));
+  const resolvedPlugins = plugin >= 0 ? (await resolvedAppConfig())?.plugins : undefined;
+  if (resolvedPlugins !== undefined) {
+    results[plugin] = listsQuiescoPlugin(resolvedPlugins)
+      ? { name: 'config plugin', status: 'ok', detail: '@quiesco/expo-plugin in the resolved app config' }
+      : { name: 'config plugin', status: 'warn', detail: '@quiesco/expo-plugin is not in the resolved app config plugins', fix: 'Add "@quiesco/expo-plugin" to plugins in your app config (needed for iOS / Android e2e builds, not for web).' };
+  }
   results.push(rootCheck(app, readJson<PackageJson>(app, path.join(app.cwd, 'package.json'))?.main));
 
   if (config !== null) {
     results.push({ name: 'quiesco.config', status: 'ok', detail: `apps: ${Object.keys(config.apps).join(', ') || 'none'}` });
-    results.push(...(await appIdChecks(ctx, app, config)));
+    results.push(...(await appIdChecks(ctx, app, config, resolvedAppConfig)));
     // A script that builds may be in either package.json.
     const scripts = { ...readJson<PackageJson>(app, path.join(app.cwd, 'package.json'))?.scripts, ...readJson<PackageJson>(ctx, path.join(ctx.cwd, 'package.json'))?.scripts };
     results.push(...buildScriptChecks({ scripts }, config));

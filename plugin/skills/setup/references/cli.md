@@ -66,14 +66,16 @@ npx quiesco@latest init --upgrade --dry-run  # only list the changes
 Brings a project set up by an older `quiesco init` to the version of the CLI that runs it:
 
 1. Installs every Quiesco package at that version, also ones `init` does not add (such as `@quiesco/steps`),
-   and reads the versions back as `init` does. The runners themselves (`vitest`, `jest`, `@cucumber/cucumber`)
+   and reads the versions back as `init` does. Exact versions (`"quiesco": "0.10.0"`) stay exact; ranges stay
+   ranges. The runners themselves (`vitest`, `jest`, `@cucumber/cucumber`)
    and `playwright` are left alone.
 2. Removes `paths: ['features/**/*.feature']` from the cucumber config. Older versions wrote it; with it,
    `quiesco test features/x.feature` ran every feature.
 3. Adds `"allowImportingTsExtensions": true` to `tsconfig.json`.
 4. Writes the app IDs `app.json` lacks (as in step 2 above) and replaces the `// TODO: expo.…` placeholders
    in `quiesco.config.mts` with them.
-5. Adds the missing `e2e:*` scripts, and wraps `registerRootComponent(App)` in `<QuiescoRoot>`.
+5. Wraps `registerRootComponent(App)` in `<QuiescoRoot>`. The `e2e:*` scripts are left as they are (one you
+   removed stays removed); it names the ones `init` would add.
 
 Each change is listed. What it cannot change safely (`paths` you set yourself, a `tsconfig.json` with
 comments, an `app.config.js` / `.ts`) is listed with what to do. Running it again changes nothing. The
@@ -179,7 +181,8 @@ npx quiesco doctor --platform ios
 Checks Node.js, the Expo SDK (55 or later), the project setup (packages, that every Quiesco package has the same version, that
 every `quiesco <command>` in the package.json scripts exists, config plugin, `withQuiesco()` in Metro, the agent as the
 entry's first import, `<QuiescoRoot>`, the config file), the app IDs (`quiesco.config.mts` against
-`app.json` and the builds, and placeholders left by `init`), settings older versions wrote (`paths` in the
+`app.json` and the builds, and placeholders left by `init`; with an `app.config.js` / `.ts`, against the config
+`npx expo config` resolves), settings older versions wrote (`paths` in the
 cucumber config; `.ts` imports in step files without `allowImportingTsExtensions`), the platform tools
 (simulators, adb and AVDs, the configured Playwright browser), the app builds and the port. Each problem comes with the
 fix; most of what an older setup lacks is fixed by `npx quiesco@latest init --upgrade`. Exits with 1 when a

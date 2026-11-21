@@ -4,6 +4,7 @@ import type { QuiescoConfig } from '@quiesco/core';
 
 import { main } from '../src/cli';
 import { upgradeCommand } from '../src/commands/upgrade';
+import { addCommand, isExactVersion, pinsQuiescoExactly } from '../src/setup-steps';
 import type { UpgradeDeps } from '../src/commands/upgrade';
 import type { FakeContext } from './fake-context';
 import { fakeContext } from './fake-context';
@@ -78,9 +79,26 @@ describe('quiesco init --upgrade (issues #34, #35)', () => {
     expect(config).toContain("      package: 'com.anonymous.quiescotest03',\n");
     expect(config).toContain("      devClient: { scheme: 'quiesco-test-03', metroUrl: 'http://localhost:8081' },\n");
     expect(config).not.toContain('TODO');
-    expect(JSON.parse(ctx.file('package.json') as string).scripts).toMatchObject({ 'e2e:build:ios': 'quiesco build ios', 'e2e:build:android': 'quiesco build android', 'e2e:start': expect.any(String) });
+    // The scripts are left alone (#95); the missing ones are named
+    expect(JSON.parse(ctx.file('package.json') as string).scripts).toEqual({ 'e2e:ios': 'quiesco test --platform ios', 'e2e:android': 'quiesco test --platform android' });
+    expect(out).toMatch(/= scripts — left as they are \(quiesco init would add e2e:start, e2e:build:android, e2e:build:ios\)/);
     expect(ctx.file('index.ts')).toContain('QuiescoRoot');
     expect(out).toMatch(/Upgraded to Quiesco 9\.9\.9\. Check the setup with: npx quiesco doctor/);
+  });
+
+  it('keeps exact versions exact, and never adds back a removed script (#95)', async () => {
+    const ctx = fakeContext();
+    oldProject(ctx);
+    const pkg = JSON.parse(ctx.file('package.json') as string);
+    for (const deps of [pkg.dependencies, pkg.devDependencies]) for (const n of Object.keys(deps)) if (/quiesco/.test(n)) deps[n] = '0.1.1';
+    pkg.scripts = { 'test:ios': 'quiesco test --platform ios' };
+    ctx.put('package.json', JSON.stringify(pkg));
+    expect(await upgradeCommand([], ctx, nativeApps)).toBe(0);
+    expect(ctx.calls.map((c) => `${c.command} ${c.args.join(' ')}`)).toEqual([
+      'npm install --save-exact @quiesco/agent@9.9.9 @quiesco/native@9.9.9',
+      'npm install --save-dev --save-exact quiesco@9.9.9 @quiesco/core@9.9.9 @quiesco/expo-plugin@9.9.9 @quiesco/cucumber@9.9.9 @quiesco/steps@9.9.9',
+    ]);
+    expect(JSON.parse(ctx.file('package.json') as string).scripts).toEqual({ 'test:ios': 'quiesco test --platform ios' });
   });
 
   it('changes nothing when run again', async () => {
@@ -134,7 +152,7 @@ describe('quiesco init --upgrade (issues #34, #35)', () => {
     expect(await upgradeCommand(['--skip-install'], ctx, failing)).toBe(1);
     expect(ctx.errors.join('\n')).toMatch(/cannot read quiesco\.config \(no quiesco\.config found\)[\s\S]*--platforms ios,android,web/);
     expect(await upgradeCommand(['--skip-install', '--platforms', 'web'], ctx, failing)).toBe(0);
-    expect(JSON.parse(ctx.file('package.json') as string).scripts['e2e:web']).toContain('quiesco test --platform web');
+    expect(ctx.lines.join('\n')).toMatch(/quiesco init would add e2e:start, e2e:web\)/);
     expect(await upgradeCommand(['--platforms', 'tv'], ctx, failing)).toBe(2);
   });
 
@@ -142,5 +160,23 @@ describe('quiesco init --upgrade (issues #34, #35)', () => {
     const ctx = fakeContext();
     expect(await main(['init', '--upgrade', '--dry-run'], ctx)).toBe(1);
     expect(ctx.errors.join('\n')).toMatch(/quiesco init --upgrade: .* is not an Expo project/);
+  });
+});
+
+describe('exact versions (#95)', () => {
+  it('tells each package manager to save the version as given', () => {
+    expect(addCommand('npm', false, ['a@1.0.0'], true).args).toEqual(['install', '--save-exact', 'a@1.0.0']);
+    expect(addCommand('pnpm', true, ['a@1.0.0'], true).args).toEqual(['add', '-D', '--save-exact', 'a@1.0.0']);
+    expect(addCommand('yarn', true, ['a@1.0.0'], true).args).toEqual(['add', '-D', '--exact', 'a@1.0.0']);
+    expect(addCommand('bun', false, ['a@1.0.0'], true).args).toEqual(['add', '--exact', 'a@1.0.0']);
+    expect(addCommand('npm', false, ['a@1.0.0']).args).toEqual(['install', 'a@1.0.0']);
+  });
+
+  it('pins exactly only when every Quiesco package has one version', () => {
+    for (const v of ['0.10.0', '=0.10.0', '1.0.0-rc.1']) expect(isExactVersion(v), v).toBe(true);
+    for (const v of ['^0.10.0', '~0.10.0', '>=0.10.0', 'latest', '0.10', 'file:../q.tgz', 'workspace:*']) expect(isExactVersion(v), v).toBe(false);
+    expect(pinsQuiescoExactly({ dependencies: { '@quiesco/agent': '0.10.0', react: '^19.0.0' }, devDependencies: { quiesco: '0.10.0' } })).toBe(true);
+    expect(pinsQuiescoExactly({ dependencies: { '@quiesco/agent': '0.10.0' }, devDependencies: { quiesco: '^0.10.0' } })).toBe(false);
+    expect(pinsQuiescoExactly({ dependencies: { react: '19.0.0' } })).toBe(false);
   });
 });

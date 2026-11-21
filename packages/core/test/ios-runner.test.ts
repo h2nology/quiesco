@@ -479,7 +479,23 @@ describe('IosProvider: UIKit UI of the app and of other apps (issues #49–#51)'
     });
     const nodes = await p.systemNodes();
     expect(nodes.map((n) => `${n.app ?? 'springboard'}:${n.text}`)).toEqual(['springboard:Banner', 'com.apple.SafariViewService:Email', 'dev.quiesco.todo:Next Month', 'dev.quiesco.todo:25', 'dev.quiesco.todo:输入']);
-    expect(calls).toEqual(['elements com.apple.SafariViewService', 'elements com.apple.mobilesafari', 'elements dev.quiesco.todo']);
+    expect(calls).toEqual(['elements com.apple.SafariViewService', 'elements com.apple.mobilesafari', 'elements com.apple.LocalAuthenticationUIService', 'elements dev.quiesco.todo']);
+  });
+
+  it('finds the Face ID prompt that is only in LocalAuthenticationUIService\'s tree, and re-reads that tree for the settle check (#92)', async () => {
+    const prompt = app([
+      { type: 2, label: 'LocalAuthenticationUIService', id: '', value: '', frame: [0, 0, 402, 874] },
+      { type: 48, label: 'Face Not Recognized', id: '', value: '', frame: [61, 380, 280, 22] },
+      { type: 9, label: 'Try Face ID Again', id: 'com.apple.localauthentication.ax.authentication.button.try-again', value: '', frame: [41, 435, 320, 44] },
+      { type: 9, label: 'Cancel', id: 'com.apple.localauthentication.ax.authentication.button.cancel', value: '', frame: [41, 491, 320, 44] },
+    ]);
+    const { p, calls } = runnerWith({ 'com.apple.LocalAuthenticationUIService': prompt });
+    const cancel = (await p.systemNodes()).find((n) => n.text === 'Cancel');
+    expect(cancel).toMatchObject({ app: 'com.apple.LocalAuthenticationUIService', bounds: { x1: 41, y1: 491, x2: 361, y2: 535 } });
+    calls.length = 0;
+    const reread = p.systemNodeReread(cancel!);
+    expect((await reread!()).map((n) => n.text)).toEqual(['Face Not Recognized', 'Try Face ID Again', 'Cancel']);
+    expect(calls).toEqual(['elements com.apple.LocalAuthenticationUIService']);
   });
 
   it('types with the keyboard of the app that has one: a web page in front shows up in the app\'s tree too', async () => {

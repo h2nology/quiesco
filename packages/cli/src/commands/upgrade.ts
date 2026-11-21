@@ -3,7 +3,9 @@
  * bring a project set up by an older `quiesco init` to this version. Installs every Quiesco package at this
  * CLI's version (`npx quiesco@latest init --upgrade` upgrades), then fixes what older inits wrote and the
  * current one does not: the `paths` line in the cucumber config (#8), tsconfig's allowImportingTsExtensions
- * (#21), app IDs and the config's TODO placeholders (#34), missing e2e scripts, <QuiescoRoot> (#20).
+ * (#21), app IDs and the config's TODO placeholders (#34), <QuiescoRoot> (#20). The e2e scripts are left
+ * as they are (issue #95: one that init added and is missing now was removed on purpose); missing ones are
+ * named.
  *
  * Only changes it can make safely; anything else is listed with what to do. Running it again changes
  * nothing. `--dry-run` lists the changes without making them.
@@ -22,7 +24,7 @@ import { PLATFORMS, takeFlag, takeOption } from '../context.js';
 import { installedVersion, isQuiescoPackage } from '../packages.js';
 import { entryFile, registeredRoot, rootSourceFiles, wrapRegisteredRoot } from '../project.js';
 import type { AppJson, InitStep, PackageJson, StepLog } from '../setup-steps.js';
-import { DEV, RUNTIME, WEB_DEV, detectPackageManager, ensureAppIds, ensureScripts, ensureTsconfig, firstScheme, installPackages, printSteps, readJson } from '../setup-steps.js';
+import { DEV, RUNTIME, WEB_DEV, detectPackageManager, e2eScripts, ensureAppIds, ensureTsconfig, firstScheme, installPackages, pinsQuiescoExactly, printSteps, readJson } from '../setup-steps.js';
 
 export interface UpgradeDeps {
   loadConfig: (cwd: string) => Promise<QuiescoConfig>;
@@ -47,6 +49,14 @@ function packagesToInstall(pkg: PackageJson, needed: readonly string[]): { runti
   // Keep each package in the group it is in; new ones go where init puts them.
   const isRuntime = (n: string): boolean => pkg.dependencies?.[n] !== undefined || (pkg.devDependencies?.[n] === undefined && RUNTIME.includes(n));
   return { runtime: all.filter(isRuntime), dev: all.filter((n) => !isRuntime(n)) };
+}
+
+/** Name the e2e scripts this version's init writes that the project does not have; adds none. */
+function listMissingScripts(log: StepLog, platforms: readonly CliPlatform[]): void {
+  const { ctx, steps } = log;
+  const scripts = readJson<PackageJson>(ctx, path.join(ctx.cwd, 'package.json'))?.scripts ?? {};
+  const missing = Object.keys(e2eScripts(platforms)).filter((k) => scripts[k] === undefined);
+  if (missing.length > 0) steps.push({ status: 'skipped', what: 'scripts', note: `left as they are (quiesco init would add ${missing.join(', ')})` });
 }
 
 function fixCucumberPaths(log: StepLog): void {
@@ -180,12 +190,13 @@ export async function upgradeCommand(args: readonly string[], ctx: CliContext, d
     ctx.err(`quiesco init --upgrade: no package.json in ${ctx.cwd} (the test project).`);
     return 1;
   }
-  const sets: { log: StepLog; packages: { runtime: string[]; dev: string[] } }[] = separate
+  // Exact versions stay exact (issue #95): npm and the others save a ^range unless told otherwise.
+  const sets: { log: StepLog; packages: { runtime: string[]; dev: string[] }; exact: boolean }[] = separate
     ? [
-        { log: appLog, packages: packagesToInstall(pkg, APP_PACKAGES) },
-        { log, packages: packagesToInstall(testPkg as PackageJson, needed.filter((n) => !APP_PACKAGES.includes(n))) },
+        { log: appLog, packages: packagesToInstall(pkg, APP_PACKAGES), exact: pinsQuiescoExactly(pkg) },
+        { log, packages: packagesToInstall(testPkg as PackageJson, needed.filter((n) => !APP_PACKAGES.includes(n))), exact: pinsQuiescoExactly(testPkg as PackageJson) },
       ]
-    : [{ log, packages: packagesToInstall(pkg, needed) }];
+    : [{ log, packages: packagesToInstall(pkg, needed), exact: pinsQuiescoExactly(pkg) }];
   for (const set of sets) {
     const { runtime, dev } = set.packages;
     const where = separate ? ` in ${path.relative(ctx.cwd, set.log.ctx.cwd) || '.'}` : '';
@@ -200,6 +211,7 @@ export async function upgradeCommand(args: readonly string[], ctx: CliContext, d
       dev,
       ...(packagesOpt.value !== undefined ? { packagesDir: path.resolve(ctx.cwd, packagesOpt.value) } : {}),
       skipInstall: skipInstall.present,
+      exact: set.exact,
     });
     if (!ok) return 1;
   }
@@ -209,7 +221,8 @@ export async function upgradeCommand(args: readonly string[], ctx: CliContext, d
   ensureTsconfig(log);
   const appJson = ensureAppIds(appLog, platforms);
   fixConfigPlaceholders(log, appJson);
-  ensureScripts(log, platforms);
+  // Not the e2e scripts (issue #95): init added them once; one missing now was removed on purpose.
+  listMissingScripts(log, platforms);
   ensureRoot(appLog);
 
   printSteps(ctx, steps);

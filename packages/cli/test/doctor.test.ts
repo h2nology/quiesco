@@ -201,8 +201,39 @@ describe('quiesco doctor', () => {
       expect(r?.detail).toBe("app.json has no expo.android.package (the build gets Expo's default, not com.anonymous.qt); devClient.scheme is qt, app.json expo.scheme is other");
       ctx.put('app.json', JSON.stringify({ expo: { scheme: ['qt', 'x'], ios: { bundleIdentifier: 'com.anonymous.qt' }, android: { package: 'com.anonymous.qt' } } }));
       expect(await appIds(ctx, native())).toEqual([expect.objectContaining({ status: 'ok', detail: 'quiesco.config matches app.json' })]);
-      ctx.put('app.config.js', 'module.exports = {};\n');
-      expect(await appIds(ctx, native())).toEqual([expect.objectContaining({ status: 'warn', detail: 'app.config.js found; cannot compare the app IDs with it' })]);
+    });
+
+    it('resolves a dynamic app config with expo config; warns when that fails (#96)', async () => {
+      const { ctx } = setUpProject();
+      ctx.put('app.json', JSON.stringify({ expo: { scheme: 'qt' } }));
+      ctx.put('app.config.ts', 'export default ({ config }) => config;\n');
+      const calls: { args: readonly string[]; env?: NodeJS.ProcessEnv }[] = [];
+      let resolved: { code: number; stdout: string } = { code: 0, stdout: JSON.stringify({ name: 'qt', scheme: 'qt', ios: { bundleIdentifier: 'com.anonymous.qt' }, android: { package: 'com.anonymous.qt' } }) };
+      const expo = {
+        ...ctx,
+        exec: async (c: string, a: readonly string[], o?: { env?: NodeJS.ProcessEnv }) => {
+          if (c !== 'npx' || a[0] !== 'expo') return ctx.exec(c, a);
+          calls.push({ args: a, env: o?.env });
+          return { ...resolved, stderr: '' };
+        },
+      };
+      expect(await appIds(expo, native())).toEqual([expect.objectContaining({ status: 'ok', detail: 'quiesco.config matches app.config.ts (resolved)' })]);
+      expect(calls[0]?.args).toEqual(['expo', 'config', '--json', '--type', 'public']);
+      expect(calls[0]?.env?.['EXPO_PUBLIC_QUIESCO']).toBe('1');
+      // One run of expo config per doctor run; the plugins come from it too.
+      calls.length = 0;
+      resolved = { code: 0, stdout: JSON.stringify({ scheme: 'qt', ios: { bundleIdentifier: 'com.anonymous.qt' }, android: { package: 'com.anonymous.qt' }, plugins: [['@quiesco/expo-plugin', {}]] }) };
+      const all = await runChecks(expo, 'web', native());
+      expect(all.find((r) => r.name === 'config plugin')).toMatchObject({ status: 'ok', detail: '@quiesco/expo-plugin in the resolved app config' });
+      expect(calls).toHaveLength(1);
+      resolved = { code: 0, stdout: JSON.stringify({ scheme: 'qt', plugins: ['expo-router'] }) };
+      expect((await runChecks(expo, 'web', native())).find((r) => r.name === 'config plugin')).toMatchObject({ status: 'warn', detail: '@quiesco/expo-plugin is not in the resolved app config plugins' });
+      resolved = { code: 0, stdout: JSON.stringify({ scheme: 'qt', ios: { bundleIdentifier: 'com.other' }, android: { package: 'com.anonymous.qt' } }) };
+      expect(await appIds(expo, native())).toEqual([expect.objectContaining({ status: 'fail', detail: 'quiesco.config has com.anonymous.qt, app.config.ts (resolved) expo.ios.bundleIdentifier is com.other' })]);
+      resolved = { code: 1, stdout: '' };
+      expect(await appIds(expo, native())).toEqual([expect.objectContaining({ status: 'warn', detail: 'app.config.ts found, and `npx expo config` could not resolve it; cannot compare the app IDs' })]);
+      resolved = { code: 0, stdout: 'not json' };
+      expect(await appIds(expo, native())).toEqual([expect.objectContaining({ status: 'warn' })]);
     });
 
     it('compares the builds: prebuilt android project, iOS Info.plist', async () => {
