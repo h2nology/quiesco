@@ -208,9 +208,14 @@ export function logTime(ms: number): string {
 
 /**
  * Apps whose UI system.* sees when they are in front (issue #51): the page of a web authentication session
- * (ASWebAuthenticationSession, SFSafariViewController) and Safari.
+ * (ASWebAuthenticationSession, SFSafariViewController), Safari, and the Face ID / passcode prompt (issue #92:
+ * the first prompt after the simulator boots is only in LocalAuthenticationUIService's tree, not in
+ * SpringBoard's).
  */
-const OTHER_APPS = ['com.apple.SafariViewService', 'com.apple.mobilesafari'];
+const LOCAL_AUTH_UI = 'com.apple.LocalAuthenticationUIService';
+const OTHER_APPS = ['com.apple.SafariViewService', 'com.apple.mobilesafari', LOCAL_AUTH_UI];
+/** Apps whose element tree reads fast enough (15–55 ms) to read again for the settle check (issue #87). */
+const QUICK_TREES: ReadonlySet<string> = new Set([LOCAL_AUTH_UI]);
 /** XCUIApplication.State.runningForeground. */
 const RUNNING_FOREGROUND = 4;
 /** XCUIElement.ElementType values left out: the application, windows, scroll bars (no one taps them). */
@@ -769,10 +774,17 @@ export class IosProvider implements DeviceProvider {
   /**
    * SpringBoard's UI (alerts, the Face ID prompt, banners) slides in: read it again. Not a node of an app's
    * element tree: a read of that takes seconds (18 s with a web page in it), the animation is over by then.
+   * The Face ID prompt's own app is the exception (issue #92): its tree is small and reads in 15–55 ms.
    */
   systemNodeReread(node: SystemNode): (() => Promise<SystemNode[]>) | null {
-    if (node.app !== undefined) return null;
-    return async () => screenNodes(await this.runner.screen());
+    const app = node.app;
+    if (app === undefined) return async () => screenNodes(await this.runner.screen());
+    const elements = this.runner.elements?.bind(this.runner);
+    if (!QUICK_TREES.has(app) || elements === undefined) return null;
+    return async () => {
+      const tree = await elements(app);
+      return tree.state === RUNNING_FOREGROUND ? uikitNodes(tree.elements, app) : [];
+    };
   }
 
   async tapSystemNode(node: SystemNode): Promise<void> {
