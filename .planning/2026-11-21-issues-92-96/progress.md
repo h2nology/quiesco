@@ -12,3 +12,4 @@
 - HU：CI 全过 ⇒ 开始 N.D。#97、#98 合并；#99 合入 main（无冲突，check 1011）后 push；Metro 换回默认（不包裹）跑三端全量。
 - 全量实跑：iOS 102 passed/7 skipped；Android 99/9/1（模拟定位，已知环境问题）；web 85/24。
 - #99 CI 全过 ⇒ 合并 #97 #98 #99。0.12.0 版本提交 67cc9a1（本地），release:check ok。等 HU publish。
+- HU 发布 0.12.0（12 包）。tag v0.12.0、push、GitHub Release。#92–#96 合并时已自动关闭，补了回复。open issue 0。

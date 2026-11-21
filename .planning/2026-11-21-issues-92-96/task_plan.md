@@ -4,10 +4,10 @@
 解决 h2nology/quiesco 的 5 个 open issue（0.11.0 上的实测反馈：iOS Face ID 弹窗、native-module tracker 两个改进、init --upgrade、doctor）。每个修复配单元测试、必要时更新三语文档；实跑验收后回复并关闭 issue，然后发版。
 
 ## Next Step
-等 HU `pnpm -r publish`（0.12.0，本地提交 67cc9a1 未 push）⇒ tag v0.12.0、push main + tag、GitHub Release ⇒ 回复并关闭 #92–#96。
+全部完成。
 
 ## Current Phase
-N.D 收尾（进行中）
+完成
 
 ## 背景
 - 前置：0.11.0 已发布（0dbc1ef）。上一轮：`.planning/2026-11-20-issues-82-87/`。
@@ -71,9 +71,9 @@ N.D 收尾（进行中）
 - [x] 全量实跑（默认 Metro，main+#99）：iOS 102/7/0；Android 99/9/1（模拟定位：AOSP 无 Play services SERVICE_INVALID，已知环境问题）；web 85/24/0
 - [x] 按序合并 PR #97 → #98 → #99（#99 合入 main 无冲突，check 1011，CI 全过）
 - [x] 版本 0.12.0、release:check（clean、1011 tests、12 包）、本地提交 67cc9a1（未 push）
-- [ ] HU publish ⇒ tag、push、GitHub Release
-- [ ] 回复并关闭 #92–#96
-- **Status:** in_progress
+- [x] HU `pnpm -r publish`：12 包 latest=0.12.0；tarball 无个人信息；tag v0.12.0（67cc9a1）、push main + tag、GitHub Release 0.12.0（Latest）
+- [x] #92–#96 已由 PR 合并自动关闭；逐个补回复；open issue 0
+- **Status:** complete
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
