@@ -18,15 +18,18 @@ in the same tick does not slip through).
 | `idle-callback` | a `requestIdleCallback` is pending (and `InteractionManager` work on React Native versions that still have it) | |
 | `native` (iOS) | a view-controller transition (navigation, modal presentation) runs, or the keyboard is moving / was just used | Reported by `@quiesco/native`; covers UIKit work invisible to JavaScript. |
 | `frame-stable` | the element tree (type, testID, text, rounded position and size of every element) changed during the last `sync.stableFrames` (2) frames | The fallback for animations on the UI thread (Reanimated, native-driver `Animated`). Only sampled while a call waits. |
-| `native-module` (off by default) | a promise returned by a native module method (TurboModule / NativeModules, Expo modules) has not settled, for at most `sync.nativeCallThresholdMs` (2 s) | See [native module calls](#native-module-calls). |
+| `native-module` (on when the build wraps native modules) | a promise returned by a native module method (TurboModule / NativeModules, Expo modules) has not settled, for at most `sync.nativeCallThresholdMs` (2 s) | See [native module calls](#native-module-calls). |
 
-Turn a tracker off with `sync: { trackers: { 'frame-stable': false } }`, and `native-module` on with
-`{ 'native-module': true }`.
+Turn a tracker off with `sync: { trackers: { 'frame-stable': false } }`.
+
+A call's timeline entry says what its wait for idle ended on, per tracker
+(`native-module: RNCDatePicker.open() 1990ms`, `network: GET https://api.example.com/items (240ms)`): the
+place to look when an action is slower than expected.
 
 ### Native module calls {#native-module-calls}
 
-By default, a pending native module call does not keep the app busy. A handler that awaits one between
-two tracked steps looks idle in between:
+Without the `native-module` tracker, a pending native module call does not keep the app busy. A handler
+that awaits one between two tracked steps looks idle in between:
 
 ```ts
 await api.login(email, password);             // fetch: tracked
@@ -36,34 +39,42 @@ router.replace('/');                           // the next screen mounts and fet
 
 `tap('login-submit')` can return while `setItem` is pending, before the navigation and the next screen's
 request have started. Either wait for what the next step needs (`await app.expectVisible('item-row-1')`),
-or turn the `native-module` tracker on:
-
-```ts
-sync: {
-  trackers: { 'native-module': true },
-  nativeCallThresholdMs: 2000,                    // a pending call counts for at most this long
-  ignoreNativeCalls: ['ExpoLocation.watch'],      // "Module.method"; strings match as substrings
-}
-```
-
-The tracker needs a build that wraps native modules: pass `nativeModules: true` to `withQuiesco()` in
+or build the app with native modules wrapped: pass `nativeModules: true` to `withQuiesco()` in
 `metro.config.js` (or start Metro with `EXPO_PUBLIC_QUIESCO_NATIVE_MODULES=1`) and restart Metro.
 
 ```js
 module.exports = withQuiesco(getDefaultConfig(__dirname), { nativeModules: true });
 ```
 
-Without it the agent leaves native modules alone, and the tracker, if turned on, counts nothing (the app
-logs a warning). The wrapping replaces a module's methods with JS functions. Gesture Handler, Reanimated
+The `native-module` tracker is on in such a build; nothing else needs to change. Its settings:
+
+```ts
+sync: {
+  nativeCallThresholdMs: 2000,                    // a pending call counts for at most this long
+  ignoreNativeCalls: ['ExpoLocation.watch'],      // "Module.method"; strings match as substrings
+  // trackers: { 'native-module': false },        // off in a build that wraps native modules
+}
+```
+
+Without the wrapping the agent leaves native modules alone, and the tracker counts nothing
+(`trackers: { 'native-module': true }` then logs a warning, and `quiesco doctor` warns). In a build that
+wraps native modules with the tracker turned off, the calls are still recorded: an action that returns
+while one is pending lists it in its timeline entry, and a failed scenario's `idle-state.json` lists the
+latest such actions (`nativeCallsNotCounted`), as a pointer to this race. The wrapping replaces a module's methods with JS functions. Gesture Handler, Reanimated
 and Worklets call their modules' methods from worklets on the UI thread, which needs the native
 functions, so those modules are never wrapped.
 
 The tracker wraps the modules the app gets from React Native's `TurboModuleRegistry` and from Expo
 (`requireNativeModule`) after the agent has loaded. React Native's own modules, taken during its startup,
 are not tracked. Some native calls wait for the user — a permission request, an authentication sheet, a
-picker — and stay pending until the test answers them: a call stops counting after
-`nativeCallThresholdMs`, so such a step waits that long at most. List calls that should never count in
-`ignoreNativeCalls`.
+picker — and stay pending until the test answers them. These never count by default: the permission
+requests of Expo modules and `PermissionsAndroid` (`*.request…Permission(s)(Async)`), the date / time
+picker dialogs (`RNCDatePicker.open`, `RNCTimePicker.open`), `ExpoLocalAuthentication.authenticateAsync`,
+the share sheets (`ShareModule.share`, `ExpoSharing.shareAsync`), `ExpoWebBrowser.openBrowserAsync` /
+`openAuthSessionAsync`, the image and document pickers. `ignoreNativeCalls` adds to them;
+`defaultIgnoreNativeCalls: false` counts them too. Any other call stops counting after
+`nativeCallThresholdMs`, so a step that opens such a UI waits that long at most: the timeline names the
+call (`native-module: Module.method() 1990ms`) to add to `ignoreNativeCalls`.
 
 How the React tracker works, and why the agent must load before React Native's renderer, is described in
 [docs/spikes/02-react-idle.md](https://github.com/h2nology/quiesco/blob/main/docs/spikes/02-react-idle.md). `withQuiesco()` in `metro.config.js` takes care

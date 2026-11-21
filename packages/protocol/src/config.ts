@@ -16,7 +16,10 @@ export interface AgentConfig {
     stableFrames: number;
     /** URL patterns ignored by the network tracker. Strings match as substrings. */
     ignoreUrls: TextMatch[];
-    /** Per-tracker switch; omitted trackers are enabled, except `native-module` (off unless `true`). */
+    /**
+     * Per-tracker switch; omitted trackers are enabled. `native-module` omitted: on when the build wraps
+     * native modules (issue #94; agents before 0.12: off unless `true`).
+     */
     trackers: Partial<Record<TrackerName, boolean>>;
     /**
      * `native-module` tracker (issue #67): how long a pending native module call counts as busy, and the
@@ -24,6 +27,8 @@ export interface AgentConfig {
      */
     nativeCallThresholdMs?: number;
     ignoreNativeCalls?: TextMatch[];
+    /** `false`: the agent's list of calls that wait for the user is not ignored (issue #93). Default true. */
+    defaultIgnoreNativeCalls?: boolean;
     /**
      * Elements (and their subtrees) left out of the frame-stable check, e.g. a decorative animation that
      * runs for minutes. Optional for older hosts.

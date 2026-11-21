@@ -310,6 +310,26 @@ async function resolveAppConfig(app: CliContext): Promise<ExpoIds | null> {
 }
 
 /**
+ * Issue #94: the native-module tracker needs the build to wrap native modules. Turned on in the config
+ * without that, it counts nothing (the run warns too, once it connects).
+ */
+function nativeModuleChecks(app: CliContext, config: QuiescoConfig): CheckResult[] {
+  if (config.sync?.trackers?.['native-module'] !== true) return [];
+  const metro = ['metro.config.js', 'metro.config.cjs', 'metro.config.mjs', 'metro.config.ts'].map((f) => app.readFile(path.join(app.cwd, f))).find((src) => src !== null) ?? '';
+  const scripts = Object.values(readJson<PackageJson>(app, path.join(app.cwd, 'package.json'))?.scripts ?? {});
+  const wraps = /nativeModules\s*:\s*true/.test(metro) || [metro, ...scripts].some((s) => /EXPO_PUBLIC_QUIESCO_NATIVE_MODULES=1/.test(s));
+  if (wraps) return [];
+  return [
+    {
+      name: 'native-module tracker',
+      status: 'warn',
+      detail: "sync.trackers sets 'native-module': true, and metro.config does not pass nativeModules: true to withQuiesco()",
+      fix: 'Build the app with withQuiesco(config, { nativeModules: true }) (or EXPO_PUBLIC_QUIESCO_NATIVE_MODULES=1); without it the tracker counts nothing. With it, the tracker is on by default.',
+    },
+  ];
+}
+
+/**
  * Issue #34: quiesco.config names the app that the build makes. Compared with app.json (what expo prebuild
  * uses) and, when they exist, with the prebuilt Android project and the iOS build. Placeholders left by
  * init fail.
@@ -564,6 +584,7 @@ export async function runChecks(ctx: CliContext, only: CliPlatform | undefined, 
     // A script that builds may be in either package.json.
     const scripts = { ...readJson<PackageJson>(app, path.join(app.cwd, 'package.json'))?.scripts, ...readJson<PackageJson>(ctx, path.join(ctx.cwd, 'package.json'))?.scripts };
     results.push(...buildScriptChecks({ scripts }, config));
+    results.push(...nativeModuleChecks(app, config));
   } else {
     results.push({ name: 'quiesco.config', status: 'fail', detail: configError ?? '', fix: 'Create quiesco.config.mts (npx quiesco init writes one), in the test project when the app is elsewhere (appDir).' });
   }

@@ -10,6 +10,7 @@ import { NO_REPLY, connectAgent } from './helpers/fake-agent';
 import type { FakeAgent, Handler } from './helpers/fake-agent';
 import { FakeProvider } from './helpers/fake-provider';
 import { silentLogger } from '../src/logger';
+import { NOT_COUNTED_NOTE } from '../src/timeline';
 import type { CrashReport } from '../src/devices/crash';
 import type { LaunchParams } from '../src/devices/provider';
 
@@ -124,6 +125,26 @@ describe('Session', () => {
     expect(session.driver.appLogErrors).toEqual([]);
     const passed = await session.afterScenario({ failed: false });
     expect(passed.attachments.find((a) => a.fileName === 'app-errors.txt')).toBeUndefined();
+  });
+
+  it('lists in idle-state.json the actions that returned while native calls they did not count were pending (#94)', async () => {
+    const { provider } = agentOnLaunch((m) => {
+      if (m === 'getTree') return { root: null };
+      if (m === 'listElements') return { route: null, elements: [], truncated: false };
+      if (m === 'getIdleState') return { trackers: [] };
+      if (m === 'action') return { ok: true, syncMs: 3, nativeCallsNotCounted: ['RNCAsyncStorage.multiSet() 2ms'] };
+      return {};
+    });
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'quiesco-artifacts-'));
+    session = await Session.create({ config: config({ artifacts: { dir } }), platform: 'android', provider, logger: silentLogger });
+    await session.startScenario({ name: 'logs in' });
+    await session.driver.request('action', { action: { type: 'tap', matcher: { id: 'login-submit' } } } as never);
+    const failed = await session.afterScenario({ failed: true });
+    const idle = JSON.parse(failed.attachments.find((a) => a.fileName === 'idle-state.json')?.data.toString() ?? '{}');
+    expect(idle).toEqual({
+      idleState: [],
+      nativeCallsNotCounted: { note: NOT_COUNTED_NOTE, calls: [{ call: expect.stringContaining('login-submit'), pending: ['RNCAsyncStorage.multiSet() 2ms'] }] },
+    });
   });
 
   it('an agent without listElements (older than the host) is not an evidence error', async () => {

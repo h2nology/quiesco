@@ -22,6 +22,16 @@ export interface TrackerState {
 /** Results of query / action / assert / webview / scrollView carry the ms spent waiting for idle (Phase 6.9). */
 export interface SyncTiming {
   syncMs?: number;
+  /**
+   * What kept the app busy at the end of the waits for idle, per tracker (`native-module:
+   * RNCDatePicker.open() 2000ms`, issue #93). Left out when the waits found the app idle.
+   */
+  syncBusy?: string[];
+  /**
+   * `native-module` tracker off, build wraps native modules: the calls it would have counted when the
+   * call returned (issue #94: the app may still be awaiting them).
+   */
+  nativeCallsNotCounted?: string[];
   /** The steps of a multi-step action (scrollTo, issue #78), for the timeline. */
   steps?: StepTiming[];
 }

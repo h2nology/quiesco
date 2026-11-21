@@ -84,8 +84,8 @@ const NATIVE_MODULES_NOT_TRACKED = ['QuiescoNative', 'RNGestureHandlerModule', '
 export const NATIVE_MODULES_NOT_WRAPPED =
   "The native-module tracker is on, but this build does not wrap native modules, so it counts nothing. Build the app with withQuiesco(config, { nativeModules: true }) in metro.config.js (or EXPO_PUBLIC_QUIESCO_NATIVE_MODULES=1) to track native module calls.";
 
-/** Trackers that count only when the config enables them (`sync.trackers: { 'native-module': true }`, issue #67). */
-const TRACKERS_OFF_BY_DEFAULT: Readonly<Record<string, false>> = { 'native-module': false };
+/** A wait's busy reasons kept for a call's timeline entry, at most (issue #93). */
+const MAX_SYNC_BUSY = 5;
 /** Calls whose results report the time spent waiting for idle (`syncMs`, Phase 6.9 timeline). */
 const TIMED: ReadonlySet<string> = new Set(['query', 'action', 'assert', 'webview', 'scrollView']);
 
@@ -176,7 +176,8 @@ export class AgentRuntime {
     this.log = (m) => warn?.call(c, `[quiesco] ${m}`);
     this.nativeModulesWrapped = options.nativeModules ?? buildConfig.nativeModules === true;
     this.engine = new SyncEngine(options.trackers?.(this) ?? this.defaultTrackers(), this.clock);
-    this.engine.setEnabled(TRACKERS_OFF_BY_DEFAULT);
+    // `native-module` counts only when the build wraps native modules (issues #67, #94).
+    this.engine.setEnabled({ 'native-module': this.nativeModulesWrapped });
     this.engine.setSkipped(() => (this.deps.appState() === 'background' ? BACKGROUND_SKIPPED : NONE));
     this.engine.setBackground(() => this.deps.appState() === 'background', this.deps.onAppStateChange?.bind(this.deps));
     this.resets = new ResetManager(options.storage ?? (() => defaultStorageAdapters()));
@@ -299,9 +300,10 @@ export class AgentRuntime {
     this.network?.setIgnoreUrls(config.sync.ignoreUrls.map(toRegExp));
     this.timer?.configure({ thresholdMs: config.sync.timerThresholdMs, countIntervals: config.sync.countIntervals });
     this.frames?.setFrames(config.sync.stableFrames);
-    this.engine.setEnabled({ ...TRACKERS_OFF_BY_DEFAULT, ...config.sync.trackers });
-    const nativeCallsOn = config.sync.trackers['native-module'] === true;
-    if (nativeCallsOn && !this.nativeModulesWrapped && !this.nativeModulesWarned) {
+    // On by default when the build wraps native modules (issue #94): that build setting is the opt-in.
+    const nativeCallsOn = config.sync.trackers['native-module'] ?? this.nativeModulesWrapped;
+    this.engine.setEnabled({ ...config.sync.trackers, 'native-module': nativeCallsOn });
+    if (config.sync.trackers['native-module'] === true && !this.nativeModulesWrapped && !this.nativeModulesWarned) {
       this.nativeModulesWarned = true;
       this.log(NATIVE_MODULES_NOT_WRAPPED);
     }
@@ -309,6 +311,7 @@ export class AgentRuntime {
       enabled: nativeCallsOn,
       thresholdMs: config.sync.nativeCallThresholdMs ?? SyncDefaults.nativeCallThresholdMs,
       ignore: (config.sync.ignoreNativeCalls ?? []).map(toRegExp),
+      defaultIgnore: config.sync.defaultIgnoreNativeCalls !== false,
     });
     this.events.setLevel(config.logLevel);
     this.configureLogBox(config.logBox ?? 'keep');
@@ -359,11 +362,19 @@ export class AgentRuntime {
     // Phase 6.9 timeline: how much of the call was spent waiting for idle (calls run one at a time), and
     // the steps of a multi-step action (issue #78).
     this.syncSpent = 0;
+    this.syncBusy = new Map();
     this.callStart = this.clock.now();
     this.steps = [];
     const r = await h(params ?? {});
     if (typeof r !== 'object' || r === null) return r;
-    return { ...r, syncMs: Math.round(this.syncSpent), ...(this.steps.length > 0 ? { steps: this.steps } : {}) };
+    const notCounted = this.nativeCalls?.notCounted() ?? [];
+    return {
+      ...r,
+      syncMs: Math.round(this.syncSpent),
+      ...(this.syncBusy.size > 0 ? { syncBusy: [...this.syncBusy.values()].slice(-MAX_SYNC_BUSY) } : {}),
+      ...(notCounted.length > 0 ? { nativeCallsNotCounted: notCounted } : {}),
+      ...(this.steps.length > 0 ? { steps: this.steps } : {}),
+    };
   }
 
   /** When calibrateCoordinates last measured, and the window size then. */
@@ -397,6 +408,8 @@ export class AgentRuntime {
 
   /** Time spent in syncIfNeeded during the current timed call. */
   private syncSpent = 0;
+  /** What its waits ended on, by tracker (the latest wait's reason per tracker, issue #93). */
+  private syncBusy = new Map<string, string>();
   /** When the current call started, and the steps of a multi-step action so far (issue #78). */
   private callStart = 0;
   private steps: StepTiming[] = [];
@@ -477,7 +490,12 @@ export class AgentRuntime {
     if (opts.sync === false) return;
     const start = this.clock.now();
     try {
-      await this.engine.waitForIdle({ timeoutMs, reportedTimeoutMs: this.timeout(opts) });
+      const { busy } = await this.engine.waitForIdle({ timeoutMs, reportedTimeoutMs: this.timeout(opts) });
+      for (const b of busy ?? []) {
+        const tracker = b.slice(0, b.indexOf(':'));
+        this.syncBusy.delete(tracker);
+        this.syncBusy.set(tracker, b);
+      }
     } finally {
       this.syncSpent += this.clock.now() - start;
     }

@@ -16,13 +16,15 @@ Quiesco 会在每次查询和断言之前、每次操作之后，等待 App 进�
 | `native`（iOS） | 正在进行 view controller 转场（导航、模态展示），或键盘正在移动 / 刚被使用过 | 由 `@quiesco/native` 上报；覆盖 JavaScript 看不到的 UIKit 工作。|
 | `frame-stable` | 元素树（每个元素的类型、testID、文本，以及取整后的位置和尺寸）在最近 `sync.stableFrames`（2）帧内发生了变化 | 用于兜底 UI 线程上的动画（Reanimated、native driver 的 `Animated`）。只在有调用等待时采样。|
 
-| `native-module`（默认关闭） | 原生模块方法（TurboModule / NativeModules、Expo 模块）返回的 Promise 尚未完成，最长 `sync.nativeCallThresholdMs`（2 秒） | 见[原生模块调用](#native-module-calls)。 |
+| `native-module`（构建包装原生模块时开启） | 原生模块方法（TurboModule / NativeModules、Expo 模块）返回的 Promise 尚未完成，最长 `sync.nativeCallThresholdMs`（2 秒） | 见[原生模块调用](#native-module-calls)。 |
 
-用 `sync: { trackers: { 'frame-stable': false } }` 关闭某个跟踪器，用 `{ 'native-module': true }` 打开 `native-module`。
+用 `sync: { trackers: { 'frame-stable': false } }` 关闭某个跟踪器。
+
+每个调用在 timeline 里都会写明它的空闲等待最后在等什么，按跟踪器列出（`native-module: RNCDatePicker.open() 1990ms`、`network: GET https://api.example.com/items (240ms)`）。动作比预期慢时先看这里。
 
 ### 原生模块调用 {#native-module-calls}
 
-默认情况下，未完成的原生模块调用不会让 App 处于忙碌状态。处理函数在两个被跟踪的步骤之间 await 一个原生调用时，中间这段会被判为空闲：
+没有 `native-module` 跟踪器时，未完成的原生模块调用不会让 App 处于忙碌状态。处理函数在两个被跟踪的步骤之间 await 一个原生调用时，中间这段会被判为空闲：
 
 ```ts
 await api.login(email, password);             // fetch：会被跟踪
@@ -30,26 +32,26 @@ await AsyncStorage.setItem(TOKEN_KEY, token);  // 原生模块的 Promise：默�
 router.replace('/');                           // 下一屏挂载，在 effect 里发请求
 ```
 
-`tap('login-submit')` 可能在 `setItem` 完成之前、也就是跳转和下一屏的请求开始之前就返回。要么等下一步需要的东西（`await app.expectVisible('item-row-1')`），要么打开 `native-module` 跟踪器：
-
-```ts
-sync: {
-  trackers: { 'native-module': true },
-  nativeCallThresholdMs: 2000,                    // 未完成的调用最多算忙这么久
-  ignoreNativeCalls: ['ExpoLocation.watch'],      // "Module.method"；字符串按子串匹配
-}
-```
-
-这个跟踪器需要一个包装原生模块的构建：在 `metro.config.js` 里给 `withQuiesco()` 传 `nativeModules: true`
+`tap('login-submit')` 可能在 `setItem` 完成之前、也就是跳转和下一屏的请求开始之前就返回。要么等下一步需要的东西（`await app.expectVisible('item-row-1')`），要么构建时包装原生模块：在 `metro.config.js` 里给 `withQuiesco()` 传 `nativeModules: true`
 （或者启动 Metro 时设置 `EXPO_PUBLIC_QUIESCO_NATIVE_MODULES=1`），然后重启 Metro。
 
 ```js
 module.exports = withQuiesco(getDefaultConfig(__dirname), { nativeModules: true });
 ```
 
-不这样做，agent 就不碰原生模块；即使打开了跟踪器，它也什么都不算（App 会输出一条警告）。包装会把模块的方法换成 JS 函数。Gesture Handler、Reanimated 和 Worklets 会在 UI 线程的 worklet 里调用自己模块的方法，这需要原生函数，所以这些模块永远不包装。
+这样构建的 App 里 `native-module` 跟踪器默认开启，不需要别的设置。它的设置项：
 
-这个跟踪器会包装 agent 加载之后 App 从 React Native 的 `TurboModuleRegistry` 和 Expo（`requireNativeModule`）取得的模块。React Native 启动时自己取得的模块不跟踪。有些原生调用要等用户操作（权限请求、认证面板、选择器），在测试回应之前一直未完成：一个调用超过 `nativeCallThresholdMs` 就不再算忙，所以这样的步骤最多多等这么久。永远不该算忙的调用列在 `ignoreNativeCalls` 里。
+```ts
+sync: {
+  nativeCallThresholdMs: 2000,                    // 未完成的调用最多算忙这么久
+  ignoreNativeCalls: ['ExpoLocation.watch'],      // "Module.method"；字符串按子串匹配
+  // trackers: { 'native-module': false },        // 在包装原生模块的构建里关闭
+}
+```
+
+不包装时 agent 就不碰原生模块，跟踪器什么都不算（此时写 `trackers: { 'native-module': true }` 会让 App 输出警告，`quiesco doctor` 也会警告）。在包装原生模块的构建里关闭跟踪器时，调用仍会被记录：动作返回时还未完成的调用会写在它的 timeline 条目里，失败场景的 `idle-state.json` 也会列出最近的这类动作（`nativeCallsNotCounted`），提示可能是这种竞态。包装会把模块的方法换成 JS 函数。Gesture Handler、Reanimated 和 Worklets 会在 UI 线程的 worklet 里调用自己模块的方法，这需要原生函数，所以这些模块永远不包装。
+
+这个跟踪器会包装 agent 加载之后 App 从 React Native 的 `TurboModuleRegistry` 和 Expo（`requireNativeModule`）取得的模块。React Native 启动时自己取得的模块不跟踪。有些原生调用要等用户操作（权限请求、认证面板、选择器），在测试回应之前一直未完成。下面这些默认就不算忙：Expo 模块和 `PermissionsAndroid` 的权限请求（`*.request…Permission(s)(Async)`）、日期 / 时间选择对话框（`RNCDatePicker.open`、`RNCTimePicker.open`）、`ExpoLocalAuthentication.authenticateAsync`、分享面板（`ShareModule.share`、`ExpoSharing.shareAsync`）、`ExpoWebBrowser.openBrowserAsync` / `openAuthSessionAsync`、图片和文件选择器。`ignoreNativeCalls` 在此基础上追加；`defaultIgnoreNativeCalls: false` 让它们也算忙。其他调用超过 `nativeCallThresholdMs` 就不再算忙，所以打开这类界面的步骤最多多等这么久：timeline 会写出该调用（`native-module: Module.method() 1990ms`），把它加进 `ignoreNativeCalls` 即可。
 
 React 跟踪器的工作原理，以及为什么 agent 必须在 React Native 的渲染器之前加载，见[docs/spikes/02-react-idle.md](https://github.com/h2nology/quiesco/blob/main/docs/spikes/02-react-idle.md)。`metro.config.js` 中的 `withQuiesco()` 会处理好加载顺序（React Native 0.88 会在 App 的入口文件之前加载渲染器）。
 

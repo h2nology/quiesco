@@ -22,6 +22,19 @@ export interface WaitForIdleOptions {
 }
 
 const DEFAULT_POLL_MS = 16;
+/** While the same trackers stay busy, what they are busy with is read again at most this often. */
+const DESCRIBE_EVERY_MS = 100;
+/** A tracker's busy reasons in a wait's result, at most this long. */
+const MAX_BUSY_CHARS = 200;
+
+export interface WaitResult {
+  waitedMs: number;
+  /**
+   * What the busy trackers were busy with at the last check that found the app busy (`native-module:
+   * RNCDatePicker.open() 1990ms`, issue #93): what the wait ended on. Left out when it was idle at once.
+   */
+  busy?: string[];
+}
 const NO_NAMES: ReadonlySet<string> = new Set();
 
 export class SyncEngine {
@@ -96,7 +109,7 @@ export class SyncEngine {
     });
   }
 
-  async waitForIdle(options: WaitForIdleOptions = {}): Promise<{ waitedMs: number }> {
+  async waitForIdle(options: WaitForIdleOptions = {}): Promise<WaitResult> {
     const timeoutMs = options.timeoutMs ?? SyncDefaults.timeoutMs;
     const pollMs = options.pollIntervalMs ?? DEFAULT_POLL_MS;
     const start = this.clock.now();
@@ -113,14 +126,27 @@ export class SyncEngine {
         this.sleepers.add(done);
         this.clock.setTimeout(done, ms);
       });
+    let busy: string[] | undefined;
+    let described = { names: '', at: -Infinity };
+    const noteBusy = (busyNow: readonly IdleTracker[]): void => {
+      const names = busyNow.map((t) => t.name).join();
+      const now = this.clock.now();
+      if (names === described.names && now - described.at < DESCRIBE_EVERY_MS) return;
+      described = { names, at: now };
+      busy = busyNow.map((t) => `${t.name}: ${truncate(safe(() => t.describeBusy(), ['describeBusy() threw']).join('; '))}`);
+    };
+    const idle = (): WaitResult => ({ waitedMs: this.clock.now() - start, ...(busy !== undefined ? { busy } : {}) });
     for (const t of trackers) t.beginWait?.();
     try {
       for (;;) {
-        if (this.allIdle()) {
-          if (safe(() => this.inBackground(), false)) return { waitedMs: this.clock.now() - start };
+        let busyNow = this.busyTrackers();
+        if (busyNow.length === 0) {
+          if (safe(() => this.inBackground(), false)) return idle();
           await sleep(0);
-          if (this.allIdle()) return { waitedMs: this.clock.now() - start };
+          busyNow = this.busyTrackers();
+          if (busyNow.length === 0) return idle();
         }
+        noteBusy(busyNow);
         const elapsed = this.clock.now() - start;
         if (elapsed >= timeoutMs) throw this.timeoutError(options.reportedTimeoutMs ?? timeoutMs, elapsed);
         await sleep(Math.min(pollMs, timeoutMs - elapsed));
@@ -133,8 +159,8 @@ export class SyncEngine {
     }
   }
 
-  private allIdle(): boolean {
-    return this.active().every((t) => safe(() => t.isIdle(), false));
+  private busyTrackers(): IdleTracker[] {
+    return this.active().filter((t) => !safe(() => t.isIdle(), false));
   }
 
   private timeoutError(timeoutMs: number, waitedMs: number): QuiescoError<'SYNC_TIMEOUT'> {
@@ -155,4 +181,8 @@ function safe<T>(fn: () => T, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+function truncate(text: string): string {
+  return text.length <= MAX_BUSY_CHARS ? text : `${text.slice(0, MAX_BUSY_CHARS - 1)}…`;
 }
