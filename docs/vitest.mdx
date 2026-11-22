@@ -42,7 +42,7 @@ If the project already has a `vitest.config.*` for its unit tests, `init` writes
 it.
 
 <ResponseField name="workers" type="number" default="1">
-  How many workers run test files in parallel, each on a device of its own ([parallel runs](../parallel)).
+  How many workers run test files in parallel, each on a device of its own ([parallel runs](./parallel)).
   `1` runs the files one at a time.
 </ResponseField>
 
@@ -52,7 +52,7 @@ it.
 </ResponseField>
 
 <ResponseField name="tags" type="object">
-  The tag names, when `quiesco.config.mts` renames them with [`tags`](../config#tags). Pass the same object
+  The tag names, when `quiesco.config.mts` renames them with [`tags`](./config#tags). Pass the same object
   here.
 </ResponseField>
 
@@ -77,7 +77,7 @@ What it sets:
 
 ## `quiescoPlugin()` {#quiesco-plugin}
 
-Sends the run's progress to the progress bar of `quiesco test` and to [`quiesco ui`](../ui). It adds its
+Sends the run's progress to the progress bar of `quiesco test` and to [`quiesco ui`](./ui). It adds its
 reporter only when one of them runs Vitest, next to your own reporters. Without it, the tests still run,
 and `quiesco test` prints a hint at the end.
 
@@ -113,7 +113,7 @@ Something that runs once for the whole run, such as a mock backend, goes in `glo
 
 Import `test` (or `it`), `describe` and `expect` from `@quiesco/vitest`. Two fixtures reach the app:
 
-- `app`: the [Driver](../api#driver-thisapp).
+- `app`: the [Driver](./api#driver-thisapp).
 - `session`: the session, for what the Driver does not cover (`session.platform`, …).
 
 Before each test that uses one of them, the app is reset. After a failed test, the evidence (screenshot,
@@ -141,5 +141,5 @@ npx quiesco test --platform ios
 ```
 
 `quiesco test` sets `QUIESCO_PLATFORM` and runs `vitest run`; other arguments go to Vitest
-([`quiesco test`](../cli#quiesco-test)). Running `npx vitest run` yourself also works with
+([`quiesco test`](./cli#quiesco-test)). Running `npx vitest run` yourself also works with
 `QUIESCO_PLATFORM` set, but then Metro is not started for you.

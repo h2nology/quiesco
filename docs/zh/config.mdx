@@ -298,7 +298,7 @@ App 加载 JS 的 Metro 开发服务器。当 App 需要 Metro（`devClient.metr
 
 ## artifacts {#artifacts}
 
-每个场景记录的文件，位于 `artifacts/<日期时间>-<平台>/<nnn>-<场景>/`（[文件内容](./api#artifacts)）。`video`、`logs`、`timeline` 各自取一个策略：`'none'`、`'failing'`（每个场景都记录，失败时保留）或 `'all'`。`QUIESCO_ARTIFACTS=none|failing|all` 会在一次运行中同时设置这三项。
+每个场景记录的文件，位于 `artifacts/<date-time>-<platform>/<nnn>-<scenario>/`（[文件内容](./api#artifacts)）。`video`、`logs`、`timeline` 各自取一个策略：`'none'`、`'failing'`（每个场景都记录，失败时保留）或 `'all'`。`QUIESCO_ARTIFACTS=none|failing|all` 会在一次运行中同时设置这三项。
 
 <ResponseField name="artifacts.dir" type="string" default="'artifacts'">
   输出目录，相对于运行目录。并行运行时如果换了目录，也要传给 config plugin：`withQuiesco(config, { artifactsDir })`。

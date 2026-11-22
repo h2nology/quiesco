@@ -39,7 +39,7 @@ test('the home screen is shown', async ({ app }) => {
 `quiesco()`は、Quiescoに必要な`test`のオプションを返します。`test`の中に展開し、自分のオプションはその後に書きます。
 
 <ResponseField name="workers" type="number" default="1">
-  テストファイルを並列に実行するワーカーの数。ワーカーごとに専用のデバイスを使います（[並列実行](../parallel)）。`1`ならファイルを1つずつ実行します。
+  テストファイルを並列に実行するワーカーの数。ワーカーごとに専用のデバイスを使います（[並列実行](./parallel)）。`1`ならファイルを1つずつ実行します。
 </ResponseField>
 
 <ResponseField name="testTimeout" type="number" default="300000">
@@ -47,7 +47,7 @@ test('the home screen is shown', async ({ app }) => {
 </ResponseField>
 
 <ResponseField name="tags" type="object">
-  `quiesco.config.mts`の[`tags`](../config#tags)でタグ名を変えたときは、同じオブジェクトをここにも渡します。
+  `quiesco.config.mts`の[`tags`](./config#tags)でタグ名を変えたときは、同じオブジェクトをここにも渡します。
 </ResponseField>
 
 <ResponseField name="extraTags" type="string[]">
@@ -70,7 +70,7 @@ test('the home screen is shown', async ({ app }) => {
 
 ## `quiescoPlugin()` {#quiesco-plugin}
 
-実行の進捗を`quiesco test`のプログレスバーと[`quiesco ui`](../ui)に送ります。自分のレポーターを追加するのはそれらがVitestを実行するときだけで、設定済みのレポーターはそのまま残ります。なくてもテストは動きますが、`quiesco test`が最後にヒントを出します。
+実行の進捗を`quiesco test`のプログレスバーと[`quiesco ui`](./ui)に送ります。自分のレポーターを追加するのはそれらがVitestを実行するときだけで、設定済みのレポーターはそのまま残ります。なくてもテストは動きますが、`quiesco test`が最後にヒントを出します。
 
 ## すべてのファイルに共通のフック {#setup-files}
 
@@ -100,7 +100,7 @@ test.beforeEach(async ({ app }) => {
 
 `test`（または`it`）、`describe`、`expect`は`@quiesco/vitest`からインポートします。アプリを操作するフィクスチャーは2つです。
 
-- `app`：[Driver](../api#driver-thisapp)。
+- `app`：[Driver](./api#driver-thisapp)。
 - `session`：セッション。Driverでは扱えないもの（`session.platform`など）に使います。
 
 これらを使う各テストの前に、アプリはリセットされます。テストが失敗すると、証拠（スクリーンショット、要素ツリー、アイドル状態、ログ）がartifactsディレクトリに書き出され、失敗メッセージに一覧が載ります。
@@ -126,4 +126,4 @@ describe('settings @native', () => {
 npx quiesco test --platform ios
 ```
 
-`quiesco test`は`QUIESCO_PLATFORM`を設定して`vitest run`を実行します。ほかの引数はそのままVitestに渡ります（[`quiesco test`](../cli#quiesco-test)）。`QUIESCO_PLATFORM`を設定して自分で`npx vitest run`を実行することもできますが、その場合Metroは自動で起動しません。
+`quiesco test`は`QUIESCO_PLATFORM`を設定して`vitest run`を実行します。ほかの引数はそのままVitestに渡ります（[`quiesco test`](./cli#quiesco-test)）。`QUIESCO_PLATFORM`を設定して自分で`npx vitest run`を実行することもできますが、その場合Metroは自動で起動しません。

@@ -86,7 +86,7 @@ registerQuiesco({ world: TodoWorld, stepTimeoutMs: 90_000 });
 
 `QuiescoWorld`は、各ステップに次のものを提供します。
 
-- `this.app`：[Driver](../api#driver-thisapp)。
+- `this.app`：[Driver](./api#driver-thisapp)。
 - `this.platform`：`'ios'`、`'android'`、`'web'`のいずれか。プラットフォームごとに同じことを違う方法で行うステップに使います。1つのプラットフォームだけのシナリオは、タグ（`@ios`など）を付けるほうが適しています。
 - `this.session`：セッション。Driverでは扱えないものに使います。
 
@@ -105,7 +105,7 @@ export class TodoWorld extends QuiescoWorld {
 }
 ```
 
-詳しくは[ドライバーパターン](../driver-pattern)を参照してください。プロトタイプ向けの汎用ステップは[汎用ステップ](../steps)にあります。
+詳しくは[ドライバーパターン](./driver-pattern)を参照してください。プロトタイプ向けの汎用ステップは[汎用ステップ](./steps)にあります。
 
 ## TypeScript {#typescript}
 
@@ -116,7 +116,7 @@ export class TodoWorld extends QuiescoWorld {
 
 ## タグ {#tags}
 
-プラットフォームとブラウザーのタグは、フィーチャー、`Rule`、シナリオ、`Examples`ブロックに付けられます。一番内側のものが優先されます（[シナリオタグ](../api#scenario-tags)）。`@hard-reset`はそのシナリオの前にアプリを再起動します。
+プラットフォームとブラウザーのタグは、フィーチャー、`Rule`、シナリオ、`Examples`ブロックに付けられます。一番内側のものが優先されます（[シナリオタグ](./api#scenario-tags)）。`@hard-reset`はそのシナリオの前にアプリを再起動します。
 
 ## 実行 {#running}
 
@@ -124,4 +124,4 @@ export class TodoWorld extends QuiescoWorld {
 npx quiesco test --platform ios
 ```
 
-`quiesco test`は`QUIESCO_PLATFORM`を設定して`cucumber-js`を実行し、Quiescoの進捗フォーマッターを自動で加えます。ほかの引数はそのままcucumber-jsに渡ります。例：`--tags @smoke`やフィーチャーファイル（[`quiesco test`](../cli#quiesco-test)）。`--workers N`は`--parallel N`になり、N個のワーカースレッドがそれぞれ専用のセッションとデバイスを使います（[並列実行](../parallel)）。
+`quiesco test`は`QUIESCO_PLATFORM`を設定して`cucumber-js`を実行し、Quiescoの進捗フォーマッターを自動で加えます。ほかの引数はそのままcucumber-jsに渡ります。例：`--tags @smoke`やフィーチャーファイル（[`quiesco test`](./cli#quiesco-test)）。`--workers N`は`--parallel N`になり、N個のワーカースレッドがそれぞれ専用のセッションとデバイスを使います（[並列実行](./parallel)）。

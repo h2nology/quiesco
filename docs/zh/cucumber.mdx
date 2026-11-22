@@ -86,7 +86,7 @@ registerQuiesco({ world: TodoWorld, stepTimeoutMs: 90_000 });
 
 `QuiescoWorld` 为每个步骤提供：
 
-- `this.app`：[Driver](../api#driver-thisapp)。
+- `this.app`：[Driver](./api#driver-thisapp)。
 - `this.platform`：`'ios'`、`'android'` 或 `'web'`，用于在不同平台上以不同方式做同一件事的步骤。只针对一个平台的场景最好用标签（`@ios` 等）。
 - `this.session`：会话本身，用于 Driver 没有覆盖的功能。
 
@@ -105,7 +105,7 @@ export class TodoWorld extends QuiescoWorld {
 }
 ```
 
-详见 [Driver 模式](../driver-pattern)。用于快速原型的现成通用步骤见[通用步骤](../steps)。
+详见 [Driver 模式](./driver-pattern)。用于快速原型的现成通用步骤见[通用步骤](./steps)。
 
 ## TypeScript {#typescript}
 
@@ -116,7 +116,7 @@ export class TodoWorld extends QuiescoWorld {
 
 ## 标签 {#tags}
 
-平台和浏览器标签可以写在 feature、`Rule`、场景或 `Examples` 块上；最内层的生效（[场景标签](../api#scenario-tags)）。`@hard-reset` 会在该场景前重新启动 App。
+平台和浏览器标签可以写在 feature、`Rule`、场景或 `Examples` 块上；最内层的生效（[场景标签](./api#scenario-tags)）。`@hard-reset` 会在该场景前重新启动 App。
 
 ## 运行 {#running}
 
@@ -124,4 +124,4 @@ export class TodoWorld extends QuiescoWorld {
 npx quiesco test --platform ios
 ```
 
-`quiesco test` 会设置 `QUIESCO_PLATFORM`、运行 `cucumber-js`，并自动加上 Quiesco 的进度 formatter；其他参数原样传给 cucumber-js，例如 `--tags @smoke` 或某个 feature 文件（[`quiesco test`](../cli#quiesco-test)）。`--workers N` 会变成 `--parallel N`：N 个 worker 线程，各自有自己的会话和设备（[并行运行](../parallel)）。
+`quiesco test` 会设置 `QUIESCO_PLATFORM`、运行 `cucumber-js`，并自动加上 Quiesco 的进度 formatter；其他参数原样传给 cucumber-js，例如 `--tags @smoke` 或某个 feature 文件（[`quiesco test`](./cli#quiesco-test)）。`--workers N` 会变成 `--parallel N`：N 个 worker 线程，各自有自己的会话和设备（[并行运行](./parallel)）。

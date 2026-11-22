@@ -298,7 +298,7 @@ export default defineConfig(({ workerIndex, workerCount }) => ({
 
 ## artifacts {#artifacts}
 
-シナリオごとに記録するファイル。`artifacts/<日時>-<プラットフォーム>/<nnn>-<シナリオ>/`に書き出します（[ファイルの中身](./api#artifacts)）。`video`、`logs`、`timeline`はそれぞれポリシーを取ります：`'none'`、`'failing'`（すべてのシナリオで記録し、失敗したときに残す）、`'all'`。`QUIESCO_ARTIFACTS=none|failing|all`で、1回の実行の3つをまとめて設定できます。
+シナリオごとに記録するファイル。`artifacts/<date-time>-<platform>/<nnn>-<scenario>/`に書き出します（[ファイルの中身](./api#artifacts)）。`video`、`logs`、`timeline`はそれぞれポリシーを取ります：`'none'`、`'failing'`（すべてのシナリオで記録し、失敗したときに残す）、`'all'`。`QUIESCO_ARTIFACTS=none|failing|all`で、1回の実行の3つをまとめて設定できます。
 
 <ResponseField name="artifacts.dir" type="string" default="'artifacts'">
   書き出し先（実行ディレクトリからの相対パス）。並列実行で別のディレクトリにするときは、config pluginにも渡します：`withQuiesco(config, { artifactsDir })`。

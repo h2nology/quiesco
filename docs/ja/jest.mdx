@@ -38,14 +38,14 @@ test('the home screen is shown', async () => {
 |---|---|
 | `testEnvironment` | Quiescoのテスト環境：ワーカープロセスごとに1つのセッションと、グローバルの`quiesco` |
 | `globalTeardown` | インバンド実行のセッションと、並列ワーカーが残したものを閉じる |
-| `reporters` | `'default'`と`'@quiesco/jest/reporter'`。後者は実行の進捗を`quiesco test`と[`quiesco ui`](../ui)に送る |
+| `reporters` | `'default'`と`'@quiesco/jest/reporter'`。後者は実行の進捗を`quiesco test`と[`quiesco ui`](./ui)に送る |
 
 ## 自分の設定に書く項目 {#your-config}
 
 次の2つはプリセットでは設定できないので、自分の設定に書きます。
 
 <ResponseField name="maxWorkers" type="number" required>
-  `1`ならファイルを1つずつ実行します。`N`ならN台のデバイスで並列に実行します（ワーカープロセスごとに1台、[並列実行](../parallel)）。コマンドラインの`--maxWorkers N`が優先されます。
+  `1`ならファイルを1つずつ実行します。`N`ならN台のデバイスで並列に実行します（ワーカープロセスごとに1台、[並列実行](./parallel)）。コマンドラインの`--maxWorkers N`が優先されます。
 </ResponseField>
 
 <ResponseField name="testTimeout" type="number" required>
@@ -73,7 +73,7 @@ export default async function teardown() {
 
 ## テストを書く {#writing-tests}
 
-- `quiesco.app`：[Driver](../api#driver-thisapp)。
+- `quiesco.app`：[Driver](./api#driver-thisapp)。
 - `quiesco.session`：セッション。Driverでは扱えないものに使います。
 
 各テストの前に、アプリはリセットされます。テストが失敗すると、証拠（スクリーンショット、要素ツリー、アイドル状態、ログ）がartifactsディレクトリに書き出され、失敗メッセージに一覧が載ります。
@@ -101,4 +101,4 @@ TypeScriptでは、グローバルの`quiesco`の型を`tsconfig.json`に加え�
 npx quiesco test --platform ios
 ```
 
-`quiesco test`は`QUIESCO_PLATFORM`を設定して`jest`を実行します。ほかの引数はそのままJestに渡ります（[`quiesco test`](../cli#quiesco-test)）。`QUIESCO_PLATFORM`を設定して自分で`npx jest`を実行することもできますが、その場合Metroは自動で起動しません。
+`quiesco test`は`QUIESCO_PLATFORM`を設定して`jest`を実行します。ほかの引数はそのままJestに渡ります（[`quiesco test`](./cli#quiesco-test)）。`QUIESCO_PLATFORM`を設定して自分で`npx jest`を実行することもできますが、その場合Metroは自動で起動しません。

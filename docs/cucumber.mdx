@@ -92,7 +92,7 @@ It registers four hooks:
 
 `QuiescoWorld` gives every step:
 
-- `this.app`: the [Driver](../api#driver-thisapp).
+- `this.app`: the [Driver](./api#driver-thisapp).
 - `this.platform`: `'ios'`, `'android'` or `'web'`, for a step that does the same thing differently per
   platform. Scenarios for one platform only are better tagged (`@ios`, …).
 - `this.session`: the session, for what the Driver does not cover.
@@ -112,8 +112,8 @@ export class TodoWorld extends QuiescoWorld {
 }
 ```
 
-More in [the driver pattern](../driver-pattern). Ready-made generic steps for prototyping are in
-[generic steps](../steps).
+More in [the driver pattern](./driver-pattern). Ready-made generic steps for prototyping are in
+[generic steps](./steps).
 
 ## TypeScript {#typescript}
 
@@ -126,7 +126,7 @@ Step and support files run with Node's type stripping, not `tsc`:
 ## Tags {#tags}
 
 Platform and browser tags go on the feature, a `Rule`, the scenario or an `Examples` block; the innermost
-one decides ([scenario tags](../api#scenario-tags)). `@hard-reset` relaunches the app before that scenario.
+one decides ([scenario tags](./api#scenario-tags)). `@hard-reset` relaunches the app before that scenario.
 
 ## Running {#running}
 
@@ -136,5 +136,5 @@ npx quiesco test --platform ios
 
 `quiesco test` sets `QUIESCO_PLATFORM`, runs `cucumber-js` and adds Quiesco's progress formatter by itself;
 other arguments go to cucumber-js, e.g. `--tags @smoke` or a feature file
-([`quiesco test`](../cli#quiesco-test)). `--workers N` becomes `--parallel N`: N worker threads, each with
-a session and a device of its own ([parallel runs](../parallel)).
+([`quiesco test`](./cli#quiesco-test)). `--workers N` becomes `--parallel N`: N worker threads, each with
+a session and a device of its own ([parallel runs](./parallel)).

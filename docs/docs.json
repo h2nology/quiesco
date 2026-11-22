@@ -45,9 +45,9 @@
                 "group": "Test runners",
                 "pages": [
                   "runners",
-                  "runners/vitest",
-                  "runners/jest",
-                  "runners/cucumber"
+                  "vitest",
+                  "jest",
+                  "cucumber"
                 ]
               }
             ]
@@ -88,9 +88,9 @@
                 "group": "测试运行器",
                 "pages": [
                   "zh/runners",
-                  "zh/runners/vitest",
-                  "zh/runners/jest",
-                  "zh/runners/cucumber"
+                  "zh/vitest",
+                  "zh/jest",
+                  "zh/cucumber"
                 ]
               }
             ]
@@ -131,9 +131,9 @@
                 "group": "テストランナー",
                 "pages": [
                   "ja/runners",
-                  "ja/runners/vitest",
-                  "ja/runners/jest",
-                  "ja/runners/cucumber"
+                  "ja/vitest",
+                  "ja/jest",
+                  "ja/cucumber"
                 ]
               }
             ]
