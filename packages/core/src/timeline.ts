@@ -4,7 +4,7 @@
  * call. Written as a Chrome trace (chrome://tracing, Perfetto) and a self-contained HTML summary.
  * Multi-step actions (scrollTo) carry their steps, nested in the call (issue #78).
  */
-import type { StepTiming } from '@quiesco/protocol';
+import type { StepTiming, WaitEnd } from '@quiesco/protocol';
 
 export interface TimelineEntry {
   /** The agent method (`action`, `assert`, ...) or a device call (`device.relaunch`). */
@@ -22,6 +22,8 @@ export interface TimelineEntry {
   nativeCallsNotCounted?: string[];
   /** The steps of a multi-step action, `atMs` from `start` (issue #78). */
   steps?: StepTiming[];
+  /** How the call's last wait for idle ended (issue #107). */
+  syncEnd?: WaitEnd;
   error?: string;
 }
 
@@ -31,6 +33,7 @@ export interface CallTiming {
   syncBusy?: string[];
   nativeCallsNotCounted?: string[];
   steps?: StepTiming[];
+  syncEnd?: WaitEnd;
 }
 
 /** Said with the native calls an action did not wait for (issue #94). */
@@ -84,6 +87,7 @@ export class Timeline {
         ...(t?.syncBusy !== undefined && t.syncBusy.length > 0 ? { syncBusy: t.syncBusy } : {}),
         ...(t?.nativeCallsNotCounted !== undefined && t.nativeCallsNotCounted.length > 0 ? { nativeCallsNotCounted: t.nativeCallsNotCounted } : {}),
         ...(t?.steps !== undefined && t.steps.length > 0 ? { steps: t.steps } : {}),
+        ...(t?.syncEnd !== undefined ? { syncEnd: t.syncEnd } : {}),
       });
       return r;
     } catch (e) {
@@ -115,7 +119,7 @@ export class Timeline {
     for (const e of this.all) {
       const args = { ...(e.error !== undefined ? { error: e.error } : {}), ...(e.nativeCallsNotCounted !== undefined ? { nativeCallsNotCounted: e.nativeCallsNotCounted, note: NOT_COUNTED_NOTE } : {}) };
       events.push({ name: `${e.method} ${e.label}`.trim(), cat: e.method, ph: 'X', ts: us(e.start), dur: Math.max(1, us(e.end) - us(e.start)), pid: 1, tid: 1, args });
-      const busy = e.syncBusy !== undefined ? { busy: e.syncBusy } : {};
+      const busy = { ...(e.syncBusy !== undefined ? { busy: e.syncBusy } : {}), ...(e.syncEnd !== undefined ? { ended: describeWaitEnd(e.syncEnd) } : {}) };
       if (e.steps !== undefined) {
         e.steps.forEach((s, i) => {
           const ts = us(e.start + s.atMs);
@@ -143,6 +147,7 @@ export class Timeline {
         const notes = [
           ...(e.syncBusy !== undefined ? [`idle wait ended on: ${e.syncBusy.join(' | ')}`] : []),
           ...(e.nativeCallsNotCounted !== undefined ? [`native calls ${NOT_COUNTED_NOTE}: ${e.nativeCallsNotCounted.join(', ')}`] : []),
+          ...(e.syncEnd !== undefined ? describeWaitEnd(e.syncEnd) : []),
         ];
         const why = notes.length > 0 ? `<div class="why">${notes.map(esc).join('<br>')}</div>` : '';
         const steps = (e.steps ?? [])
@@ -168,6 +173,24 @@ body{font:13px system-ui,sans-serif;margin:16px;color:#222}h1{font-size:16px}
 ${rows}
 </body></html>`;
   }
+}
+
+/**
+ * How a call's last wait for idle ended (issue #107), one line each: when (device clock, local time), its
+ * last checks, then what the trackers saw during it.
+ */
+export function describeWaitEnd(end: WaitEnd): string[] {
+  return [
+    `last idle wait ended at ${clockTime(end.endedAt)}, last checks: ${end.checks.join(' | ')}`,
+    ...(end.activity !== undefined && end.activity.length > 0 ? [`during that wait: ${end.activity.join(' | ')}`] : []),
+  ];
+}
+
+/** `10:44:21.101` in local time. */
+function clockTime(ms: number): string {
+  const d = new Date(ms);
+  const two = (n: number): string => String(n).padStart(2, '0');
+  return `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, '0')}`;
 }
 
 function esc(s: string): string {

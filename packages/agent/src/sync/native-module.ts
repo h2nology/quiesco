@@ -1,7 +1,8 @@
 /**
  * Native module tracker (tracker name `native-module`, issue #67): a promise returned by a native module
- * method (a TurboModule, a legacy NativeModule, an Expo module) that has not settled yet, e.g.
- * `await AsyncStorage.setItem(…)` between a request and a navigation. On when the build wraps native
+ * method (a TurboModule, a legacy NativeModule, an Expo module) that has not settled yet, or a call given
+ * callbacks that has not called any of them yet (issue #107: AsyncStorage 2's `setItem` calls
+ * `multiSet(pairs, callback)`), e.g. `await AsyncStorage.setItem(…)` between a request and a navigation. On when the build wraps native
  * modules (issue #94), unless the config turns it off (`sync.trackers: { 'native-module': false }`).
  *
  * The modules are wrapped where the app gets them: React Native's `TurboModuleRegistry.get` /
@@ -67,20 +68,36 @@ export const DEFAULT_IGNORED_NATIVE_CALLS: readonly RegExp[] = [
   /^ExpoWebBrowser\.(?:openBrowserAsync|openAuthSessionAsync)$/,
   /^ExponentImagePicker\.launch(?:Camera|ImageLibrary)Async$/,
   /^ExpoDocumentPicker\.getDocumentAsync$/,
+  // Callback style (issue #107): an alert or action sheet calls back when the user answers it.
+  /^AlertManager\.alertWithArgs$/,
+  /^DialogManagerAndroid\.showAlert$/,
+  /^ActionSheetManager\.show\w*ActionSheetWithOptions$/,
+  // A native-driver animation calls its end callback when the animation ends (a loop: never).
+  /^NativeAnimated(?:Turbo)?Module\./,
 ];
 
 /** Pending calls kept while off: a call that never settles must not grow the map without end. */
 const MAX_PENDING = 500;
+/** Recent calls kept for the record of how a wait ended (issue #107). */
+const MAX_RECENT = 50;
+/** Calls listed in that record, at most (the latest). */
+const MAX_ACTIVITY = 10;
 
 interface Pending {
   name: string;
   since: number;
 }
 
+interface Recent extends Pending {
+  /** When it settled (ms since the epoch); undefined while pending. */
+  settled?: number;
+}
+
 export class NativeModuleTracker implements IdleTracker {
   readonly name = 'native-module';
   private readonly clock: Clock;
   private readonly pending = new Map<number, Pending>();
+  private readonly recent: Recent[] = [];
   private nextId = 0;
   private enabled = false;
   private thresholdMs = NATIVE_CALL_THRESHOLD_MS;
@@ -107,7 +124,11 @@ export class NativeModuleTracker implements IdleTracker {
   /** The pending calls that count (or would, while the tracker is off). */
   private wouldCount(): Pending[] {
     const now = this.clock.now();
-    return [...this.pending.values()].filter((p) => now - p.since < this.thresholdMs && !this.ignore.some((r) => (typeof r === 'string' ? p.name.includes(r) : (r.lastIndex = 0, r.test(p.name)))));
+    return [...this.pending.values()].filter((p) => now - p.since < this.thresholdMs && !this.ignored(p.name));
+  }
+
+  private ignored(name: string): boolean {
+    return this.ignore.some((r) => (typeof r === 'string' ? name.includes(r) : ((r.lastIndex = 0), r.test(name))));
   }
 
   private counting(): Pending[] {
@@ -126,6 +147,23 @@ export class NativeModuleTracker implements IdleTracker {
 
   isIdle(): boolean {
     return this.counting().length === 0;
+  }
+
+  /**
+   * The calls pending at some point between `from` and `to` (issue #107), times relative to `from`:
+   * `RNCAsyncStorage.multiSet() +251ms→+266ms`, `… +251ms→pending`. Ignored calls, and all calls while the
+   * tracker is off, are marked: they did not count.
+   */
+  describeActivity(from: number, to: number): string[] {
+    const rel = (t: number): string => `${t < from ? '-' : '+'}${Math.abs(t - from)}ms`;
+    return this.recent
+      .filter((c) => c.since <= to && (c.settled === undefined || c.settled >= from))
+      .slice(-MAX_ACTIVITY)
+      .map((c) => {
+        const end = c.settled === undefined || c.settled > to ? 'pending' : rel(c.settled);
+        const note = !this.enabled ? ' (not counted: tracker off)' : this.ignored(c.name) ? ' (ignored)' : '';
+        return `${c.name}() ${rel(c.since)}→${end}${note}`;
+      });
   }
 
   describeBusy(): string[] {
@@ -147,6 +185,7 @@ export class NativeModuleTracker implements IdleTracker {
   uninstall(): void {
     for (const u of this.undo.splice(0).reverse()) u();
     this.pending.clear();
+    this.recent.length = 0;
   }
 
   private installRegistry(): void {
@@ -194,12 +233,23 @@ export class NativeModuleTracker implements IdleTracker {
         if (cached !== undefined && cached.original === value) return cached.wrapper;
         const method = value as (...args: unknown[]) => unknown;
         const name = `${moduleName}.${key}`;
-        const record = (result: unknown): void => {
-          if (isThenable(result)) this.track(name, result);
-        };
+        const self = this;
         const wrapper = function (this: unknown, ...args: unknown[]): unknown {
-          const result = method.apply(this === proxy || this === undefined ? target : this, args);
-          record(result);
+          // Callback style (AsyncStorage 2's `multiSet(pairs, callback)`, issue #107): pending until the
+          // first of its callbacks is called. A call that returns a promise is pending until it settles.
+          const callback = args.some((a) => typeof a === 'function') ? self.begin(name) : null;
+          const callArgs = callback === null ? args : args.map((a) => (typeof a === 'function' ? settling(a as (...x: unknown[]) => unknown, callback.done) : a));
+          let result: unknown;
+          try {
+            result = method.apply(this === proxy || this === undefined ? target : this, callArgs);
+          } catch (e) {
+            callback?.done();
+            throw e;
+          }
+          if (isThenable(result)) {
+            callback?.done();
+            self.track(name, result);
+          }
           return result;
         };
         methods.set(key, { original: value, wrapper });
@@ -211,16 +261,37 @@ export class NativeModuleTracker implements IdleTracker {
   }
 
   private track(name: string, result: PromiseLike<unknown>): void {
-    const id = this.nextId++;
-    if (this.pending.size >= MAX_PENDING) this.pending.delete(this.pending.keys().next().value as number);
-    this.pending.set(id, { name, since: this.clock.now() });
-    const done = () => void this.pending.delete(id);
+    const { done } = this.begin(name);
     try {
       result.then(done, done);
     } catch {
       done();
     }
   }
+
+  /** A call pending from now until `done()` (idempotent). */
+  private begin(name: string): { done: () => void } {
+    const id = this.nextId++;
+    if (this.pending.size >= MAX_PENDING) this.pending.delete(this.pending.keys().next().value as number);
+    const call: Recent = { name, since: this.clock.now() };
+    this.pending.set(id, call);
+    this.recent.push(call);
+    if (this.recent.length > MAX_RECENT) this.recent.shift();
+    return {
+      done: () => {
+        if (!this.pending.delete(id)) return;
+        call.settled = this.clock.now();
+      },
+    };
+  }
+}
+
+/** `fn`, ending the call before it runs (the app's code after the callback then sees the call settled). */
+function settling(fn: (...args: unknown[]) => unknown, done: () => void): (...args: unknown[]) => unknown {
+  return function (this: unknown, ...args: unknown[]): unknown {
+    done();
+    return fn.apply(this, args);
+  };
 }
 
 function isThenable(v: unknown): v is PromiseLike<unknown> {

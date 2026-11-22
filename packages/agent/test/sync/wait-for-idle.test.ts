@@ -38,7 +38,7 @@ describe('SyncEngine.waitForIdle', () => {
     const p = engine.waitForIdle();
     expect(checks).toHaveLength(1); // first check is synchronous
     await vi.advanceTimersByTimeAsync(0);
-    await expect(p).resolves.toEqual({ waitedMs: 0 });
+    await expect(p).resolves.toEqual({ waitedMs: 0, end: { endedAt: 0, checks: ['+0ms idle', '+0ms idle (confirmed)'] } });
     expect(checks).toHaveLength(2);
     expect(t.calls).toEqual(['begin', 'end']);
   });
@@ -78,11 +78,29 @@ describe('SyncEngine.waitForIdle', () => {
     const p = engine.waitForIdle({ pollIntervalMs: 5 });
     await vi.advanceTimersByTimeAsync(100);
     // The reasons are read again when the busy trackers change (timer done at 10 ms), not on every check.
-    await expect(p).resolves.toEqual({ waitedMs: expect.any(Number), busy: ['network: GET /items 10ms'] });
+    await expect(p).resolves.toMatchObject({ waitedMs: expect.any(Number), busy: ['network: GET /items 10ms'] });
     netIdleAt = 0;
     const idle = engine.waitForIdle();
     await vi.advanceTimersByTimeAsync(0);
-    await expect(idle).resolves.toEqual({ waitedMs: 0 });
+    await expect(idle).resolves.not.toHaveProperty('busy');
+  });
+
+  it('records how it ended: the last checks with the busy trackers, and what the trackers saw during it (#107)', async () => {
+    const seq = [false, false, true, false, false, true, true];
+    const react = tracker('react', () => seq.shift() ?? true);
+    const native = tracker('native-module', () => true);
+    native.describeActivity = (from, to) => [`call ${from}→${to}`];
+    const engine = new SyncEngine([react, native], clock);
+    const p = engine.waitForIdle({ pollIntervalMs: 10 });
+    await vi.advanceTimersByTimeAsync(100);
+    const r = await p;
+    // idle at +20ms, but busy again in the confirming check (+21ms, an idle blip): the wait goes on.
+    // (Fake timers run a 0 ms timeout 1 ms later.)
+    expect(r.end).toEqual({
+      endedAt: 42,
+      checks: ['+21ms busy: react', '+31ms busy: react', '+41ms idle', '+42ms idle (confirmed)'],
+      activity: ['native-module: call 0→42'],
+    });
   });
 
   it('times out with SYNC_TIMEOUT listing every busy tracker', async () => {

@@ -4,9 +4,9 @@ import type { AgentConfig } from './config.js';
 import type { ElementBrief, ElementSummary, Rect, TreeNode } from './element.js';
 import type { JsonValue } from './json.js';
 import type { Matcher } from './matcher.js';
-import type { StepTiming } from './timing.js';
+import type { StepTiming, WaitEnd } from './timing.js';
 
-export type { StepTiming } from './timing.js';
+export type { StepTiming, WaitEnd } from './timing.js';
 
 export type Platform = 'ios' | 'android' | 'web';
 
@@ -39,6 +39,8 @@ export interface SyncTiming {
   nativeCallsNotCounted?: string[];
   /** The steps of a multi-step action (scrollTo, issue #78), for the timeline. */
   steps?: StepTiming[];
+  /** How the call's last wait for idle ended (issue #107). Left out when it did not wait. */
+  syncEnd?: WaitEnd;
 }
 
 export interface SyncOption {

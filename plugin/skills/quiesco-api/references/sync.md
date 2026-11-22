@@ -18,13 +18,17 @@ in the same tick does not slip through).
 | `idle-callback` | a `requestIdleCallback` is pending (and `InteractionManager` work on React Native versions that still have it) | |
 | `native` (iOS) | a view-controller transition (navigation, modal presentation) runs, or the keyboard is moving / was just used | Reported by `@quiesco/native`; covers UIKit work invisible to JavaScript. "Keyboard moving" runs from UIKit's `keyboardWill…` notification to the matching `keyboardDid…`, at most the animation duration plus 0.5 s: iOS sometimes posts `keyboardDidShow` seconds late with the keyboard already in place (the device log then has `[Quiesco] keyboard: no Did notification …`). |
 | `frame-stable` | the element tree (type, testID, text, rounded position and size of every element) changed during the last `sync.stableFrames` (2) frames | The fallback for animations on the UI thread (Reanimated, native-driver `Animated`). Only sampled while a call waits. |
-| `native-module` (on when the build wraps native modules) | a promise returned by a native module method (TurboModule / NativeModules, Expo modules) has not settled, for at most `sync.nativeCallThresholdMs` (2 s) | See [native module calls](#native-module-calls). |
+| `native-module` (on when the build wraps native modules) | a native module method (TurboModule / NativeModules, Expo modules) has returned a promise that has not settled, or was given callbacks and has not called any yet (AsyncStorage's `multiSet`), for at most `sync.nativeCallThresholdMs` (2 s) | See [native module calls](#native-module-calls). |
 
 Turn a tracker off with `sync: { trackers: { 'frame-stable': false } }`.
 
 A call's timeline entry says what its wait for idle ended on, per tracker
 (`native-module: RNCDatePicker.open() 1990ms`, `network: GET https://api.example.com/items (240ms)`): the
-place to look when an action is slower than expected.
+place to look when an action is slower than expected. It also says how the call's last wait ended: when
+(device clock, to line up with the device log), its last checks with the trackers busy in each
+(`+272ms busy: native-module | +276ms idle | +277ms idle (confirmed)`), and the native module calls that
+started or settled during it (`RNCAsyncStorage.multiSet() +251ms→+266ms`): the place to look when an
+action returned too early.
 
 ### Native module calls {#native-module-calls}
 
@@ -81,7 +85,10 @@ picker — and stay pending until the test answers them. These never count by de
 requests of Expo modules and `PermissionsAndroid` (`*.request…Permission(s)(Async)`), the date / time
 picker dialogs (`RNCDatePicker.open`, `RNCTimePicker.open`), `ExpoLocalAuthentication.authenticateAsync`,
 the share sheets (`ShareModule.share`, `ExpoSharing.shareAsync`), `ExpoWebBrowser.openBrowserAsync` /
-`openAuthSessionAsync`, the image and document pickers. `ignoreNativeCalls` adds to them;
+`openAuthSessionAsync`, the image and document pickers, the alerts and action sheets (`AlertManager.alertWithArgs`,
+`DialogManagerAndroid.showAlert`, `ActionSheetManager.show…ActionSheetWithOptions`). Native-driver
+animations (`NativeAnimatedModule`), which call back when the animation ends, never count either.
+`ignoreNativeCalls` adds to them;
 `defaultIgnoreNativeCalls: false` counts them too. Any other call stops counting after
 `nativeCallThresholdMs`, so a step that opens such a UI waits that long at most: the timeline names the
 call (`native-module: Module.method() 1990ms`) to add to `ignoreNativeCalls`.

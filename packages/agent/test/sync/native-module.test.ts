@@ -81,6 +81,88 @@ describe('NativeModuleTracker (#67)', () => {
     expect(tracker.isIdle()).toBe(true);
   });
 
+  it('counts a callback-style call until it calls one of its callbacks (#107: AsyncStorage 2 multiSet)', () => {
+    let saved: ((errors?: unknown) => void) | undefined;
+    const calls: unknown[] = [];
+    const module = {
+      tag: 'RNCAsyncStorage',
+      multiSet(this: { tag: string }, pairs: [string, string][], callback: (errors?: unknown) => void) {
+        calls.push([this.tag, pairs]);
+        saved = callback;
+      },
+      multiGet(_keys: string[], callback: (errors?: unknown, result?: unknown) => void) {
+        callback(undefined, []); // calls back at once
+      },
+      multiRemove(_keys: string[], _callback: () => void) {
+        throw new Error('bad key');
+      },
+    };
+    const registry: ModuleRegistryLike = { get: () => module };
+    const tracker = setup({ registry });
+    tracker.configure({ enabled: true });
+    const storage = registry.get!('RNCAsyncStorage') as typeof module;
+    const order: string[] = [];
+    storage.multiSet([['token', 'x']], (errors) => order.push(`callback ${String(errors)} idle=${tracker.isIdle()}`));
+    expect(calls).toEqual([['RNCAsyncStorage', [['token', 'x']]]]);
+    vi.advanceTimersByTime(15);
+    expect(tracker.describeBusy()).toEqual(['RNCAsyncStorage.multiSet() 15ms']);
+    saved!(undefined);
+    expect(order).toEqual(['callback undefined idle=true']); // settled before the app's callback runs
+    saved!(undefined); // a second call changes nothing
+    expect(tracker.isIdle()).toBe(true);
+
+    storage.multiGet(['token'], () => undefined);
+    expect(tracker.isIdle()).toBe(true);
+    expect(() => storage.multiRemove(['token'], () => undefined)).toThrow('bad key');
+    expect(tracker.isIdle()).toBe(true);
+  });
+
+  it('describes the calls pending at some point during a wait, relative to its start (#107)', async () => {
+    const s = storageModule();
+    let callback: (() => void) | undefined;
+    const module = { multiSet: (_p: unknown, cb: () => void) => void (callback = cb), requestPermissionsAsync: () => new Promise(() => undefined) };
+    const expo = { modules: { Storage: s.module, RNCAsyncStorage: module } as Record<string, unknown> };
+    const tracker = setup({ expo });
+    tracker.configure({ enabled: true });
+    const storage = expo.modules['RNCAsyncStorage'] as typeof module;
+    storage.multiSet([], () => undefined);
+    callback!(); // settled at 0, before the wait
+    vi.advanceTimersByTime(90);
+    const p = (expo.modules['Storage'] as typeof s.module).setItem('a'); // 90: before the wait, settles in it
+    vi.advanceTimersByTime(10);
+    storage.multiSet([], () => undefined); // 100: in the wait
+    vi.advanceTimersByTime(5);
+    callback!();
+    storage.requestPermissionsAsync(); // 105: ignored by default, still pending
+    s.pending.resolve();
+    await p;
+    vi.advanceTimersByTime(15);
+    void (expo.modules['Storage'] as typeof s.module).setItem('b'); // 120: after the wait
+    expect(tracker.describeActivity(95, 110)).toEqual([
+      'Storage.setItem() -5ms→+10ms',
+      'RNCAsyncStorage.multiSet() +5ms→+10ms',
+      'RNCAsyncStorage.requestPermissionsAsync() +10ms→pending (ignored)',
+    ]);
+    tracker.configure({ enabled: false });
+    expect(tracker.describeActivity(119, 125)).toEqual([
+      'RNCAsyncStorage.requestPermissionsAsync() -14ms→pending (not counted: tracker off)',
+      'Storage.setItem() +1ms→pending (not counted: tracker off)',
+    ]);
+  });
+
+  it('a call given callbacks that returns a promise is pending until the promise settles', async () => {
+    const pending = deferred();
+    const module = { load: (_onProgress: () => void) => pending.promise };
+    const expo = { modules: { Loader: module } as Record<string, unknown> };
+    const tracker = setup({ expo });
+    tracker.configure({ enabled: true });
+    const p = (expo.modules['Loader'] as typeof module).load(() => undefined);
+    expect(tracker.describeBusy()).toEqual(['Loader.load() 0ms']);
+    pending.resolve();
+    await p;
+    expect(tracker.isIdle()).toBe(true);
+  });
+
   it('a call stops counting after thresholdMs (it waits for the user), and ignored calls never count', () => {
     const s = storageModule();
     const permissions = { requestPermissionsAsync: () => new Promise(() => undefined), getAsync: () => new Promise(() => undefined) };
@@ -127,6 +209,11 @@ describe('NativeModuleTracker (#67)', () => {
       'ShareModule.share',
       'ExpoWebBrowser.openAuthSessionAsync',
       'ExponentImagePicker.launchImageLibraryAsync',
+      'AlertManager.alertWithArgs',
+      'DialogManagerAndroid.showAlert',
+      'ActionSheetManager.showActionSheetWithOptions',
+      'NativeAnimatedModule.startAnimatingNode',
+      'NativeAnimatedTurboModule.startAnimatingNode',
     ];
     const modules: Record<string, Record<string, () => Promise<unknown>>> = {};
     for (const n of [...names, 'ExpoLocation.getCurrentPositionAsync', 'RNCDatePicker.dismiss']) {

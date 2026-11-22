@@ -11,6 +11,11 @@ export interface IdleTracker {
   endWait?(): void;
   /** Optional: for a tracker that only samples while waiting, its busy reasons when the latest wait ended busy. */
   describeLastWait?(): string[];
+  /**
+   * Optional: what it saw going on between `from` and `to` (ms since the epoch), for the record of how a
+   * wait ended (issue #107: the native calls that started or settled during the wait). Times relative to `from`.
+   */
+  describeActivity?(from: number, to: number): string[];
 }
 
 /** Timer functions the agent uses for its own scheduling. They must NOT be the tracked ones. */
