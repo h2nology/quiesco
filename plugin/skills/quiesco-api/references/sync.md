@@ -111,9 +111,9 @@ App did not become idle within the 10000ms timeout. Busy:
 ```
 
 A tracker that was busy until shortly before the timeout (within a second), but idle at that instant, is
-listed too, with what it was busy with then: `frame-stable (idle at the timeout, busy 12ms before it):
-…`. A loop of "timer → render → a few quiet frames" is idle part of the time, and the timeout can land
-there.
+listed too, with what it was busy with then:
+`frame-stable (idle at the timeout, busy 12ms before it): …`. A loop of "timer → render → a few quiet
+frames" is idle part of the time, and the timeout can land there.
 
 What to do depends on the tracker:
 
