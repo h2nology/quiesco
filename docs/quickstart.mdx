@@ -58,11 +58,26 @@ Requirements: Node.js 24+, an Expo app on SDK 55 or later (`npx create-expo-app@
     });
     ```
   </Step>
-  <Step title="Let the home screen settle">
-    The default template spins a decorative glow on the home screen for four minutes, so the screen never
-    settles. Give it a test id — `<Animated.View … style={styles.glow} testID="logo-glow">` in
-    `src/components/animated-icon.web.tsx` (and `animated-icon.tsx` for iOS / Android) — and uncomment
-    `sync: { ignoreElements: ['logo-glow'] }` in `quiesco.config.mts`.
+  <Step title="Let the home screen settle (optional)">
+    You only need this step if the home screen has an animation that keeps running. Quiesco waits for the
+    screen to settle before it moves on, so an animation that runs for minutes makes it wait until
+    `SYNC_TIMEOUT`. If your home screen has none, skip this step.
+
+    The SDK 55 default template is one such case: it spins a decorative glow on the home screen for four
+    minutes. Later templates may not have it — check your own project. The fix is to give the element a
+    test id and have Quiesco ignore it when deciding whether the screen has settled.
+
+    In `src/components/animated-icon.web.tsx` (and `animated-icon.tsx` for iOS / Android):
+
+    ```tsx
+    <Animated.View … style={styles.glow} testID="logo-glow">
+    ```
+
+    Then uncomment this line in `quiesco.config.mts`:
+
+    ```ts
+    sync: { ignoreElements: ['logo-glow'] },
+    ```
   </Step>
   <Step title="Run it">
     <CodeGroup>

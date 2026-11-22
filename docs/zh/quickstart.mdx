@@ -55,8 +55,22 @@ description: "从一个新建的 Expo App 到在 Chromium 中通过的测试，�
     });
     ```
   </Step>
-  <Step title="让首页稳定下来">
-    默认模板会在首页上让一个装饰性的光晕转动四分钟，因此页面一直无法稳定。给它加上 test id——在`src/components/animated-icon.web.tsx`（iOS / Android 则是 `animated-icon.tsx`）中写`<Animated.View … style={styles.glow} testID="logo-glow">`——然后取消 `quiesco.config.mts` 中`sync: { ignoreElements: ['logo-glow'] }` 的注释。
+  <Step title="（可选）让首页稳定下来">
+    只有当首页上有一直在播放的动画时才需要这一步。Quiesco 会等画面稳定后再继续，持续数分钟的动画会让它一直等到 `SYNC_TIMEOUT`。如果首页没有这样的动画，跳过即可。
+
+    以 SDK 55 的默认模板为例：它会在首页上让一个装饰性的光晕转动四分钟。之后版本的模板未必还有这个动画，具体以你的项目为准。处理方法是给这个元素加上 test id，再让 Quiesco 在判断稳定时忽略它。
+
+    在 `src/components/animated-icon.web.tsx`（iOS / Android 则是 `animated-icon.tsx`）中：
+
+    ```tsx
+    <Animated.View … style={styles.glow} testID="logo-glow">
+    ```
+
+    然后取消 `quiesco.config.mts` 中这一行的注释：
+
+    ```ts
+    sync: { ignoreElements: ['logo-glow'] },
+    ```
   </Step>
   <Step title="运行">
     <CodeGroup>
