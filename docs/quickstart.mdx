@@ -10,19 +10,27 @@ Requirements: Node.js 24+, an Expo app on SDK 55 or later (`npx create-expo-app@
     <CodeGroup>
     ```sh pnpm
     cd my-app
-    pnpm dlx quiesco init     # dependencies, config plugin, Metro, entry file, quiesco.config.mts, a first test
+
+    # dependencies, config plugin, Metro, entry file, quiesco.config.mts, a first test
+    pnpm dlx quiesco init
     ```
     ```sh npm
     cd my-app
-    npx quiesco init          # dependencies, config plugin, Metro, entry file, quiesco.config.mts, a first test
+
+    # dependencies, config plugin, Metro, entry file, quiesco.config.mts, a first test
+    npx quiesco init
     ```
     ```sh bun
     cd my-app
-    bunx quiesco init         # dependencies, config plugin, Metro, entry file, quiesco.config.mts, a first test
+
+    # dependencies, config plugin, Metro, entry file, quiesco.config.mts, a first test
+    bunx quiesco init
     ```
     ```sh yarn
     cd my-app
-    yarn dlx quiesco init     # dependencies, config plugin, Metro, entry file, quiesco.config.mts, a first test
+
+    # dependencies, config plugin, Metro, entry file, quiesco.config.mts, a first test
+    yarn dlx quiesco init
     ```
     </CodeGroup>
 
@@ -83,19 +91,27 @@ Requirements: Node.js 24+, an Expo app on SDK 55 or later (`npx create-expo-app@
     <CodeGroup>
     ```sh pnpm
     pnpm exec playwright install chromium
-    pnpm e2e:web              # exports the web build with EXPO_PUBLIC_QUIESCO=1, then quiesco test --platform web
+
+    # exports the web build with EXPO_PUBLIC_QUIESCO=1, then quiesco test --platform web
+    pnpm e2e:web
     ```
     ```sh npm
     npx playwright install chromium
-    npm run e2e:web           # exports the web build with EXPO_PUBLIC_QUIESCO=1, then quiesco test --platform web
+
+    # exports the web build with EXPO_PUBLIC_QUIESCO=1, then quiesco test --platform web
+    npm run e2e:web
     ```
     ```sh bun
     bunx playwright install chromium
-    bun run e2e:web           # exports the web build with EXPO_PUBLIC_QUIESCO=1, then quiesco test --platform web
+
+    # exports the web build with EXPO_PUBLIC_QUIESCO=1, then quiesco test --platform web
+    bun run e2e:web
     ```
     ```sh yarn
     yarn playwright install chromium
-    yarn e2e:web              # exports the web build with EXPO_PUBLIC_QUIESCO=1, then quiesco test --platform web
+
+    # exports the web build with EXPO_PUBLIC_QUIESCO=1, then quiesco test --platform web
+    yarn e2e:web
     ```
     </CodeGroup>
 

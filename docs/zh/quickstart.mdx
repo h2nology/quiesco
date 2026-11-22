@@ -10,19 +10,27 @@ description: "从一个新建的 Expo App 到在 Chromium 中通过的测试，�
     <CodeGroup>
     ```sh pnpm
     cd my-app
-    pnpm dlx quiesco init     # 依赖、config plugin、Metro、入口文件、quiesco.config.mts，以及第一个测试
+
+    # 依赖、config plugin、Metro、入口文件、quiesco.config.mts，以及第一个测试
+    pnpm dlx quiesco init
     ```
     ```sh npm
     cd my-app
-    npx quiesco init          # 依赖、config plugin、Metro、入口文件、quiesco.config.mts，以及第一个测试
+
+    # 依赖、config plugin、Metro、入口文件、quiesco.config.mts，以及第一个测试
+    npx quiesco init
     ```
     ```sh bun
     cd my-app
-    bunx quiesco init         # 依赖、config plugin、Metro、入口文件、quiesco.config.mts，以及第一个测试
+
+    # 依赖、config plugin、Metro、入口文件、quiesco.config.mts，以及第一个测试
+    bunx quiesco init
     ```
     ```sh yarn
     cd my-app
-    yarn dlx quiesco init     # 依赖、config plugin、Metro、入口文件、quiesco.config.mts，以及第一个测试
+
+    # 依赖、config plugin、Metro、入口文件、quiesco.config.mts，以及第一个测试
+    yarn dlx quiesco init
     ```
     </CodeGroup>
 
@@ -76,19 +84,27 @@ description: "从一个新建的 Expo App 到在 Chromium 中通过的测试，�
     <CodeGroup>
     ```sh pnpm
     pnpm exec playwright install chromium
-    pnpm e2e:web              # 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
+
+    # 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
+    pnpm e2e:web
     ```
     ```sh npm
     npx playwright install chromium
-    npm run e2e:web           # 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
+
+    # 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
+    npm run e2e:web
     ```
     ```sh bun
     bunx playwright install chromium
-    bun run e2e:web           # 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
+
+    # 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
+    bun run e2e:web
     ```
     ```sh yarn
     yarn playwright install chromium
-    yarn e2e:web              # 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
+
+    # 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
+    yarn e2e:web
     ```
     </CodeGroup>
 

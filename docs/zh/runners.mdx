@@ -17,91 +17,40 @@ Quiesco 通过你的测试运行器驱动 App。有三个运行器提供现成�
 
 <CodeGroup>
 ```sh pnpm
-pnpm dlx quiesco init --runner vitest  # 或 jest、cucumber
+# 或 jest、cucumber
+pnpm dlx quiesco init --runner vitest
 ```
 ```sh npm
-npx quiesco init --runner vitest     # 或 jest、cucumber
+# 或 jest、cucumber
+npx quiesco init --runner vitest
 ```
 ```sh bun
-bunx quiesco init --runner vitest    # 或 jest、cucumber
+# 或 jest、cucumber
+bunx quiesco init --runner vitest
 ```
 ```sh yarn
-yarn dlx quiesco init --runner vitest  # 或 jest、cucumber
+# 或 jest、cucumber
+yarn dlx quiesco init --runner vitest
 ```
 </CodeGroup>
 
 之后 `quiesco test`、`quiesco ui` 和 `quiesco list` 会使用已安装了 Quiesco 包的那个运行器，因此不需要 `--runner`。如果安装了多个（或一个都没有），则与 Quiesco 0.6 及更早版本一样使用 Cucumber；用 `--runner` 可以指定其他运行器。
 
-## Vitest {#vitest}
+## 配置方法 {#setup}
 
-`app` 是一个测试 fixture。`quiesco init --runner vitest` 会写入配置（`vitest.config.mts`）和第一个测试（`e2e/app.test.ts`）：
+每个运行器的配置方法各有一页：
 
-```ts
-// vitest.config.mts
-import { quiesco, quiescoPlugin } from '@quiesco/vitest/config';
-import { defineConfig } from 'vitest/config';
-export default defineConfig({ plugins: [quiescoPlugin()], test: { ...quiesco(), include: ['e2e/**/*.test.ts'] } });
-
-// e2e/todo.test.ts
-import { test } from '@quiesco/vitest';
-
-test('a new todo appears at the top', async ({ app }) => {
-  await app.tap('add-todo');                      // 等待 App 空闲，然后点击
-  await app.type('todo-title', 'Buy milk');
-  await app.tap({ role: 'button', text: 'Save' });
-  await app.expectText({ id: 'todo-item', index: 0 }, 'Buy milk');
-});
-test('Android only', { tags: ['@android'] }, async ({ app }) => { /* … */ });
-```
-
-`quiesco()` 让 App 在多个文件之间保持运行（`isolate: false`），逐个运行文件（或通过`quiesco({ workers: N })` 在 N 台设备上运行），并声明平台标签。`quiescoPlugin()` 把运行进度发给 `quiesco test` 的进度条和 `quiesco ui`；它只在由二者运行 Vitest 时才加上自己的 reporter，并保留你自己的 reporters。
-
-**所有文件共用的 hook 写在 `setupFiles` 里。** 因为文件之间共享模块（`isolate: false`），每个测试文件都 import 的支持模块在每个 worker 里只执行一次：写在它顶层的 `test.beforeEach(…)` 只注册给第一个 import 它的文件，之后的文件不带这个 hook 运行，也不会报错。这类 hook 请写在每个测试文件里，或者写在每个文件之前都会执行的 setup 文件里：
-
-```ts
-// vitest.config.mts
-test: { ...quiesco(), include: ['e2e/**/*.test.ts'], setupFiles: ['e2e/setup.ts'] },
-
-// e2e/setup.ts
-import { test } from '@quiesco/vitest';
-test.beforeEach(async ({ app }) => { await app.openUrl('myapp://home'); });
-```
-
-## Jest {#jest}
-
-一个 preset；测试通过全局变量 `quiesco` 访问 App。`quiesco init --runner jest` 会写入配置（`jest.config.cjs`）和第一个测试（`e2e/app.test.js`）：
-
-```js
-// jest.config.cjs
-module.exports = { preset: '@quiesco/jest', maxWorkers: 1, testTimeout: 120_000 }; // maxWorkers: N = N 台设备
-
-// e2e/todo.test.js
-test('a new todo appears at the top @ios', async () => {
-  await quiesco.app.tap('add-todo');
-});
-```
-
-平台标签写在测试或 `describe` 的标题中（Jest 没有测试选项）。preset 还会加上把运行进度发给 `quiesco test` 和 `quiesco ui` 的 reporter。如果配置里有自己的 `reporters`，会替换 preset 的：请在其中加上 `'@quiesco/jest/reporter'`（与 `'default'` 并列）。
-
-## Cucumber {#cucumber}
-
-用 Gherkin 编写 feature，步骤通过 `this.app` 访问 App：
-
-```gherkin
-Scenario: A new todo appears at the top of the list
-  When they add a todo "Buy milk"
-  Then the first todo is "Buy milk"
-```
-
-```ts
-When('they add a todo {string}', async function (this: QuiescoWorld, title: string) {
-  await this.app.tap('add-todo');                 // 等待 App 空闲，然后点击
-  await this.app.type('todo-title', title);
-  await this.app.tap({ role: 'button', text: 'Save' });
-});
-```
-
-`quiesco init --runner cucumber` 会写入 `cucumber.mjs`、`features/support/quiesco.ts`（World 和生命周期钩子），以及第一个 feature 及其步骤。在 `this.app` 之上编写业务语言步骤见 [Driver 模式](./driver-pattern)；用于原型验证的通用步骤见[通用步骤](./steps)。
+<CardGroup cols={3}>
+  <Card title="Vitest" icon="flask" href="/zh/runners/vitest">
+    vitest.config.mts、quiesco() 的选项和 app fixture
+  </Card>
+  <Card title="Jest" icon="flask" href="/zh/runners/jest">
+    preset、jest.config.cjs 和全局 quiesco
+  </Card>
+  <Card title="Cucumber" icon="flask" href="/zh/runners/cucumber">
+    cucumber.mjs、registerQuiesco() 的选项和 World
+  </Card>
+</CardGroup>
 
 ## 运行 {#running}
 

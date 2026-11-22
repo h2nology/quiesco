@@ -106,7 +106,7 @@ Check the app log (forwarded at `logLevel`) and the device log.
 ## `APP_ERROR` {#app-error}
 
 An uncaught error in the app fails the current step — it is usually a real bug. Known harmless framework
-reports can be ignored with `appErrors.ignore` ([configuration](./api#configuration)). A `console.error` does not
+reports can be ignored with `appErrors.ignore` ([configuration](./config)). A `console.error` does not
 fail the step; a failure later in the scenario names it ([LogBox covers the app](#logbox)).
 
 ## iOS {#ios}

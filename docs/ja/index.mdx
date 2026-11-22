@@ -9,8 +9,12 @@ description: "Vitest、Jest、Cucumber、その他任意のNode.jsテストラ�
 import { test } from '@quiesco/vitest';
 
 test('a new todo appears at the top of the list', async ({ app }) => {
-  await app.backdoor('loginAs', 'a@example.com');             // UIを操作せずに状態を準備する
-  await app.tap('add-todo');                                  // アプリがアイドルになるのを待ってからタップする
+  // UIを操作せずに状態を準備する
+  await app.backdoor('loginAs', 'a@example.com');
+
+  // アプリがアイドルになるのを待ってからタップする
+  await app.tap('add-todo');
+
   await app.type('todo-title', 'Buy milk');
   await app.tap({ role: 'button', text: 'Save' });
   await app.expectText({ id: 'todo-item', index: 0 }, 'Buy milk');

@@ -15,7 +15,8 @@ Quiesco 的可选通用 cucumber 步骤，提供中文、日文和英文版本�
 // features/support/steps.ts
 import { registerQuiescoSteps } from '@quiesco/steps';
 
-registerQuiescoSteps(); // 所有语言；或 { languages: ['ja'] }、{ only: ['tap', 'seeText'] }
+// 所有语言；或 { languages: ['ja'] }、{ only: ['tap', 'seeText'] }
+registerQuiescoSteps();
 ```
 
 还必须导入 `@quiesco/cucumber/register`（它提供 `this.app`）。这些步骤通过 cucumber 与关键字无关的 `defineStep` 注册，因此可以跟在任何关键字之后（`当` / `もし` / `When` …），也可用于任何 `# language:` 的 feature 文件。

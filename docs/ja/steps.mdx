@@ -15,7 +15,8 @@ Quiesco用の汎用cucumberステップです（任意）。中国語、日本�
 // features/support/steps.ts
 import { registerQuiescoSteps } from '@quiesco/steps';
 
-registerQuiescoSteps(); // すべての言語。または { languages: ['ja'] }、{ only: ['tap', 'seeText'] }
+// すべての言語。または { languages: ['ja'] }、{ only: ['tap', 'seeText'] }
+registerQuiescoSteps();
 ```
 
 `@quiesco/cucumber/register`もimportする必要があります（`this.app`を提供します）。ステップはcucumberのキーワードに依存しない`defineStep`で登録されるため、どのキーワード（`当` / `もし` / `When` …）の後でも、どの`# language:`のfeatureファイルでも動作します。

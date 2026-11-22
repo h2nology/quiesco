@@ -99,7 +99,9 @@ Android 的 `DateTimePicker` 不渲染任何视图（它会打开一个对话框
 
 ```ts
 await this.app.setValue('due-date-picker', '2031-12-24');
-await this.app.setValue('due-time-picker', '20:15');   // 不必编造一个日期
+
+// 不必编造一个日期
+await this.app.setValue('due-time-picker', '20:15');
 ```
 
 `minimumDate` / `maximumDate` 会对照结果检查。字符串是设备上的本地时间，因此不受 host 时区影响；`Date` 会换算成设备的时区。
@@ -158,7 +160,10 @@ await this.app.setValue('due-time-picker', '20:15');   // 不必编造一个日�
 ```ts
 await this.app.expect('save').toBeEnabled();
 await this.app.expect({ type: 'switch', label: 'Wi-Fi' }).not.toBeChecked();
-await this.app.expect('banner').toBeVisible({ ratio: 0.75 });     // Detox：toBeVisible(75)
+
+// Detox：toBeVisible(75)
+await this.app.expect('banner').toBeVisible({ ratio: 0.75 });
+
 await this.app.expect({ id: 'title' }).not.toHaveValue('');
 ```
 
@@ -184,14 +189,28 @@ await this.app.expect({ id: 'title' }).not.toHaveValue('');
 ```ts
 // 以带类型的启动参数和深层链接启动一个新进程（真正的冷启动：getInitialURL 能拿到它）。
 await this.app.device.relaunch({ args: { user: 'ann', retries: 3 }, url: 'myapp://todos/1' });
-await this.app.device.relaunch({ clearData: true });              // 先删除 App 数据
+
+// 先删除 App 数据
+await this.app.device.relaunch({ clearData: true });
+
 await this.app.device.relaunch({ reinstall: true, permissions: ['camera'] });
-await this.app.device.sendToBackground();                         // Home 键；进程继续运行
-await this.app.device.bringToForeground();                        // 同一个进程，等待其处于活跃且空闲状态
+
+// Home 键；进程继续运行
+await this.app.device.sendToBackground();
+
+// 同一个进程，等待其处于活跃且空闲状态
+await this.app.device.bringToForeground();
+
 await this.app.device.terminate();
-const png = await this.app.device.screenshot('avatar');           // 单个元素；不传参数：整个屏幕
-await this.app.device.screenshot({ fullPage: true }, { name: 'todos' }); // 整个列表，拼接而成；保存并附加到报告
-await this.app.device.reversePort(3001);                          // Android：adb reverse；其他平台不做任何事
+
+// 单个元素；不传参数：整个屏幕
+const png = await this.app.device.screenshot('avatar');
+
+// 整个列表，拼接而成；保存并附加到报告
+await this.app.device.screenshot({ fullPage: true }, { name: 'todos' });
+
+// Android：adb reverse；其他平台不做任何事
+await this.app.device.reversePort(3001);
 ```
 
 | 方法 | 作用 |
@@ -210,16 +229,31 @@ await this.app.device.reversePort(3001);                          // Android：a
 #### 设备状态
 
 ```ts
-await this.app.device.setOrientation('landscape');      // App 窗口旋转完成后 resolve
+// App 窗口旋转完成后 resolve
+await this.app.device.setOrientation('landscape');
+
 await this.app.device.setAppearance('dark');
-await this.app.device.setFontScale(1.3);                 // iOS：最接近的 Dynamic Type 尺寸；返回实际 App 的缩放比例
-await this.app.device.setLocale('ja-JP');                // iOS / web：以该设置重新启动 App
+
+// iOS：最接近的 Dynamic Type 尺寸；返回实际 App 的缩放比例
+await this.app.device.setFontScale(1.3);
+
+// iOS / web：以该设置重新启动 App
+await this.app.device.setLocale('ja-JP');
+
 await this.app.device.setLocation(35.68, 139.76);
 await this.app.device.setPermission('location', 'revoke');
-await this.app.device.setNetwork('offline');             // App 的请求会失败；Quiesco 保持连接
-await this.app.device.clipboard.set('hello');            // App 粘贴的内容
-const copied = await this.app.device.clipboard.get();    // App 复制的内容
-await this.app.device.setStatusBar({ time: '9:41', batteryLevel: 100 }); // 用于截图
+
+// App 的请求会失败；Quiesco 保持连接
+await this.app.device.setNetwork('offline');
+
+// App 粘贴的内容
+await this.app.device.clipboard.set('hello');
+
+// App 复制的内容
+const copied = await this.app.device.clipboard.get();
+
+// 用于截图
+await this.app.device.setStatusBar({ time: '9:41', batteryLevel: 100 });
 ```
 
 | 方法 | 作用 |
@@ -239,17 +273,33 @@ await this.app.device.setStatusBar({ time: '9:41', batteryLevel: 100 }); // 用�
 #### 系统集成
 
 ```ts
-await this.app.device.biometrics.enroll();     // 设置好 Face ID / Touch ID / 指纹
-await this.app.tap('login-with-face-id');      // App 调用 LocalAuthentication.authenticateAsync()
-await this.app.device.biometrics.match();      // 匹配的面容 / 指纹：App 的认证成功
-await this.app.device.shake();
-await this.app.device.clearKeychain();         // iOS
-await this.app.device.sendNotification({ title: 'New message', data: { chatId: '42' } });
-await this.app.device.openNotification('New message'); // 点击它（iOS：横幅 / 通知中心；Android：通知栏）
+// 设置好 Face ID / Touch ID / 指纹
+await this.app.device.biometrics.enroll();
 
-await this.app.tap('enable-notifications');           // App 请求一项权限
-await this.app.device.system.allowPermission();        // 系统弹窗的允许按钮
-await this.app.device.system.tap({ text: 'Cancel' });  // App 之外的任意系统 UI
+// App 调用 LocalAuthentication.authenticateAsync()
+await this.app.tap('login-with-face-id');
+
+// 匹配的面容 / 指纹：App 的认证成功
+await this.app.device.biometrics.match();
+
+await this.app.device.shake();
+
+// iOS
+await this.app.device.clearKeychain();
+
+await this.app.device.sendNotification({ title: 'New message', data: { chatId: '42' } });
+
+// 点击它（iOS：横幅 / 通知中心；Android：通知栏）
+await this.app.device.openNotification('New message');
+
+// App 请求一项权限
+await this.app.tap('enable-notifications');
+
+// 系统弹窗的允许按钮
+await this.app.device.system.allowPermission();
+
+// App 之外的任意系统 UI
+await this.app.device.system.tap({ text: 'Cancel' });
 ```
 
 | 方法 | 作用 |
@@ -281,9 +331,13 @@ await this.app.device.system.tap({ text: 'Cancel' });  // App 之外的任意系
 **Web JavaScript 对话框。** `alert`、`confirm` 和 `prompt` 会一直保持打开，直到测试应答它们，就像用户那样：它们也属于系统 UI。对话框的消息是一个 id 为 `dialog.message` 的节点，其按钮为 `OK`（`dialog.accept`），对于 `confirm` / `prompt` 还有 `Cancel`（`dialog.dismiss`）；被接受的 prompt 会得到其默认值。
 
 ```ts
-await this.app.tap('clear-all');                                   // 页面调用 confirm('Delete all?')
+// 页面调用 confirm('Delete all?')
+await this.app.tap('clear-all');
+
 await this.app.device.system.expectVisible({ text: 'Delete all?' });
-await this.app.device.system.tap({ text: 'Cancel' });              // confirm() 返回 false；然后等待空闲
+
+// confirm() 返回 false；然后等待空闲
+await this.app.device.system.tap({ text: 'Cancel' });
 ```
 
 对话框打开期间，页面不运行任何脚本、也不接受任何输入，因此打开它的操作会在对话框出现后立即返回（不等待空闲），而对 App 的其他任何调用都会立即以 `DIALOG_OPEN` 失败并指出该对话框（请先应答它）；截图也一样，因为页面不会绘制。场景结束时仍然打开的对话框会在下一个场景之前被关闭，并给出警告。`beforeunload`提示总是会被接受（离开或重新加载页面永远不会被拦住）。
@@ -291,13 +345,26 @@ await this.app.device.system.tap({ text: 'Cancel' });              // confirm() 
 ### 截图 {#screenshots}
 
 ```ts
-await this.app.device.screenshot();                                   // 整个屏幕
-await this.app.device.screenshot('avatar');                           // 一个元素（屏幕上可见的部分）
-await this.app.device.screenshot('terms', { full: true });            // 元素的全部内容，滚动并拼接
-await this.app.device.screenshot({ fullPage: true });                 // 主滚动视图的全部内容
-await this.app.device.screenshot({ fullPage: 'todo-list' });          // 指定滚动视图的全部内容
-await this.app.webview('help').element({ css: '#chart' }).screenshot(); // WebView 页面中的一个元素
-await this.app.device.screenshot(undefined, { name: 'home' });        // + artifacts/<run>/<scenario>/home.png，并附加到报告
+// 整个屏幕
+await this.app.device.screenshot();
+
+// 一个元素（屏幕上可见的部分）
+await this.app.device.screenshot('avatar');
+
+// 元素的全部内容，滚动并拼接
+await this.app.device.screenshot('terms', { full: true });
+
+// 主滚动视图的全部内容
+await this.app.device.screenshot({ fullPage: true });
+
+// 指定滚动视图的全部内容
+await this.app.device.screenshot({ fullPage: 'todo-list' });
+
+// WebView 页面中的一个元素
+await this.app.webview('help').element({ css: '#chart' }).screenshot();
+
+// + artifacts/<run>/<scenario>/home.png，并附加到报告
+await this.app.device.screenshot(undefined, { name: 'home' });
 ```
 
 整页截图在所有平台上都一样：Quiesco 把滚动视图滚动到顶部（以编程方式，与 `scrollToEdge` 在 js 模式下的做法相同），每一屏截一张图，然后拼接——滚动视图上方的部分（状态栏、header）取自第一张，之后每一张取新露出的那一条，滚动视图下方的部分（tab bar）取自最后一张——因此固定的页头和页脚只出现一次。滚动时会渲染更多行的虚拟化列表会被一直跟随到末尾。在此期间滚动指示器会被隐藏（native），完成后滚动位置会被恢复。滚动过程中会变化的内容（吸顶的分组标题、动画）显示的是每一屏截图时的样子。
@@ -307,13 +374,18 @@ await this.app.device.screenshot(undefined, { name: 'home' });        // + artif
 WebView 中所显示页面的元素：iOS / Android 上是 react-native-webview，web 上是 `<iframe>`（react-native-webview 没有 web 实现，因此 App 在 web 上会渲染一个 iframe，例如在`MyWebView.web.tsx` 中）。
 
 ```ts
-const help = this.app.webview('help');                  // 通过匹配器（testID 等）指定 WebView；不传参数：屏幕上唯一的那个
+// 通过匹配器（testID 等）指定 WebView；不传参数：屏幕上唯一的那个
+const help = this.app.webview('help');
+
 await help.element({ css: '#name' }).type('Alice');
 await help.element({ xpath: '//input[@name="name"]' }).replaceText('Bob');
 await help.element({ text: '打招呼' }).tap();
 await help.element({ id: 'result' }).expectText('你好，Bob');
 await help.element({ text: /^Loading/ }).expectNotVisible();
-const title = await help.runScript<string>('return document.title');   // 函数体；可用 `arguments`，promise 会被 await
+
+// 函数体；可用 `arguments`，promise 会被 await
+const title = await help.runScript<string>('return document.title');
+
 await help.url(); await help.title();
 ```
 
@@ -335,10 +407,18 @@ await help.url(); await help.title();
 在场景的剩余部分中更改 Quiesco 要等待的内容——而不是把同步完全关闭：
 
 ```ts
-await this.app.sync.disableTracker('timer');            // 例如每 200 ms 轮询一次的页面
-await this.app.sync.ignoreElements.add('poll-count');   // 它的文本随每次轮询变化
-await this.app.sync.ignoreUrls.add(/\/analytics/);      // 一个永不结束的请求
-await this.app.sync.disable();                          // 关闭所有跟踪器（Detox 的 disableSynchronization）
+// 例如每 200 ms 轮询一次的页面
+await this.app.sync.disableTracker('timer');
+
+// 它的文本随每次轮询变化
+await this.app.sync.ignoreElements.add('poll-count');
+
+// 一个永不结束的请求
+await this.app.sync.ignoreUrls.add(/\/analytics/);
+
+// 关闭所有跟踪器（Detox 的 disableSynchronization）
+await this.app.sync.disable();
+
 await this.app.sync.enable();
 ```
 
@@ -349,17 +429,38 @@ await this.app.sync.enable();
 普通字符串表示 **testID**：`tap('add-todo')`。对象可以组合多个条件：
 
 ```ts
-{ id: 'todo-item', index: 0 }                  // 多个中的第一个，按渲染顺序
-{ id: /^todo-\d+$/ }                            // 用正则表达式匹配 testID
-{ text: 'Save' }                                // 显示的文本，精确匹配
-{ text: /saved \d+ items/i }                    // 或正则表达式
-{ label: 'Close' }                              // accessibilityLabel / aria-label
-{ role: 'button', text: 'Save' }                // accessibilityRole / role
-{ type: 'switch' }                              // 语义类型，各平台相同（见下文）
-{ type: 'TodoCard' }                            // 或 host 类型（'RCTView'、'div'）或组件的 displayName
-{ type: 'button', has: { text: 'Buy milk' } }   // 带有匹配的后代元素（Detox 的 withDescendant）
-{ type: 'button', not: { id: 'cancel' } }       // 排除匹配的元素
-{ text: 'Delete', within: 'todo-item-3' }       // 位于另一个元素内部（Detox 的 withAncestor）
+// 多个中的第一个，按渲染顺序
+{ id: 'todo-item', index: 0 }
+
+// 用正则表达式匹配 testID
+{ id: /^todo-\d+$/ }
+
+// 显示的文本，精确匹配
+{ text: 'Save' }
+
+// 或正则表达式
+{ text: /saved \d+ items/i }
+
+// accessibilityLabel / aria-label
+{ label: 'Close' }
+
+// accessibilityRole / role
+{ role: 'button', text: 'Save' }
+
+// 语义类型，各平台相同（见下文）
+{ type: 'switch' }
+
+// 或 host 类型（'RCTView'、'div'）或组件的 displayName
+{ type: 'TodoCard' }
+
+// 带有匹配的后代元素（Detox 的 withDescendant）
+{ type: 'button', has: { text: 'Buy milk' } }
+
+// 排除匹配的元素
+{ type: 'button', not: { id: 'cancel' } }
+
+// 位于另一个元素内部（Detox 的 withAncestor）
+{ text: 'Delete', within: 'todo-item-3' }
 ```
 
 `text` 匹配自身文本相符的最深层元素（按钮和它的标签不会同时匹配）。在 web 上，`testID` 渲染为 `data-testid`；匹配器在所有平台上都相同，`index` 在所有平台上都遵循渲染顺序（Detox 的 `atIndex` 顺序在 iOS 和 Android 之间不同）。
@@ -445,6 +546,8 @@ declare module '@quiesco/agent' {
 
 ## 配置 {#configuration}
 
+所有配置项及其类型和默认值见[配置](./config)。
+
 项目根目录下的 `quiesco.config.ts`（`.mts`、`.js` 和 `.mjs` 也可以）：
 
 ```ts
@@ -454,7 +557,9 @@ export default defineConfig({
   apps: {
     ios: { bundleId: 'com.example.app', binaryPath: 'ios/build/…/App.app', devClient: { metroUrl: 'http://localhost:8081' } },
     android: { package: 'com.example.app', binaryPath: 'android/app/build/outputs/apk/debug/app-debug.apk', devClient: { scheme: 'myapp' } },
-    web: { distDir: 'dist' },                       // 或 { url: 'http://localhost:8081' }
+
+    // 或 { url: 'http://localhost:8081' }
+    web: { distDir: 'dist' },
   },
   devices: {
     ios: { device: 'iPhone 17', os: '27.0' },
@@ -580,12 +685,22 @@ export default defineConfig({
 ```ts
 import { Lifecycle, titleTags } from '@quiesco/core';
 
-const lifecycle = new Lifecycle();                                 // 配置来自 quiesco.config.*、QUIESCO_PLATFORM
-await lifecycle.beforeAll();                                        // 服务器、设备、安装、启动、连接
-if ((await lifecycle.before([titleTags(name)], name)) !== 'skipped') {   // 按层级的标签；重置
-  await lifecycle.current.driver.tap('login-button');               // Driver
+// 配置来自 quiesco.config.*、QUIESCO_PLATFORM
+const lifecycle = new Lifecycle();
+
+// 服务器、设备、安装、启动、连接
+await lifecycle.beforeAll();
+
+// 按层级的标签；重置
+if ((await lifecycle.before([titleTags(name)], name)) !== 'skipped') {
+
+  // Driver
+  await lifecycle.current.driver.tap('login-button');
 }
-const { attachments, files } = await lifecycle.after({ tags, failed });  // 证据 + 按策略生成的产物
+
+// 证据 + 按策略生成的产物
+const { attachments, files } = await lifecycle.after({ tags, failed });
+
 await lifecycle.afterAll();
 ```
 

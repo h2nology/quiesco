@@ -1,0 +1,127 @@
+---
+title: "Cucumber"
+description: "@quiesco/cucumberの設定：cucumber.mjs、サポートファイル、registerQuiesco()のオプションとWorld。"
+---
+
+`@quiesco/cucumber`は、cucumber-jsでGherkinのフィーチャーを実行します。ステップは`this.app`でアプリを操作します。`@cucumber/cucumber` 12以降が必要です。
+
+## セットアップ {#setup}
+
+`quiesco init --runner cucumber`は`@quiesco/cucumber`と`@cucumber/cucumber`をインストールし、次のファイルを作ります。
+
+| ファイル | 内容 |
+|---|---|
+| `cucumber.mjs` | cucumber-jsの設定 |
+| `features/package.json` | `{ "type": "module" }`：ステップファイルはESモジュール |
+| `features/support/quiesco.ts` | Worldとライフサイクルのフックを登録する |
+| `features/app.feature` | 最初のシナリオ |
+| `features/step_definitions/app.steps.ts` | そのステップ |
+
+ステップファイル同士は`.ts`付きでインポートし合うため、`tsconfig.json`に`"allowImportingTsExtensions": true`も加えます（[TypeScript](#typescript)を参照）。
+
+```js
+// cucumber.mjs
+export default {
+  import: ['features/support/**/*.ts', 'features/step_definitions/**/*.ts'],
+  format: ['progress'],
+};
+```
+
+フィーチャーは、cucumber-jsのデフォルトどおり`features/**/*.feature`から読み込みます。ここで`paths`は設定しないでください。設定のパスはコマンドラインのパスとマージされるため、`quiesco test features/x.feature`がすべてのフィーチャーを実行してしまいます。
+
+```ts
+// features/support/quiesco.ts
+import '@quiesco/cucumber/register';
+```
+
+```ts
+// features/step_definitions/app.steps.ts
+import { Then } from '@cucumber/cucumber';
+import type { QuiescoWorld } from '@quiesco/cucumber';
+
+Then('the home screen is visible', async function (this: QuiescoWorld) {
+  await this.app.expectVisible({ id: 'home' });
+});
+```
+
+## `registerQuiesco()` {#register-quiesco}
+
+`import '@quiesco/cucumber/register'`は、すべてをデフォルトのまま登録します。デフォルトを変えるときは、代わりにサポートファイルで`registerQuiesco()`を呼びます（両方は使いません）。
+
+```ts
+// features/support/quiesco.ts
+import { registerQuiesco } from '@quiesco/cucumber';
+
+import { TodoWorld } from './todo-world.ts';
+
+registerQuiesco({ world: TodoWorld, stepTimeoutMs: 90_000 });
+```
+
+<ResponseField name="world" type="QuiescoWorldを継承したクラス" default="QuiescoWorld">
+  自分のWorld（[後述](#world)）。
+</ResponseField>
+
+<ResponseField name="stepTimeoutMs" type="number" default="60000">
+  ステップのデフォルトのタイムアウト。Driverの呼び出しにはそれぞれ同期のタイムアウトがあり、これはステップ全体の上限です。
+</ResponseField>
+
+<ResponseField name="setupTimeoutMs" type="number" default="600000">
+  セッションを起動する`BeforeAll`フックのタイムアウト。エミュレーターの起動には数分かかることがあります。
+</ResponseField>
+
+<ResponseField name="resetTimeoutMs" type="number" default="180000">
+  各シナリオ前のリセットのタイムアウト。アプリが終了していれば起動し直すので、接続タイムアウトの最大3倍待つことがあります。
+</ResponseField>
+
+登録されるフックは4つです。
+
+| フック | 内容 |
+|---|---|
+| `BeforeAll` | セッションを起動する：サーバー、デバイス、インストール、起動、接続 |
+| `Before` | ほかのプラットフォームやブラウザー向けのタグが付いたシナリオを飛ばす。それ以外はアプリをリセットする |
+| `After` | 失敗したとき、証拠を書き出してレポートに添付する |
+| `AfterAll` | セッションを閉じる |
+
+## World {#world}
+
+`QuiescoWorld`は、各ステップに次のものを提供します。
+
+- `this.app`：[Driver](../api#driver-thisapp)。
+- `this.platform`：`'ios'`、`'android'`、`'web'`のいずれか。プラットフォームごとに同じことを違う方法で行うステップに使います。1つのプラットフォームだけのシナリオは、タグ（`@ios`など）を付けるほうが適しています。
+- `this.session`：セッション。Driverでは扱えないものに使います。
+
+自分の業務用のドライバーを加えるには、これを継承して`world`に渡します。
+
+```ts
+// features/support/todo-world.ts
+import { QuiescoWorld } from '@quiesco/cucumber';
+
+import { TodoDriver } from './todo-driver.ts';
+
+export class TodoWorld extends QuiescoWorld {
+  get todos() {
+    return new TodoDriver(this.app);
+  }
+}
+```
+
+詳しくは[ドライバーパターン](../driver-pattern)を参照してください。プロトタイプ向けの汎用ステップは[汎用ステップ](../steps)にあります。
+
+## TypeScript {#typescript}
+
+ステップファイルとサポートファイルは、`tsc`ではなくNodeの型ストリッピングで実行されます。
+
+- 相対インポートには`.ts`のファイル名を書きます：`import { TodoDriver } from './todo-driver.ts'`。
+- コードを生成するTypeScriptの構文は使えません：パラメータープロパティ（`constructor(private app: Driver)`）、`enum`、`namespace`。代わりにフィールドを宣言します。
+
+## タグ {#tags}
+
+プラットフォームとブラウザーのタグは、フィーチャー、`Rule`、シナリオ、`Examples`ブロックに付けられます。一番内側のものが優先されます（[シナリオタグ](../api#scenario-tags)）。`@hard-reset`はそのシナリオの前にアプリを再起動します。
+
+## 実行 {#running}
+
+```sh
+npx quiesco test --platform ios
+```
+
+`quiesco test`は`QUIESCO_PLATFORM`を設定して`cucumber-js`を実行し、Quiescoの進捗フォーマッターを自動で加えます。ほかの引数はそのままcucumber-jsに渡ります。例：`--tags @smoke`やフィーチャーファイル（[`quiesco test`](../cli#quiesco-test)）。`--workers N`は`--parallel N`になり、N個のワーカースレッドがそれぞれ専用のセッションとデバイスを使います（[並列実行](../parallel)）。

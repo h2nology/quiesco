@@ -41,7 +41,15 @@
               "index",
               "quickstart",
               "native",
-              "runners"
+              {
+                "group": "Test runners",
+                "pages": [
+                  "runners",
+                  "runners/vitest",
+                  "runners/jest",
+                  "runners/cucumber"
+                ]
+              }
             ]
           },
           {
@@ -59,6 +67,7 @@
             "group": "Reference",
             "pages": [
               "api",
+              "config",
               "cli",
               "steps",
               "example-app"
@@ -75,7 +84,15 @@
               "zh/index",
               "zh/quickstart",
               "zh/native",
-              "zh/runners"
+              {
+                "group": "测试运行器",
+                "pages": [
+                  "zh/runners",
+                  "zh/runners/vitest",
+                  "zh/runners/jest",
+                  "zh/runners/cucumber"
+                ]
+              }
             ]
           },
           {
@@ -93,6 +110,7 @@
             "group": "参考",
             "pages": [
               "zh/api",
+              "zh/config",
               "zh/cli",
               "zh/steps",
               "zh/example-app"
@@ -109,7 +127,15 @@
               "ja/index",
               "ja/quickstart",
               "ja/native",
-              "ja/runners"
+              {
+                "group": "テストランナー",
+                "pages": [
+                  "ja/runners",
+                  "ja/runners/vitest",
+                  "ja/runners/jest",
+                  "ja/runners/cucumber"
+                ]
+              }
             ]
           },
           {
@@ -127,6 +153,7 @@
             "group": "リファレンス",
             "pages": [
               "ja/api",
+              "ja/config",
               "ja/cli",
               "ja/steps",
               "ja/example-app"

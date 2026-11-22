@@ -1,0 +1,129 @@
+---
+title: "Vitest"
+description: "@quiesco/vitestの設定：vitest.config.mts、quiesco()のオプションとappフィクスチャー。"
+---
+
+`@quiesco/vitest`はおすすめのランナーです。テストはTypeScriptで書き、`app`フィクスチャーでアプリを操作します。Vitest 5.1以降が必要です。
+
+## セットアップ {#setup}
+
+`quiesco init --runner vitest`は`@quiesco/vitest`と`vitest`をインストールし、2つのファイルを作ります。
+
+```ts
+// vitest.config.mts
+import { quiesco, quiescoPlugin } from '@quiesco/vitest/config';
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  plugins: [quiescoPlugin()],
+  test: {
+    ...quiesco(),
+    include: ['e2e/**/*.test.ts'],
+  },
+});
+```
+
+```ts
+// e2e/app.test.ts
+import { test } from '@quiesco/vitest';
+
+test('the home screen is shown', async ({ app }) => {
+  await app.expectVisible({ id: 'home' });
+});
+```
+
+プロジェクトにユニットテスト用の`vitest.config.*`がすでにある場合、`init`はQuiescoの設定を`vitest.e2e.config.mts`に書き、`e2e:*`スクリプトに`--config vitest.e2e.config.mts`を付けます。
+
+## `quiesco()` {#quiesco}
+
+`quiesco()`は、Quiescoに必要な`test`のオプションを返します。`test`の中に展開し、自分のオプションはその後に書きます。
+
+<ResponseField name="workers" type="number" default="1">
+  テストファイルを並列に実行するワーカーの数。ワーカーごとに専用のデバイスを使います（[並列実行](../parallel)）。`1`ならファイルを1つずつ実行します。
+</ResponseField>
+
+<ResponseField name="testTimeout" type="number" default="300000">
+  各テストとフックのタイムアウト（ミリ秒）。最初のテストはセッションの起動も待ちます。デバイスの起動には数分かかることがあります。
+</ResponseField>
+
+<ResponseField name="tags" type="object">
+  `quiesco.config.mts`の[`tags`](../config#tags)でタグ名を変えたときは、同じオブジェクトをここにも渡します。
+</ResponseField>
+
+<ResponseField name="extraTags" type="string[]">
+  宣言する独自のタグ。例：`['@smoke']`。Vitestは宣言されたタグしか受け付けません。プラットフォームとブラウザーのタグは宣言済みです。
+</ResponseField>
+
+設定されるVitestのオプション：
+
+| Vitestのオプション | 値 | 理由 |
+|---|---|---|
+| `pool` | `'forks'` | |
+| `isolate` | `false` | ワーカーがテストファイルをまたいでセッション（デバイスとアプリ）を保つ |
+| `fileParallelism` / `maxWorkers` | `workers`から決まる | ワーカーごとに1台のデバイス |
+| `testTimeout` / `hookTimeout` | `testTimeout` | |
+| `teardownTimeout` | `120000` | アプリを閉じる時間 |
+| `tags` | プラットフォームとブラウザーのタグ、および`extraTags` | |
+| `includeTaskLocation` | `true` | `quiesco ui`が行番号で1つのテストを実行する |
+
+コマンドラインの`--fileParallelism --maxWorkers N`は`workers`より優先されます。
+
+## `quiescoPlugin()` {#quiesco-plugin}
+
+実行の進捗を`quiesco test`のプログレスバーと[`quiesco ui`](../ui)に送ります。自分のレポーターを追加するのはそれらがVitestを実行するときだけで、設定済みのレポーターはそのまま残ります。なくてもテストは動きますが、`quiesco test`が最後にヒントを出します。
+
+## すべてのファイルに共通のフック {#setup-files}
+
+`isolate: false`のため、テストファイル同士はモジュールを共有します。すべてのファイルがインポートするサポートモジュールは、ワーカーごとに1回しか実行されません。そのため、そのトップレベルにある`test.beforeEach(…)`は最初にインポートしたファイルにだけ登録され、ほかのファイルは何の警告もなくそれなしで実行されます。こうしたフックは各テストファイルに書くか、Vitestが各ファイルの前に実行するsetupファイルに書きます。
+
+```ts
+// vitest.config.mts
+test: {
+  ...quiesco(),
+  include: ['e2e/**/*.test.ts'],
+  setupFiles: ['e2e/setup.ts'],
+},
+```
+
+```ts
+// e2e/setup.ts
+import { test } from '@quiesco/vitest';
+
+test.beforeEach(async ({ app }) => {
+  await app.openUrl('myapp://home');
+});
+```
+
+実行全体で1回だけ動かすもの（モックバックエンドなど）は`globalSetup`に置きます（[サンプルアプリ](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e/vitest)を参照）。
+
+## テストを書く {#writing-tests}
+
+`test`（または`it`）、`describe`、`expect`は`@quiesco/vitest`からインポートします。アプリを操作するフィクスチャーは2つです。
+
+- `app`：[Driver](../api#driver-thisapp)。
+- `session`：セッション。Driverでは扱えないもの（`session.platform`など）に使います。
+
+これらを使う各テストの前に、アプリはリセットされます。テストが失敗すると、証拠（スクリーンショット、要素ツリー、アイドル状態、ログ）がartifactsディレクトリに書き出され、失敗メッセージに一覧が載ります。
+
+プラットフォームタグは、テストや`describe`のタイトル、またはテストの`tags`オプションに書きます。
+
+```ts
+test('Android only', { tags: ['@android'] }, async ({ app }) => {
+  // …
+});
+
+describe('settings @native', () => {
+  // Androidだけで実行：一番内側のタグで決まる
+  test('the back button closes it @android', async ({ app }) => {
+    // …
+  });
+});
+```
+
+## 実行 {#running}
+
+```sh
+npx quiesco test --platform ios
+```
+
+`quiesco test`は`QUIESCO_PLATFORM`を設定して`vitest run`を実行します。ほかの引数はそのままVitestに渡ります（[`quiesco test`](../cli#quiesco-test)）。`QUIESCO_PLATFORM`を設定して自分で`npx vitest run`を実行することもできますが、その場合Metroは自動で起動しません。

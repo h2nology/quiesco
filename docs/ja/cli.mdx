@@ -53,20 +53,32 @@ ExpoプロジェクトにQuiescoをセットアップします。各手順で何
 
 <CodeGroup>
 ```sh pnpm
-pnpm dlx quiesco@latest init --upgrade            # バージョンを指定するならquiesco@0.4.1
-pnpm dlx quiesco@latest init --upgrade --dry-run  # 変更内容を示すだけ
+# バージョンを指定するならquiesco@0.4.1
+pnpm dlx quiesco@latest init --upgrade
+
+# 変更内容を示すだけ
+pnpm dlx quiesco@latest init --upgrade --dry-run
 ```
 ```sh npm
-npx quiesco@latest init --upgrade            # バージョンを指定するならquiesco@0.4.1
-npx quiesco@latest init --upgrade --dry-run  # 変更内容を示すだけ
+# バージョンを指定するならquiesco@0.4.1
+npx quiesco@latest init --upgrade
+
+# 変更内容を示すだけ
+npx quiesco@latest init --upgrade --dry-run
 ```
 ```sh bun
-bunx quiesco@latest init --upgrade            # バージョンを指定するならquiesco@0.4.1
-bunx quiesco@latest init --upgrade --dry-run  # 変更内容を示すだけ
+# バージョンを指定するならquiesco@0.4.1
+bunx quiesco@latest init --upgrade
+
+# 変更内容を示すだけ
+bunx quiesco@latest init --upgrade --dry-run
 ```
 ```sh yarn
-yarn dlx quiesco@latest init --upgrade            # バージョンを指定するならquiesco@0.4.1
-yarn dlx quiesco@latest init --upgrade --dry-run  # 変更内容を示すだけ
+# バージョンを指定するならquiesco@0.4.1
+yarn dlx quiesco@latest init --upgrade
+
+# 変更内容を示すだけ
+yarn dlx quiesco@latest init --upgrade --dry-run
 ```
 </CodeGroup>
 
@@ -208,20 +220,32 @@ yarn quiesco list --runner cucumber features/login.feature --json
 
 <CodeGroup>
 ```sh pnpm
-pnpm exec quiesco devices          # Quiescoが並列ワーカー用に作成したシミュレーター / AVD
-pnpm exec quiesco devices --prune  # それらをシャットダウンして削除する
+# Quiescoが並列ワーカー用に作成したシミュレーター / AVD
+pnpm exec quiesco devices
+
+# それらをシャットダウンして削除する
+pnpm exec quiesco devices --prune
 ```
 ```sh npm
-npx quiesco devices            # Quiescoが並列ワーカー用に作成したシミュレーター / AVD
-npx quiesco devices --prune    # それらをシャットダウンして削除する
+# Quiescoが並列ワーカー用に作成したシミュレーター / AVD
+npx quiesco devices
+
+# それらをシャットダウンして削除する
+npx quiesco devices --prune
 ```
 ```sh bun
-bunx quiesco devices           # Quiescoが並列ワーカー用に作成したシミュレーター / AVD
-bunx quiesco devices --prune   # それらをシャットダウンして削除する
+# Quiescoが並列ワーカー用に作成したシミュレーター / AVD
+bunx quiesco devices
+
+# それらをシャットダウンして削除する
+bunx quiesco devices --prune
 ```
 ```sh yarn
-yarn quiesco devices           # Quiescoが並列ワーカー用に作成したシミュレーター / AVD
-yarn quiesco devices --prune   # それらをシャットダウンして削除する
+# Quiescoが並列ワーカー用に作成したシミュレーター / AVD
+yarn quiesco devices
+
+# それらをシャットダウンして削除する
+yarn quiesco devices --prune
 ```
 </CodeGroup>
 
@@ -231,19 +255,27 @@ yarn quiesco devices --prune   # それらをシャットダウンして削除�
 
 <CodeGroup>
 ```sh pnpm
-pnpm exec quiesco doctor           # quiesco.config.mtsで設定したすべてのプラットフォーム
+# quiesco.config.mtsで設定したすべてのプラットフォーム
+pnpm exec quiesco doctor
+
 pnpm exec quiesco doctor --platform ios
 ```
 ```sh npm
-npx quiesco doctor                 # quiesco.config.mtsで設定したすべてのプラットフォーム
+# quiesco.config.mtsで設定したすべてのプラットフォーム
+npx quiesco doctor
+
 npx quiesco doctor --platform ios
 ```
 ```sh bun
-bunx quiesco doctor                # quiesco.config.mtsで設定したすべてのプラットフォーム
+# quiesco.config.mtsで設定したすべてのプラットフォーム
+bunx quiesco doctor
+
 bunx quiesco doctor --platform ios
 ```
 ```sh yarn
-yarn quiesco doctor                # quiesco.config.mtsで設定したすべてのプラットフォーム
+# quiesco.config.mtsで設定したすべてのプラットフォーム
+yarn quiesco doctor
+
 yarn quiesco doctor --platform ios
 ```
 </CodeGroup>
@@ -271,22 +303,30 @@ export default defineConfig({
 
 <CodeGroup>
 ```sh pnpm
-pnpm exec quiesco tree             # 実行中のアプリに接続する
+# 実行中のアプリに接続する
+pnpm exec quiesco tree
+
 pnpm exec quiesco tree --launch --platform android
 pnpm exec quiesco tree --json > tree.json
 ```
 ```sh npm
-npx quiesco tree                   # 実行中のアプリに接続する
+# 実行中のアプリに接続する
+npx quiesco tree
+
 npx quiesco tree --launch --platform android
 npx quiesco tree --json > tree.json
 ```
 ```sh bun
-bunx quiesco tree                  # 実行中のアプリに接続する
+# 実行中のアプリに接続する
+bunx quiesco tree
+
 bunx quiesco tree --launch --platform android
 bunx quiesco tree --json > tree.json
 ```
 ```sh yarn
-yarn quiesco tree                  # 実行中のアプリに接続する
+# 実行中のアプリに接続する
+yarn quiesco tree
+
 yarn quiesco tree --launch --platform android
 yarn quiesco tree --json > tree.json
 ```

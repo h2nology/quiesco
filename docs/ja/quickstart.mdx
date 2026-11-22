@@ -10,19 +10,27 @@ description: "新しいExpoアプリから、Chromiumでテストが通るまで
     <CodeGroup>
     ```sh pnpm
     cd my-app
-    pnpm dlx quiesco init     # 依存パッケージ、config plugin、Metro、エントリーファイル、quiesco.config.mts、最初のテスト
+
+    # 依存パッケージ、config plugin、Metro、エントリーファイル、quiesco.config.mts、最初のテスト
+    pnpm dlx quiesco init
     ```
     ```sh npm
     cd my-app
-    npx quiesco init          # 依存パッケージ、config plugin、Metro、エントリーファイル、quiesco.config.mts、最初のテスト
+
+    # 依存パッケージ、config plugin、Metro、エントリーファイル、quiesco.config.mts、最初のテスト
+    npx quiesco init
     ```
     ```sh bun
     cd my-app
-    bunx quiesco init         # 依存パッケージ、config plugin、Metro、エントリーファイル、quiesco.config.mts、最初のテスト
+
+    # 依存パッケージ、config plugin、Metro、エントリーファイル、quiesco.config.mts、最初のテスト
+    bunx quiesco init
     ```
     ```sh yarn
     cd my-app
-    yarn dlx quiesco init     # 依存パッケージ、config plugin、Metro、エントリーファイル、quiesco.config.mts、最初のテスト
+
+    # 依存パッケージ、config plugin、Metro、エントリーファイル、quiesco.config.mts、最初のテスト
+    yarn dlx quiesco init
     ```
     </CodeGroup>
 
@@ -76,19 +84,27 @@ description: "新しいExpoアプリから、Chromiumでテストが通るまで
     <CodeGroup>
     ```sh pnpm
     pnpm exec playwright install chromium
-    pnpm e2e:web              # EXPO_PUBLIC_QUIESCO=1でWebビルドをエクスポートしてから quiesco test --platform web
+
+    # EXPO_PUBLIC_QUIESCO=1でWebビルドをエクスポートしてから quiesco test --platform web
+    pnpm e2e:web
     ```
     ```sh npm
     npx playwright install chromium
-    npm run e2e:web           # EXPO_PUBLIC_QUIESCO=1でWebビルドをエクスポートしてから quiesco test --platform web
+
+    # EXPO_PUBLIC_QUIESCO=1でWebビルドをエクスポートしてから quiesco test --platform web
+    npm run e2e:web
     ```
     ```sh bun
     bunx playwright install chromium
-    bun run e2e:web           # EXPO_PUBLIC_QUIESCO=1でWebビルドをエクスポートしてから quiesco test --platform web
+
+    # EXPO_PUBLIC_QUIESCO=1でWebビルドをエクスポートしてから quiesco test --platform web
+    bun run e2e:web
     ```
     ```sh yarn
     yarn playwright install chromium
-    yarn e2e:web              # EXPO_PUBLIC_QUIESCO=1でWebビルドをエクスポートしてから quiesco test --platform web
+
+    # EXPO_PUBLIC_QUIESCO=1でWebビルドをエクスポートしてから quiesco test --platform web
+    yarn e2e:web
     ```
     </CodeGroup>
 

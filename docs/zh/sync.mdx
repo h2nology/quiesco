@@ -27,9 +27,14 @@ Quiesco 会在每次查询和断言之前、每次操作之后，等待 App 进�
 没有 `native-module` 跟踪器时，未完成的原生模块调用不会让 App 处于忙碌状态。处理函数在两个被跟踪的步骤之间 await 一个原生调用时，中间这段会被判为空闲：
 
 ```ts
-await api.login(email, password);             // fetch：会被跟踪
-await AsyncStorage.setItem(TOKEN_KEY, token);  // 原生模块的 Promise：默认不跟踪
-router.replace('/');                           // 下一屏挂载，在 effect 里发请求
+// fetch：会被跟踪
+await api.login(email, password);
+
+// 原生模块的 Promise：默认不跟踪
+await AsyncStorage.setItem(TOKEN_KEY, token);
+
+// 下一屏挂载，在 effect 里发请求
+router.replace('/');
 ```
 
 `tap('login-submit')` 可能在 `setItem` 完成之前、也就是跳转和下一屏的请求开始之前就返回。要么等下一步需要的东西（`await app.expectVisible('item-row-1')`），要么构建时包装原生模块：在 `metro.config.js` 里给 `withQuiesco()` 传 `nativeModules: true`
@@ -43,9 +48,14 @@ module.exports = withQuiesco(getDefaultConfig(__dirname), { nativeModules: true 
 
 ```ts
 sync: {
-  nativeCallThresholdMs: 2000,                    // 未完成的调用最多算忙这么久
-  ignoreNativeCalls: ['ExpoLocation.watch'],      // "Module.method"；字符串按子串匹配
-  // trackers: { 'native-module': false },        // 在包装原生模块的构建里关闭
+  // 未完成的调用最多算忙这么久
+  nativeCallThresholdMs: 2000,
+
+  // "Module.method"；字符串按子串匹配
+  ignoreNativeCalls: ['ExpoLocation.watch'],
+
+  // 在包装原生模块的构建里关闭
+  // trackers: { 'native-module': false },
 }
 ```
 
@@ -79,8 +89,11 @@ App did not become idle within the 10000ms timeout. Busy:
 ## 对单次调用跳过同步 {#skipping-sync-for-one-call}
 
 ```ts
-await this.app.tap('start-spinner', { sync: false });        // 前后都不等待
-await this.app.expectVisible('spinner', { sync: false });    // 在它转动时断言
+// 前后都不等待
+await this.app.tap('start-spinner', { sync: false });
+
+// 在它转动时断言
+await this.app.expectVisible('spinner', { sync: false });
 ```
 
 ## 平台说明 {#platform-notes}

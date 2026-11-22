@@ -53,20 +53,32 @@ yarn quiesco <command> [options]
 
 <CodeGroup>
 ```sh pnpm
-pnpm dlx quiesco@latest init --upgrade            # 指定版本时用 quiesco@0.4.1
-pnpm dlx quiesco@latest init --upgrade --dry-run  # 只列出改动
+# 指定版本时用 quiesco@0.4.1
+pnpm dlx quiesco@latest init --upgrade
+
+# 只列出改动
+pnpm dlx quiesco@latest init --upgrade --dry-run
 ```
 ```sh npm
-npx quiesco@latest init --upgrade            # 指定版本时用 quiesco@0.4.1
-npx quiesco@latest init --upgrade --dry-run  # 只列出改动
+# 指定版本时用 quiesco@0.4.1
+npx quiesco@latest init --upgrade
+
+# 只列出改动
+npx quiesco@latest init --upgrade --dry-run
 ```
 ```sh bun
-bunx quiesco@latest init --upgrade            # 指定版本时用 quiesco@0.4.1
-bunx quiesco@latest init --upgrade --dry-run  # 只列出改动
+# 指定版本时用 quiesco@0.4.1
+bunx quiesco@latest init --upgrade
+
+# 只列出改动
+bunx quiesco@latest init --upgrade --dry-run
 ```
 ```sh yarn
-yarn dlx quiesco@latest init --upgrade            # 指定版本时用 quiesco@0.4.1
-yarn dlx quiesco@latest init --upgrade --dry-run  # 只列出改动
+# 指定版本时用 quiesco@0.4.1
+yarn dlx quiesco@latest init --upgrade
+
+# 只列出改动
+yarn dlx quiesco@latest init --upgrade --dry-run
 ```
 </CodeGroup>
 
@@ -208,20 +220,32 @@ yarn quiesco list --runner cucumber features/login.feature --json
 
 <CodeGroup>
 ```sh pnpm
-pnpm exec quiesco devices          # Quiesco 为并行 worker 创建的模拟器 / AVD
-pnpm exec quiesco devices --prune  # 关闭并删除它们
+# Quiesco 为并行 worker 创建的模拟器 / AVD
+pnpm exec quiesco devices
+
+# 关闭并删除它们
+pnpm exec quiesco devices --prune
 ```
 ```sh npm
-npx quiesco devices            # Quiesco 为并行 worker 创建的模拟器 / AVD
-npx quiesco devices --prune    # 关闭并删除它们
+# Quiesco 为并行 worker 创建的模拟器 / AVD
+npx quiesco devices
+
+# 关闭并删除它们
+npx quiesco devices --prune
 ```
 ```sh bun
-bunx quiesco devices           # Quiesco 为并行 worker 创建的模拟器 / AVD
-bunx quiesco devices --prune   # 关闭并删除它们
+# Quiesco 为并行 worker 创建的模拟器 / AVD
+bunx quiesco devices
+
+# 关闭并删除它们
+bunx quiesco devices --prune
 ```
 ```sh yarn
-yarn quiesco devices           # Quiesco 为并行 worker 创建的模拟器 / AVD
-yarn quiesco devices --prune   # 关闭并删除它们
+# Quiesco 为并行 worker 创建的模拟器 / AVD
+yarn quiesco devices
+
+# 关闭并删除它们
+yarn quiesco devices --prune
 ```
 </CodeGroup>
 
@@ -231,19 +255,27 @@ yarn quiesco devices --prune   # 关闭并删除它们
 
 <CodeGroup>
 ```sh pnpm
-pnpm exec quiesco doctor           # quiesco.config.mts 中配置的所有平台
+# quiesco.config.mts 中配置的所有平台
+pnpm exec quiesco doctor
+
 pnpm exec quiesco doctor --platform ios
 ```
 ```sh npm
-npx quiesco doctor                 # quiesco.config.mts 中配置的所有平台
+# quiesco.config.mts 中配置的所有平台
+npx quiesco doctor
+
 npx quiesco doctor --platform ios
 ```
 ```sh bun
-bunx quiesco doctor                # quiesco.config.mts 中配置的所有平台
+# quiesco.config.mts 中配置的所有平台
+bunx quiesco doctor
+
 bunx quiesco doctor --platform ios
 ```
 ```sh yarn
-yarn quiesco doctor                # quiesco.config.mts 中配置的所有平台
+# quiesco.config.mts 中配置的所有平台
+yarn quiesco doctor
+
 yarn quiesco doctor --platform ios
 ```
 </CodeGroup>
@@ -270,22 +302,30 @@ export default defineConfig({
 
 <CodeGroup>
 ```sh pnpm
-pnpm exec quiesco tree             # 连接到正在运行的 App
+# 连接到正在运行的 App
+pnpm exec quiesco tree
+
 pnpm exec quiesco tree --launch --platform android
 pnpm exec quiesco tree --json > tree.json
 ```
 ```sh npm
-npx quiesco tree                   # 连接到正在运行的 App
+# 连接到正在运行的 App
+npx quiesco tree
+
 npx quiesco tree --launch --platform android
 npx quiesco tree --json > tree.json
 ```
 ```sh bun
-bunx quiesco tree                  # 连接到正在运行的 App
+# 连接到正在运行的 App
+bunx quiesco tree
+
 bunx quiesco tree --launch --platform android
 bunx quiesco tree --json > tree.json
 ```
 ```sh yarn
-yarn quiesco tree                  # 连接到正在运行的 App
+# 连接到正在运行的 App
+yarn quiesco tree
+
 yarn quiesco tree --launch --platform android
 yarn quiesco tree --json > tree.json
 ```

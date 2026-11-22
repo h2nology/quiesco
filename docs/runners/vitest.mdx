@@ -1,0 +1,145 @@
+---
+title: "Vitest"
+description: "Set up @quiesco/vitest: vitest.config.mts, the quiesco() options and the app fixture."
+---
+
+`@quiesco/vitest` is the recommended runner. Tests are TypeScript, and they reach the app through the `app`
+fixture. It needs Vitest 5.1 or later.
+
+## Setup {#setup}
+
+`quiesco init --runner vitest` installs `@quiesco/vitest` and `vitest`, and writes two files:
+
+```ts
+// vitest.config.mts
+import { quiesco, quiescoPlugin } from '@quiesco/vitest/config';
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  plugins: [quiescoPlugin()],
+  test: {
+    ...quiesco(),
+    include: ['e2e/**/*.test.ts'],
+  },
+});
+```
+
+```ts
+// e2e/app.test.ts
+import { test } from '@quiesco/vitest';
+
+test('the home screen is shown', async ({ app }) => {
+  await app.expectVisible({ id: 'home' });
+});
+```
+
+If the project already has a `vitest.config.*` for its unit tests, `init` writes Quiesco's config to
+`vitest.e2e.config.mts` instead, and the `e2e:*` scripts pass `--config vitest.e2e.config.mts`.
+
+## `quiesco()` {#quiesco}
+
+`quiesco()` returns the `test` options Quiesco needs. Spread it into `test` and add your own options after
+it.
+
+<ResponseField name="workers" type="number" default="1">
+  How many workers run test files in parallel, each on a device of its own ([parallel runs](../parallel)).
+  `1` runs the files one at a time.
+</ResponseField>
+
+<ResponseField name="testTimeout" type="number" default="300000">
+  Timeout of each test and hook, in ms. The first test also waits for the session to start, and booting a
+  device can take minutes.
+</ResponseField>
+
+<ResponseField name="tags" type="object">
+  The tag names, when `quiesco.config.mts` renames them with [`tags`](../config#tags). Pass the same object
+  here.
+</ResponseField>
+
+<ResponseField name="extraTags" type="string[]">
+  Tags of your own to declare, e.g. `['@smoke']`. Vitest only accepts declared tags; the platform and
+  browser tags are declared already.
+</ResponseField>
+
+What it sets:
+
+| Vitest option | Value | Why |
+|---|---|---|
+| `pool` | `'forks'` | |
+| `isolate` | `false` | A worker keeps its session (the device and the app) across test files |
+| `fileParallelism` / `maxWorkers` | from `workers` | One device per worker |
+| `testTimeout` / `hookTimeout` | `testTimeout` | |
+| `teardownTimeout` | `120000` | Time to close the app |
+| `tags` | the platform and browser tags, plus `extraTags` | |
+| `includeTaskLocation` | `true` | `quiesco ui` runs a single test by its line |
+
+`--fileParallelism --maxWorkers N` on the command line overrides `workers`.
+
+## `quiescoPlugin()` {#quiesco-plugin}
+
+Sends the run's progress to the progress bar of `quiesco test` and to [`quiesco ui`](../ui). It adds its
+reporter only when one of them runs Vitest, next to your own reporters. Without it, the tests still run,
+and `quiesco test` prints a hint at the end.
+
+## Hooks for every file {#setup-files}
+
+Because of `isolate: false`, test files share their modules. A support module imported by every file runs
+only once per worker, so a `test.beforeEach(…)` at its top level is registered for the first file that
+imports it, and the other files run without it, silently. Register such hooks in each test file, or in a
+setup file, which Vitest runs before every file:
+
+```ts
+// vitest.config.mts
+test: {
+  ...quiesco(),
+  include: ['e2e/**/*.test.ts'],
+  setupFiles: ['e2e/setup.ts'],
+},
+```
+
+```ts
+// e2e/setup.ts
+import { test } from '@quiesco/vitest';
+
+test.beforeEach(async ({ app }) => {
+  await app.openUrl('myapp://home');
+});
+```
+
+Something that runs once for the whole run, such as a mock backend, goes in `globalSetup`
+(see the [example app](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e/vitest)).
+
+## Writing tests {#writing-tests}
+
+Import `test` (or `it`), `describe` and `expect` from `@quiesco/vitest`. Two fixtures reach the app:
+
+- `app`: the [Driver](../api#driver-thisapp).
+- `session`: the session, for what the Driver does not cover (`session.platform`, …).
+
+Before each test that uses one of them, the app is reset. After a failed test, the evidence (screenshot,
+element tree, idle state, logs) is written to the artifacts directory and listed in the failure message.
+
+Platform tags go in the test or `describe` title, or in the test's `tags` option:
+
+```ts
+test('Android only', { tags: ['@android'] }, async ({ app }) => {
+  // …
+});
+
+describe('settings @native', () => {
+  // runs on Android only: the innermost tag decides
+  test('the back button closes it @android', async ({ app }) => {
+    // …
+  });
+});
+```
+
+## Running {#running}
+
+```sh
+npx quiesco test --platform ios
+```
+
+`quiesco test` sets `QUIESCO_PLATFORM` and runs `vitest run`; other arguments go to Vitest
+([`quiesco test`](../cli#quiesco-test)). Running `npx vitest run` yourself also works with
+`QUIESCO_PLATFORM` set, but then Metro is not started for you.

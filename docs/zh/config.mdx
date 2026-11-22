@@ -1,0 +1,362 @@
+---
+title: "配置"
+description: "quiesco.config.mts 的所有配置项，以及各自的类型和默认值。"
+---
+
+Quiesco 从运行目录下的 `quiesco.config.ts` 读取配置。`quiesco.config.mts`、`.js` 和 `.mjs` 也可以；`quiesco init` 生成的是 `quiesco.config.mts`。要使用其他文件，把 `QUIESCO_CONFIG` 设为它的路径。
+
+```ts
+import { defineConfig } from '@quiesco/core';
+
+export default defineConfig({
+  apps: {
+    ios: { bundleId: 'com.example.app', binaryPath: 'ios/build/…/App.app' },
+    android: { package: 'com.example.app', binaryPath: 'android/app/build/outputs/apk/debug/app-debug.apk' },
+    web: { distDir: 'dist' },
+  },
+  devices: {
+    ios: { device: 'iPhone 17' },
+    android: { avd: 'Pixel_9_API_37' },
+    web: { viewport: { width: 390, height: 844, hasTouch: true, isMobile: true } },
+  },
+  permissions: ['location'],
+  sync: { ignoreUrls: [/\/analytics\//] },
+});
+```
+
+只有 `apps` 是必填的，而且只需要写要测试的平台。其他配置项都有默认值。
+
+- 文件必须以 default export 导出配置。`defineConfig` 只用于提供类型。
+- 配置文件就是普通的 TypeScript，值可以来自环境变量，例如 `device: process.env.QUIESCO_IOS_DEVICE ?? 'iPhone 17'`。Node 会直接运行它，所以只能用可以擦除的类型语法（不能用 `enum`、`namespace`）。
+- 平台不写在配置里：它来自 `quiesco test --platform` 或 `QUIESCO_PLATFORM`。
+
+## 按 worker 生成配置 {#config-per-worker}
+
+[并行运行](./parallel)时，配置可以写成函数，每个 worker 调用一次：
+
+```ts
+export default defineConfig(({ workerIndex, workerCount }) => ({
+  apps: {
+    android: {
+      package: 'com.example.app',
+      // 每个 worker 各自的 mock 后端
+      reversePorts: [3001 + workerIndex],
+    },
+  },
+}));
+```
+
+`workerIndex` 从 0 开始；串行运行时它是 `0`，`workerCount` 是 `1`。
+
+## 顶层配置项 {#top-level}
+
+<ResponseField name="appDir" type="string" default="配置文件所在目录">
+  Expo App 所在的目录，相对于配置文件。测试放在单独的包里时使用（monorepo，或 `app/` 与 `e2e/` 并列）。`quiesco doctor`、`build` 和 `init --upgrade` 会处理该目录下的 App，`quiesco test` 也在该目录启动 Metro（[测试放在单独的包里](./cli#app-dir)）。
+</ResponseField>
+
+<ResponseField name="permissions" type="Permission[]" default="[]">
+  在 App 启动前授予的权限，这样系统弹窗不会打断场景：`camera`、`microphone`、`location`、`notifications`、`contacts`、`photos`、`calendar`。平台无法预先授予的权限会跳过并给出警告（[各平台的情况](./platforms#permissions)）。
+</ResponseField>
+
+<ResponseField name="launchArgs" type="Record<string, JSON>">
+  每次启动都传给 App 的启动参数，可以是任意 JSON。App 用 `quiesco.launchArgs()` 读取。`app.device.relaunch({ args })` 会把自己的参数浅合并到这些参数之上。
+</ResponseField>
+
+<ResponseField name="connectTimeoutMs" type="number" default="30000（首次启动为 90000）">
+  App 启动后等待它连接的时长。会话中的首次启动默认等 90 秒，因为它紧接在安装之后（Android 此时会校验新的 APK）。设置后，所有启动都使用这个值。
+</ResponseField>
+
+<ResponseField name="bailOnRepeatedFailure" type="number | false" default="3">
+  连续这么多个场景以同样的方式失败（同一步骤、同一错误）时，打印包含当前路由的提示并跳过剩下的场景：App 很可能卡在了每个场景都会继承的状态里。设为 `false` 会运行所有场景（连续失败 3 次后仍会打印提示）。
+</ResponseField>
+
+<ResponseField name="logLevel" type="'debug' | 'info' | 'warn' | 'error' | 'off'" default="'warn'">
+  转发到测试输出的 App 控制台消息的最低级别。`'off'` 表示不转发。
+</ResponseField>
+
+## apps {#apps}
+
+每个平台启动哪个 App。只需配置要测试的平台。
+
+### apps.ios {#apps-ios}
+
+<ResponseField name="apps.ios.bundleId" type="string" required>
+  Bundle identifier，例如 `com.example.app`。
+</ResponseField>
+
+<ResponseField name="apps.ios.binaryPath" type="string">
+  要安装的模拟器构建（`.app`），相对于配置文件。App（例如 dev client）已经安装好时可以省略。
+</ResponseField>
+
+<ResponseField name="apps.ios.devClient" type="{ metroUrl?: string }">
+  通过 Expo dev client 启动，从 `metroUrl` 的 Metro 加载 JS（作为 `--initialUrl` 传入）。
+</ResponseField>
+
+### apps.android {#apps-android}
+
+<ResponseField name="apps.android.package" type="string" required>
+  Application id，例如 `com.example.app`。
+</ResponseField>
+
+<ResponseField name="apps.android.binaryPath" type="string">
+  要安装的 APK，相对于配置文件。App（例如 dev client）已经安装好时可以省略。
+</ResponseField>
+
+<ResponseField name="apps.android.activity" type="string" default="'.MainActivity'">
+  独立构建（standalone build）启动的 Activity。
+</ResponseField>
+
+<ResponseField name="apps.android.devClient" type="{ scheme: string; metroUrl?: string }">
+  通过 Expo dev client 启动：`scheme` 是 App 的 URL scheme，`metroUrl` 是它加载 JS 的 Metro。
+</ResponseField>
+
+<ResponseField name="apps.android.reversePorts" type="number[]">
+  App 在 `localhost` 上访问的主机端口（例如本地的 mock 后端），通过 `adb reverse` 转发。
+</ResponseField>
+
+### apps.web {#apps-web}
+
+`distDir` 和 `url` 二选一。
+
+<ResponseField name="apps.web.distDir" type="string">
+  `npx expo export --platform web` 的输出目录。静态导出由 Quiesco 托管（带 SPA 回退）；`web.output: "server"` 的导出用 `npx expo serve` 托管。
+</ResponseField>
+
+<ResponseField name="apps.web.url" type="string">
+  正在运行的服务器的 URL，例如 `expo start --web` 的 `http://localhost:8081`。
+</ResponseField>
+
+<ResponseField name="apps.web.path" type="string" default="'/'">
+  启动时打开的路径。
+</ResponseField>
+
+## devices {#devices}
+
+在哪个 iOS Simulator、Android Emulator 或浏览器上运行。Quiesco 不内置任何设备：设备名、系统版本和视口大小都来自这里。
+
+### devices.ios {#devices-ios}
+
+<ResponseField name="devices.ios.device" type="string" default="已启动的模拟器">
+  模拟器名称，例如 `iPhone 17`。需要时会自动启动。
+</ResponseField>
+
+<ResponseField name="devices.ios.os" type="string">
+  模拟器运行时的 iOS 版本，例如 `27.0`。有多个运行时都包含该设备时使用。
+</ResponseField>
+
+<ResponseField name="devices.ios.udid" type="string">
+  指定使用这台模拟器。
+</ResponseField>
+
+<ResponseField name="devices.ios.udids" type="string[]">
+  并行运行：第 N 个 worker 使用 `udids[N]`。不设置时，worker 0 使用上面指定的模拟器，其他 worker 各用一台名为“&lt;名称&gt; (Quiesco N)”的模拟器，首次使用时创建并保留（[每个 worker 使用哪台设备](./parallel#which-device-each-worker-uses)）。
+</ResponseField>
+
+<ResponseField name="devices.ios.bootTimeoutMs" type="number" default="180000">
+  等待模拟器启动的时长。
+</ResponseField>
+
+<ResponseField name="devices.ios.shutdown" type="boolean" default="false">
+  运行结束时关闭由 Quiesco 启动的模拟器。保持运行可以让下次运行更快。
+</ResponseField>
+
+<ResponseField name="devices.ios.disablePasswordAutoFill" type="boolean" default="true">
+  关闭密码自动填充，这样提交登录表单后，iOS 不会弹出“存储密码？”面板盖住 App。
+</ResponseField>
+
+### devices.android {#devices-android}
+
+<ResponseField name="devices.android.avd" type="string" default="正在运行的设备">
+  没有匹配的模拟器在运行时，要（冷）启动的 AVD。
+</ResponseField>
+
+<ResponseField name="devices.android.serial" type="string">
+  指定使用这个 adb serial，例如 `emulator-5554`。
+</ResponseField>
+
+<ResponseField name="devices.android.serials" type="string[]">
+  并行运行：第 N 个 worker 使用 `serials[N]`。不设置时，worker 0 使用上面指定的设备，其他 worker 各用一个自己的 AVD `<avd>_quiesco_N`，首次使用时基于 `avd` 创建并保留（[每个 worker 使用哪台设备](./parallel#which-device-each-worker-uses)）。
+</ResponseField>
+
+<ResponseField name="devices.android.bootTimeoutMs" type="number" default="180000">
+  等待模拟器启动的时长。
+</ResponseField>
+
+<ResponseField name="devices.android.gpu" type="string" default="AVD 自身的设置">
+  Quiesco 启动的模拟器的 `-gpu` 模式（`host`、`lavapipe`、`swiftshader_indirect` 等）。在 macOS 上，`auto`（或未设置）会变成 `host`：否则模拟器会把 `auto` 解析为 `lavapipe`，这是一个 CPU 渲染器，每个模拟器会占用大约 4 个核心。已经在运行的模拟器保持原来的模式；如果是 CPU 渲染器，Quiesco 会给出警告。
+</ResponseField>
+
+<ResponseField name="devices.android.shutdown" type="boolean" default="false">
+  运行结束时关闭由 Quiesco 启动的模拟器。保持运行可以让下次运行更快。
+</ResponseField>
+
+### devices.web {#devices-web}
+
+<ResponseField name="devices.web.browser" type="'chromium' | 'firefox' | 'webkit'" default="'chromium'">
+  使用的浏览器。浏览器标签（`@chromium`、`@firefox`、`@webkit`）按它筛选场景（[浏览器之间的差异](./platforms#browsers)）。
+</ResponseField>
+
+<ResponseField name="devices.web.headless" type="boolean" default="true">
+  不显示浏览器窗口。
+</ResponseField>
+
+<ResponseField name="devices.web.viewport" type="object">
+  页面尺寸。不设置时使用浏览器的默认值。
+
+  <Expandable title="属性">
+    <ResponseField name="width" type="number" required />
+    <ResponseField name="height" type="number" required />
+    <ResponseField name="deviceScaleFactor" type="number" default="1" />
+    <ResponseField name="hasTouch" type="boolean" default="false">
+      启用触摸事件：点击通过触摸屏而不是鼠标发送。
+    </ResponseField>
+    <ResponseField name="isMobile" type="boolean" default="false" />
+  </Expandable>
+</ResponseField>
+
+## sync {#sync}
+
+Quiesco 在每次调用前如何判断 App 已经空闲（[同步机制](./sync)）。
+
+<ResponseField name="sync.timeoutMs" type="number" default="10000">
+  一次调用等待 App 空闲的时长，超时后以 `SYNC_TIMEOUT` 失败。
+</ResponseField>
+
+<ResponseField name="sync.timerThresholdMs" type="number" default="1500">
+  延迟不超过这个值的定时器会让 App 保持忙碌；更长的不会。
+</ResponseField>
+
+<ResponseField name="sync.countIntervals" type="boolean" default="false">
+  正在运行的 `setInterval` 是否让 App 保持忙碌。
+</ResponseField>
+
+<ResponseField name="sync.stableFrames" type="number" default="2">
+  元素树需要连续多少帧保持不变。
+</ResponseField>
+
+<ResponseField name="sync.ignoreUrls" type="(string | RegExp)[]" default="[]">
+  永远不会让 App 保持忙碌的请求，例如统计上报或长轮询。字符串按子串匹配。
+</ResponseField>
+
+<ResponseField name="sync.ignoreElements" type="Matcher[]" default="[]">
+  在 frame-stable 检查中排除的元素（连同其子树），例如对持续数分钟的装饰性动画写 `['logo-glow']`。不影响其他跟踪器（网络、定时器、React）。
+</ResponseField>
+
+<ResponseField name="sync.trackers" type="Record<TrackerName, boolean>" default="全部开启">
+  关闭单个跟踪器，例如 `{ 'frame-stable': false }`。跟踪器有：`network`、`timer`、`react`、`idle-callback`、`frame-stable`、`native`、`native-module`。`native-module` 只在构建包装了原生模块时开启（[跟踪器](./sync#trackers)）。
+</ResponseField>
+
+<ResponseField name="sync.nativeCallThresholdMs" type="number" default="2000">
+  `native-module` 跟踪器：未完成的原生模块调用最多让 App 保持忙碌多久。
+</ResponseField>
+
+<ResponseField name="sync.ignoreNativeCalls" type="(string | RegExp)[]" default="[]">
+  `native-module` 跟踪器：永远不会让 App 保持忙碌的调用，写作 `"Module.method"`。字符串按子串匹配。它们会追加到默认就被忽略的、等待用户操作的调用之上（[原生模块调用](./sync#native-module-calls)）。
+</ResponseField>
+
+<ResponseField name="sync.defaultIgnoreNativeCalls" type="boolean" default="true">
+  `native-module` 跟踪器：设为 `false` 时，等待用户操作的调用（权限请求、选择器、认证面板和分享面板）也会让 App 保持忙碌。
+</ResponseField>
+
+## actions {#actions}
+
+<ResponseField name="actions.mode" type="'native' | 'js'" default="App 装了 @quiesco/native 时为 'native'，否则为 'js'">
+  `native` 发送真实的输入事件；`js` 直接调用元素的回调。`native` 需要 App 里有 `@quiesco/native`。
+</ResponseField>
+
+<ResponseField name="actions.gestureSlop" type="{ pinch?: number; rotation?: number }" default="按平台而定">
+  App 的捏合 / 旋转识别器生效之前手指需要移动的距离（逻辑单位、弧度）。`pinch` 和 `rotate` 会先移动这么多。默认值适用于标准识别器（UIKit、react-native-gesture-handler）；使用其他识别器时自行设置，设为 `0` 则不做补偿（[多指手势](./api#multi-finger-gestures)）。
+</ResponseField>
+
+## reset {#reset}
+
+每个场景开始前如何让 App 回到初始状态。
+
+<ResponseField name="reset.default" type="'soft' | 'hard'" default="'soft'">
+  `hard` 会在每个场景前重新启动 App。单个场景可以用 `@hard-reset` 标签要求这样做。
+</ResponseField>
+
+<ResponseField name="reset.expectVisible" type="Matcher">
+  每次重置后必须可见的元素，例如 `{ id: 'home' }`。如果不可见，重置以 `RESET_FAILED` 失败，而不是让场景的第一步莫名其妙地失败。Expo Router 的 App 本来就会检查路由；这个选项适用于任何 App。
+</ResponseField>
+
+## devServer {#devserver}
+
+App 加载 JS 的 Metro 开发服务器。当 App 需要 Metro（`devClient.metroUrl` 或 `apps.web.url`）而那里没有响应时，`quiesco test` 会以 `EXPO_PUBLIC_QUIESCO=1` 启动一个 Metro，等它就绪，并在结束后停止它。你自己启动的 Metro 会直接使用。
+
+<ResponseField name="devServer.autoStart" type="boolean" default="true">
+  Metro 没有运行时自动启动。只对本机地址（`localhost`、`127.0.0.1`、`[::1]`）生效。
+</ResponseField>
+
+<ResponseField name="devServer.command" type="string[]" default="['npx', 'expo', 'start', '--port', '{port}']">
+  启动 Metro 的命令。`{port}` 会替换成 URL 中的端口。
+</ResponseField>
+
+<ResponseField name="devServer.timeoutMs" type="number" default="120000">
+  等待 Metro 就绪的时长。
+</ResponseField>
+
+## artifacts {#artifacts}
+
+每个场景记录的文件，位于 `artifacts/<日期时间>-<平台>/<nnn>-<场景>/`（[文件内容](./api#artifacts)）。`video`、`logs`、`timeline` 各自取一个策略：`'none'`、`'failing'`（每个场景都记录，失败时保留）或 `'all'`。`QUIESCO_ARTIFACTS=none|failing|all` 会在一次运行中同时设置这三项。
+
+<ResponseField name="artifacts.dir" type="string" default="'artifacts'">
+  输出目录，相对于运行目录。并行运行时如果换了目录，也要传给 config plugin：`withQuiesco(config, { artifactsDir })`。
+</ResponseField>
+
+<ResponseField name="artifacts.video" type="'none' | 'failing' | 'all'" default="'none'">
+  录屏。每个场景都会有一点开销；建议在 CI 中开启。
+</ResponseField>
+
+<ResponseField name="artifacts.logs" type="'none' | 'failing' | 'all'" default="'failing'">
+  App 的设备日志。
+</ResponseField>
+
+<ResponseField name="artifacts.timeline" type="'none' | 'failing' | 'all'" default="'failing'">
+  对 App 的每次调用，包括耗时以及其中等待空闲的时间。
+</ResponseField>
+
+## appErrors {#apperrors}
+
+App 中未捕获的错误会让当前步骤失败。这些配置项决定哪些错误不算失败。
+
+<ResponseField name="appErrors.ignore" type="(string | RegExp)[]" default="[]">
+  只记录警告、不让步骤失败的 App 错误，按错误消息匹配。字符串按子串匹配。它们也不会出现在失败信息列出的 `console.error` 中。
+</ResponseField>
+
+<ResponseField name="appErrors.ignoreDefaults" type="boolean" default="true">
+  同时忽略已知的、并非真正失败的框架报错，例如 Web 上 Expo Router 懒加载路由报出的 `Requiring unknown module "…"`。
+</ResponseField>
+
+<ResponseField name="appErrors.logBox" type="'clear' | 'ignore' | 'keep'" default="'clear'">
+  开发构建中 React Native 的 LogBox。它的提示条会盖住屏幕底部，导致点击那里失败。`'clear'` 在每次软重置时清除日志，`'ignore'` 完全不显示 LogBox 通知（错误仍会出现在失败信息中），`'keep'` 不做处理（[LogBox 盖住了 App](./troubleshooting#logbox)）。
+</ResponseField>
+
+## server {#server}
+
+主机上供 App 连接的 WebSocket 服务器。
+
+<ResponseField name="server.port" type="number" default="7357">
+  端口。并行运行时，第 N 个 worker 监听 `server.port + N`。
+</ResponseField>
+
+<ResponseField name="server.host" type="string" default="所有网络接口">
+  监听的网络接口。
+</ResponseField>
+
+## tags {#tags}
+
+<ResponseField name="tags" type="object">
+  重命名 Quiesco 识别的[场景标签](./api#scenario-tags)，例如 `{ web: '@browser', webkit: '@safari' }`。使用 Vitest 时，在 `vitest.config.ts` 中给 `quiesco({ tags })` 传入同样的值。
+
+  <Expandable title="属性">
+    <ResponseField name="ios" type="string" default="'@ios'" />
+    <ResponseField name="android" type="string" default="'@android'" />
+    <ResponseField name="web" type="string" default="'@web'" />
+    <ResponseField name="native" type="string" default="'@native'" />
+    <ResponseField name="chromium" type="string" default="'@chromium'" />
+    <ResponseField name="firefox" type="string" default="'@firefox'" />
+    <ResponseField name="webkit" type="string" default="'@webkit'" />
+    <ResponseField name="hardReset" type="string" default="'@hard-reset'" />
+  </Expandable>
+</ResponseField>

@@ -59,7 +59,7 @@ agent 没有响应：App 的 JS 线程被耗时的同步任务阻塞，或者 Ap
 
 ## `APP_ERROR` {#app-error}
 
-App 中未捕获的错误会让当前步骤失败——这通常是真正的 bug。已知无害的框架报错可以用 `appErrors.ignore` 忽略（见[配置](./api#configuration)）。`console.error` 不会让步骤失败；场景中之后的失败会指出它（[LogBox 盖住了 App](#logbox)）。
+App 中未捕获的错误会让当前步骤失败——这通常是真正的 bug。已知无害的框架报错可以用 `appErrors.ignore` 忽略（见[配置](./config)）。`console.error` 不会让步骤失败；场景中之后的失败会指出它（[LogBox 盖住了 App](#logbox)）。
 
 ## iOS {#ios}
 

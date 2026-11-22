@@ -13,8 +13,12 @@ tests run unchanged on an iOS simulator, an Android emulator and in the browser 
 import { test } from '@quiesco/vitest';
 
 test('a new todo appears at the top of the list', async ({ app }) => {
-  await app.backdoor('loginAs', 'a@example.com');             // state set up without driving the UI
-  await app.tap('add-todo');                                  // waits until the app is idle, then taps
+  // state set up without driving the UI
+  await app.backdoor('loginAs', 'a@example.com');
+
+  // waits until the app is idle, then taps
+  await app.tap('add-todo');
+
   await app.type('todo-title', 'Buy milk');
   await app.tap({ role: 'button', text: 'Save' });
   await app.expectText({ id: 'todo-item', index: 0 }, 'Buy milk');

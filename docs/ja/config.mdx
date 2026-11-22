@@ -1,0 +1,362 @@
+---
+title: "設定"
+description: "quiesco.config.mtsのすべての設定項目と、その型とデフォルト値。"
+---
+
+Quiescoは、実行したディレクトリの`quiesco.config.ts`から設定を読み込みます。`quiesco.config.mts`、`.js`、`.mjs`も使えます。`quiesco init`が作るのは`quiesco.config.mts`です。別のファイルを使うときは、`QUIESCO_CONFIG`にそのパスを設定します。
+
+```ts
+import { defineConfig } from '@quiesco/core';
+
+export default defineConfig({
+  apps: {
+    ios: { bundleId: 'com.example.app', binaryPath: 'ios/build/…/App.app' },
+    android: { package: 'com.example.app', binaryPath: 'android/app/build/outputs/apk/debug/app-debug.apk' },
+    web: { distDir: 'dist' },
+  },
+  devices: {
+    ios: { device: 'iPhone 17' },
+    android: { avd: 'Pixel_9_API_37' },
+    web: { viewport: { width: 390, height: 844, hasTouch: true, isMobile: true } },
+  },
+  permissions: ['location'],
+  sync: { ignoreUrls: [/\/analytics\//] },
+});
+```
+
+必須なのは`apps`だけで、それもテストするプラットフォームの分だけです。ほかの項目にはすべてデフォルト値があります。
+
+- 設定はdefault exportで書き出します。`defineConfig`は型を付けるだけです。
+- 設定ファイルは普通のTypeScriptなので、値を環境変数から取れます。例：`device: process.env.QUIESCO_IOS_DEVICE ?? 'iPhone 17'`。Nodeがそのまま実行するため、消去できる型の構文だけを使ってください（`enum`や`namespace`は使えません）。
+- プラットフォームは設定には書きません。`quiesco test --platform`か`QUIESCO_PLATFORM`で決まります。
+
+## ワーカーごとの設定 {#config-per-worker}
+
+[並列実行](./parallel)では、設定を関数にできます。ワーカーごとに1回呼ばれます。
+
+```ts
+export default defineConfig(({ workerIndex, workerCount }) => ({
+  apps: {
+    android: {
+      package: 'com.example.app',
+      // ワーカーごとのモックバックエンド
+      reversePorts: [3001 + workerIndex],
+    },
+  },
+}));
+```
+
+`workerIndex`は0始まりです。直列実行では`0`、`workerCount`は`1`です。
+
+## トップレベル {#top-level}
+
+<ResponseField name="appDir" type="string" default="設定ファイルのディレクトリ">
+  Expoアプリのディレクトリ（設定ファイルからの相対パス）。テストを別のパッケージに置くとき（モノレポや、`app/`と`e2e/`を並べる構成）に使います。`quiesco doctor`、`build`、`init --upgrade`はそこにあるアプリを対象にし、`quiesco test`はそこでMetroを起動します（[テストを別のパッケージに置く](./cli#app-dir)）。
+</ResponseField>
+
+<ResponseField name="permissions" type="Permission[]" default="[]">
+  アプリの起動前に許可しておく権限。システムのダイアログがシナリオを中断しなくなります：`camera`、`microphone`、`location`、`notifications`、`contacts`、`photos`、`calendar`。プラットフォームが事前に許可できない権限は、警告を出して飛ばします（[プラットフォームごとの対応](./platforms#permissions)）。
+</ResponseField>
+
+<ResponseField name="launchArgs" type="Record<string, JSON>">
+  起動のたびにアプリへ渡す起動引数（任意のJSON）。アプリでは`quiesco.launchArgs()`で読みます。`app.device.relaunch({ args })`は自分の引数をこれに浅くマージします。
+</ResponseField>
+
+<ResponseField name="connectTimeoutMs" type="number" default="30000（最初の起動は90000）">
+  起動後、アプリの接続を待つ時間。セッション最初の起動はインストール直後で、Androidが新しいAPKを検証するため、デフォルトで90秒待ちます。設定した場合は、すべての起動でその値を使います。
+</ResponseField>
+
+<ResponseField name="bailOnRepeatedFailure" type="number | false" default="3">
+  この数のシナリオが続けて同じ失敗（同じステップで同じエラー）をしたら、現在のルートを含むヒントを出して残りを飛ばします。アプリがどのシナリオにも引き継がれる状態で止まっている可能性が高いためです。`false`にするとすべてのシナリオを実行します（3回続いた時点でヒントは出ます）。
+</ResponseField>
+
+<ResponseField name="logLevel" type="'debug' | 'info' | 'warn' | 'error' | 'off'" default="'warn'">
+  テスト出力に転送するアプリのコンソールメッセージの最低レベル。`'off'`で転送しません。
+</ResponseField>
+
+## apps {#apps}
+
+各プラットフォームで起動するアプリ。テストするプラットフォームだけ設定します。
+
+### apps.ios {#apps-ios}
+
+<ResponseField name="apps.ios.bundleId" type="string" required>
+  Bundle identifier。例：`com.example.app`。
+</ResponseField>
+
+<ResponseField name="apps.ios.binaryPath" type="string">
+  インストールするシミュレーター向けビルド（`.app`）。設定ファイルからの相対パスです。アプリ（dev clientなど）がインストール済みなら省略できます。
+</ResponseField>
+
+<ResponseField name="apps.ios.devClient" type="{ metroUrl?: string }">
+  Expo dev client経由で起動し、`metroUrl`のMetroからJSを読み込みます（`--initialUrl`として渡します）。
+</ResponseField>
+
+### apps.android {#apps-android}
+
+<ResponseField name="apps.android.package" type="string" required>
+  Application id。例：`com.example.app`。
+</ResponseField>
+
+<ResponseField name="apps.android.binaryPath" type="string">
+  インストールするAPK。設定ファイルからの相対パスです。アプリ（dev clientなど）がインストール済みなら省略できます。
+</ResponseField>
+
+<ResponseField name="apps.android.activity" type="string" default="'.MainActivity'">
+  スタンドアロンビルドで起動するActivity。
+</ResponseField>
+
+<ResponseField name="apps.android.devClient" type="{ scheme: string; metroUrl?: string }">
+  Expo dev client経由で起動します。`scheme`はアプリのURLスキーム、`metroUrl`はJSを読み込むMetroです。
+</ResponseField>
+
+<ResponseField name="apps.android.reversePorts" type="number[]">
+  アプリが`localhost`で呼び出すホストのポート（ローカルのモックバックエンドなど）。`adb reverse`で転送します。
+</ResponseField>
+
+### apps.web {#apps-web}
+
+`distDir`か`url`のどちらかを設定します。
+
+<ResponseField name="apps.web.distDir" type="string">
+  `npx expo export --platform web`の出力先。静的エクスポートはQuiescoが配信し（SPAフォールバック付き）、`web.output: "server"`のエクスポートは`npx expo serve`で配信します。
+</ResponseField>
+
+<ResponseField name="apps.web.url" type="string">
+  起動中のサーバーのURL。例：`expo start --web`なら`http://localhost:8081`。
+</ResponseField>
+
+<ResponseField name="apps.web.path" type="string" default="'/'">
+  起動時に開くパス。
+</ResponseField>
+
+## devices {#devices}
+
+どのシミュレーター、エミュレーター、ブラウザーで実行するか。Quiescoには何も組み込まれていません。デバイス名、OSのバージョン、ビューポートは必ずここから取ります。
+
+### devices.ios {#devices-ios}
+
+<ResponseField name="devices.ios.device" type="string" default="起動中のシミュレーター">
+  シミュレーター名。例：`iPhone 17`。必要なら起動します。
+</ResponseField>
+
+<ResponseField name="devices.ios.os" type="string">
+  シミュレーターのランタイムのiOSバージョン。例：`27.0`。そのデバイスを持つランタイムが複数あるときに使います。
+</ResponseField>
+
+<ResponseField name="devices.ios.udid" type="string">
+  このシミュレーターを使います。
+</ResponseField>
+
+<ResponseField name="devices.ios.udids" type="string[]">
+  並列実行：ワーカーNは`udids[N]`を使います。設定しないと、ワーカー0は上のシミュレーターを使い、ほかのワーカーは「&lt;名前&gt; (Quiesco N)」という名前のシミュレーターを使います。最初に使うときに作られ、そのまま残ります（[各ワーカーが使うデバイス](./parallel#which-device-each-worker-uses)）。
+</ResponseField>
+
+<ResponseField name="devices.ios.bootTimeoutMs" type="number" default="180000">
+  シミュレーターの起動を待つ時間。
+</ResponseField>
+
+<ResponseField name="devices.ios.shutdown" type="boolean" default="false">
+  実行の終わりに、Quiescoが起動したシミュレーターをシャットダウンします。起動したままにしておくと次の実行が速くなります。
+</ResponseField>
+
+<ResponseField name="devices.ios.disablePasswordAutoFill" type="boolean" default="true">
+  パスワードの自動入力をオフにします。ログインフォームを送信したあと、iOSの「パスワードを保存しますか？」シートがアプリを覆わなくなります。
+</ResponseField>
+
+### devices.android {#devices-android}
+
+<ResponseField name="devices.android.avd" type="string" default="起動中のデバイス">
+  条件に合うエミュレーターが動いていないとき、（コールドブートで）起動するAVD。
+</ResponseField>
+
+<ResponseField name="devices.android.serial" type="string">
+  このadbシリアルのデバイスを使います。例：`emulator-5554`。
+</ResponseField>
+
+<ResponseField name="devices.android.serials" type="string[]">
+  並列実行：ワーカーNは`serials[N]`を使います。設定しないと、ワーカー0は上のデバイスを使い、ほかのワーカーはそれぞれ専用のAVD`<avd>_quiesco_N`を使います。最初に使うときに`avd`から作られ、そのまま残ります（[各ワーカーが使うデバイス](./parallel#which-device-each-worker-uses)）。
+</ResponseField>
+
+<ResponseField name="devices.android.bootTimeoutMs" type="number" default="180000">
+  エミュレーターの起動を待つ時間。
+</ResponseField>
+
+<ResponseField name="devices.android.gpu" type="string" default="AVDの設定">
+  Quiescoが起動するエミュレーターの`-gpu`モード（`host`、`lavapipe`、`swiftshader_indirect`など）。macOSでは、`auto`（または未設定）は`host`になります。そうしないとエミュレーターが`auto`を`lavapipe`にします。これはCPUレンダラーで、エミュレーター1台あたり約4コアを使い続けます。すでに動いているエミュレーターはモードを変えません。CPUレンダラーならQuiescoが警告します。
+</ResponseField>
+
+<ResponseField name="devices.android.shutdown" type="boolean" default="false">
+  実行の終わりに、Quiescoが起動したエミュレーターをシャットダウンします。起動したままにしておくと次の実行が速くなります。
+</ResponseField>
+
+### devices.web {#devices-web}
+
+<ResponseField name="devices.web.browser" type="'chromium' | 'firefox' | 'webkit'" default="'chromium'">
+  使うブラウザー。ブラウザータグ（`@chromium`、`@firefox`、`@webkit`）はこれでシナリオを選びます（[ブラウザーごとの違い](./platforms#browsers)）。
+</ResponseField>
+
+<ResponseField name="devices.web.headless" type="boolean" default="true">
+  ウィンドウを表示せずにブラウザーを動かします。
+</ResponseField>
+
+<ResponseField name="devices.web.viewport" type="object">
+  ページのサイズ。設定しないとブラウザーのデフォルトになります。
+
+  <Expandable title="プロパティ">
+    <ResponseField name="width" type="number" required />
+    <ResponseField name="height" type="number" required />
+    <ResponseField name="deviceScaleFactor" type="number" default="1" />
+    <ResponseField name="hasTouch" type="boolean" default="false">
+      タッチイベント。タップをマウスではなくタッチスクリーンで送ります。
+    </ResponseField>
+    <ResponseField name="isMobile" type="boolean" default="false" />
+  </Expandable>
+</ResponseField>
+
+## sync {#sync}
+
+各呼び出しの前に、アプリがアイドルになったとQuiescoがどう判断するか（[同期](./sync)）。
+
+<ResponseField name="sync.timeoutMs" type="number" default="10000">
+  呼び出しがアプリのアイドルを待つ時間。超えると`SYNC_TIMEOUT`で失敗します。
+</ResponseField>
+
+<ResponseField name="sync.timerThresholdMs" type="number" default="1500">
+  遅延がこの値以下のタイマーはアプリをビジーにします。これより長いものはビジーにしません。
+</ResponseField>
+
+<ResponseField name="sync.countIntervals" type="boolean" default="false">
+  動いている`setInterval`がアプリをビジーにするかどうか。
+</ResponseField>
+
+<ResponseField name="sync.stableFrames" type="number" default="2">
+  要素ツリーが何フレーム続けて変わらなければよいか。
+</ResponseField>
+
+<ResponseField name="sync.ignoreUrls" type="(string | RegExp)[]" default="[]">
+  アプリをビジーにしないリクエスト。アナリティクスやロングポーリングなど。文字列は部分一致です。
+</ResponseField>
+
+<ResponseField name="sync.ignoreElements" type="Matcher[]" default="[]">
+  frame-stableのチェックから（サブツリーごと）外す要素。例：数分続く装飾用のアニメーションなら`['logo-glow']`。ほかのトラッカー（ネットワーク、タイマー、React）には影響しません。
+</ResponseField>
+
+<ResponseField name="sync.trackers" type="Record<TrackerName, boolean>" default="すべてオン">
+  個別のトラッカーをオフにします。例：`{ 'frame-stable': false }`。トラッカーは`network`、`timer`、`react`、`idle-callback`、`frame-stable`、`native`、`native-module`です。`native-module`は、ビルドがネイティブモジュールをラップしているときだけオンになります（[トラッカー](./sync#trackers)）。
+</ResponseField>
+
+<ResponseField name="sync.nativeCallThresholdMs" type="number" default="2000">
+  `native-module`トラッカー：完了していないネイティブモジュールの呼び出しが、アプリをビジーにする最長の時間。
+</ResponseField>
+
+<ResponseField name="sync.ignoreNativeCalls" type="(string | RegExp)[]" default="[]">
+  `native-module`トラッカー：アプリをビジーにしない呼び出し。`"Module.method"`の形で書きます。文字列は部分一致です。デフォルトで無視される、ユーザーの操作を待つ呼び出しに追加されます（[ネイティブモジュールの呼び出し](./sync#native-module-calls)）。
+</ResponseField>
+
+<ResponseField name="sync.defaultIgnoreNativeCalls" type="boolean" default="true">
+  `native-module`トラッカー：`false`にすると、ユーザーの操作を待つ呼び出し（権限のリクエスト、ピッカー、認証シートや共有シート）もアプリをビジーにします。
+</ResponseField>
+
+## actions {#actions}
+
+<ResponseField name="actions.mode" type="'native' | 'js'" default="アプリに@quiesco/nativeがあれば'native'、なければ'js'">
+  `native`は本物の入力イベントを送り、`js`は要素のコールバックを呼びます。`native`にはアプリに`@quiesco/native`が必要です。
+</ResponseField>
+
+<ResponseField name="actions.gestureSlop" type="{ pinch?: number; rotation?: number }" default="プラットフォームごと">
+  アプリのピンチ / 回転の認識器が反応するまでに指が動く量（論理単位、ラジアン）。`pinch`と`rotate`はまずこの分だけ動かします。デフォルト値は標準の認識器（UIKit、react-native-gesture-handler）に合わせてあります。ほかの認識器ではこの値を設定し、補正しないなら`0`にします（[マルチタッチジェスチャー](./api#multi-finger-gestures)）。
+</ResponseField>
+
+## reset {#reset}
+
+各シナリオの前に、アプリをどう初期状態に戻すか。
+
+<ResponseField name="reset.default" type="'soft' | 'hard'" default="'soft'">
+  `hard`はシナリオのたびにアプリを再起動します。1つのシナリオだけなら`@hard-reset`タグで指定できます。
+</ResponseField>
+
+<ResponseField name="reset.expectVisible" type="Matcher">
+  リセットのたびに表示されていなければならない要素。例：`{ id: 'home' }`。表示されていなければ、シナリオの最初のステップがわかりにくい形で失敗する代わりに、リセットが`RESET_FAILED`で失敗します。Expo Routerのアプリはもともとルートを確認しています。この設定はどのアプリにも使えます。
+</ResponseField>
+
+## devServer {#devserver}
+
+アプリがJSを読み込むMetro開発サーバー。アプリがMetroを必要とし（`devClient.metroUrl`や`apps.web.url`）、そこで何も応答しないとき、`quiesco test`は`EXPO_PUBLIC_QUIESCO=1`付きでMetroを起動し、準備ができるのを待ち、終わったら停止します。自分で起動したMetroはそのまま使います。
+
+<ResponseField name="devServer.autoStart" type="boolean" default="true">
+  Metroが動いていなければ起動します。このマシン上のURL（`localhost`、`127.0.0.1`、`[::1]`）のときだけです。
+</ResponseField>
+
+<ResponseField name="devServer.command" type="string[]" default="['npx', 'expo', 'start', '--port', '{port}']">
+  Metroを起動するコマンド。`{port}`はURLのポートに置き換わります。
+</ResponseField>
+
+<ResponseField name="devServer.timeoutMs" type="number" default="120000">
+  Metroの準備ができるのを待つ時間。
+</ResponseField>
+
+## artifacts {#artifacts}
+
+シナリオごとに記録するファイル。`artifacts/<日時>-<プラットフォーム>/<nnn>-<シナリオ>/`に書き出します（[ファイルの中身](./api#artifacts)）。`video`、`logs`、`timeline`はそれぞれポリシーを取ります：`'none'`、`'failing'`（すべてのシナリオで記録し、失敗したときに残す）、`'all'`。`QUIESCO_ARTIFACTS=none|failing|all`で、1回の実行の3つをまとめて設定できます。
+
+<ResponseField name="artifacts.dir" type="string" default="'artifacts'">
+  書き出し先（実行ディレクトリからの相対パス）。並列実行で別のディレクトリにするときは、config pluginにも渡します：`withQuiesco(config, { artifactsDir })`。
+</ResponseField>
+
+<ResponseField name="artifacts.video" type="'none' | 'failing' | 'all'" default="'none'">
+  画面の録画。シナリオごとに少しコストがかかるので、CIでオンにするのがおすすめです。
+</ResponseField>
+
+<ResponseField name="artifacts.logs" type="'none' | 'failing' | 'all'" default="'failing'">
+  アプリのデバイスログ。
+</ResponseField>
+
+<ResponseField name="artifacts.timeline" type="'none' | 'failing' | 'all'" default="'failing'">
+  アプリへの各呼び出しと、その所要時間、そのうちアイドルを待った時間。
+</ResponseField>
+
+## appErrors {#apperrors}
+
+アプリで捕捉されなかったエラーは、実行中のステップを失敗させます。これらの項目で、失敗にしないエラーを決めます。
+
+<ResponseField name="appErrors.ignore" type="(string | RegExp)[]" default="[]">
+  ステップを失敗させず、警告を出すだけにするアプリのエラー。エラーメッセージと照合します。文字列は部分一致です。失敗メッセージに並ぶ`console.error`からも外れます。
+</ResponseField>
+
+<ResponseField name="appErrors.ignoreDefaults" type="boolean" default="true">
+  本当の失敗ではない既知のフレームワークの報告も無視します。例：WebでExpo Routerの遅延ロードされるルートが出す`Requiring unknown module "…"`。
+</ResponseField>
+
+<ResponseField name="appErrors.logBox" type="'clear' | 'ignore' | 'keep'" default="'clear'">
+  開発ビルドのReact NativeのLogBox。トーストが画面の下を覆うため、そこへのタップが失敗します。`'clear'`はソフトリセットのたびにログを消し、`'ignore'`はLogBoxの通知をまったく出さず（エラーは失敗メッセージに残ります）、`'keep'`は何もしません（[LogBoxがアプリを覆う](./troubleshooting#logbox)）。
+</ResponseField>
+
+## server {#server}
+
+アプリが接続する、ホスト側のWebSocketサーバー。
+
+<ResponseField name="server.port" type="number" default="7357">
+  ポート。並列実行では、ワーカーNは`server.port + N`で待ち受けます。
+</ResponseField>
+
+<ResponseField name="server.host" type="string" default="すべてのインターフェース">
+  待ち受けるネットワークインターフェース。
+</ResponseField>
+
+## tags {#tags}
+
+<ResponseField name="tags" type="object">
+  Quiescoが反応する[シナリオタグ](./api#scenario-tags)の名前を変えます。例：`{ web: '@browser', webkit: '@safari' }`。Vitestでは、`vitest.config.ts`の`quiesco({ tags })`にも同じ値を渡します。
+
+  <Expandable title="プロパティ">
+    <ResponseField name="ios" type="string" default="'@ios'" />
+    <ResponseField name="android" type="string" default="'@android'" />
+    <ResponseField name="web" type="string" default="'@web'" />
+    <ResponseField name="native" type="string" default="'@native'" />
+    <ResponseField name="chromium" type="string" default="'@chromium'" />
+    <ResponseField name="firefox" type="string" default="'@firefox'" />
+    <ResponseField name="webkit" type="string" default="'@webkit'" />
+    <ResponseField name="hardReset" type="string" default="'@hard-reset'" />
+  </Expandable>
+</ResponseField>
