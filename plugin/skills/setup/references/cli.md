@@ -59,8 +59,11 @@ What `init` leaves to you: test ids, and wrapping the root layout in `<QuiescoRo
 ### Upgrading a project {#quiesco-init-upgrade}
 
 ```sh
-npx quiesco@latest init --upgrade            # or quiesco@0.4.1 for a given version
-npx quiesco@latest init --upgrade --dry-run  # only list the changes
+# or quiesco@0.4.1 for a given version
+npx quiesco@latest init --upgrade
+
+# only list the changes
+npx quiesco@latest init --upgrade --dry-run
 ```
 
 Brings a project set up by an older `quiesco init` to the version of the CLI that runs it:
@@ -164,8 +167,11 @@ code is 1 when nothing could be listed.
 ## `quiesco devices` {#quiesco-devices}
 
 ```sh
-npx quiesco devices            # the simulators / AVDs Quiesco created for parallel workers
-npx quiesco devices --prune    # shut them down and delete them
+# the simulators / AVDs Quiesco created for parallel workers
+npx quiesco devices
+
+# shut them down and delete them
+npx quiesco devices --prune
 ```
 
 Lists `"<name> (Quiesco N)"` simulators and `<avd>_quiesco_N` AVDs (with `[running]` when they are);
@@ -174,7 +180,9 @@ Lists `"<name> (Quiesco N)"` simulators and `<avd>_quiesco_N` AVDs (with `[runni
 ## `quiesco doctor` {#quiesco-doctor}
 
 ```sh
-npx quiesco doctor                 # every platform configured in quiesco.config.mts
+# every platform configured in quiesco.config.mts
+npx quiesco doctor
+
 npx quiesco doctor --platform ios
 ```
 
@@ -215,7 +223,9 @@ app without the config.
 ## `quiesco tree` {#quiesco-tree}
 
 ```sh
-npx quiesco tree                   # attach to the running app
+# attach to the running app
+npx quiesco tree
+
 npx quiesco tree --launch --platform android
 npx quiesco tree --json > tree.json
 ```

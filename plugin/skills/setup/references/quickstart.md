@@ -9,7 +9,9 @@ Requirements: Node.js 24+, an Expo app on SDK 55 or later (`npx create-expo-app@
 
 ```sh
 cd my-app
-npx quiesco init          # dependencies, config plugin, Metro, entry file, quiesco.config.mts, a first test
+
+# dependencies, config plugin, Metro, entry file, quiesco.config.mts, a first test
+npx quiesco init
 ```
 
 `init` asks which test runner to use: press Enter for Vitest (recommended), or choose Jest or Cucumber
@@ -46,7 +48,7 @@ test('the home screen is shown', async ({ app }) => {
 });
 ```
 
-### Step 4 (optional): Let the home screen settle
+### Step 4: Let the home screen settle (optional)
 
 You only need this step if the home screen has an animation that keeps running. Quiesco waits for the
 screen to settle before it moves on, so an animation that runs for minutes makes it wait until
@@ -72,7 +74,9 @@ sync: { ignoreElements: ['logo-glow'] },
 
 ```sh
 npx playwright install chromium
-npm run e2e:web           # exports the web build with EXPO_PUBLIC_QUIESCO=1, then quiesco test --platform web
+
+# exports the web build with EXPO_PUBLIC_QUIESCO=1, then quiesco test --platform web
+npm run e2e:web
 ```
 
 The template renders on the server (`web.output: "server"`); Quiesco runs `npx expo serve` for that

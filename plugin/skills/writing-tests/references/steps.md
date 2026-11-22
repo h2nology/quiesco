@@ -19,7 +19,8 @@ Optional generic cucumber steps for Quiesco, in Chinese, Japanese and English.
 // features/support/steps.ts
 import { registerQuiescoSteps } from '@quiesco/steps';
 
-registerQuiescoSteps(); // all languages; or { languages: ['ja'] }, { only: ['tap', 'seeText'] }
+// all languages; or { languages: ['ja'] }, { only: ['tap', 'seeText'] }
+registerQuiescoSteps();
 ```
 
 `@quiesco/cucumber/register` must be imported too (it provides `this.app`). The steps are registered
