@@ -8,8 +8,12 @@ export interface IdleTracker {
   uninstall(): void;
   /** Optional: called when a waitForIdle starts / ends (frame-stable only samples while waiting). */
   beginWait?(): void;
-  endWait?(): void;
-  /** Optional: for a tracker that only samples while waiting, its busy reasons when the latest wait ended busy. */
+  /** `timedOut`: the wait ended in a SYNC_TIMEOUT (issue #110). */
+  endWait?(timedOut?: boolean): void;
+  /**
+   * Optional: for a tracker that only samples while waiting, its busy reasons when the latest wait ended
+   * busy, or timed out after it had been busy (issue #110).
+   */
   describeLastWait?(): string[];
   /**
    * Optional: what it saw going on between `from` and `to` (ms since the epoch), for the record of how a

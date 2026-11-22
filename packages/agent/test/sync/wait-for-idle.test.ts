@@ -127,6 +127,43 @@ describe('SyncEngine.waitForIdle', () => {
     await assertion;
   });
 
+  it('a timeout also lists the trackers busy shortly before it, and says how the wait ended (#110)', async () => {
+    let n = 0;
+    const ends: (boolean | undefined)[] = [];
+    const frame: IdleTracker = {
+      ...tracker('frame-stable', () => Date.now() >= 980, () => [`element tree changing ${n++}`]),
+      endWait: (timedOut) => void ends.push(timedOut),
+    };
+    const engine = new SyncEngine(
+      [
+        tracker('network', () => Date.now() >= 200 || Date.now() < 0, () => ['GET https://api.test/a (100ms)']),
+        tracker('timer', () => false, () => ['setTimeout(anonymous, 50ms), fires in 0ms']),
+        frame,
+      ],
+      clock,
+    );
+    const p = engine.waitForIdle({ timeoutMs: 1500 });
+    const assertion = expect(p).rejects.toSatisfy((e: unknown) => {
+      const err = e as QuiescoError<'SYNC_TIMEOUT'>;
+      // network went idle 1300 ms before the timeout: not listed.
+      expect(err.data.busy.map((b) => [b.name, b.idle])).toEqual([
+        ['timer', false],
+        ['frame-stable', true],
+      ]);
+      const frameState = err.data.busy[1]!;
+      expect(frameState.idleForMs).toBeGreaterThan(500);
+      expect(frameState.busy[0]).toMatch(/^element tree changing \d+$/);
+      expect(err.message).toContain('  - timer: setTimeout(anonymous, 50ms), fires in 0ms');
+      expect(err.message).toMatch(/ {2}- frame-stable \(idle at the timeout, busy \d+ms before it\): element tree changing \d+/);
+      expect(err.data.syncEnd?.checks).toHaveLength(4);
+      expect(err.data.syncEnd?.checks.at(-1)).toMatch(/^\+15\d\dms busy: timer$/);
+      return true;
+    });
+    await vi.advanceTimersByTimeAsync(1600);
+    await assertion;
+    expect(ends).toEqual([true]);
+  });
+
   it('reports the whole call timeout when waiting with what is left of it', async () => {
     const engine = new SyncEngine([tracker('timer', () => false, () => ['setTimeout(t, 500ms)'])], clock);
     const p = engine.waitForIdle({ timeoutMs: 300, reportedTimeoutMs: 10_000 });

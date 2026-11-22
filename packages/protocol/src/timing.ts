@@ -8,6 +8,8 @@ export interface StepTiming {
   syncMs: number;
   /** What the step did, e.g. `down`. */
   label: string;
+  /** How the step's last wait for idle ended (issue #110). Left out when it did not wait. */
+  syncEnd?: WaitEnd;
 }
 
 /**

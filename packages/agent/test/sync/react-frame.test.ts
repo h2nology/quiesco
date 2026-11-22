@@ -124,6 +124,32 @@ describe('FrameStableTracker', () => {
     expect(t.describeLastWait()).toEqual([]);
   });
 
+  it('keeps the history of a wait that timed out on a stable frame after changes (#110)', () => {
+    const f = frames();
+    const states = [['x'], ['y'], ['x'], ['y'], ['x'], ['x']];
+    let i = 0;
+    const t = new FrameStableTracker({ snapshot: () => states[Math.min(i++, states.length - 1)]!, frames: 2, ...f });
+    t.beginWait();
+    for (let k = 0; k < states.length; k++) f.tick(); // x y x y x x: stable for 2 frames at the end
+    expect(t.isIdle()).toBe(true);
+    t.endWait(true);
+    const last = t.describeLastWait();
+    expect(last[0]).toMatch(/^element tree changed 4 times, stable for 2\/2 frames when the wait ended \(6 frames sampled in \d+ms\)$/);
+    expect(last.some((l) => l.startsWith('the same change went back and forth in 4 of the last 4 changes'))).toBe(true);
+    // A wait that ends idle (not timed out) keeps nothing; neither does a timeout without any change.
+    t.beginWait();
+    i = 0;
+    for (let k = 0; k < states.length; k++) f.tick();
+    t.endWait();
+    expect(t.describeLastWait()).toEqual([]);
+    const still = new FrameStableTracker({ snapshot: () => ['x'], frames: 2, ...f });
+    still.beginWait();
+    f.tick();
+    f.tick();
+    still.endWait(true);
+    expect(still.describeLastWait()).toEqual([]);
+  });
+
   it('needs both ways twice; a same-size toggle gets the generic hint; a counter is not back and forth', () => {
     const f = frames();
     const states = [['x'], ['y'], ['x'], ['z'], ['x'], ['z'], ['x'], ['z']];

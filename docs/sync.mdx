@@ -28,7 +28,8 @@ place to look when an action is slower than expected. It also says how the call'
 (device clock, to line up with the device log), its last checks with the trackers busy in each
 (`+272ms busy: native-module | +276ms idle | +277ms idle (confirmed)`), and the native module calls that
 started or settled during it (`RNCAsyncStorage.multiSet() +251ms→+266ms`): the place to look when an
-action returned too early.
+action returned too early. A call that failed with `SYNC_TIMEOUT` has this record too, and so does each
+step of a `scrollTo`.
 
 ### Native module calls {#native-module-calls}
 
@@ -109,6 +110,11 @@ App did not become idle within the 10000ms timeout. Busy:
     last change: first difference at node 12: Text "Loading 41%" … → Text "Loading 42%" …
 ```
 
+A tracker that was busy until shortly before the timeout (within a second), but idle at that instant, is
+listed too, with what it was busy with then: `frame-stable (idle at the timeout, busy 12ms before it):
+…`. A loop of "timer → render → a few quiet frames" is idle part of the time, and the timeout can land
+there.
+
 What to do depends on the tracker:
 
 - **network** — a request that never ends (long polling, a stalled backend): add it to `sync.ignoreUrls`,
@@ -131,7 +137,8 @@ What to do depends on the tracker:
   the edge of its render window after a scroll. A longer `timeoutMs` does not help; `getItemLayout`
   or fixed row heights usually stop it. Quiesco still counts this as busy, since it is real activity.
   frame-stable only samples while a call waits, so `idle-state.json` shows it idle after a timeout;
-  its `lastWait` keeps what it reported when the wait ended.
+  its `lastWait` keeps what it reported when the wait ended, also when the tree changed during the wait
+  but happened to be stable at the timeout.
 - **react** — a render loop (a state update in an effect without a guard) never settles: a real bug.
 
 `AGENT_TIMEOUT` is different: the agent did not answer at all, usually because the JS thread is blocked

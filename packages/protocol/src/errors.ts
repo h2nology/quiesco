@@ -3,7 +3,7 @@ import type { ElementSummary } from './element.js';
 import type { JsonValue } from './json.js';
 import type { Matcher } from './matcher.js';
 import type { TrackerState } from './methods.js';
-import type { StepTiming } from './timing.js';
+import type { StepTiming, WaitEnd } from './timing.js';
 
 /** Standard JSON-RPC 2.0 error codes. */
 export const JsonRpcErrorCode = {
@@ -41,7 +41,8 @@ export interface ErrorDataMap {
   ELEMENT_NOT_FOUND: { matcher: Matcher; reason?: 'not-in-window'; steps?: StepTiming[] };
   MULTIPLE_MATCHES: { matcher: Matcher; matches: ElementSummary[] };
   /** `steps`: a multi-step action's steps, the last one the step that timed out (issue #78). */
-  SYNC_TIMEOUT: { timeoutMs: number; busy: TrackerState[]; steps?: StepTiming[] };
+  /** `syncEnd`: how the wait that timed out ended (issue #110). */
+  SYNC_TIMEOUT: { timeoutMs: number; busy: TrackerState[]; steps?: StepTiming[]; syncEnd?: WaitEnd };
   ASSERTION_FAILED: { expected: JsonValue; actual: JsonValue; elements: ElementSummary[] };
   ACTION_NOT_SUPPORTED: { action: ActionType | 'webview'; platform: string; hint?: string };
   BACKDOOR_NOT_REGISTERED: { name: string; registered: string[] };
