@@ -11,8 +11,9 @@
  * different frames, so a sync timeout names the element that keeps changing. It also keeps the latest
  * changes, and says when the same node keeps changing back and forth (issue #102: a FlatList adding and
  * removing a cell at the edge of its render window), which one "last change" cannot show.
- * The reasons of a wait that ended busy stay available (describeLastWait) for the failure evidence,
- * which is collected after the wait.
+ * The reasons of a wait that ended busy, or timed out while the tree kept changing (issue #110: the
+ * timeout can land on a stable frame between two changes), stay available (describeLastWait) for the
+ * failure evidence, which is collected after the wait.
  */
 import { SyncDefaults } from '@quiesco/protocol';
 
@@ -103,7 +104,10 @@ export class FrameStableTracker implements IdleTracker {
     return this.isIdle() ? [] : this.describe();
   }
 
-  /** What describeBusy() said when the latest wait for idle ended while the tree was still changing. */
+  /**
+   * What describeBusy() said when the latest wait for idle ended while the tree was still changing, or
+   * timed out after it changed (issue #110).
+   */
   describeLastWait(): string[] {
     return this.lastWait;
   }
@@ -111,7 +115,11 @@ export class FrameStableTracker implements IdleTracker {
   private describe(): string[] {
     if (this.sampled === 0) return ['no frame rendered yet (is the app in the foreground?)'];
     const elapsed = this.now() - this.startedAt;
-    const lines = [`element tree changing: stable for ${this.same}/${this.frames} frames (${this.sampled} frames sampled in ${elapsed}ms)`];
+    const head =
+      this.same >= this.frames
+        ? `element tree changed ${this.changes} times, stable for ${this.same}/${this.frames} frames when the wait ended`
+        : `element tree changing: stable for ${this.same}/${this.frames} frames`;
+    const lines = [`${head} (${this.sampled} frames sampled in ${elapsed}ms)`];
     if (this.beforeChange === null || this.last === null) return lines;
     lines.push(`last change: ${describeChange(this.beforeChange, this.last)}`);
     const backAndForth = this.describeBackAndForth();
@@ -171,9 +179,9 @@ export class FrameStableTracker implements IdleTracker {
     this.schedule();
   }
 
-  endWait(): void {
+  endWait(timedOut = false): void {
     if (this.waiting === 0 || --this.waiting > 0) return;
-    this.lastWait = this.same >= this.frames ? [] : this.describe();
+    this.lastWait = this.same < this.frames || (timedOut && this.changes > 0) ? this.describe() : [];
     this.stop();
   }
 

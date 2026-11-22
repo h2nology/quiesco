@@ -21,6 +21,11 @@ export interface TrackerState {
    * busy reasons when the latest wait for idle ended while the element tree was still changing (issue #102).
    */
   lastWait?: string[];
+  /**
+   * In a SYNC_TIMEOUT: the tracker was idle at the timeout but busy this many ms before it (issue #110),
+   * and `busy` is what it was busy with then.
+   */
+  idleForMs?: number;
 }
 
 /** Common option: disable the automatic wait-for-idle around a single call (§6.2 `{ sync: false }`). */

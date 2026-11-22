@@ -199,6 +199,35 @@ describe('timeline', () => {
     expect(t.toHtml()).toContain(lines[1]);
   });
 
+  it('says how a failed wait and each step wait ended (#110)', async () => {
+    const t = new Timeline();
+    t.reset('timeout');
+    const endedAt = new Date(2026, 10, 22, 10, 44, 21, 104).getTime();
+    const failedEnd = { endedAt, checks: ['+29541ms busy: timer, frame-stable', '+29557ms busy: timer'] };
+    const timeout = Object.assign(new Error('App did not become idle within the 30000ms timeout'), { data: { timeoutMs: 30_000, busy: [], syncEnd: failedEnd } });
+    await expect(t.measure('action', 'tap', async () => Promise.reject(timeout))).rejects.toThrow();
+    const stepEnd = { endedAt: endedAt - 1000, checks: ['+40ms busy: timer', '+52ms idle', '+53ms idle (confirmed)'] };
+    const steps = [
+      { atMs: 5, ms: 600, syncMs: 53, label: 'down', syncEnd: stepEnd },
+      { atMs: 605, ms: 900, syncMs: 700, label: 'down', syncEnd: failedEnd },
+    ];
+    const inStep = Object.assign(new Error('scrollTo … step 2 of at most 60 …'), { data: { steps, syncEnd: failedEnd } });
+    await expect(t.measure('action', 'scrollTo', async () => Promise.reject(inStep))).rejects.toThrow();
+    expect(t.all.map((e) => e.syncEnd)).toEqual([failedEnd, failedEnd]);
+    const failedLine = 'last idle wait ended at 10:44:21.104, last checks: +29541ms busy: timer, frame-stable | +29557ms busy: timer';
+    const trace = JSON.parse(t.toTrace()) as { traceEvents: { name: string; ph: string; args?: Record<string, unknown> }[] };
+    const waits = trace.traceEvents.filter((e) => e.name === 'wait for idle');
+    // The failed tap: an instant event; the steps: one wait each, the failed step's not repeated.
+    expect(waits.map((e) => [e.ph, e.args])).toEqual([
+      ['i', { ended: [failedLine] }],
+      ['X', { ended: describeWaitEnd(stepEnd) }],
+      ['X', { ended: [failedLine] }],
+    ]);
+    const html = t.toHtml();
+    expect(html).toContain(failedLine);
+    expect(html).toContain(describeWaitEnd(stepEnd)[0]);
+  });
+
   it('nests the steps of a multi-step action, also of a failed one (#78)', async () => {
     const t = new Timeline();
     t.reset('scroll');

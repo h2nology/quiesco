@@ -501,6 +501,10 @@ export class AgentRuntime {
         this.syncBusy.delete(tracker);
         this.syncBusy.set(tracker, b);
       }
+    } catch (e) {
+      // A wait that timed out says how it ended too (issue #110): the step it ran in records it.
+      if (e instanceof QuiescoError && e.errorName === 'SYNC_TIMEOUT') this.syncEnd = (e.data as ErrorDataMap['SYNC_TIMEOUT']).syncEnd ?? this.syncEnd;
+      throw e;
     } finally {
       this.syncSpent += this.clock.now() - start;
     }
@@ -1023,7 +1027,9 @@ export class AgentRuntime {
   /** Record a step of a multi-step action that started at `start` with `syncSpent` at `syncBefore` (issue #78). */
   private recordStep(start: number, syncBefore: number, label: string): void {
     const now = this.clock.now();
-    const step = { atMs: Math.round(start - this.callStart), ms: Math.round(now - start), syncMs: Math.round(this.syncSpent - syncBefore), label };
+    // The step's last wait for idle, when it waited (issue #110).
+    const syncEnd = this.syncEnd !== null && this.syncEnd.endedAt >= start ? { syncEnd: this.syncEnd } : {};
+    const step: StepTiming = { atMs: Math.round(start - this.callStart), ms: Math.round(now - start), syncMs: Math.round(this.syncSpent - syncBefore), label, ...syncEnd };
     this.steps.push(step);
     this.client?.notify('step', step);
   }

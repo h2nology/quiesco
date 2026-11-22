@@ -450,6 +450,11 @@ describe('AgentRuntime', () => {
     expect(e.message).toMatch(/^scrollTo \{ id: "list" \} → \{ id: "row" \}: step 3 of at most 60, offset \{"x":0,"y":1020\}, direction down, previous steps 0\.\d s: App did not become idle/);
     expect(e.data.timeoutMs).toBe(300);
     expect(e.data.steps).toHaveLength(3);
+    // Each step, the failed one too, says how its wait ended; so does the error (#110).
+    const steps = e.data.steps as { syncEnd?: { checks: string[] } }[];
+    expect(steps.every((s) => s.syncEnd !== undefined && s.syncEnd.checks.length > 0)).toBe(true);
+    expect(steps[2]!.syncEnd!.checks.at(-1)).toMatch(/busy/);
+    expect((e.data as { syncEnd?: unknown }).syncEnd).toEqual(steps[2]!.syncEnd);
   });
 
   it('scrollTo stops after 60 steps and says where, not "both ends" (#63)', async () => {

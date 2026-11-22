@@ -29,6 +29,12 @@ const MAX_BUSY_CHARS = 200;
 
 /** Checks kept for the record of how a wait ended (issue #107). */
 const LAST_CHECKS = 4;
+/**
+ * A SYNC_TIMEOUT also lists the trackers idle at the timeout but busy this shortly before it (issue #110:
+ * a tree that changes every 50 ms is stable for a frame or two between changes, and the timeout can land
+ * there).
+ */
+const RECENTLY_BUSY_MS = 1_000;
 
 export interface WaitResult {
   waitedMs: number;
@@ -139,30 +145,42 @@ export class SyncEngine {
       });
     let busy: string[] | undefined;
     let described = { names: '', at: -Infinity };
+    /** Per tracker: when a check last found it busy, and its reasons then (issue #110). */
+    const lastBusy = new Map<string, { at: number; reasons: string[] }>();
     const noteBusy = (busyNow: readonly IdleTracker[]): void => {
       const names = busyNow.map((t) => t.name).join();
       const now = this.clock.now();
       if (names === described.names && now - described.at < DESCRIBE_EVERY_MS) return;
       described = { names, at: now };
-      busy = busyNow.map((t) => `${t.name}: ${truncate(safe(() => t.describeBusy(), ['describeBusy() threw']).join('; '))}`);
+      busy = busyNow.map((t) => {
+        const reasons = safe(() => t.describeBusy(), ['describeBusy() threw']);
+        lastBusy.set(t.name, { at: now, reasons });
+        return `${t.name}: ${truncate(reasons.join('; '))}`;
+      });
     };
     const checks: string[] = [];
     const check = (confirming: boolean): IdleTracker[] => {
       const busyNow = this.busyTrackers();
-      const at = `+${this.clock.now() - start}ms`;
+      const now = this.clock.now();
+      for (const t of busyNow) {
+        const seen = lastBusy.get(t.name);
+        if (seen !== undefined) seen.at = now;
+      }
+      const at = `+${now - start}ms`;
       checks.push(busyNow.length > 0 ? `${at} busy: ${busyNow.map((t) => t.name).join(', ')}` : `${at} idle${confirming ? ' (confirmed)' : ''}`);
       if (checks.length > LAST_CHECKS) checks.shift();
       return busyNow;
     };
-    const idle = (): WaitResult => {
+    const ended = (): WaitEnd => {
       const now = this.clock.now();
       const activity = trackers.flatMap((t) => safe(() => t.describeActivity?.(start, now) ?? [], []).map((a) => `${t.name}: ${a}`));
-      return {
-        waitedMs: now - start,
-        ...(busy !== undefined ? { busy } : {}),
-        end: { endedAt: now, checks, ...(activity.length > 0 ? { activity } : {}) },
-      };
+      return { endedAt: now, checks: [...checks], ...(activity.length > 0 ? { activity } : {}) };
     };
+    const idle = (): WaitResult => {
+      const end = ended();
+      return { waitedMs: end.endedAt - start, ...(busy !== undefined ? { busy } : {}), end };
+    };
+    let timedOut = false;
     for (const t of trackers) t.beginWait?.();
     try {
       for (;;) {
@@ -175,14 +193,17 @@ export class SyncEngine {
         }
         noteBusy(busyNow);
         const elapsed = this.clock.now() - start;
-        if (elapsed >= timeoutMs) throw this.timeoutError(options.reportedTimeoutMs ?? timeoutMs, elapsed);
+        if (elapsed >= timeoutMs) {
+          timedOut = true;
+          throw this.timeoutError(options.reportedTimeoutMs ?? timeoutMs, elapsed, lastBusy, ended());
+        }
         await sleep(Math.min(pollMs, timeoutMs - elapsed));
       }
     } finally {
       if (wake !== null) this.sleepers.delete(wake);
       wake = null;
       safe(() => unsubscribe?.(), undefined);
-      for (const t of trackers) t.endWait?.();
+      for (const t of trackers) t.endWait?.(timedOut);
     }
   }
 
@@ -190,13 +211,33 @@ export class SyncEngine {
     return this.active().filter((t) => !safe(() => t.isIdle(), false));
   }
 
-  private timeoutError(timeoutMs: number, waitedMs: number): QuiescoError<'SYNC_TIMEOUT'> {
-    const busy = this.getIdleState().filter((s) => !s.idle);
-    const lines = busy.map((s) => `  - ${s.name}: ${s.busy.length > 0 ? s.busy.join('; ') : 'busy'}`);
+  /**
+   * The trackers busy at the timeout, then those idle at that instant but busy shortly before it (issue
+   * #110), with what they were busy with then; and how the wait ended.
+   */
+  private timeoutError(
+    timeoutMs: number,
+    waitedMs: number,
+    lastBusy: ReadonlyMap<string, { at: number; reasons: string[] }>,
+    syncEnd: WaitEnd,
+  ): QuiescoError<'SYNC_TIMEOUT'> {
+    const now = this.clock.now();
+    const states = this.getIdleState();
+    const busy: TrackerState[] = states.filter((s) => !s.idle);
+    for (const s of states) {
+      const seen = lastBusy.get(s.name);
+      if (!s.idle || seen === undefined || now - seen.at > RECENTLY_BUSY_MS) continue;
+      busy.push({ name: s.name, idle: true, busy: seen.reasons, idleForMs: now - seen.at });
+    }
+    const lines = busy.map((s) => {
+      const when = s.idle ? ` (idle at the timeout, busy ${s.idleForMs}ms before it)` : '';
+      return `  - ${s.name}${when}: ${s.busy.length > 0 ? s.busy.join('; ') : 'busy'}`;
+    });
     const waited = waitedMs < timeoutMs ? ` (waited ${waitedMs}ms for idle after the action)` : '';
     return new QuiescoError('SYNC_TIMEOUT', `App did not become idle within the ${timeoutMs}ms timeout${waited}. Busy:\n${lines.join('\n')}`, {
       timeoutMs,
       busy,
+      syncEnd,
     });
   }
 

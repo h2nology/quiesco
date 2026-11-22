@@ -91,9 +91,20 @@ export class Timeline {
       });
       return r;
     } catch (e) {
-      // A multi-step action that failed still reports its steps (issue #78).
-      const steps = (e as { data?: { steps?: unknown } } | null)?.data?.steps;
-      add({ method, label, start, end: Date.now(), ...(Array.isArray(steps) && steps.length > 0 ? { steps: steps as StepTiming[] } : {}), error: e instanceof Error ? e.message : String(e) });
+      // A multi-step action that failed still reports its steps (issue #78), a wait that timed out how it
+      // ended (issue #110).
+      const data = (e as { data?: { steps?: unknown; syncEnd?: unknown } } | null)?.data;
+      const steps = data?.steps;
+      const syncEnd = isWaitEnd(data?.syncEnd) ? { syncEnd: data.syncEnd } : {};
+      add({
+        method,
+        label,
+        start,
+        end: Date.now(),
+        ...(Array.isArray(steps) && steps.length > 0 ? { steps: steps as StepTiming[] } : {}),
+        ...syncEnd,
+        error: e instanceof Error ? e.message : String(e),
+      });
       throw e;
     } finally {
       this.running = this.running.filter((r) => r !== running);
@@ -124,10 +135,18 @@ export class Timeline {
         e.steps.forEach((s, i) => {
           const ts = us(e.start + s.atMs);
           events.push({ name: `step ${i + 1} ${s.label}`.trim(), cat: 'step', ph: 'X', ts, dur: Math.max(1, s.ms * 1000), pid: 1, tid: 1, args: { syncMs: s.syncMs } });
-          if (s.syncMs > 0) events.push({ name: 'wait for idle', cat: 'sync', ph: 'X', ts: ts + Math.max(0, s.ms - s.syncMs) * 1000, dur: Math.max(1, s.syncMs * 1000), pid: 1, tid: 1 });
+          const ended = s.syncEnd !== undefined ? { args: { ended: describeWaitEnd(s.syncEnd) } } : {};
+          if (s.syncMs > 0) events.push({ name: 'wait for idle', cat: 'sync', ph: 'X', ts: ts + Math.max(0, s.ms - s.syncMs) * 1000, dur: Math.max(1, s.syncMs * 1000), pid: 1, tid: 1, ...ended });
         });
+        // A call that failed outside its steps (or whose last step is not in the list) keeps its own record.
+        if (e.error !== undefined && e.syncEnd !== undefined && e.steps.at(-1)?.syncEnd?.endedAt !== e.syncEnd.endedAt) {
+          events.push({ name: 'wait for idle', cat: 'sync', ph: 'i', s: 't', ts: us(e.end), pid: 1, tid: 1, args: busy });
+        }
       } else if (e.syncMs !== undefined && e.syncMs > 0) {
         events.push({ name: 'wait for idle', cat: 'sync', ph: 'X', ts: us(e.start), dur: Math.max(1, Math.round(e.syncMs * 1000)), pid: 1, tid: 1, args: busy });
+      } else if (e.syncEnd !== undefined) {
+        // A failed call reports no syncMs: its wait ends with the call (issue #110).
+        events.push({ name: 'wait for idle', cat: 'sync', ph: 'i', s: 't', ts: us(e.end), pid: 1, tid: 1, args: busy });
       }
     }
     return JSON.stringify({ traceEvents: events, displayTimeUnit: 'ms' });
@@ -155,7 +174,8 @@ export class Timeline {
             const sLeft = ((e.start + s.atMs - this.started) / total) * 100;
             const sWidth = Math.max(0.2, (s.ms / total) * 100);
             const sSync = Math.min(100, (s.syncMs / Math.max(1, s.ms)) * 100);
-            return `<div class="row step"><div class="name">step ${i + 1} ${esc(s.label)}</div><div class="ms">${s.ms} ms (idle wait ${s.syncMs} ms)</div><div class="track"><div class="bar" style="left:${sLeft.toFixed(2)}%;width:${sWidth.toFixed(2)}%"><div class="sync" style="width:${sSync.toFixed(1)}%"></div></div></div></div>`;
+            const sWhy = s.syncEnd !== undefined ? `<div class="why">${describeWaitEnd(s.syncEnd).map(esc).join('<br>')}</div>` : '';
+            return `<div class="row step"><div class="name">step ${i + 1} ${esc(s.label)}</div><div class="ms">${s.ms} ms (idle wait ${s.syncMs} ms)</div><div class="track"><div class="bar" style="left:${sLeft.toFixed(2)}%;width:${sWidth.toFixed(2)}%"><div class="sync" style="width:${sSync.toFixed(1)}%"></div></div></div>${sWhy}</div>`;
           })
           .join('');
         return `<div class="${cls}"><div class="name">${esc(`${e.method} ${e.label}`)}</div><div class="ms">${e.end - e.start} ms${e.syncMs !== undefined ? ` (idle wait ${Math.round(e.syncMs)} ms)` : ''}</div><div class="track"><div class="bar" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%"><div class="sync" style="width:${sync.toFixed(1)}%"></div></div></div>${why}${err}</div>${steps}`;
@@ -184,6 +204,10 @@ export function describeWaitEnd(end: WaitEnd): string[] {
     `last idle wait ended at ${clockTime(end.endedAt)}, last checks: ${end.checks.join(' | ')}`,
     ...(end.activity !== undefined && end.activity.length > 0 ? [`during that wait: ${end.activity.join(' | ')}`] : []),
   ];
+}
+
+function isWaitEnd(v: unknown): v is WaitEnd {
+  return typeof v === 'object' && v !== null && typeof (v as WaitEnd).endedAt === 'number' && Array.isArray((v as WaitEnd).checks);
 }
 
 /** `10:44:21.101` in local time. */

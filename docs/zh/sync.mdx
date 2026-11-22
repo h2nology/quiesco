@@ -20,7 +20,7 @@ Quiesco 会在每次查询和断言之前、每次操作之后，等待 App 进�
 
 用 `sync: { trackers: { 'frame-stable': false } }` 关闭某个跟踪器。
 
-每个调用在 timeline 里都会写明它的空闲等待最后在等什么，按跟踪器列出（`native-module: RNCDatePicker.open() 1990ms`、`network: GET https://api.example.com/items (240ms)`）。动作比预期慢时先看这里。它还会写出这个调用最后一次等待是怎么结束的：结束时刻（设备时钟，方便和设备日志对照）、最后几次检查以及每次哪些跟踪器忙（`+272ms busy: native-module | +276ms idle | +277ms idle (confirmed)`），以及等待期间开始或完成的原生模块调用（`RNCAsyncStorage.multiSet() +251ms→+266ms`）。动作返回得太早时看这里。
+每个调用在 timeline 里都会写明它的空闲等待最后在等什么，按跟踪器列出（`native-module: RNCDatePicker.open() 1990ms`、`network: GET https://api.example.com/items (240ms)`）。动作比预期慢时先看这里。它还会写出这个调用最后一次等待是怎么结束的：结束时刻（设备时钟，方便和设备日志对照）、最后几次检查以及每次哪些跟踪器忙（`+272ms busy: native-module | +276ms idle | +277ms idle (confirmed)`），以及等待期间开始或完成的原生模块调用（`RNCAsyncStorage.multiSet() +251ms→+266ms`）。动作返回得太早时看这里。以 `SYNC_TIMEOUT` 失败的调用也有这份记录，`scrollTo` 的每一步也有。
 
 ### 原生模块调用 {#native-module-calls}
 
@@ -77,11 +77,13 @@ App did not become idle within the 10000ms timeout. Busy:
     last change: first difference at node 12: Text "Loading 41%" … → Text "Loading 42%" …
 ```
 
+超时那一刻空闲、但在超时前不久（1 秒以内）还忙的跟踪器也会列出来，并附上它当时在忙什么：`frame-stable (idle at the timeout, busy 12ms before it): …`。“定时器 → 渲染 → 几帧平静”这样的循环有一部分时间是空闲的，超时可能正好落在那里。
+
 处理方式取决于跟踪器：
 
 - **network**——一个永不结束的请求（长轮询、卡住的后端）：把它加入 `sync.ignoreUrls`，或修复后端 / mock。可以在 mock 服务器中加入类似 `MOCK_STALL` 的开关，有意复现这种情况。
 - **timer**——一个被反复重新设置的短定时器（用 `setTimeout` 实现的轮询循环、会重新调度自身的 toast）。对该步骤跳过同步（`{ sync: false }`），只在该场景中关闭 timer tracker（`this.app.sync.disableTracker('timer')`），或在 e2e 构建中停止该循环。只有延迟不超过 `sync.timerThresholdMs` 的定时器才会计入，所以把阈值调低到循环间隔以下也能解决，但整个 App 里所有这么短的定时器都会因此不再计入。
-- **frame-stable**——有东西一直在动：无限循环的动画（spinner、shimmer、跑马灯、缓慢的装饰性光晕）或计数器。报告会指出第一个发生变化的元素。如果该元素只是装饰，给它一个 testID 并列入 `sync.ignoreElements`——它及其子树会被排除在这项检查之外，其余部分照常检查。否则用 `{ sync: false }` 调用该步骤，之后再断言需要的内容，或在 e2e 构建中禁用该动画。如果相对于等待时间，`frames sampled` 非常少，说明 UI 线程被饿死了（模拟器过载），而不是在播放动画。`recent changes` 列出最近几次变化（距等待开始的时间、节点数、第一个不同的节点）。如果同一个元素一直在来回变化（即使元素树的其他部分也在变），报告会指出是哪个元素。如果每次都是添加又删除一个元素，通常是列表造成的：没有 `getItemLayout`、行高又略有差异的 `FlatList` / `VirtualizedList`，在滚动后可能会在渲染窗口边缘反复添加和删除同一项。加大 `timeoutMs` 没有用；加上 `getItemLayout` 或固定行高通常就能停止。这是真实发生的活动，所以 Quiesco 仍然把它算作忙碌。frame-stable 只在调用等待时采样，所以超时后 `idle-state.json` 里它显示为空闲；它的 `lastWait` 保留了等待结束时报告的内容。
+- **frame-stable**——有东西一直在动：无限循环的动画（spinner、shimmer、跑马灯、缓慢的装饰性光晕）或计数器。报告会指出第一个发生变化的元素。如果该元素只是装饰，给它一个 testID 并列入 `sync.ignoreElements`——它及其子树会被排除在这项检查之外，其余部分照常检查。否则用 `{ sync: false }` 调用该步骤，之后再断言需要的内容，或在 e2e 构建中禁用该动画。如果相对于等待时间，`frames sampled` 非常少，说明 UI 线程被饿死了（模拟器过载），而不是在播放动画。`recent changes` 列出最近几次变化（距等待开始的时间、节点数、第一个不同的节点）。如果同一个元素一直在来回变化（即使元素树的其他部分也在变），报告会指出是哪个元素。如果每次都是添加又删除一个元素，通常是列表造成的：没有 `getItemLayout`、行高又略有差异的 `FlatList` / `VirtualizedList`，在滚动后可能会在渲染窗口边缘反复添加和删除同一项。加大 `timeoutMs` 没有用；加上 `getItemLayout` 或固定行高通常就能停止。这是真实发生的活动，所以 Quiesco 仍然把它算作忙碌。frame-stable 只在调用等待时采样，所以超时后 `idle-state.json` 里它显示为空闲；它的 `lastWait` 保留了等待结束时报告的内容；即使元素树在等待期间变化过、只是超时那一刻恰好稳定，也会保留。
 - **react**——渲染循环（effect 中没有加条件判断的状态更新）永远无法稳定：这是一个真实的 bug。
 
 `AGENT_TIMEOUT` 则不同：agent 完全没有响应，通常是因为 JS 线程被一个长时间的同步任务阻塞。
