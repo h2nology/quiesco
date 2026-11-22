@@ -87,7 +87,10 @@ picker dialogs (`RNCDatePicker.open`, `RNCTimePicker.open`), `ExpoLocalAuthentic
 the share sheets (`ShareModule.share`, `ExpoSharing.shareAsync`), `ExpoWebBrowser.openBrowserAsync` /
 `openAuthSessionAsync`, the image and document pickers, the alerts and action sheets (`AlertManager.alertWithArgs`,
 `DialogManagerAndroid.showAlert`, `ActionSheetManager.show…ActionSheetWithOptions`). Native-driver
-animations (`NativeAnimatedModule`), which call back when the animation ends, never count either.
+animations (`NativeAnimatedModule`), which call back when the animation ends, never count either. An event
+subscription (`addListener(eventName, listener)` and other `add…Listener` / `remove…Listener(s)` methods)
+is not waiting for its listener, which runs only when an event arrives: it counts only when it returns a
+promise, whatever `defaultIgnoreNativeCalls` says.
 `ignoreNativeCalls` adds to them;
 `defaultIgnoreNativeCalls: false` counts them too. Any other call stops counting after
 `nativeCallThresholdMs`, so a step that opens such a UI waits that long at most: the timeline names the

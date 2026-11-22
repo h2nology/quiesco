@@ -2,7 +2,7 @@
  * Native module tracker (tracker name `native-module`, issue #67): a promise returned by a native module
  * method (a TurboModule, a legacy NativeModule, an Expo module) that has not settled yet, or a call given
  * callbacks that has not called any of them yet (issue #107: AsyncStorage 2's `setItem` calls
- * `multiSet(pairs, callback)`), e.g. `await AsyncStorage.setItem(…)` between a request and a navigation. On when the build wraps native
+ * `multiSet(pairs, callback)`; an event subscription's listener is not such a callback, issue #109), e.g. `await AsyncStorage.setItem(…)` between a request and a navigation. On when the build wraps native
  * modules (issue #94), unless the config turns it off (`sync.trackers: { 'native-module': false }`).
  *
  * The modules are wrapped where the app gets them: React Native's `TurboModuleRegistry.get` /
@@ -75,6 +75,13 @@ export const DEFAULT_IGNORED_NATIVE_CALLS: readonly RegExp[] = [
   // A native-driver animation calls its end callback when the animation ends (a loop: never).
   /^NativeAnimated(?:Turbo)?Module\./,
 ];
+
+/**
+ * Methods whose function arguments are event listeners, not completion callbacks (issue #109: Expo
+ * modules' `addListener(eventName, listener)`, which expo-notifications calls at startup): the listener
+ * runs when an event arrives, maybe never, so the call is not pending on it.
+ */
+const SUBSCRIPTION_METHOD = /^(?:add|remove)\w*Listeners?$/;
 
 /** Pending calls kept while off: a call that never settles must not grow the map without end. */
 const MAX_PENDING = 500;
@@ -233,11 +240,13 @@ export class NativeModuleTracker implements IdleTracker {
         if (cached !== undefined && cached.original === value) return cached.wrapper;
         const method = value as (...args: unknown[]) => unknown;
         const name = `${moduleName}.${key}`;
+        const subscription = SUBSCRIPTION_METHOD.test(key);
         const self = this;
         const wrapper = function (this: unknown, ...args: unknown[]): unknown {
           // Callback style (AsyncStorage 2's `multiSet(pairs, callback)`, issue #107): pending until the
-          // first of its callbacks is called. A call that returns a promise is pending until it settles.
-          const callback = args.some((a) => typeof a === 'function') ? self.begin(name) : null;
+          // first of its callbacks is called; not a subscription (issue #109). A call that returns a
+          // promise is pending until it settles.
+          const callback = !subscription && args.some((a) => typeof a === 'function') ? self.begin(name) : null;
           const callArgs = callback === null ? args : args.map((a) => (typeof a === 'function' ? settling(a as (...x: unknown[]) => unknown, callback.done) : a));
           let result: unknown;
           try {

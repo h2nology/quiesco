@@ -117,6 +117,34 @@ describe('NativeModuleTracker (#67)', () => {
     expect(tracker.isIdle()).toBe(true);
   });
 
+  it('an event subscription is not a callback-style call (#109: Expo addListener)', async () => {
+    const listeners: (() => void)[] = [];
+    const pending = deferred();
+    const module = {
+      addListener: (_event: string, listener: () => void) => void listeners.push(listener),
+      removeListeners: (_count: number) => undefined,
+      addPushTokenListener: (listener: () => void) => void listeners.push(listener),
+      removeListener: (_listener: () => void) => pending.promise,
+    };
+    const expo = { modules: { ExpoNotificationsEmitter: module } as Record<string, unknown> };
+    const tracker = setup({ expo });
+    tracker.configure({ enabled: true, defaultIgnore: false });
+    const emitter = expo.modules['ExpoNotificationsEmitter'] as typeof module;
+    let received = 0;
+    emitter.addListener('onDidReceiveNotificationResponse', () => received++);
+    emitter.addPushTokenListener(() => received++);
+    emitter.removeListeners(1);
+    expect(tracker.isIdle()).toBe(true);
+    expect(tracker.describeActivity(0, 10)).toEqual([]);
+    listeners[0]!(); // the app's listener, untouched
+    expect(received).toBe(1);
+    const p = emitter.removeListener(() => undefined); // a promise still counts
+    expect(tracker.describeBusy()).toEqual(['ExpoNotificationsEmitter.removeListener() 0ms']);
+    pending.resolve();
+    await p;
+    expect(tracker.isIdle()).toBe(true);
+  });
+
   it('describes the calls pending at some point during a wait, relative to its start (#107)', async () => {
     const s = storageModule();
     let callback: (() => void) | undefined;
