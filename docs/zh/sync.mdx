@@ -16,11 +16,11 @@ Quiesco 会在每次查询和断言之前、每次操作之后，等待 App 进�
 | `native`（iOS） | 正在进行 view controller 转场（导航、模态展示），或键盘正在移动 / 刚被使用过 | 由 `@quiesco/native` 上报；覆盖 JavaScript 看不到的 UIKit 工作。「键盘正在移动」从 UIKit 的 `keyboardWill…` 通知开始，到对应的 `keyboardDid…` 结束，最长为动画时长加 0.5 秒：iOS 有时在键盘早已就位后才晚几秒发出 `keyboardDidShow`（此时设备日志里会有 `[Quiesco] keyboard: no Did notification …`）。|
 | `frame-stable` | 元素树（每个元素的类型、testID、文本，以及取整后的位置和尺寸）在最近 `sync.stableFrames`（2）帧内发生了变化 | 用于兜底 UI 线程上的动画（Reanimated、native driver 的 `Animated`）。只在有调用等待时采样。|
 
-| `native-module`（构建包装原生模块时开启） | 原生模块方法（TurboModule / NativeModules、Expo 模块）返回的 Promise 尚未完成，最长 `sync.nativeCallThresholdMs`（2 秒） | 见[原生模块调用](#native-module-calls)。 |
+| `native-module`（构建包装原生模块时开启） | 原生模块方法（TurboModule / NativeModules、Expo 模块）返回的 Promise 尚未完成，或者传入了回调但还没有调用任何一个（AsyncStorage 的 `multiSet`），最长 `sync.nativeCallThresholdMs`（2 秒） | 见[原生模块调用](#native-module-calls)。 |
 
 用 `sync: { trackers: { 'frame-stable': false } }` 关闭某个跟踪器。
 
-每个调用在 timeline 里都会写明它的空闲等待最后在等什么，按跟踪器列出（`native-module: RNCDatePicker.open() 1990ms`、`network: GET https://api.example.com/items (240ms)`）。动作比预期慢时先看这里。
+每个调用在 timeline 里都会写明它的空闲等待最后在等什么，按跟踪器列出（`native-module: RNCDatePicker.open() 1990ms`、`network: GET https://api.example.com/items (240ms)`）。动作比预期慢时先看这里。它还会写出这个调用最后一次等待是怎么结束的：结束时刻（设备时钟，方便和设备日志对照）、最后几次检查以及每次哪些跟踪器忙（`+272ms busy: native-module | +276ms idle | +277ms idle (confirmed)`），以及等待期间开始或完成的原生模块调用（`RNCAsyncStorage.multiSet() +251ms→+266ms`）。动作返回得太早时看这里。
 
 ### 原生模块调用 {#native-module-calls}
 
@@ -61,7 +61,7 @@ sync: {
 
 不包装时 agent 就不碰原生模块，跟踪器什么都不算（此时写 `trackers: { 'native-module': true }` 会让 App 输出警告，`quiesco doctor` 也会警告）。在包装原生模块的构建里关闭跟踪器时，调用仍会被记录：动作返回时还未完成的调用会写在它的 timeline 条目里，失败场景的 `idle-state.json` 也会列出最近的这类动作（`nativeCallsNotCounted`），提示可能是这种竞态。包装会把模块的方法换成 JS 函数。Gesture Handler、Reanimated 和 Worklets 会在 UI 线程的 worklet 里调用自己模块的方法，这需要原生函数，所以这些模块永远不包装。
 
-这个跟踪器会包装 agent 加载之后 App 从 React Native 的 `TurboModuleRegistry` 和 Expo（`requireNativeModule`）取得的模块。React Native 启动时自己取得的模块不跟踪。有些原生调用要等用户操作（权限请求、认证面板、选择器），在测试回应之前一直未完成。下面这些默认就不算忙：Expo 模块和 `PermissionsAndroid` 的权限请求（`*.request…Permission(s)(Async)`）、日期 / 时间选择对话框（`RNCDatePicker.open`、`RNCTimePicker.open`）、`ExpoLocalAuthentication.authenticateAsync`、分享面板（`ShareModule.share`、`ExpoSharing.shareAsync`）、`ExpoWebBrowser.openBrowserAsync` / `openAuthSessionAsync`、图片和文件选择器。`ignoreNativeCalls` 在此基础上追加；`defaultIgnoreNativeCalls: false` 让它们也算忙。其他调用超过 `nativeCallThresholdMs` 就不再算忙，所以打开这类界面的步骤最多多等这么久：timeline 会写出该调用（`native-module: Module.method() 1990ms`），把它加进 `ignoreNativeCalls` 即可。
+这个跟踪器会包装 agent 加载之后 App 从 React Native 的 `TurboModuleRegistry` 和 Expo（`requireNativeModule`）取得的模块。React Native 启动时自己取得的模块不跟踪。有些原生调用要等用户操作（权限请求、认证面板、选择器），在测试回应之前一直未完成。下面这些默认就不算忙：Expo 模块和 `PermissionsAndroid` 的权限请求（`*.request…Permission(s)(Async)`）、日期 / 时间选择对话框（`RNCDatePicker.open`、`RNCTimePicker.open`）、`ExpoLocalAuthentication.authenticateAsync`、分享面板（`ShareModule.share`、`ExpoSharing.shareAsync`）、`ExpoWebBrowser.openBrowserAsync` / `openAuthSessionAsync`、图片和文件选择器，以及提示框和操作菜单（`AlertManager.alertWithArgs`、`DialogManagerAndroid.showAlert`、`ActionSheetManager.show…ActionSheetWithOptions`）。原生驱动的动画（`NativeAnimatedModule`）在动画结束时才回调，也从不算忙。`ignoreNativeCalls` 在此基础上追加；`defaultIgnoreNativeCalls: false` 让它们也算忙。其他调用超过 `nativeCallThresholdMs` 就不再算忙，所以打开这类界面的步骤最多多等这么久：timeline 会写出该调用（`native-module: Module.method() 1990ms`），把它加进 `ignoreNativeCalls` 即可。
 
 React 跟踪器的工作原理，以及为什么 agent 必须在 React Native 的渲染器之前加载，见[docs/spikes/02-react-idle.md](https://github.com/h2nology/quiesco/blob/main/docs/spikes/02-react-idle.md)。`metro.config.js` 中的 `withQuiesco()` 会处理好加载顺序（React Native 0.88 会在 App 的入口文件之前加载渲染器）。
 

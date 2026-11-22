@@ -16,11 +16,11 @@ Quiescoは、すべてのクエリとアサーションの前、そしてすべ�
 | `native`（iOS） | ビューコントローラーの遷移（ナビゲーション、モーダル表示）が実行中、またはキーボードが動いている / 使われた直後 | `@quiesco/native`が報告します。JavaScriptからは見えないUIKitの処理をカバーします。「キーボードが動いている」はUIKitの`keyboardWill…`通知から対応する`keyboardDid…`までで、長くてもアニメーション時間に0.5秒を足した時間です。iOSはキーボードがすでに表示されているのに`keyboardDidShow`を数秒遅れて送ることがあります（そのときデバイスログに`[Quiesco] keyboard: no Did notification …`が出ます）。 |
 | `frame-stable` | 要素ツリー（すべての要素の型、testID、テキスト、丸めた位置とサイズ）が直近の`sync.stableFrames`（2）フレームの間に変化した | UIスレッド上のアニメーション（Reanimated、native driverの`Animated`）のためのフォールバックです。呼び出しが待機している間だけサンプリングされます。 |
 
-| `native-module`（ネイティブモジュールをラップするビルドではオン） | ネイティブモジュールのメソッド（TurboModule / NativeModules、Expoモジュール）が返したPromiseが未解決。最長`sync.nativeCallThresholdMs`（2秒） | [ネイティブモジュールの呼び出し](#native-module-calls)を参照してください。 |
+| `native-module`（ネイティブモジュールをラップするビルドではオン） | ネイティブモジュールのメソッド（TurboModule / NativeModules、Expoモジュール）が返したPromiseが未解決、またはコールバックを渡されてまだどれも呼んでいない（AsyncStorageの`multiSet`）。最長`sync.nativeCallThresholdMs`（2秒） | [ネイティブモジュールの呼び出し](#native-module-calls)を参照してください。 |
 
 トラッカーをオフにするには`sync: { trackers: { 'frame-stable': false } }`とします。
 
-タイムラインの各呼び出しには、アイドル待ちが最後に何を待っていたかがトラッカーごとに書かれます（`native-module: RNCDatePicker.open() 1990ms`、`network: GET https://api.example.com/items (240ms)`）。操作が想定より遅いときは、まずここを見てください。
+タイムラインの各呼び出しには、アイドル待ちが最後に何を待っていたかがトラッカーごとに書かれます（`native-module: RNCDatePicker.open() 1990ms`、`network: GET https://api.example.com/items (240ms)`）。操作が想定より遅いときは、まずここを見てください。その呼び出しの最後のアイドル待ちがどう終わったかも書かれます。終わった時刻（デバイスの時計なので、デバイスのログと突き合わせられます）、最後の数回のチェックとそれぞれでビジーだったトラッカー（`+272ms busy: native-module | +276ms idle | +277ms idle (confirmed)`）、待ちの間に始まった・完了したネイティブモジュールの呼び出し（`RNCAsyncStorage.multiSet() +251ms→+266ms`）です。操作が早く戻りすぎたときは、ここを見てください。
 
 ### ネイティブモジュールの呼び出し {#native-module-calls}
 
@@ -60,7 +60,7 @@ sync: {
 
 ラップしない場合、エージェントはネイティブモジュールに手を加えず、トラッカーは何も数えません（このとき`trackers: { 'native-module': true }`と書くとアプリが警告を出し、`quiesco doctor`も警告します）。ラップするビルドでトラッカーをオフにした場合も、呼び出しは記録されます。未完了の呼び出しが残ったまま戻った操作は、タイムラインの項目にその呼び出しが書かれ、失敗したシナリオの`idle-state.json`にも直近のそうした操作が並びます（`nativeCallsNotCounted`）。この競合を疑う手がかりになります。ラップするとモジュールのメソッドがJSの関数に置き換わります。Gesture Handler、Reanimated、WorkletsはUIスレッドのworkletから自身のモジュールのメソッドを呼び出し、それにはネイティブの関数が必要なため、これらのモジュールはラップしません。
 
-このトラッカーは、エージェントの読み込み後にアプリがReact Nativeの`TurboModuleRegistry`とExpo（`requireNativeModule`）から取得するモジュールをラップします。React Nativeが起動時に取得する自身のモジュールは追跡されません。権限のリクエスト、認証シート、ピッカーなど、ユーザーの操作を待つネイティブ呼び出しは、テストが応答するまで未完了のままです。次の呼び出しは既定でビジーとみなしません。Expoモジュールと`PermissionsAndroid`の権限リクエスト（`*.request…Permission(s)(Async)`）、日付・時刻ピッカーのダイアログ（`RNCDatePicker.open`、`RNCTimePicker.open`）、`ExpoLocalAuthentication.authenticateAsync`、共有シート（`ShareModule.share`、`ExpoSharing.shareAsync`）、`ExpoWebBrowser.openBrowserAsync` / `openAuthSessionAsync`、画像とドキュメントのピッカーです。`ignoreNativeCalls`はこれに追加され、`defaultIgnoreNativeCalls: false`にするとこれらもビジーとみなします。ほかの呼び出しは`nativeCallThresholdMs`を過ぎるとビジーとみなされなくなるので、そうしたUIを開くステップの待ち時間は最長でもその長さです。タイムラインにその呼び出しが出る（`native-module: Module.method() 1990ms`）ので、`ignoreNativeCalls`に加えてください。
+このトラッカーは、エージェントの読み込み後にアプリがReact Nativeの`TurboModuleRegistry`とExpo（`requireNativeModule`）から取得するモジュールをラップします。React Nativeが起動時に取得する自身のモジュールは追跡されません。権限のリクエスト、認証シート、ピッカーなど、ユーザーの操作を待つネイティブ呼び出しは、テストが応答するまで未完了のままです。次の呼び出しは既定でビジーとみなしません。Expoモジュールと`PermissionsAndroid`の権限リクエスト（`*.request…Permission(s)(Async)`）、日付・時刻ピッカーのダイアログ（`RNCDatePicker.open`、`RNCTimePicker.open`）、`ExpoLocalAuthentication.authenticateAsync`、共有シート（`ShareModule.share`、`ExpoSharing.shareAsync`）、`ExpoWebBrowser.openBrowserAsync` / `openAuthSessionAsync`、画像とドキュメントのピッカー、アラートとアクションシート（`AlertManager.alertWithArgs`、`DialogManagerAndroid.showAlert`、`ActionSheetManager.show…ActionSheetWithOptions`）です。アニメーションの終了時にコールバックするネイティブドライバーのアニメーション（`NativeAnimatedModule`）も、ビジーとみなしません。`ignoreNativeCalls`はこれに追加され、`defaultIgnoreNativeCalls: false`にするとこれらもビジーとみなします。ほかの呼び出しは`nativeCallThresholdMs`を過ぎるとビジーとみなされなくなるので、そうしたUIを開くステップの待ち時間は最長でもその長さです。タイムラインにその呼び出しが出る（`native-module: Module.method() 1990ms`）ので、`ignoreNativeCalls`に加えてください。
 
 Reactトラッカーの仕組みと、エージェントをReact Nativeのレンダラーより先に読み込む必要がある理由は、[docs/spikes/02-react-idle.md](https://github.com/h2nology/quiesco/blob/main/docs/spikes/02-react-idle.md)で説明しています。読み込み順は`metro.config.js`の`withQuiesco()`が面倒を見ます（React Native 0.88はアプリのエントリーファイルより先にレンダラーを読み込みます）。
 

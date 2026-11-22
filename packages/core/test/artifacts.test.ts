@@ -11,7 +11,7 @@ import { LogBuffer } from '../src/devices/streams';
 import { decodePng, drawRects, encodePng, stackPng } from '../src/png';
 import { failureRects, fullElementScreenshot, fullPageScreenshot, highlight } from '../src/screenshots';
 import type { ScreenshotHost } from '../src/screenshots';
-import { NOT_COUNTED_NOTE, Timeline } from '../src/timeline';
+import { describeWaitEnd, NOT_COUNTED_NOTE, Timeline } from '../src/timeline';
 import { FakeProvider } from './helpers/fake-provider';
 
 const silent = { debug() {}, info() {}, warn() {}, error() {} };
@@ -174,6 +174,29 @@ describe('timeline', () => {
     const html = t.toHtml();
     expect(html).toContain('idle wait ended on: native-module: RNCDatePicker.open() 1990ms');
     expect(html).toContain('native-module tracker is off: RNCAsyncStorage.multiSet() 2ms');
+  });
+
+  it('says how the last idle wait of a call ended: when, its last checks, the native calls during it (#107)', async () => {
+    const t = new Timeline();
+    t.reset('login');
+    const endedAt = new Date(2026, 10, 22, 10, 44, 21, 104).getTime();
+    const syncEnd = {
+      endedAt,
+      checks: ['+266ms busy: network', '+272ms busy: native-module', '+276ms idle', '+277ms idle (confirmed)'],
+      activity: ['native-module: RNCAsyncStorage.multiSet() +271ms→+275ms'],
+    };
+    await t.measure('action', 'tap {"id":"login-submit"}', async () => ({ syncMs: 277, syncEnd }), (r) => r);
+    await t.measure('assert', 'visible {"id":"x"}', async () => ({ syncMs: 0 }), (r) => r);
+    expect(t.all.map((e) => e.syncEnd)).toEqual([syncEnd, undefined]);
+    const lines = [
+      'last idle wait ended at 10:44:21.104, last checks: +266ms busy: network | +272ms busy: native-module | +276ms idle | +277ms idle (confirmed)',
+      'during that wait: native-module: RNCAsyncStorage.multiSet() +271ms→+275ms',
+    ];
+    expect(describeWaitEnd(syncEnd)).toEqual(lines);
+    expect(describeWaitEnd({ endedAt, checks: ['+0ms idle', '+0ms idle (confirmed)'] })).toHaveLength(1);
+    const trace = JSON.parse(t.toTrace()) as { traceEvents: { name: string; args?: Record<string, unknown> }[] };
+    expect(trace.traceEvents.find((e) => e.name === 'wait for idle')?.args).toEqual({ ended: lines });
+    expect(t.toHtml()).toContain(lines[1]);
   });
 
   it('nests the steps of a multi-step action, also of a failed one (#78)', async () => {

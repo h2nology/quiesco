@@ -4,7 +4,7 @@
  * import of the app entry, so the DevTools hook and scheduler patch precede the renderer).
  */
 import { SyncDefaults, WEBVIEW_HOOK } from '@quiesco/protocol';
-import type { Direction, Edge, ErrorDataMap, LogBoxMode, Point, Speed, StepTiming } from '@quiesco/protocol';
+import type { Direction, Edge, ErrorDataMap, LogBoxMode, Point, Speed, StepTiming, WaitEnd } from '@quiesco/protocol';
 import type {
   ActionSpec,
   ActionType,
@@ -363,6 +363,7 @@ export class AgentRuntime {
     // the steps of a multi-step action (issue #78).
     this.syncSpent = 0;
     this.syncBusy = new Map();
+    this.syncEnd = null;
     this.callStart = this.clock.now();
     this.steps = [];
     const r = await h(params ?? {});
@@ -374,6 +375,7 @@ export class AgentRuntime {
       ...(this.syncBusy.size > 0 ? { syncBusy: [...this.syncBusy.values()].slice(-MAX_SYNC_BUSY) } : {}),
       ...(notCounted.length > 0 ? { nativeCallsNotCounted: notCounted } : {}),
       ...(this.steps.length > 0 ? { steps: this.steps } : {}),
+      ...(this.syncEnd !== null ? { syncEnd: this.syncEnd } : {}),
     };
   }
 
@@ -410,6 +412,8 @@ export class AgentRuntime {
   private syncSpent = 0;
   /** What its waits ended on, by tracker (the latest wait's reason per tracker, issue #93). */
   private syncBusy = new Map<string, string>();
+  /** How the current call's latest wait for idle ended (issue #107). */
+  private syncEnd: WaitEnd | null = null;
   /** When the current call started, and the steps of a multi-step action so far (issue #78). */
   private callStart = 0;
   private steps: StepTiming[] = [];
@@ -421,7 +425,7 @@ export class AgentRuntime {
       const viewport = this.adapter.viewport();
       return { elements: findAll(roots, p.matcher).map((n) => summarize(n, viewport)) };
     },
-    waitForIdle: async (p) => this.engine.waitForIdle({ timeoutMs: p.timeoutMs ?? this.config.sync.timeoutMs }),
+    waitForIdle: async (p) => ({ waitedMs: (await this.engine.waitForIdle({ timeoutMs: p.timeoutMs ?? this.config.sync.timeoutMs })).waitedMs }),
     getIdleState: async () => ({ trackers: this.engine.getIdleState() }),
     getTree: async () => ({ root: getTree(this.adapter.getHostRoots()) }),
     listElements: async () => ({ route: this.navigation.current(), ...listElements(this.adapter.getHostRoots(), this.adapter.viewport()) }),
@@ -490,7 +494,8 @@ export class AgentRuntime {
     if (opts.sync === false) return;
     const start = this.clock.now();
     try {
-      const { busy } = await this.engine.waitForIdle({ timeoutMs, reportedTimeoutMs: this.timeout(opts) });
+      const { busy, end } = await this.engine.waitForIdle({ timeoutMs, reportedTimeoutMs: this.timeout(opts) });
+      this.syncEnd = end;
       for (const b of busy ?? []) {
         const tracker = b.slice(0, b.indexOf(':'));
         this.syncBusy.delete(tracker);

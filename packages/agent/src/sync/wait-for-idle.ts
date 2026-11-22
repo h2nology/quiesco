@@ -4,7 +4,7 @@
  * batch of expired timers runs without draining microtasks in between).
  */
 import { SyncDefaults } from '@quiesco/protocol';
-import type { TrackerState } from '@quiesco/protocol';
+import type { TrackerState, WaitEnd } from '@quiesco/protocol';
 
 import { QuiescoError } from '../errors';
 import type { Clock, IdleTracker } from './tracker';
@@ -27,6 +27,9 @@ const DESCRIBE_EVERY_MS = 100;
 /** A tracker's busy reasons in a wait's result, at most this long. */
 const MAX_BUSY_CHARS = 200;
 
+/** Checks kept for the record of how a wait ended (issue #107). */
+const LAST_CHECKS = 4;
+
 export interface WaitResult {
   waitedMs: number;
   /**
@@ -34,6 +37,8 @@ export interface WaitResult {
    * RNCDatePicker.open() 1990ms`, issue #93): what the wait ended on. Left out when it was idle at once.
    */
   busy?: string[];
+  /** How the wait ended (issue #107). */
+  end: WaitEnd;
 }
 const NO_NAMES: ReadonlySet<string> = new Set();
 
@@ -141,15 +146,31 @@ export class SyncEngine {
       described = { names, at: now };
       busy = busyNow.map((t) => `${t.name}: ${truncate(safe(() => t.describeBusy(), ['describeBusy() threw']).join('; '))}`);
     };
-    const idle = (): WaitResult => ({ waitedMs: this.clock.now() - start, ...(busy !== undefined ? { busy } : {}) });
+    const checks: string[] = [];
+    const check = (confirming: boolean): IdleTracker[] => {
+      const busyNow = this.busyTrackers();
+      const at = `+${this.clock.now() - start}ms`;
+      checks.push(busyNow.length > 0 ? `${at} busy: ${busyNow.map((t) => t.name).join(', ')}` : `${at} idle${confirming ? ' (confirmed)' : ''}`);
+      if (checks.length > LAST_CHECKS) checks.shift();
+      return busyNow;
+    };
+    const idle = (): WaitResult => {
+      const now = this.clock.now();
+      const activity = trackers.flatMap((t) => safe(() => t.describeActivity?.(start, now) ?? [], []).map((a) => `${t.name}: ${a}`));
+      return {
+        waitedMs: now - start,
+        ...(busy !== undefined ? { busy } : {}),
+        end: { endedAt: now, checks, ...(activity.length > 0 ? { activity } : {}) },
+      };
+    };
     for (const t of trackers) t.beginWait?.();
     try {
       for (;;) {
-        let busyNow = this.busyTrackers();
+        let busyNow = check(false);
         if (busyNow.length === 0) {
           if (safe(() => this.inBackground(), false)) return idle();
           await sleep(0);
-          busyNow = this.busyTrackers();
+          busyNow = check(true);
           if (busyNow.length === 0) return idle();
         }
         noteBusy(busyNow);
