@@ -1,0 +1,127 @@
+---
+title: "Cucumber"
+description: "配置 @quiesco/cucumber：cucumber.mjs、support 文件、registerQuiesco() 的选项和 World。"
+---
+
+`@quiesco/cucumber` 用 cucumber-js 运行 Gherkin feature。步骤通过 `this.app` 操作 App。需要 `@cucumber/cucumber` 12 或更高版本。
+
+## 初始配置 {#setup}
+
+`quiesco init --runner cucumber` 会安装 `@quiesco/cucumber` 和 `@cucumber/cucumber`，并生成：
+
+| 文件 | 作用 |
+|---|---|
+| `cucumber.mjs` | cucumber-js 的配置 |
+| `features/package.json` | `{ "type": "module" }`：步骤文件是 ES 模块 |
+| `features/support/quiesco.ts` | 注册 World 和生命周期 hook |
+| `features/app.feature` | 第一个场景 |
+| `features/step_definitions/app.steps.ts` | 它的步骤 |
+
+它还会在 `tsconfig.json` 中加上 `"allowImportingTsExtensions": true`，因为步骤文件之间用 `.ts` 扩展名互相导入（见 [TypeScript](#typescript)）。
+
+```js
+// cucumber.mjs
+export default {
+  import: ['features/support/**/*.ts', 'features/step_definitions/**/*.ts'],
+  format: ['progress'],
+};
+```
+
+feature 文件从 `features/**/*.feature` 读取，这是 cucumber-js 的默认值。不要在这里设置 `paths`：配置中的路径会和命令行上的路径合并，导致 `quiesco test features/x.feature` 运行所有 feature。
+
+```ts
+// features/support/quiesco.ts
+import '@quiesco/cucumber/register';
+```
+
+```ts
+// features/step_definitions/app.steps.ts
+import { Then } from '@cucumber/cucumber';
+import type { QuiescoWorld } from '@quiesco/cucumber';
+
+Then('the home screen is visible', async function (this: QuiescoWorld) {
+  await this.app.expectVisible({ id: 'home' });
+});
+```
+
+## `registerQuiesco()` {#register-quiesco}
+
+`import '@quiesco/cucumber/register'` 会用默认值注册所有内容。要修改默认值，改为在 support 文件中调用 `registerQuiesco()`（两者不要同时使用）：
+
+```ts
+// features/support/quiesco.ts
+import { registerQuiesco } from '@quiesco/cucumber';
+
+import { TodoWorld } from './todo-world.ts';
+
+registerQuiesco({ world: TodoWorld, stepTimeoutMs: 90_000 });
+```
+
+<ResponseField name="world" type="继承 QuiescoWorld 的类" default="QuiescoWorld">
+  你自己的 World（见[下文](#world)）。
+</ResponseField>
+
+<ResponseField name="stepTimeoutMs" type="number" default="60000">
+  步骤的默认超时时间。每次 Driver 调用有自己的同步超时；这个值限制整个步骤。
+</ResponseField>
+
+<ResponseField name="setupTimeoutMs" type="number" default="600000">
+  启动会话的 `BeforeAll` hook 的超时时间。启动模拟器可能需要几分钟。
+</ResponseField>
+
+<ResponseField name="resetTimeoutMs" type="number" default="180000">
+  每个场景前重置的超时时间。App 已退出时重置会重新启动它，最多等待连接超时时间的三倍。
+</ResponseField>
+
+它注册四个 hook：
+
+| Hook | 作用 |
+|---|---|
+| `BeforeAll` | 启动会话：服务器、设备、安装、启动、连接 |
+| `Before` | 跳过标记为其他平台或浏览器的场景；否则重置 App |
+| `After` | 失败时写入证据并附加到报告中 |
+| `AfterAll` | 关闭会话 |
+
+## World {#world}
+
+`QuiescoWorld` 为每个步骤提供：
+
+- `this.app`：[Driver](./api#driver-thisapp)。
+- `this.platform`：`'ios'`、`'android'` 或 `'web'`，用于在不同平台上以不同方式做同一件事的步骤。只针对一个平台的场景最好用标签（`@ios` 等）。
+- `this.session`：会话本身，用于 Driver 没有覆盖的功能。
+
+要加入自己的业务 driver，继承它并作为 `world` 传入：
+
+```ts
+// features/support/todo-world.ts
+import { QuiescoWorld } from '@quiesco/cucumber';
+
+import { TodoDriver } from './todo-driver.ts';
+
+export class TodoWorld extends QuiescoWorld {
+  get todos() {
+    return new TodoDriver(this.app);
+  }
+}
+```
+
+详见 [Driver 模式](./driver-pattern)。用于快速原型的现成通用步骤见[通用步骤](./steps)。
+
+## TypeScript {#typescript}
+
+步骤文件和 support 文件由 Node 的类型剥离（type stripping）运行，而不是 `tsc`：
+
+- 相对导入要写出 `.ts` 文件名：`import { TodoDriver } from './todo-driver.ts'`。
+- 不支持会生成代码的 TypeScript 语法：参数属性（`constructor(private app: Driver)`）、`enum`、`namespace`。请改为声明字段。
+
+## 标签 {#tags}
+
+平台和浏览器标签可以写在 feature、`Rule`、场景或 `Examples` 块上；最内层的生效（[场景标签](./api#scenario-tags)）。`@hard-reset` 会在该场景前重新启动 App。
+
+## 运行 {#running}
+
+```sh
+npx quiesco test --platform ios
+```
+
+`quiesco test` 会设置 `QUIESCO_PLATFORM`、运行 `cucumber-js`，并自动加上 Quiesco 的进度 formatter；其他参数原样传给 cucumber-js，例如 `--tags @smoke` 或某个 feature 文件（[`quiesco test`](./cli#quiesco-test)）。`--workers N` 会变成 `--parallel N`：N 个 worker 线程，各自有自己的会话和设备（[并行运行](./parallel)）。

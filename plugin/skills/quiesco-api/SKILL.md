@@ -88,8 +88,8 @@ Details per tracker: `references/sync.md` ("When the app never becomes idle").
 
 `quiesco.config.ts` / `.mts` at the project root, `defineConfig` from `@quiesco/core`. Main keys:
 `apps.{ios,android,web}`, `devices.*`, `permissions`, `sync.*`, `actions.mode`, `reset.default` /
-`reset.expectVisible`, `devServer`, `artifacts`, `appErrors.ignore`, `tags`. The full table with defaults
-is under "Configuration" in `references/api.md`.
+`reset.expectVisible`, `devServer`, `artifacts`, `appErrors.ignore`, `tags`. Every option with its type
+and default is in `references/config.md`.
 
 ## Additional resources
 
@@ -103,6 +103,9 @@ plugin's Quiesco version.
 - **`references/sync.md`** — trackers and what to do for each kind of `SYNC_TIMEOUT`.
 - **`references/platforms.md`** — iOS / Android / web differences, permissions, keyboards, system dialogs.
 - **`references/parallel.md`** — `--workers N`, one device per worker, isolation rules.
-- **`references/runners.md`** — Jest and Vitest setup in full.
+- **`references/config.md`** — every `quiesco.config` option with its type and default.
+- **`references/runners.md`** — the three runners compared and how to choose one.
+- **`references/vitest.md`**, **`references/jest.md`**, **`references/cucumber.md`** — each runner's
+  setup in full: its config file, options, hooks and how tests reach the app.
 
 For writing features and steps, see the `writing-tests` skill; for failures, `/quiesco:debug`.

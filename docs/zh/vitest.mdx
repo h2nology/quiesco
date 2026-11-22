@@ -1,0 +1,129 @@
+---
+title: "Vitest"
+description: "配置 @quiesco/vitest：vitest.config.mts、quiesco() 的选项和 app fixture。"
+---
+
+`@quiesco/vitest` 是推荐的运行器。测试用 TypeScript 编写，通过 `app` fixture 操作 App。需要 Vitest 5.1 或更高版本。
+
+## 初始配置 {#setup}
+
+`quiesco init --runner vitest` 会安装 `@quiesco/vitest` 和 `vitest`，并生成两个文件：
+
+```ts
+// vitest.config.mts
+import { quiesco, quiescoPlugin } from '@quiesco/vitest/config';
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  plugins: [quiescoPlugin()],
+  test: {
+    ...quiesco(),
+    include: ['e2e/**/*.test.ts'],
+  },
+});
+```
+
+```ts
+// e2e/app.test.ts
+import { test } from '@quiesco/vitest';
+
+test('the home screen is shown', async ({ app }) => {
+  await app.expectVisible({ id: 'home' });
+});
+```
+
+如果项目里已经有单元测试用的 `vitest.config.*`，`init` 会把 Quiesco 的配置写到 `vitest.e2e.config.mts`，`e2e:*` 脚本会带上 `--config vitest.e2e.config.mts`。
+
+## `quiesco()` {#quiesco}
+
+`quiesco()` 返回 Quiesco 需要的 `test` 选项。把它展开到 `test` 里，自己的选项写在它后面。
+
+<ResponseField name="workers" type="number" default="1">
+  并行运行测试文件的 worker 数，每个 worker 使用自己的设备（[并行运行](./parallel)）。`1` 表示逐个文件运行。
+</ResponseField>
+
+<ResponseField name="testTimeout" type="number" default="300000">
+  每个测试和 hook 的超时时间（毫秒）。第一个测试还要等待会话启动，而启动设备可能需要几分钟。
+</ResponseField>
+
+<ResponseField name="tags" type="object">
+  `quiesco.config.mts` 用 [`tags`](./config#tags) 重命名了标签时，在这里传入同样的对象。
+</ResponseField>
+
+<ResponseField name="extraTags" type="string[]">
+  要声明的自定义标签，例如 `['@smoke']`。Vitest 只接受已声明的标签；平台和浏览器标签已经声明好了。
+</ResponseField>
+
+它设置的 Vitest 选项：
+
+| Vitest 选项 | 值 | 原因 |
+|---|---|---|
+| `pool` | `'forks'` | |
+| `isolate` | `false` | worker 在多个测试文件之间保留会话（设备和 App） |
+| `fileParallelism` / `maxWorkers` | 由 `workers` 决定 | 每个 worker 一台设备 |
+| `testTimeout` / `hookTimeout` | `testTimeout` | |
+| `teardownTimeout` | `120000` | 关闭 App 所需的时间 |
+| `tags` | 平台和浏览器标签，加上 `extraTags` | |
+| `includeTaskLocation` | `true` | `quiesco ui` 按行号运行单个测试 |
+
+命令行上的 `--fileParallelism --maxWorkers N` 会覆盖 `workers`。
+
+## `quiescoPlugin()` {#quiesco-plugin}
+
+把运行进度发送给 `quiesco test` 的进度条和 [`quiesco ui`](./ui)。只有在它们运行 Vitest 时才会添加自己的 reporter，和你配置的 reporter 并存。不加它测试也能运行，`quiesco test` 会在结束时给出提示。
+
+## 所有文件共用的 hook {#setup-files}
+
+由于 `isolate: false`，测试文件之间共享模块。每个文件都导入的辅助模块在每个 worker 中只运行一次，所以写在它顶层的 `test.beforeEach(…)` 只会注册给第一个导入它的文件，其他文件不会执行它，而且不会有任何提示。这类 hook 要写在每个测试文件里，或者写在 setup 文件里（Vitest 会在每个文件之前运行它）：
+
+```ts
+// vitest.config.mts
+test: {
+  ...quiesco(),
+  include: ['e2e/**/*.test.ts'],
+  setupFiles: ['e2e/setup.ts'],
+},
+```
+
+```ts
+// e2e/setup.ts
+import { test } from '@quiesco/vitest';
+
+test.beforeEach(async ({ app }) => {
+  await app.openUrl('myapp://home');
+});
+```
+
+整个运行只需执行一次的东西（例如 mock 后端）放在 `globalSetup` 中（见[示例 App](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e/vitest)）。
+
+## 编写测试 {#writing-tests}
+
+从 `@quiesco/vitest` 导入 `test`（或 `it`）、`describe` 和 `expect`。有两个 fixture 可以操作 App：
+
+- `app`：[Driver](./api#driver-thisapp)。
+- `session`：会话本身，用于 Driver 没有覆盖的功能（`session.platform` 等）。
+
+每个使用它们的测试开始前，App 会被重置。测试失败后，证据（截图、元素树、空闲状态、日志）会写入 artifacts 目录，并列在失败消息中。
+
+平台标签写在测试或 `describe` 的标题里，或者写在测试的 `tags` 选项里：
+
+```ts
+test('Android only', { tags: ['@android'] }, async ({ app }) => {
+  // …
+});
+
+describe('settings @native', () => {
+  // 只在 Android 上运行：最内层的标签生效
+  test('the back button closes it @android', async ({ app }) => {
+    // …
+  });
+});
+```
+
+## 运行 {#running}
+
+```sh
+npx quiesco test --platform ios
+```
+
+`quiesco test` 会设置 `QUIESCO_PLATFORM` 并运行 `vitest run`；其他参数原样传给 Vitest（[`quiesco test`](./cli#quiesco-test)）。设置好 `QUIESCO_PLATFORM` 后自己运行 `npx vitest run` 也可以，但这样不会自动启动 Metro。

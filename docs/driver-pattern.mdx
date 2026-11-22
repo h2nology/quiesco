@@ -36,7 +36,8 @@ export class UiTodoDriver implements TodoDriver {
   }
 
   async loginAs(email: string) {
-    await this.app.backdoor('loginAs', email);       // setup without the UI
+    // setup without the UI
+    await this.app.backdoor('loginAs', email);
   }
 
   async addTodo(title: string) {
@@ -65,7 +66,8 @@ export class TodoWorld extends QuiescoWorld {
   }
 }
 
-registerQuiesco({ world: TodoWorld });   // instead of import '@quiesco/cucumber/register'
+// instead of import '@quiesco/cucumber/register'
+registerQuiesco({ world: TodoWorld });
 ```
 
 Steps then read like the feature:

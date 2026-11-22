@@ -34,7 +34,8 @@ export class UiTodoDriver implements TodoDriver {
   }
 
   async loginAs(email: string) {
-    await this.app.backdoor('loginAs', email);       // UIを使わずに準備する
+    // UIを使わずに準備する
+    await this.app.backdoor('loginAs', email);
   }
 
   async addTodo(title: string) {
@@ -63,7 +64,8 @@ export class TodoWorld extends QuiescoWorld {
   }
 }
 
-registerQuiesco({ world: TodoWorld });   // import '@quiesco/cucumber/register' の代わり
+// import '@quiesco/cucumber/register' の代わり
+registerQuiesco({ world: TodoWorld });
 ```
 
 これで、ステップはfeatureと同じように読めます。

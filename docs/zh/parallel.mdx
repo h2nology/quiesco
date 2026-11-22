@@ -7,24 +7,44 @@ Quiesco 可以同时在多台设备上运行测试：测试运行器的每个 **
 
 <CodeGroup>
 ```sh pnpm
-pnpm exec quiesco test --platform web --runner vitest --workers 3    # vitest --fileParallelism --maxWorkers 3
-pnpm exec quiesco test --platform android --runner jest --workers 2  # jest --maxWorkers 2
-pnpm exec quiesco test --platform ios --runner cucumber --workers 2  # cucumber-js --parallel 2
+# vitest --fileParallelism --maxWorkers 3
+pnpm exec quiesco test --platform web --runner vitest --workers 3
+
+# jest --maxWorkers 2
+pnpm exec quiesco test --platform android --runner jest --workers 2
+
+# cucumber-js --parallel 2
+pnpm exec quiesco test --platform ios --runner cucumber --workers 2
 ```
 ```sh npm
-npx quiesco test --platform web --runner vitest --workers 3    # vitest --fileParallelism --maxWorkers 3
-npx quiesco test --platform android --runner jest --workers 2  # jest --maxWorkers 2
-npx quiesco test --platform ios --runner cucumber --workers 2  # cucumber-js --parallel 2
+# vitest --fileParallelism --maxWorkers 3
+npx quiesco test --platform web --runner vitest --workers 3
+
+# jest --maxWorkers 2
+npx quiesco test --platform android --runner jest --workers 2
+
+# cucumber-js --parallel 2
+npx quiesco test --platform ios --runner cucumber --workers 2
 ```
 ```sh bun
-bunx quiesco test --platform web --runner vitest --workers 3    # vitest --fileParallelism --maxWorkers 3
-bunx quiesco test --platform android --runner jest --workers 2  # jest --maxWorkers 2
-bunx quiesco test --platform ios --runner cucumber --workers 2  # cucumber-js --parallel 2
+# vitest --fileParallelism --maxWorkers 3
+bunx quiesco test --platform web --runner vitest --workers 3
+
+# jest --maxWorkers 2
+bunx quiesco test --platform android --runner jest --workers 2
+
+# cucumber-js --parallel 2
+bunx quiesco test --platform ios --runner cucumber --workers 2
 ```
 ```sh yarn
-yarn quiesco test --platform web --runner vitest --workers 3    # vitest --fileParallelism --maxWorkers 3
-yarn quiesco test --platform android --runner jest --workers 2  # jest --maxWorkers 2
-yarn quiesco test --platform ios --runner cucumber --workers 2  # cucumber-js --parallel 2
+# vitest --fileParallelism --maxWorkers 3
+yarn quiesco test --platform web --runner vitest --workers 3
+
+# jest --maxWorkers 2
+yarn quiesco test --platform android --runner jest --workers 2
+
+# cucumber-js --parallel 2
+yarn quiesco test --platform ios --runner cucumber --workers 2
 ```
 </CodeGroup>
 

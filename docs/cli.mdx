@@ -71,20 +71,32 @@ What `init` leaves to you: test ids, and wrapping the root layout in `<QuiescoRo
 
 <CodeGroup>
 ```sh pnpm
-pnpm dlx quiesco@latest init --upgrade            # or quiesco@0.4.1 for a given version
-pnpm dlx quiesco@latest init --upgrade --dry-run  # only list the changes
+# or quiesco@0.4.1 for a given version
+pnpm dlx quiesco@latest init --upgrade
+
+# only list the changes
+pnpm dlx quiesco@latest init --upgrade --dry-run
 ```
 ```sh npm
-npx quiesco@latest init --upgrade            # or quiesco@0.4.1 for a given version
-npx quiesco@latest init --upgrade --dry-run  # only list the changes
+# or quiesco@0.4.1 for a given version
+npx quiesco@latest init --upgrade
+
+# only list the changes
+npx quiesco@latest init --upgrade --dry-run
 ```
 ```sh bun
-bunx quiesco@latest init --upgrade            # or quiesco@0.4.1 for a given version
-bunx quiesco@latest init --upgrade --dry-run  # only list the changes
+# or quiesco@0.4.1 for a given version
+bunx quiesco@latest init --upgrade
+
+# only list the changes
+bunx quiesco@latest init --upgrade --dry-run
 ```
 ```sh yarn
-yarn dlx quiesco@latest init --upgrade            # or quiesco@0.4.1 for a given version
-yarn dlx quiesco@latest init --upgrade --dry-run  # only list the changes
+# or quiesco@0.4.1 for a given version
+yarn dlx quiesco@latest init --upgrade
+
+# only list the changes
+yarn dlx quiesco@latest init --upgrade --dry-run
 ```
 </CodeGroup>
 
@@ -267,20 +279,32 @@ code is 1 when nothing could be listed.
 
 <CodeGroup>
 ```sh pnpm
-pnpm exec quiesco devices          # the simulators / AVDs Quiesco created for parallel workers
-pnpm exec quiesco devices --prune  # shut them down and delete them
+# the simulators / AVDs Quiesco created for parallel workers
+pnpm exec quiesco devices
+
+# shut them down and delete them
+pnpm exec quiesco devices --prune
 ```
 ```sh npm
-npx quiesco devices            # the simulators / AVDs Quiesco created for parallel workers
-npx quiesco devices --prune    # shut them down and delete them
+# the simulators / AVDs Quiesco created for parallel workers
+npx quiesco devices
+
+# shut them down and delete them
+npx quiesco devices --prune
 ```
 ```sh bun
-bunx quiesco devices           # the simulators / AVDs Quiesco created for parallel workers
-bunx quiesco devices --prune   # shut them down and delete them
+# the simulators / AVDs Quiesco created for parallel workers
+bunx quiesco devices
+
+# shut them down and delete them
+bunx quiesco devices --prune
 ```
 ```sh yarn
-yarn quiesco devices           # the simulators / AVDs Quiesco created for parallel workers
-yarn quiesco devices --prune   # shut them down and delete them
+# the simulators / AVDs Quiesco created for parallel workers
+yarn quiesco devices
+
+# shut them down and delete them
+yarn quiesco devices --prune
 ```
 </CodeGroup>
 
@@ -291,19 +315,27 @@ Lists `"<name> (Quiesco N)"` simulators and `<avd>_quiesco_N` AVDs (with `[runni
 
 <CodeGroup>
 ```sh pnpm
-pnpm exec quiesco doctor           # every platform configured in quiesco.config.mts
+# every platform configured in quiesco.config.mts
+pnpm exec quiesco doctor
+
 pnpm exec quiesco doctor --platform ios
 ```
 ```sh npm
-npx quiesco doctor                 # every platform configured in quiesco.config.mts
+# every platform configured in quiesco.config.mts
+npx quiesco doctor
+
 npx quiesco doctor --platform ios
 ```
 ```sh bun
-bunx quiesco doctor                # every platform configured in quiesco.config.mts
+# every platform configured in quiesco.config.mts
+bunx quiesco doctor
+
 bunx quiesco doctor --platform ios
 ```
 ```sh yarn
-yarn quiesco doctor                # every platform configured in quiesco.config.mts
+# every platform configured in quiesco.config.mts
+yarn quiesco doctor
+
 yarn quiesco doctor --platform ios
 ```
 </CodeGroup>
@@ -346,22 +378,30 @@ app without the config.
 
 <CodeGroup>
 ```sh pnpm
-pnpm exec quiesco tree             # attach to the running app
+# attach to the running app
+pnpm exec quiesco tree
+
 pnpm exec quiesco tree --launch --platform android
 pnpm exec quiesco tree --json > tree.json
 ```
 ```sh npm
-npx quiesco tree                   # attach to the running app
+# attach to the running app
+npx quiesco tree
+
 npx quiesco tree --launch --platform android
 npx quiesco tree --json > tree.json
 ```
 ```sh bun
-bunx quiesco tree                  # attach to the running app
+# attach to the running app
+bunx quiesco tree
+
 bunx quiesco tree --launch --platform android
 bunx quiesco tree --json > tree.json
 ```
 ```sh yarn
-yarn quiesco tree                  # attach to the running app
+# attach to the running app
+yarn quiesco tree
+
 yarn quiesco tree --launch --platform android
 yarn quiesco tree --json > tree.json
 ```

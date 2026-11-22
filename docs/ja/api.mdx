@@ -99,7 +99,9 @@ Androidの`DateTimePicker`はビューを描画せず（ダイアログを開く
 
 ```ts
 await this.app.setValue('due-date-picker', '2031-12-24');
-await this.app.setValue('due-time-picker', '20:15');   // 日付をでっち上げる必要はありません
+
+// 日付をでっち上げる必要はありません
+await this.app.setValue('due-time-picker', '20:15');
 ```
 
 `minimumDate` / `maximumDate`は結果と照合されます。文字列はデバイス上のローカル時刻なので、ホストのタイムゾーンに左右されません。`Date`はデバイスのタイムゾーンに換算されます。
@@ -159,7 +161,10 @@ await this.app.setValue('due-time-picker', '20:15');   // 日付をでっち上�
 ```ts
 await this.app.expect('save').toBeEnabled();
 await this.app.expect({ type: 'switch', label: 'Wi-Fi' }).not.toBeChecked();
-await this.app.expect('banner').toBeVisible({ ratio: 0.75 });     // Detoxでは toBeVisible(75)
+
+// Detoxでは toBeVisible(75)
+await this.app.expect('banner').toBeVisible({ ratio: 0.75 });
+
 await this.app.expect({ id: 'title' }).not.toHaveValue('');
 ```
 
@@ -185,14 +190,28 @@ await this.app.expect({ id: 'title' }).not.toHaveValue('');
 ```ts
 // 型付きの起動引数とディープリンクを指定して新しいプロセスを起動（本当のコールドスタート：getInitialURLにも見える）。
 await this.app.device.relaunch({ args: { user: 'ann', retries: 3 }, url: 'myapp://todos/1' });
-await this.app.device.relaunch({ clearData: true });              // 先にアプリのデータを削除
+
+// 先にアプリのデータを削除
+await this.app.device.relaunch({ clearData: true });
+
 await this.app.device.relaunch({ reinstall: true, permissions: ['camera'] });
-await this.app.device.sendToBackground();                         // ホームボタン。プロセスは動き続ける
-await this.app.device.bringToForeground();                        // 同じプロセス。アクティブかつアイドルになるまで待つ
+
+// ホームボタン。プロセスは動き続ける
+await this.app.device.sendToBackground();
+
+// 同じプロセス。アクティブかつアイドルになるまで待つ
+await this.app.device.bringToForeground();
+
 await this.app.device.terminate();
-const png = await this.app.device.screenshot('avatar');           // 1つの要素。引数なしなら画面
-await this.app.device.screenshot({ fullPage: true }, { name: 'todos' }); // リスト全体をつなぎ合わせて保存・添付
-await this.app.device.reversePort(3001);                          // Androidではadb reverse。それ以外では何もしない
+
+// 1つの要素。引数なしなら画面
+const png = await this.app.device.screenshot('avatar');
+
+// リスト全体をつなぎ合わせて保存・添付
+await this.app.device.screenshot({ fullPage: true }, { name: 'todos' });
+
+// Androidではadb reverse。それ以外では何もしない
+await this.app.device.reversePort(3001);
 ```
 
 | メソッド | 動作 |
@@ -211,16 +230,31 @@ Quiescoは各シナリオの前に、前のシナリオが終了させたアプ�
 #### デバイスの状態
 
 ```ts
-await this.app.device.setOrientation('landscape');      // アプリのウィンドウが回転した時点で解決
+// アプリのウィンドウが回転した時点で解決
+await this.app.device.setOrientation('landscape');
+
 await this.app.device.setAppearance('dark');
-await this.app.device.setFontScale(1.3);                 // iOS：最も近いDynamic Typeのサイズ。適用されたスケールを返す
-await this.app.device.setLocale('ja-JP');                // iOS / Web：その設定でアプリを再起動
+
+// iOS：最も近いDynamic Typeのサイズ。適用されたスケールを返す
+await this.app.device.setFontScale(1.3);
+
+// iOS / Web：その設定でアプリを再起動
+await this.app.device.setLocale('ja-JP');
+
 await this.app.device.setLocation(35.68, 139.76);
 await this.app.device.setPermission('location', 'revoke');
-await this.app.device.setNetwork('offline');             // アプリのリクエストは失敗する。Quiescoの接続は維持される
-await this.app.device.clipboard.set('hello');            // アプリが貼り付ける内容
-const copied = await this.app.device.clipboard.get();    // アプリがコピーした内容
-await this.app.device.setStatusBar({ time: '9:41', batteryLevel: 100 }); // スクリーンショット用
+
+// アプリのリクエストは失敗する。Quiescoの接続は維持される
+await this.app.device.setNetwork('offline');
+
+// アプリが貼り付ける内容
+await this.app.device.clipboard.set('hello');
+
+// アプリがコピーした内容
+const copied = await this.app.device.clipboard.get();
+
+// スクリーンショット用
+await this.app.device.setStatusBar({ time: '9:41', batteryLevel: 100 });
 ```
 
 | メソッド | 動作 |
@@ -240,17 +274,33 @@ await this.app.device.setStatusBar({ time: '9:41', batteryLevel: 100 }); // ス�
 #### システム連携
 
 ```ts
-await this.app.device.biometrics.enroll();     // Face ID / Touch ID / 指紋が設定された状態にする
-await this.app.tap('login-with-face-id');      // アプリがLocalAuthentication.authenticateAsync()を呼ぶ
-await this.app.device.biometrics.match();      // 一致する顔 / 指：アプリの認証が成功する
-await this.app.device.shake();
-await this.app.device.clearKeychain();         // iOS
-await this.app.device.sendNotification({ title: 'New message', data: { chatId: '42' } });
-await this.app.device.openNotification('New message'); // 通知をタップ（iOS：バナー / 通知センター。Android：通知シェード）
+// Face ID / Touch ID / 指紋が設定された状態にする
+await this.app.device.biometrics.enroll();
 
-await this.app.tap('enable-notifications');           // アプリが権限を要求する
-await this.app.device.system.allowPermission();        // システムダイアログの許可ボタン
-await this.app.device.system.tap({ text: 'Cancel' });  // アプリ外の任意のシステムUI
+// アプリがLocalAuthentication.authenticateAsync()を呼ぶ
+await this.app.tap('login-with-face-id');
+
+// 一致する顔 / 指：アプリの認証が成功する
+await this.app.device.biometrics.match();
+
+await this.app.device.shake();
+
+// iOS
+await this.app.device.clearKeychain();
+
+await this.app.device.sendNotification({ title: 'New message', data: { chatId: '42' } });
+
+// 通知をタップ（iOS：バナー / 通知センター。Android：通知シェード）
+await this.app.device.openNotification('New message');
+
+// アプリが権限を要求する
+await this.app.tap('enable-notifications');
+
+// システムダイアログの許可ボタン
+await this.app.device.system.allowPermission();
+
+// アプリ外の任意のシステムUI
+await this.app.device.system.tap({ text: 'Cancel' });
 ```
 
 | メソッド | 動作 |
@@ -282,9 +332,13 @@ Androidエミュレーターで`openAuthSessionAsync`を使うには、Custom Ta
 **WebのJavaScriptダイアログ。**`alert`、`confirm`、`prompt`は、ユーザーの場合と同じく、テストが応答するまで開いたままです。これらもシステムUIです。ダイアログのメッセージはid `dialog.message`のノードで、ボタンは`OK`（`dialog.accept`）と、`confirm` / `prompt`の場合は`Cancel`（`dialog.dismiss`）です。承認されたpromptにはデフォルト値が入ります。
 
 ```ts
-await this.app.tap('clear-all');                                   // ページがconfirm('Delete all?')を呼ぶ
+// ページがconfirm('Delete all?')を呼ぶ
+await this.app.tap('clear-all');
+
 await this.app.device.system.expectVisible({ text: 'Delete all?' });
-await this.app.device.system.tap({ text: 'Cancel' });              // confirm()はfalseを返す。その後アイドルを待つ
+
+// confirm()はfalseを返す。その後アイドルを待つ
+await this.app.device.system.tap({ text: 'Cancel' });
 ```
 
 ダイアログが開いている間、ページはスクリプトを実行せず入力も受け付けません。そのため、ダイアログを開いたアクションはダイアログが表示された時点で（アイドルを待たずに）戻り、アプリに対するそれ以外の呼び出しは直ちに、ダイアログを示す`DIALOG_OPEN`で失敗します（先に応答してください）。スクリーンショットも同様で、ページが描画されないためです。シナリオ終了時に開いたままのダイアログは、警告とともに次のシナリオの前に閉じられます。`beforeunload`のプロンプトは常に承認されます（ページを離れる・再読み込みする操作が止まることはありません）。
@@ -292,13 +346,26 @@ await this.app.device.system.tap({ text: 'Cancel' });              // confirm()�
 ### スクリーンショット {#screenshots}
 
 ```ts
-await this.app.device.screenshot();                                   // 画面
-await this.app.device.screenshot('avatar');                           // 要素（画面上にある部分）
-await this.app.device.screenshot('terms', { full: true });            // その全体。スクロールしてつなぎ合わせる
-await this.app.device.screenshot({ fullPage: true });                 // メインのスクロールビューのコンテンツ全体
-await this.app.device.screenshot({ fullPage: 'todo-list' });          // そのスクロールビューのコンテンツ全体
-await this.app.webview('help').element({ css: '#chart' }).screenshot(); // WebViewのページ内の要素
-await this.app.device.screenshot(undefined, { name: 'home' });        // + artifacts/<run>/<scenario>/home.png、添付される
+// 画面
+await this.app.device.screenshot();
+
+// 要素（画面上にある部分）
+await this.app.device.screenshot('avatar');
+
+// その全体。スクロールしてつなぎ合わせる
+await this.app.device.screenshot('terms', { full: true });
+
+// メインのスクロールビューのコンテンツ全体
+await this.app.device.screenshot({ fullPage: true });
+
+// そのスクロールビューのコンテンツ全体
+await this.app.device.screenshot({ fullPage: 'todo-list' });
+
+// WebViewのページ内の要素
+await this.app.webview('help').element({ css: '#chart' }).screenshot();
+
+// + artifacts/<run>/<scenario>/home.png、添付される
+await this.app.device.screenshot(undefined, { name: 'home' });
 ```
 
 フルページのスクリーンショットはどのプラットフォームでも同じです。Quiescoはスクロールビューを先頭までスクロールし（jsモードの`scrollToEdge`と同じくプログラムから）、1画面分ずつスクリーンショットを撮ってつなぎ合わせます。スクロールビューより上にあるもの（ステータスバー、ヘッダー）は最初の1枚から、以降の各枚からは新たに現れた帯の部分を、スクロールビューより下にあるもの（タブバー）は最後の1枚から取るので、固定のヘッダーとフッターは1回だけ写ります。スクロールに応じて行を追加描画する仮想化リストは、最後まで追従します。スクロールインジケーターは撮影中は隠され（ネイティブ）、スクロール位置は撮影後に元に戻されます。スクロール中に変化するコンテンツ（スティッキーなセクションヘッダー、アニメーション）は、それぞれの画面を撮った時点の状態で写ります。
@@ -308,13 +375,18 @@ await this.app.device.screenshot(undefined, { name: 'home' });        // + artif
 WebViewに表示されたページの要素を扱います。iOS / Androidではreact-native-webview、Webでは`<iframe>`です（react-native-webviewにはWeb実装がないため、アプリはWebではiframeを描画します。例：`MyWebView.web.tsx`の中で）。
 
 ```ts
-const help = this.app.webview('help');                  // マッチャー（testIDなど）でWebViewを指定。引数なしなら画面上の唯一のWebView
+// マッチャー（testIDなど）でWebViewを指定。引数なしなら画面上の唯一のWebView
+const help = this.app.webview('help');
+
 await help.element({ css: '#name' }).type('Alice');
 await help.element({ xpath: '//input[@name="name"]' }).replaceText('Bob');
 await help.element({ text: '打招呼' }).tap();
 await help.element({ id: 'result' }).expectText('你好，Bob');
 await help.element({ text: /^Loading/ }).expectNotVisible();
-const title = await help.runScript<string>('return document.title');   // 関数本体。`arguments`が使え、Promiseは待たれる
+
+// 関数本体。`arguments`が使え、Promiseは待たれる
+const title = await help.runScript<string>('return document.title');
+
 await help.url(); await help.title();
 ```
 
@@ -336,10 +408,18 @@ await help.url(); await help.title();
 同期を丸ごとオフにする代わりに、Quiescoが何を待つかを、シナリオの残りの間だけ変更できます。
 
 ```ts
-await this.app.sync.disableTracker('timer');            // 例：200 msごとにポーリングする画面
-await this.app.sync.ignoreElements.add('poll-count');   // ポーリングのたびにテキストが変わる
-await this.app.sync.ignoreUrls.add(/\/analytics/);      // 終わらないリクエスト
-await this.app.sync.disable();                          // 全トラッカーをオフ（DetoxのdisableSynchronization）
+// 例：200 msごとにポーリングする画面
+await this.app.sync.disableTracker('timer');
+
+// ポーリングのたびにテキストが変わる
+await this.app.sync.ignoreElements.add('poll-count');
+
+// 終わらないリクエスト
+await this.app.sync.ignoreUrls.add(/\/analytics/);
+
+// 全トラッカーをオフ（DetoxのdisableSynchronization）
+await this.app.sync.disable();
+
 await this.app.sync.enable();
 ```
 
@@ -350,17 +430,38 @@ await this.app.sync.enable();
 単なる文字列は**testID**です：`tap('add-todo')`。オブジェクトでは条件を組み合わせられます。
 
 ```ts
-{ id: 'todo-item', index: 0 }                  // 複数あるうちの最初の要素（描画順）
-{ id: /^todo-\d+$/ }                            // 正規表現によるtestID
-{ text: 'Save' }                                // 表示テキストの完全一致
-{ text: /saved \d+ items/i }                    // または正規表現
-{ label: 'Close' }                              // accessibilityLabel / aria-label
-{ role: 'button', text: 'Save' }                // accessibilityRole / role
-{ type: 'switch' }                              // セマンティックな型。どのプラットフォームでも同じ（後述）
-{ type: 'TodoCard' }                            // またはホストの型（'RCTView'、'div'）やコンポーネントのdisplayName
-{ type: 'button', has: { text: 'Buy milk' } }   // マッチする子孫を持つ（DetoxのwithDescendant）
-{ type: 'button', not: { id: 'cancel' } }       // マッチする要素を除外
-{ text: 'Delete', within: 'todo-item-3' }       // 別の要素の内側（DetoxのwithAncestor）
+// 複数あるうちの最初の要素（描画順）
+{ id: 'todo-item', index: 0 }
+
+// 正規表現によるtestID
+{ id: /^todo-\d+$/ }
+
+// 表示テキストの完全一致
+{ text: 'Save' }
+
+// または正規表現
+{ text: /saved \d+ items/i }
+
+// accessibilityLabel / aria-label
+{ label: 'Close' }
+
+// accessibilityRole / role
+{ role: 'button', text: 'Save' }
+
+// セマンティックな型。どのプラットフォームでも同じ（後述）
+{ type: 'switch' }
+
+// またはホストの型（'RCTView'、'div'）やコンポーネントのdisplayName
+{ type: 'TodoCard' }
+
+// マッチする子孫を持つ（DetoxのwithDescendant）
+{ type: 'button', has: { text: 'Buy milk' } }
+
+// マッチする要素を除外
+{ type: 'button', not: { id: 'cancel' } }
+
+// 別の要素の内側（DetoxのwithAncestor）
+{ text: 'Delete', within: 'todo-item-3' }
 ```
 
 `text`は、自身のテキストがマッチする最も深い要素にマッチします（ボタンとそのラベルの両方がマッチすることはありません）。Webでは`testID`は`data-testid`として描画されます。マッチャーはどのプラットフォームでも同じで、`index`もどのプラットフォームでも描画順に従います（Detoxの`atIndex`の順序はiOSとAndroidで異なります）。
@@ -446,6 +547,8 @@ declare module '@quiesco/agent' {
 
 ## 設定 {#configuration}
 
+すべての設定項目と、その型とデフォルト値は[設定](./config)を参照してください。
+
 プロジェクトルートの`quiesco.config.ts`です（`.mts`、`.js`、`.mjs`も使えます）。
 
 ```ts
@@ -455,7 +558,9 @@ export default defineConfig({
   apps: {
     ios: { bundleId: 'com.example.app', binaryPath: 'ios/build/…/App.app', devClient: { metroUrl: 'http://localhost:8081' } },
     android: { package: 'com.example.app', binaryPath: 'android/app/build/outputs/apk/debug/app-debug.apk', devClient: { scheme: 'myapp' } },
-    web: { distDir: 'dist' },                       // または { url: 'http://localhost:8081' }
+
+    // または { url: 'http://localhost:8081' }
+    web: { distDir: 'dist' },
   },
   devices: {
     ios: { device: 'iPhone 17', os: '27.0' },
@@ -581,12 +686,22 @@ Gherkinと同じく、プラットフォームタグの付いた最も内側の�
 ```ts
 import { Lifecycle, titleTags } from '@quiesco/core';
 
-const lifecycle = new Lifecycle();                                 // 設定はquiesco.config.*とQUIESCO_PLATFORMから
-await lifecycle.beforeAll();                                        // サーバー、デバイス、インストール、起動、接続
-if ((await lifecycle.before([titleTags(name)], name)) !== 'skipped') {   // 階層ごとのタグ。リセット
-  await lifecycle.current.driver.tap('login-button');               // Driver
+// 設定はquiesco.config.*とQUIESCO_PLATFORMから
+const lifecycle = new Lifecycle();
+
+// サーバー、デバイス、インストール、起動、接続
+await lifecycle.beforeAll();
+
+// 階層ごとのタグ。リセット
+if ((await lifecycle.before([titleTags(name)], name)) !== 'skipped') {
+
+  // Driver
+  await lifecycle.current.driver.tap('login-button');
 }
-const { attachments, files } = await lifecycle.after({ tags, failed });  // 証跡 + ポリシーに沿った成果物
+
+// 証跡 + ポリシーに沿った成果物
+const { attachments, files } = await lifecycle.after({ tags, failed });
+
 await lifecycle.afterAll();
 ```
 

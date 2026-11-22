@@ -40,7 +40,9 @@ iOS's "Save Password?" sheet never covers the app after the login form.
 ## Parallel runs {#parallel-runs}
 
 ```sh
-pnpm test:e2e:ios:parallel        # cucumber-js --parallel 2 (also :android, :web)
+# cucumber-js --parallel 2 (also :android, :web)
+pnpm test:e2e:ios:parallel
+
 QUIESCO_PLATFORM=android pnpm test:jest:parallel
 QUIESCO_PLATFORM=web pnpm test:vitest:parallel
 ```
@@ -83,9 +85,14 @@ includes the native module; `QUIESCO_ACTION_MODE=js` switches to callback mode.
 ## Production-strip check {#production-strip-check}
 
 ```sh
-pnpm check:prod-strip --platform web                      # from the repository root
-pnpm check:prod-strip --platform android --allow-clean    # deletes android/: run `pnpm build:android` afterwards
-pnpm check:prod-strip --platform ios --allow-clean        # deletes ios/: run `pnpm build:ios` afterwards
+# from the repository root
+pnpm check:prod-strip --platform web
+
+# deletes android/: run `pnpm build:android` afterwards
+pnpm check:prod-strip --platform android --allow-clean
+
+# deletes ios/: run `pnpm build:ios` afterwards
+pnpm check:prod-strip --platform ios --allow-clean
 ```
 
 [`scripts/check-prod-strip.mjs`](https://github.com/h2nology/quiesco/blob/main/scripts/check-prod-strip.mjs) builds this app without and with `EXPO_PUBLIC_QUIESCO=1` (Web export,
@@ -97,7 +104,8 @@ is why `--allow-clean` is required when `android/` / `ios/` exist. CI runs it in
 ## Benchmark {#benchmark}
 
 ```sh
-pnpm bench:android        # 20 iterations: soft reset, tap incl. sync, full suite (native and js)
+# 20 iterations: soft reset, tap incl. sync, full suite (native and js)
+pnpm bench:android
 ```
 
 The output is a Markdown section with the timings.

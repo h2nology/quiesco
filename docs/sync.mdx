@@ -32,9 +32,14 @@ Without the `native-module` tracker, a pending native module call does not keep 
 that awaits one between two tracked steps looks idle in between:
 
 ```ts
-await api.login(email, password);             // fetch: tracked
-await AsyncStorage.setItem(TOKEN_KEY, token);  // native module promise: not tracked by default
-router.replace('/');                           // the next screen mounts and fetches in an effect
+// fetch: tracked
+await api.login(email, password);
+
+// native module promise: not tracked by default
+await AsyncStorage.setItem(TOKEN_KEY, token);
+
+// the next screen mounts and fetches in an effect
+router.replace('/');
 ```
 
 `tap('login-submit')` can return while `setItem` is pending, before the navigation and the next screen's
@@ -50,9 +55,14 @@ The `native-module` tracker is on in such a build; nothing else needs to change.
 
 ```ts
 sync: {
-  nativeCallThresholdMs: 2000,                    // a pending call counts for at most this long
-  ignoreNativeCalls: ['ExpoLocation.watch'],      // "Module.method"; strings match as substrings
-  // trackers: { 'native-module': false },        // off in a build that wraps native modules
+  // a pending call counts for at most this long
+  nativeCallThresholdMs: 2000,
+
+  // "Module.method"; strings match as substrings
+  ignoreNativeCalls: ['ExpoLocation.watch'],
+
+  // off in a build that wraps native modules
+  // trackers: { 'native-module': false },
 }
 ```
 
@@ -123,8 +133,11 @@ by a long synchronous task.
 ## Skipping sync for one call {#skipping-sync-for-one-call}
 
 ```ts
-await this.app.tap('start-spinner', { sync: false });        // do not wait before / after
-await this.app.expectVisible('spinner', { sync: false });    // assert while it spins
+// do not wait before / after
+await this.app.tap('start-spinner', { sync: false });
+
+// assert while it spins
+await this.app.expectVisible('spinner', { sync: false });
 ```
 
 ## Platform notes {#platform-notes}

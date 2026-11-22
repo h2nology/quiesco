@@ -1,0 +1,113 @@
+---
+title: "Jest"
+description: "Set up @quiesco/jest: the preset, jest.config.cjs and the global quiesco."
+---
+
+`@quiesco/jest` is a Jest preset. Tests reach the app through the global `quiesco`, like Jest's own `test`
+and `expect`. It needs Jest 30 or later.
+
+## Setup {#setup}
+
+`quiesco init --runner jest` installs `@quiesco/jest` and `jest`, and writes two files:
+
+```js
+// jest.config.cjs
+module.exports = {
+  preset: '@quiesco/jest',
+  rootDir: __dirname,
+  testMatch: ['<rootDir>/e2e/**/*.test.js'],
+  transform: {},
+  maxWorkers: 1,
+  testTimeout: 120_000,
+};
+```
+
+```js
+// e2e/app.test.js
+test('the home screen is shown', async () => {
+  await quiesco.app.expectVisible({ id: 'home' });
+});
+```
+
+If the project already has a Jest config for its unit tests (`jest.config.*`, or `"jest"` in
+`package.json`), `init` writes Quiesco's config to `jest.e2e.config.cjs` instead, and the `e2e:*` scripts
+pass `--config jest.e2e.config.cjs`.
+
+## The preset {#preset}
+
+`preset: '@quiesco/jest'` sets three things:
+
+| Jest option | Value |
+|---|---|
+| `testEnvironment` | Quiesco's test environment: one session per worker process, the global `quiesco` |
+| `globalTeardown` | Closes the session of an in-band run, and what parallel workers left running |
+| `reporters` | `'default'` and `'@quiesco/jest/reporter'`, which sends the run's progress to `quiesco test` and [`quiesco ui`](./ui) |
+
+## What your config sets {#your-config}
+
+A preset cannot set these two, so your config does:
+
+<ResponseField name="maxWorkers" type="number" required>
+  `1` runs the files one at a time. `N` runs them on N devices in parallel, one per worker process
+  ([parallel runs](./parallel)). `--maxWorkers N` on the command line overrides it.
+</ResponseField>
+
+<ResponseField name="testTimeout" type="number" required>
+  Timeout of each test, in ms. Each Quiesco call waits for the app to become idle, so leave room for that,
+  e.g. `120_000`.
+</ResponseField>
+
+`transform: {}` turns off Babel, so plain JavaScript test files run as they are.
+
+## Your own reporters or teardown {#overriding}
+
+Jest replaces a preset's option with the config's instead of merging them:
+
+- **`reporters`**: add `'@quiesco/jest/reporter'` to your list, next to `'default'`. Without it, the tests
+  still run, but `quiesco test` shows no progress.
+- **`globalTeardown`**: call Quiesco's from yours, or devices and apps are left running:
+
+```js
+// e2e/global-teardown.mjs
+import quiescoTeardown from '@quiesco/jest/teardown';
+
+export default async function teardown() {
+  await quiescoTeardown();
+  // … your own cleanup
+}
+```
+
+## Writing tests {#writing-tests}
+
+- `quiesco.app`: the [Driver](./api#driver-thisapp).
+- `quiesco.session`: the session, for what the Driver does not cover.
+
+Before each test, the app is reset. After a failed test, the evidence (screenshot, element tree, idle
+state, logs) is written to the artifacts directory and listed in the failure message.
+
+Jest has no test options, so platform tags go in the test or `describe` title:
+
+```js
+describe('settings @native', () => {
+  // runs on Android only: the innermost tag decides
+  test('the back button closes it @android', async () => {
+    await quiesco.app.device.pressBack();
+  });
+});
+```
+
+For TypeScript, add the type of the `quiesco` global to `tsconfig.json`:
+
+```json
+{ "compilerOptions": { "types": ["@quiesco/jest"] } }
+```
+
+## Running {#running}
+
+```sh
+npx quiesco test --platform ios
+```
+
+`quiesco test` sets `QUIESCO_PLATFORM` and runs `jest`; other arguments go to Jest
+([`quiesco test`](./cli#quiesco-test)). Running `npx jest` yourself also works with `QUIESCO_PLATFORM`
+set, but then Metro is not started for you.

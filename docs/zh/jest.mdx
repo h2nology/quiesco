@@ -1,0 +1,104 @@
+---
+title: "Jest"
+description: "配置 @quiesco/jest：preset、jest.config.cjs 和全局 quiesco。"
+---
+
+`@quiesco/jest` 是一个 Jest preset。测试通过全局的 `quiesco` 操作 App，就像 Jest 自带的 `test` 和 `expect` 一样。需要 Jest 30 或更高版本。
+
+## 初始配置 {#setup}
+
+`quiesco init --runner jest` 会安装 `@quiesco/jest` 和 `jest`，并生成两个文件：
+
+```js
+// jest.config.cjs
+module.exports = {
+  preset: '@quiesco/jest',
+  rootDir: __dirname,
+  testMatch: ['<rootDir>/e2e/**/*.test.js'],
+  transform: {},
+  maxWorkers: 1,
+  testTimeout: 120_000,
+};
+```
+
+```js
+// e2e/app.test.js
+test('the home screen is shown', async () => {
+  await quiesco.app.expectVisible({ id: 'home' });
+});
+```
+
+如果项目里已经有单元测试用的 Jest 配置（`jest.config.*`，或 `package.json` 中的 `"jest"`），`init` 会把 Quiesco 的配置写到 `jest.e2e.config.cjs`，`e2e:*` 脚本会带上 `--config jest.e2e.config.cjs`。
+
+## preset {#preset}
+
+`preset: '@quiesco/jest'` 设置了三项：
+
+| Jest 选项 | 值 |
+|---|---|
+| `testEnvironment` | Quiesco 的测试环境：每个 worker 进程一个会话，以及全局的 `quiesco` |
+| `globalTeardown` | 关闭单进程（in band）运行的会话，以及并行 worker 遗留的进程 |
+| `reporters` | `'default'` 和 `'@quiesco/jest/reporter'`，后者把运行进度发送给 `quiesco test` 和 [`quiesco ui`](./ui) |
+
+## 需要自己设置的项 {#your-config}
+
+preset 无法设置下面两项，需要在你的配置里设置：
+
+<ResponseField name="maxWorkers" type="number" required>
+  `1` 表示逐个文件运行。`N` 表示在 N 台设备上并行运行，每个 worker 进程一台（[并行运行](./parallel)）。命令行上的 `--maxWorkers N` 会覆盖它。
+</ResponseField>
+
+<ResponseField name="testTimeout" type="number" required>
+  每个测试的超时时间（毫秒）。Quiesco 的每次调用都会等待 App 空闲，所以要留出余量，例如 `120_000`。
+</ResponseField>
+
+`transform: {}` 关闭 Babel，纯 JavaScript 的测试文件直接运行。
+
+## 使用自己的 reporter 或 teardown {#overriding}
+
+配置中的选项会直接替换 preset 中的同名选项，而不是合并：
+
+- **`reporters`**：在你的列表中加上 `'@quiesco/jest/reporter'`（和 `'default'` 放在一起）。不加的话测试也能运行，但 `quiesco test` 不会显示进度。
+- **`globalTeardown`**：在你的 teardown 中调用 Quiesco 的 teardown，否则设备和 App 会一直运行：
+
+```js
+// e2e/global-teardown.mjs
+import quiescoTeardown from '@quiesco/jest/teardown';
+
+export default async function teardown() {
+  await quiescoTeardown();
+  // … 你自己的清理
+}
+```
+
+## 编写测试 {#writing-tests}
+
+- `quiesco.app`：[Driver](./api#driver-thisapp)。
+- `quiesco.session`：会话本身，用于 Driver 没有覆盖的功能。
+
+每个测试开始前，App 会被重置。测试失败后，证据（截图、元素树、空闲状态、日志）会写入 artifacts 目录，并列在失败消息中。
+
+Jest 的测试没有选项参数，所以平台标签写在测试或 `describe` 的标题里：
+
+```js
+describe('settings @native', () => {
+  // 只在 Android 上运行：最内层的标签生效
+  test('the back button closes it @android', async () => {
+    await quiesco.app.device.pressBack();
+  });
+});
+```
+
+使用 TypeScript 时，在 `tsconfig.json` 中加入全局 `quiesco` 的类型：
+
+```json
+{ "compilerOptions": { "types": ["@quiesco/jest"] } }
+```
+
+## 运行 {#running}
+
+```sh
+npx quiesco test --platform ios
+```
+
+`quiesco test` 会设置 `QUIESCO_PLATFORM` 并运行 `jest`；其他参数原样传给 Jest（[`quiesco test`](./cli#quiesco-test)）。设置好 `QUIESCO_PLATFORM` 后自己运行 `npx jest` 也可以，但这样不会自动启动 Metro。

@@ -27,9 +27,14 @@ Quiescoは、すべてのクエリとアサーションの前、そしてすべ�
 `native-module`トラッカーがないと、ネイティブモジュールの呼び出しが未完了でもアプリはビジーになりません。追跡される2つの処理のあいだでネイティブ呼び出しをawaitするハンドラーは、そのあいだアイドルに見えます。
 
 ```ts
-await api.login(email, password);             // fetch：追跡される
-await AsyncStorage.setItem(TOKEN_KEY, token);  // ネイティブモジュールのPromise：既定では追跡されない
-router.replace('/');                           // 次の画面がマウントされ、effectでfetchする
+// fetch：追跡される
+await api.login(email, password);
+
+// ネイティブモジュールのPromise：既定では追跡されない
+await AsyncStorage.setItem(TOKEN_KEY, token);
+
+// 次の画面がマウントされ、effectでfetchする
+router.replace('/');
 ```
 
 `tap('login-submit')`は、`setItem`の完了前、つまり画面遷移と次の画面のリクエストが始まる前に戻ることがあります。次のステップが必要とするものを待つ（`await app.expectVisible('item-row-1')`）か、ネイティブモジュールをラップしてビルドしてください。`metro.config.js`の`withQuiesco()`に`nativeModules: true`を渡し（またはMetroを`EXPO_PUBLIC_QUIESCO_NATIVE_MODULES=1`付きで起動し）、Metroを再起動します。
@@ -42,9 +47,14 @@ module.exports = withQuiesco(getDefaultConfig(__dirname), { nativeModules: true 
 
 ```ts
 sync: {
-  nativeCallThresholdMs: 2000,                    // 未完了の呼び出しをビジーとみなす上限
-  ignoreNativeCalls: ['ExpoLocation.watch'],      // "Module.method"。文字列は部分一致
-  // trackers: { 'native-module': false },        // ラップするビルドでオフにする
+  // 未完了の呼び出しをビジーとみなす上限
+  nativeCallThresholdMs: 2000,
+
+  // "Module.method"。文字列は部分一致
+  ignoreNativeCalls: ['ExpoLocation.watch'],
+
+  // ラップするビルドでオフにする
+  // trackers: { 'native-module': false },
 }
 ```
 
@@ -78,8 +88,11 @@ App did not become idle within the 10000ms timeout. Busy:
 ## 1回の呼び出しだけ同期をスキップする {#skipping-sync-for-one-call}
 
 ```ts
-await this.app.tap('start-spinner', { sync: false });        // 前後で待たない
-await this.app.expectVisible('spinner', { sync: false });    // 回っている間にアサートする
+// 前後で待たない
+await this.app.tap('start-spinner', { sync: false });
+
+// 回っている間にアサートする
+await this.app.expectVisible('spinner', { sync: false });
 ```
 
 ## プラットフォームごとの補足 {#platform-notes}

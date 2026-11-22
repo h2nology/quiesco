@@ -36,7 +36,9 @@ pnpm test:e2e:ios
 ## 並列実行 {#parallel-runs}
 
 ```sh
-pnpm test:e2e:ios:parallel        # cucumber-js --parallel 2（:android、:webもある）
+# cucumber-js --parallel 2（:android、:webもある）
+pnpm test:e2e:ios:parallel
+
 QUIESCO_PLATFORM=android pnpm test:jest:parallel
 QUIESCO_PLATFORM=web pnpm test:vitest:parallel
 ```
@@ -72,9 +74,14 @@ eas build --profile e2e --platform android
 ## 本番ビルドからの除去チェック {#production-strip-check}
 
 ```sh
-pnpm check:prod-strip --platform web                      # リポジトリのルートで実行する
-pnpm check:prod-strip --platform android --allow-clean    # android/を削除する：後で`pnpm build:android`を実行すること
-pnpm check:prod-strip --platform ios --allow-clean        # ios/を削除する：後で`pnpm build:ios`を実行すること
+# リポジトリのルートで実行する
+pnpm check:prod-strip --platform web
+
+# android/を削除する：後で`pnpm build:android`を実行すること
+pnpm check:prod-strip --platform android --allow-clean
+
+# ios/を削除する：後で`pnpm build:ios`を実行すること
+pnpm check:prod-strip --platform ios --allow-clean
 ```
 
 [`scripts/check-prod-strip.mjs`](https://github.com/h2nology/quiesco/blob/main/scripts/check-prod-strip.mjs)は、このアプリを`EXPO_PUBLIC_QUIESCO=1`なしとありでビルドし（WebのExport、R8を有効にしたAndroidのリリースAPK、iOSのReleaseシミュレータービルド）、成果物をスキャンします。本番ビルドにはエージェントのJSも`@quiesco/native`のコードも含まれていてはならず、e2eビルドにはすべてのマーカーが含まれていなければなりません（対照群です。これにより、マッチしなくなったマーカーに気づけます）。`prebuild --clean`はこのディレクトリで実行する必要があるため、`android/` / `ios/`が存在する場合は`--allow-clean`が必須です。CIでは`prod-strip.yml`で実行しています。
@@ -82,7 +89,8 @@ pnpm check:prod-strip --platform ios --allow-clean        # ios/を削除する�
 ## ベンチマーク {#benchmark}
 
 ```sh
-pnpm bench:android        # 20回反復：ソフトリセット、同期込みのタップ、スイート全体（nativeとjs）
+# 20回反復：ソフトリセット、同期込みのタップ、スイート全体（nativeとjs）
+pnpm bench:android
 ```
 
 出力は計測時間をまとめたMarkdownセクションです。

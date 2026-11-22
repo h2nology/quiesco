@@ -9,8 +9,12 @@ App 的 e2e 构建里有一个小小的 agent，它会在 App 空闲时通知测
 import { test } from '@quiesco/vitest';
 
 test('a new todo appears at the top of the list', async ({ app }) => {
-  await app.backdoor('loginAs', 'a@example.com');             // 直接设置状态，无需操作 UI
-  await app.tap('add-todo');                                  // 等到 App 空闲后再点击
+  // 直接设置状态，无需操作 UI
+  await app.backdoor('loginAs', 'a@example.com');
+
+  // 等到 App 空闲后再点击
+  await app.tap('add-todo');
+
   await app.type('todo-title', 'Buy milk');
   await app.tap({ role: 'button', text: 'Save' });
   await app.expectText({ id: 'todo-item', index: 0 }, 'Buy milk');

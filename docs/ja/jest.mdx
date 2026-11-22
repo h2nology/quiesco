@@ -1,0 +1,104 @@
+---
+title: "Jest"
+description: "@quiesco/jestの設定：プリセット、jest.config.cjsとグローバルのquiesco。"
+---
+
+`@quiesco/jest`はJestのプリセットです。テストは、Jest自身の`test`や`expect`と同じように、グローバルの`quiesco`でアプリを操作します。Jest 30以降が必要です。
+
+## セットアップ {#setup}
+
+`quiesco init --runner jest`は`@quiesco/jest`と`jest`をインストールし、2つのファイルを作ります。
+
+```js
+// jest.config.cjs
+module.exports = {
+  preset: '@quiesco/jest',
+  rootDir: __dirname,
+  testMatch: ['<rootDir>/e2e/**/*.test.js'],
+  transform: {},
+  maxWorkers: 1,
+  testTimeout: 120_000,
+};
+```
+
+```js
+// e2e/app.test.js
+test('the home screen is shown', async () => {
+  await quiesco.app.expectVisible({ id: 'home' });
+});
+```
+
+プロジェクトにユニットテスト用のJestの設定（`jest.config.*`、または`package.json`の`"jest"`）がすでにある場合、`init`はQuiescoの設定を`jest.e2e.config.cjs`に書き、`e2e:*`スクリプトに`--config jest.e2e.config.cjs`を付けます。
+
+## プリセット {#preset}
+
+`preset: '@quiesco/jest'`は3つを設定します。
+
+| Jestのオプション | 値 |
+|---|---|
+| `testEnvironment` | Quiescoのテスト環境：ワーカープロセスごとに1つのセッションと、グローバルの`quiesco` |
+| `globalTeardown` | インバンド実行のセッションと、並列ワーカーが残したものを閉じる |
+| `reporters` | `'default'`と`'@quiesco/jest/reporter'`。後者は実行の進捗を`quiesco test`と[`quiesco ui`](./ui)に送る |
+
+## 自分の設定に書く項目 {#your-config}
+
+次の2つはプリセットでは設定できないので、自分の設定に書きます。
+
+<ResponseField name="maxWorkers" type="number" required>
+  `1`ならファイルを1つずつ実行します。`N`ならN台のデバイスで並列に実行します（ワーカープロセスごとに1台、[並列実行](./parallel)）。コマンドラインの`--maxWorkers N`が優先されます。
+</ResponseField>
+
+<ResponseField name="testTimeout" type="number" required>
+  各テストのタイムアウト（ミリ秒）。Quiescoの呼び出しはそれぞれアプリのアイドルを待つので、余裕を持たせます。例：`120_000`。
+</ResponseField>
+
+`transform: {}`はBabelをオフにし、素のJavaScriptのテストファイルをそのまま実行します。
+
+## 自分のレポーターやteardownを使う {#overriding}
+
+Jestは、プリセットのオプションを設定側のオプションで置き換えます（マージはしません）。
+
+- **`reporters`**：自分のリストに`'@quiesco/jest/reporter'`を（`'default'`と並べて）加えます。なくてもテストは動きますが、`quiesco test`に進捗が表示されません。
+- **`globalTeardown`**：自分のteardownからQuiescoのteardownを呼びます。呼ばないとデバイスとアプリが動いたまま残ります。
+
+```js
+// e2e/global-teardown.mjs
+import quiescoTeardown from '@quiesco/jest/teardown';
+
+export default async function teardown() {
+  await quiescoTeardown();
+  // … 自分の後片付け
+}
+```
+
+## テストを書く {#writing-tests}
+
+- `quiesco.app`：[Driver](./api#driver-thisapp)。
+- `quiesco.session`：セッション。Driverでは扱えないものに使います。
+
+各テストの前に、アプリはリセットされます。テストが失敗すると、証拠（スクリーンショット、要素ツリー、アイドル状態、ログ）がartifactsディレクトリに書き出され、失敗メッセージに一覧が載ります。
+
+Jestのテストにはオプションがないため、プラットフォームタグはテストや`describe`のタイトルに書きます。
+
+```js
+describe('settings @native', () => {
+  // Androidだけで実行：一番内側のタグで決まる
+  test('the back button closes it @android', async () => {
+    await quiesco.app.device.pressBack();
+  });
+});
+```
+
+TypeScriptでは、グローバルの`quiesco`の型を`tsconfig.json`に加えます。
+
+```json
+{ "compilerOptions": { "types": ["@quiesco/jest"] } }
+```
+
+## 実行 {#running}
+
+```sh
+npx quiesco test --platform ios
+```
+
+`quiesco test`は`QUIESCO_PLATFORM`を設定して`jest`を実行します。ほかの引数はそのままJestに渡ります（[`quiesco test`](./cli#quiesco-test)）。`QUIESCO_PLATFORM`を設定して自分で`npx jest`を実行することもできますが、その場合Metroは自動で起動しません。

@@ -69,10 +69,20 @@ npx quiesco init          # dependencies, config plugin, Metro, entry file, quie
 2. Give the home screen a test id: `<ThemedView style={styles.container} testID="home">` in
    `src/app/index.tsx`. The generated `e2e/app.test.ts` checks that it is visible.
 
-3. The default template spins a decorative glow on the home screen for four minutes, so the screen never
-   settles. Give it a test id — `<Animated.View … style={styles.glow} testID="logo-glow">` in
-   `src/components/animated-icon.web.tsx` (and `animated-icon.tsx` for iOS / Android) — and uncomment
-   `sync: { ignoreElements: ['logo-glow'] }` in `quiesco.config.mts`.
+3. Optional — let the home screen settle. Only needed if the home screen has an animation that keeps
+   running: Quiesco waits for the screen to settle, so a minutes-long animation runs into `SYNC_TIMEOUT`.
+   The SDK 55 default template spins a decorative glow for four minutes; later templates may not. Give it
+   a test id in `src/components/animated-icon.web.tsx` (and `animated-icon.tsx` for iOS / Android):
+
+   ```tsx
+   <Animated.View … style={styles.glow} testID="logo-glow">
+   ```
+
+   Then uncomment this line in `quiesco.config.mts`:
+
+   ```ts
+   sync: { ignoreElements: ['logo-glow'] },
+   ```
 
 4. Run it:
 

@@ -117,7 +117,9 @@ So picking a date and then a time on Android's two dialogs keeps the date:
 
 ```ts
 await this.app.setValue('due-date-picker', '2031-12-24');
-await this.app.setValue('due-time-picker', '20:15');   // no need to invent a day
+
+// no need to invent a day
+await this.app.setValue('due-time-picker', '20:15');
 ```
 
 `minimumDate` / `maximumDate` are checked against the result. The strings are local time on the device,
@@ -211,7 +213,10 @@ The same assertions in a chained, Detox / Jest-like form (both forms call the sa
 ```ts
 await this.app.expect('save').toBeEnabled();
 await this.app.expect({ type: 'switch', label: 'Wi-Fi' }).not.toBeChecked();
-await this.app.expect('banner').toBeVisible({ ratio: 0.75 });     // Detox: toBeVisible(75)
+
+// Detox: toBeVisible(75)
+await this.app.expect('banner').toBeVisible({ ratio: 0.75 });
+
 await this.app.expect({ id: 'title' }).not.toHaveValue('');
 ```
 
@@ -244,14 +249,28 @@ the spaces.
 ```ts
 // A new process with typed launch arguments and a deep link (a real cold start: getInitialURL sees it).
 await this.app.device.relaunch({ args: { user: 'ann', retries: 3 }, url: 'myapp://todos/1' });
-await this.app.device.relaunch({ clearData: true });              // app data deleted first
+
+// app data deleted first
+await this.app.device.relaunch({ clearData: true });
+
 await this.app.device.relaunch({ reinstall: true, permissions: ['camera'] });
-await this.app.device.sendToBackground();                         // Home button; the process keeps running
-await this.app.device.bringToForeground();                        // same process, waits until active and idle
+
+// Home button; the process keeps running
+await this.app.device.sendToBackground();
+
+// same process, waits until active and idle
+await this.app.device.bringToForeground();
+
 await this.app.device.terminate();
-const png = await this.app.device.screenshot('avatar');           // one element; no argument: the screen
-await this.app.device.screenshot({ fullPage: true }, { name: 'todos' }); // the whole list, stitched; saved + attached
-await this.app.device.reversePort(3001);                          // Android: adb reverse; elsewhere a no-op
+
+// one element; no argument: the screen
+const png = await this.app.device.screenshot('avatar');
+
+// the whole list, stitched; saved + attached
+await this.app.device.screenshot({ fullPage: true }, { name: 'todos' });
+
+// Android: adb reverse; elsewhere a no-op
+await this.app.device.reversePort(3001);
 ```
 
 | Method | What it does |
@@ -271,16 +290,31 @@ backgrounded one back, so scenarios stay independent.
 #### Device state
 
 ```ts
-await this.app.device.setOrientation('landscape');      // resolves once the app's window has turned
+// resolves once the app's window has turned
+await this.app.device.setOrientation('landscape');
+
 await this.app.device.setAppearance('dark');
-await this.app.device.setFontScale(1.3);                 // iOS: nearest Dynamic Type size; returns the scale applied
-await this.app.device.setLocale('ja-JP');                // iOS / web: the app is started again with it
+
+// iOS: nearest Dynamic Type size; returns the scale applied
+await this.app.device.setFontScale(1.3);
+
+// iOS / web: the app is started again with it
+await this.app.device.setLocale('ja-JP');
+
 await this.app.device.setLocation(35.68, 139.76);
 await this.app.device.setPermission('location', 'revoke');
-await this.app.device.setNetwork('offline');             // the app's requests fail; Quiesco stays connected
-await this.app.device.clipboard.set('hello');            // what the app pastes
-const copied = await this.app.device.clipboard.get();    // what the app copied
-await this.app.device.setStatusBar({ time: '9:41', batteryLevel: 100 }); // for screenshots
+
+// the app's requests fail; Quiesco stays connected
+await this.app.device.setNetwork('offline');
+
+// what the app pastes
+await this.app.device.clipboard.set('hello');
+
+// what the app copied
+const copied = await this.app.device.clipboard.get();
+
+// for screenshots
+await this.app.device.setStatusBar({ time: '9:41', batteryLevel: 100 });
 ```
 
 | Method | What it does |
@@ -303,17 +337,33 @@ the app again leaves it on its first screen. Detox's `setURLBlacklist` is
 #### System integration
 
 ```ts
-await this.app.device.biometrics.enroll();     // Face ID / Touch ID / a fingerprint is set up
-await this.app.tap('login-with-face-id');      // the app calls LocalAuthentication.authenticateAsync()
-await this.app.device.biometrics.match();      // a matching face / finger: the app's authentication succeeds
-await this.app.device.shake();
-await this.app.device.clearKeychain();         // iOS
-await this.app.device.sendNotification({ title: 'New message', data: { chatId: '42' } });
-await this.app.device.openNotification('New message'); // tap it (iOS: banner / Notification Center; Android: shade)
+// Face ID / Touch ID / a fingerprint is set up
+await this.app.device.biometrics.enroll();
 
-await this.app.tap('enable-notifications');           // the app asks for a permission
-await this.app.device.system.allowPermission();        // the system dialog's allow button
-await this.app.device.system.tap({ text: 'Cancel' });  // any system UI outside the app
+// the app calls LocalAuthentication.authenticateAsync()
+await this.app.tap('login-with-face-id');
+
+// a matching face / finger: the app's authentication succeeds
+await this.app.device.biometrics.match();
+
+await this.app.device.shake();
+
+// iOS
+await this.app.device.clearKeychain();
+
+await this.app.device.sendNotification({ title: 'New message', data: { chatId: '42' } });
+
+// tap it (iOS: banner / Notification Center; Android: shade)
+await this.app.device.openNotification('New message');
+
+// the app asks for a permission
+await this.app.tap('enable-notifications');
+
+// the system dialog's allow button
+await this.app.device.system.allowPermission();
+
+// any system UI outside the app
+await this.app.device.system.tap({ text: 'Cancel' });
 ```
 
 | Method | What it does |
@@ -363,9 +413,13 @@ would: they are system UI too. The dialog's message is a node with id `dialog.me
 default value.
 
 ```ts
-await this.app.tap('clear-all');                                   // the page calls confirm('Delete all?')
+// the page calls confirm('Delete all?')
+await this.app.tap('clear-all');
+
 await this.app.device.system.expectVisible({ text: 'Delete all?' });
-await this.app.device.system.tap({ text: 'Cancel' });              // confirm() returns false; then waits for idle
+
+// confirm() returns false; then waits for idle
+await this.app.device.system.tap({ text: 'Cancel' });
 ```
 
 While a dialog is open the page runs no script and takes no input, so the action that opened it returns as
@@ -377,13 +431,26 @@ always accepted (leaving or reloading the page is never held up).
 ### Screenshots {#screenshots}
 
 ```ts
-await this.app.device.screenshot();                                   // the screen
-await this.app.device.screenshot('avatar');                           // an element (its part on the screen)
-await this.app.device.screenshot('terms', { full: true });            // all of it, scrolled and stitched
-await this.app.device.screenshot({ fullPage: true });                 // the main scroll view's whole content
-await this.app.device.screenshot({ fullPage: 'todo-list' });          // that scroll view's
-await this.app.webview('help').element({ css: '#chart' }).screenshot(); // an element of a WebView page
-await this.app.device.screenshot(undefined, { name: 'home' });        // + artifacts/<run>/<scenario>/home.png, attached
+// the screen
+await this.app.device.screenshot();
+
+// an element (its part on the screen)
+await this.app.device.screenshot('avatar');
+
+// all of it, scrolled and stitched
+await this.app.device.screenshot('terms', { full: true });
+
+// the main scroll view's whole content
+await this.app.device.screenshot({ fullPage: true });
+
+// that scroll view's
+await this.app.device.screenshot({ fullPage: 'todo-list' });
+
+// an element of a WebView page
+await this.app.webview('help').element({ css: '#chart' }).screenshot();
+
+// + artifacts/<run>/<scenario>/home.png, attached
+await this.app.device.screenshot(undefined, { name: 'home' });
 ```
 
 A full-page screenshot is the same on every platform: Quiesco scrolls the scroll view to the top
@@ -401,13 +468,18 @@ Elements of a page shown in a WebView: react-native-webview on iOS / Android, an
 `MyWebView.web.tsx`).
 
 ```ts
-const help = this.app.webview('help');                  // the WebView by matcher (testID, ...); no argument: the only one on screen
+// the WebView by matcher (testID, ...); no argument: the only one on screen
+const help = this.app.webview('help');
+
 await help.element({ css: '#name' }).type('Alice');
 await help.element({ xpath: '//input[@name="name"]' }).replaceText('Bob');
 await help.element({ text: '打招呼' }).tap();
 await help.element({ id: 'result' }).expectText('你好，Bob');
 await help.element({ text: /^Loading/ }).expectNotVisible();
-const title = await help.runScript<string>('return document.title');   // a function body; `arguments`, promises awaited
+
+// a function body; `arguments`, promises awaited
+const title = await help.runScript<string>('return document.title');
+
 await help.url(); await help.title();
 ```
 
@@ -435,10 +507,18 @@ Change what Quiesco waits for, for the rest of the scenario — instead of switc
 altogether:
 
 ```ts
-await this.app.sync.disableTracker('timer');            // e.g. a screen that polls every 200 ms
-await this.app.sync.ignoreElements.add('poll-count');   // its text changes with every poll
-await this.app.sync.ignoreUrls.add(/\/analytics/);      // a request that never finishes
-await this.app.sync.disable();                          // all trackers off (Detox disableSynchronization)
+// e.g. a screen that polls every 200 ms
+await this.app.sync.disableTracker('timer');
+
+// its text changes with every poll
+await this.app.sync.ignoreElements.add('poll-count');
+
+// a request that never finishes
+await this.app.sync.ignoreUrls.add(/\/analytics/);
+
+// all trackers off (Detox disableSynchronization)
+await this.app.sync.disable();
+
 await this.app.sync.enable();
 ```
 
@@ -452,17 +532,38 @@ survive relaunches and reconnects, and are undone before the next scenario. For 
 A plain string is a **testID**: `tap('add-todo')`. An object combines conditions:
 
 ```ts
-{ id: 'todo-item', index: 0 }                  // first of several, in render order
-{ id: /^todo-\d+$/ }                            // testID by regular expression
-{ text: 'Save' }                                // displayed text, exact
-{ text: /saved \d+ items/i }                    // or a regular expression
-{ label: 'Close' }                              // accessibilityLabel / aria-label
-{ role: 'button', text: 'Save' }                // accessibilityRole / role
-{ type: 'switch' }                              // semantic type, the same on every platform (below)
-{ type: 'TodoCard' }                            // or a host type ('RCTView', 'div') or a component's displayName
-{ type: 'button', has: { text: 'Buy milk' } }   // with a matching descendant (Detox withDescendant)
-{ type: 'button', not: { id: 'cancel' } }       // excluding elements that match
-{ text: 'Delete', within: 'todo-item-3' }       // inside another element (Detox withAncestor)
+// first of several, in render order
+{ id: 'todo-item', index: 0 }
+
+// testID by regular expression
+{ id: /^todo-\d+$/ }
+
+// displayed text, exact
+{ text: 'Save' }
+
+// or a regular expression
+{ text: /saved \d+ items/i }
+
+// accessibilityLabel / aria-label
+{ label: 'Close' }
+
+// accessibilityRole / role
+{ role: 'button', text: 'Save' }
+
+// semantic type, the same on every platform (below)
+{ type: 'switch' }
+
+// or a host type ('RCTView', 'div') or a component's displayName
+{ type: 'TodoCard' }
+
+// with a matching descendant (Detox withDescendant)
+{ type: 'button', has: { text: 'Buy milk' } }
+
+// excluding elements that match
+{ type: 'button', not: { id: 'cancel' } }
+
+// inside another element (Detox withAncestor)
+{ text: 'Delete', within: 'todo-item-3' }
 ```
 
 `text` matches the deepest element whose own text matches (a button and its label do not both match).
@@ -585,6 +686,8 @@ extension, and the file holds only types.
 
 ## Configuration {#configuration}
 
+Every option, with its type and default: [Configuration](./config.md).
+
 `quiesco.config.ts` in the project root (`.mts`, `.js` and `.mjs` also work):
 
 ```ts
@@ -594,7 +697,9 @@ export default defineConfig({
   apps: {
     ios: { bundleId: 'com.example.app', binaryPath: 'ios/build/…/App.app', devClient: { metroUrl: 'http://localhost:8081' } },
     android: { package: 'com.example.app', binaryPath: 'android/app/build/outputs/apk/debug/app-debug.apk', devClient: { scheme: 'myapp' } },
-    web: { distDir: 'dist' },                       // or { url: 'http://localhost:8081' }
+
+    // or { url: 'http://localhost:8081' }
+    web: { distDir: 'dist' },
   },
   devices: {
     ios: { device: 'iPhone 17', os: '27.0' },
@@ -742,12 +847,22 @@ four calls — the adapters above are thin layers over it:
 ```ts
 import { Lifecycle, titleTags } from '@quiesco/core';
 
-const lifecycle = new Lifecycle();                                 // config from quiesco.config.*, QUIESCO_PLATFORM
-await lifecycle.beforeAll();                                        // server, device, install, launch, connect
-if ((await lifecycle.before([titleTags(name)], name)) !== 'skipped') {   // tags by level; reset
-  await lifecycle.current.driver.tap('login-button');               // the Driver
+// config from quiesco.config.*, QUIESCO_PLATFORM
+const lifecycle = new Lifecycle();
+
+// server, device, install, launch, connect
+await lifecycle.beforeAll();
+
+// tags by level; reset
+if ((await lifecycle.before([titleTags(name)], name)) !== 'skipped') {
+
+  // the Driver
+  await lifecycle.current.driver.tap('login-button');
 }
-const { attachments, files } = await lifecycle.after({ tags, failed });  // evidence + artifacts per policy
+
+// evidence + artifacts per policy
+const { attachments, files } = await lifecycle.after({ tags, failed });
+
 await lifecycle.afterAll();
 ```
 

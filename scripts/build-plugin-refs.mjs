@@ -9,7 +9,9 @@
  *   node scripts/build-plugin-refs.mjs --check   exit 1 if a reference is missing or out of date
  *
  * The conversion: frontmatter becomes a "# title" heading and a description line; <Note> / <Warning>
- * become block quotes; <Steps> / <Step title> become numbered "### Step" headings; a link to another page
+ * become block quotes; <Steps> / <Step title> become numbered "### Step" headings; <ResponseField> becomes a
+ * list item with its type and default (nested in <Expandable>); <Card> becomes a list item linking to its
+ * page; a link to another page
  * points at that page's reference when the plugin ships it, at the documentation site otherwise. Code
  * blocks are copied as they are.
  */
@@ -24,7 +26,7 @@ const SITE = 'https://shift-14cc7601.mintlify.site';
 
 /** skill -> the pages its references/ holds */
 const PAGES = {
-  'quiesco-api': ['api', 'sync', 'platforms', 'parallel', 'runners'],
+  'quiesco-api': ['api', 'config', 'sync', 'platforms', 'parallel', 'runners', 'vitest', 'jest', 'cucumber'],
   'writing-tests': ['steps', 'driver-pattern'],
   setup: ['quickstart', 'native', 'cli'],
   debug: ['troubleshooting'],
@@ -63,6 +65,12 @@ export function convert(source, page, skill) {
   let skip = false;
   let step = 0;
   let stepIndent = 0;
+  /** An open <Card>: its link and the text collected so far. */
+  /** @type {{ title: string, href: string, text: string[] } | null} */
+  let card = null;
+  /** Indent of the open <ResponseField>s' bodies, innermost last. */
+  /** @type {number[]} */
+  const fields = [];
   for (const raw of text.split('\n')) {
     let line = raw;
     if (stepIndent && line.startsWith(' '.repeat(stepIndent))) line = line.slice(stepIndent);
@@ -115,6 +123,37 @@ export function convert(source, page, skill) {
       stepIndent = 0;
       out.push('');
       continue;
+    }
+
+    if (/^<\/?(CardGroup|Expandable)\b.*>$/.test(trimmed)) continue;
+    const c = /^<Card title="(.*?)".*?href="\/([a-z0-9-]+)">$/.exec(trimmed);
+    if (c) {
+      card = { title: c[1], href: c[2], text: [] };
+      continue;
+    }
+    if (card) {
+      if (trimmed === '</Card>') {
+        out.push(`- [${card.title}](${linkTarget(card.href, skill)}): ${card.text.join(' ')}`);
+        card = null;
+      } else if (trimmed) card.text.push(trimmed);
+      continue;
+    }
+    const f = /^(\s*)<ResponseField name="(.*?)" type="(.*?)"(?: default="(.*?)")?( required)?\s*(\/?)>$/.exec(line);
+    if (f) {
+      const depth = fields.length;
+      const facts = [`\`${f[3]}\``, ...(f[4] !== undefined ? [`default \`${f[4]}\``] : []), ...(f[5] ? ['required'] : [])];
+      out.push(`${'  '.repeat(depth)}- **\`${f[2]}\`** (${facts.join(', ')})${f[6] ? '' : ':'}`);
+      if (!f[6]) fields.push(f[1].length + 2);
+      continue;
+    }
+    if (trimmed === '</ResponseField>') {
+      fields.pop();
+      continue;
+    }
+    if (fields.length) {
+      const indent = fields[fields.length - 1] ?? 0;
+      const body = line.startsWith(' '.repeat(indent)) ? line.slice(indent) : line.trimStart();
+      line = body ? `${'  '.repeat(fields.length)}${body}` : '';
     }
 
     line = line.replace(/\]\(\.\/([a-z0-9-]+)(#[^)]*)?\)/g, (_, p, anchor = '') => `](${linkTarget(p, skill)}${anchor})`);

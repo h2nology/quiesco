@@ -36,7 +36,9 @@ pnpm test:e2e:ios
 ## 并行运行 {#parallel-runs}
 
 ```sh
-pnpm test:e2e:ios:parallel        # cucumber-js --parallel 2（还有 :android、:web）
+# cucumber-js --parallel 2（还有 :android、:web）
+pnpm test:e2e:ios:parallel
+
 QUIESCO_PLATFORM=android pnpm test:jest:parallel
 QUIESCO_PLATFORM=web pnpm test:vitest:parallel
 ```
@@ -72,9 +74,14 @@ mock 后端由 `features/support/mock-server.ts` 启动。用于健壮性检查�
 ## 生产剥离检查 {#production-strip-check}
 
 ```sh
-pnpm check:prod-strip --platform web                      # 在仓库根目录执行
-pnpm check:prod-strip --platform android --allow-clean    # 会删除 android/：之后请运行 `pnpm build:android`
-pnpm check:prod-strip --platform ios --allow-clean        # 会删除 ios/：之后请运行 `pnpm build:ios`
+# 在仓库根目录执行
+pnpm check:prod-strip --platform web
+
+# 会删除 android/：之后请运行 `pnpm build:android`
+pnpm check:prod-strip --platform android --allow-clean
+
+# 会删除 ios/：之后请运行 `pnpm build:ios`
+pnpm check:prod-strip --platform ios --allow-clean
 ```
 
 [`scripts/check-prod-strip.mjs`](https://github.com/h2nology/quiesco/blob/main/scripts/check-prod-strip.mjs) 分别在不带和带 `EXPO_PUBLIC_QUIESCO=1` 的情况下构建这个 App（Web 导出、启用 R8 的 Android release APK、iOS Release 模拟器构建），并扫描构建产物：生产构建中不得含有任何 agent JS 和 `@quiesco/native` 代码，e2e 构建则必须包含所有标记（作为对照组，这样某个标记不再匹配时就能被发现）。`prebuild --clean` 必须在这个目录中运行，所以当 `android/` / `ios/` 存在时必须加上 `--allow-clean`。CI 在 `prod-strip.yml` 中运行它。
@@ -82,7 +89,8 @@ pnpm check:prod-strip --platform ios --allow-clean        # 会删除 ios/：之
 ## 基准测试 {#benchmark}
 
 ```sh
-pnpm bench:android        # 20 次迭代：软重置、含同步的点击、完整测试套件（native 和 js）
+# 20 次迭代：软重置、含同步的点击、完整测试套件（native 和 js）
+pnpm bench:android
 ```
 
 输出是一段包含各项耗时的 Markdown。

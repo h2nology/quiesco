@@ -8,28 +8,40 @@ description: "e2eアプリをビルドし、同じテストをiOSシミュレー
 <CodeGroup>
 ```sh pnpm
 pnpm exec expo install expo-dev-client
-pnpm exec quiesco build ios  # または：pnpm exec quiesco build android
+
+# または：pnpm exec quiesco build android
+pnpm exec quiesco build ios
+
 pnpm exec quiesco test --platform ios
 ```
 ```sh npm
 npx expo install expo-dev-client
-npx quiesco build ios       # または：npx quiesco build android
+
+# または：npx quiesco build android
+npx quiesco build ios
+
 npx quiesco test --platform ios
 ```
 ```sh bun
 bunx expo install expo-dev-client
-bunx quiesco build ios      # または：bunx quiesco build android
+
+# または：bunx quiesco build android
+bunx quiesco build ios
+
 bunx quiesco test --platform ios
 ```
 ```sh yarn
 yarn expo install expo-dev-client
-yarn quiesco build ios      # または：yarn quiesco build android
+
+# または：yarn quiesco build android
+yarn quiesco build ios
+
 yarn quiesco test --platform ios
 ```
 </CodeGroup>
 
-`quiesco build`は`EXPO_PUBLIC_QUIESCO=1`付きの`expo prebuild`とネイティブビルド（シミュレーター向けの`xcodebuild`、`gradlew assembleDebug`）を実行し、`quiesco.config.mts`の`binaryPath`の場所にアプリを書き出します（生成された設定には一般的なパスが入っています）。前回からアプリの設定と依存関係が変わっていなければDebugビルドは省略します。`--force`を付けると必ずビルドします。`quiesco test`は、dev clientがMetroを必要とし`devClient.metroUrl`で何も応答しないとき、`EXPO_PUBLIC_QUIESCO=1`付きでMetroを起動し、実行の終わりに停止します。自分で起動したMetroはそのまま使います（[設定](./api#configuration)の`devServer`）。
+`quiesco build`は`EXPO_PUBLIC_QUIESCO=1`付きの`expo prebuild`とネイティブビルド（シミュレーター向けの`xcodebuild`、`gradlew assembleDebug`）を実行し、`quiesco.config.mts`の`binaryPath`の場所にアプリを書き出します（生成された設定には一般的なパスが入っています）。前回からアプリの設定と依存関係が変わっていなければDebugビルドは省略します。`--force`を付けると必ずビルドします。`quiesco test`は、dev clientがMetroを必要とし`devClient.metroUrl`で何も応答しないとき、`EXPO_PUBLIC_QUIESCO=1`付きでMetroを起動し、実行の終わりに停止します。自分で起動したMetroはそのまま使います（[設定](./config)の`devServer`）。
 
-`devices`でエミュレーター / シミュレーターを指定します（[設定](./api#configuration)を参照）。CIでは、`EXPO_PUBLIC_QUIESCO=1`を付けたEASビルドプロファイルで同じe2eビルドを作れます。3つのプラットフォームすべてで動作確認済みの完全なセットアップは[サンプルアプリ](./example-app)を参照してください。
+`devices`でエミュレーター / シミュレーターを指定します（[設定](./config)を参照）。CIでは、`EXPO_PUBLIC_QUIESCO=1`を付けたEASビルドプロファイルで同じe2eビルドを作れます。3つのプラットフォームすべてで動作確認済みの完全なセットアップは[サンプルアプリ](./example-app)を参照してください。
 
 プラットフォーム間で異なる点（入力、権限、システムダイアログ）は[プラットフォームの違い](./platforms)にまとめています。

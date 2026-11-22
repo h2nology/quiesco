@@ -34,7 +34,8 @@ export class UiTodoDriver implements TodoDriver {
   }
 
   async loginAs(email: string) {
-    await this.app.backdoor('loginAs', email);       // 不经过 UI 准备状态
+    // 不经过 UI 准备状态
+    await this.app.backdoor('loginAs', email);
   }
 
   async addTodo(title: string) {
@@ -63,7 +64,8 @@ export class TodoWorld extends QuiescoWorld {
   }
 }
 
-registerQuiesco({ world: TodoWorld });   // 替代 import '@quiesco/cucumber/register'
+// 替代 import '@quiesco/cucumber/register'
+registerQuiesco({ world: TodoWorld });
 ```
 
 这样步骤读起来就和 feature 一样：

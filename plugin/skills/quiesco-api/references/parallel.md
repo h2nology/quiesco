@@ -7,9 +7,14 @@ Quiesco runs tests on several devices at once: every **worker** of the test runn
 browser), a Quiesco server port and an artifacts directory of its own. The same tests run unchanged.
 
 ```sh
-npx quiesco test --platform web --runner vitest --workers 3    # vitest --fileParallelism --maxWorkers 3
-npx quiesco test --platform android --runner jest --workers 2  # jest --maxWorkers 2
-npx quiesco test --platform ios --runner cucumber --workers 2  # cucumber-js --parallel 2
+# vitest --fileParallelism --maxWorkers 3
+npx quiesco test --platform web --runner vitest --workers 3
+
+# jest --maxWorkers 2
+npx quiesco test --platform android --runner jest --workers 2
+
+# cucumber-js --parallel 2
+npx quiesco test --platform ios --runner cucumber --workers 2
 ```
 
 The runners' own flags work too: `quiesco({ workers: 2 })` / `vitest --fileParallelism --maxWorkers 2` for
