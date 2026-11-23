@@ -73,7 +73,7 @@ the element with `testID="add-todo"`. The app gives one to every element a test 
 In the code a test id is one prop (`src/components/TodoRow.tsx`):
 
 ```tsx
-<View testID="todo-row" style={[styles.row, { backgroundColor: c.surface }]}>
+<View testID="todo-row" style={styles.row}>
   <Checkbox testID="todo-checkbox" checked={todo.done} onToggle={onToggle} label={…} />
   …
 </View>
@@ -356,4 +356,3 @@ failure's evidence on the page — install `@quiesco/ui` and start `npx quiesco 
 - [API reference](../../quiesco-api/references/api.md): every action and assertion, and the matchers (`within`, `has`, regular
   expressions).
 - [Driver pattern](./driver-pattern.md): keep test ids out of the tests once a suite grows.
-- [Example app](https://shift-14cc7601.mintlify.site/example-app): a larger app with a backend, parallel runs and EAS builds for CI.

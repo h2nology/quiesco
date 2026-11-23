@@ -71,7 +71,7 @@ npm install
 在代码中，test id 只是一个 prop（`src/components/TodoRow.tsx`）：
 
 ```tsx
-<View testID="todo-row" style={[styles.row, { backgroundColor: c.surface }]}>
+<View testID="todo-row" style={styles.row}>
   <Checkbox testID="todo-checkbox" checked={todo.done} onToggle={onToggle} label={…} />
   …
 </View>
@@ -328,4 +328,3 @@ Quiesco evidence:
 - [同步](./sync)：空闲意味着什么，以及如何处理永不停止的动画。
 - [API 参考](./api)：所有操作和断言，以及匹配器（`within`、`has`、正则表达式）。
 - [Driver 模式](./driver-pattern)：测试套件变大后，把 test id 从测试中抽离出来。
-- [示例 App](./example-app)：一个更大的 App，包含后端、并行运行，以及用于 CI 的 EAS 构建。

@@ -71,7 +71,7 @@ npm install
 コード上では、テストIDはpropが1つ増えるだけです（`src/components/TodoRow.tsx`）。
 
 ```tsx
-<View testID="todo-row" style={[styles.row, { backgroundColor: c.surface }]}>
+<View testID="todo-row" style={styles.row}>
   <Checkbox testID="todo-checkbox" checked={todo.done} onToggle={onToggle} label={…} />
   …
 </View>
@@ -328,4 +328,3 @@ Quiesco evidence:
 - [同期](./sync)：アイドルとは何か、終わらないアニメーションはどう扱うか。
 - [APIリファレンス](./api)：すべてのアクションとアサーション、そしてマッチャー（`within`、`has`、正規表現）。
 - [Driverパターン](./driver-pattern)：テストスイートが大きくなったら、テストIDをテストの外に出す。
-- [サンプルアプリ](./example-app)：バックエンド、並列実行、CI向けのEASビルドを備えた、より大きなアプリ。

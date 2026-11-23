@@ -16,6 +16,11 @@
     "web": {
       "output": "single"
     },
-    "plugins": ["expo-router", "expo-dev-client", "@quiesco/expo-plugin"]
+    "plugins": [
+      "expo-router",
+      "expo-dev-client",
+      "@quiesco/expo-plugin",
+      "expo-font"
+    ]
   }
 }

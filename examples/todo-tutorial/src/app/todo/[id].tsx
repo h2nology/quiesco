@@ -3,10 +3,11 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '../../components/Button';
 import { Screen } from '../../components/Screen';
+import { StatusDot } from '../../components/StatusDot';
 import { todoStore, useTodo } from '../../store';
-import { font, radius, space, useColors } from '../../theme';
+import { radius, space, type, useColors } from '../../theme';
 
-/** One todo: its notes, and the buttons to mark it done or delete it. */
+/** One todo: its state, its notes, and the buttons to mark it done or delete it. */
 export default function TodoDetailScreen() {
   const c = useColors();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -16,7 +17,7 @@ export default function TodoDetailScreen() {
     return (
       <Screen testID="todo-detail-screen">
         <View style={styles.missing}>
-          <Text style={[font.body, { color: c.textMuted }]}>This todo no longer exists.</Text>
+          <Text style={[type.body, { color: c.inkMuted }]}>This todo no longer exists.</Text>
         </View>
       </Screen>
     );
@@ -25,24 +26,24 @@ export default function TodoDetailScreen() {
   return (
     <Screen testID="todo-detail-screen">
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
-          <View
-            testID="todo-status"
-            style={[styles.pill, { backgroundColor: todo.done ? c.primarySoft : c.background, borderColor: todo.done ? c.primarySoft : c.border }]}
-          >
-            <Text style={[font.label, { color: todo.done ? c.primary : c.textMuted }]}>{todo.done ? 'Done' : 'Open'}</Text>
+        <View style={[styles.panel, { backgroundColor: c.surface, borderColor: c.line }]}>
+          {/* A status pill: the dot plus a label. Open uses the brand blue, done steps back to muted ink. */}
+          <View testID="todo-status" style={[styles.pill, { backgroundColor: todo.done ? c.surfaceSunken : c.accentSoft }]}>
+            <StatusDot color={todo.done ? c.inkMuted : c.accentText} />
+            <Text style={[type.labelSm, { color: todo.done ? c.inkMuted : c.accentText }]}>{todo.done ? 'Done' : 'Open'}</Text>
           </View>
-          <Text testID="detail-title" accessibilityRole="header" style={[font.title, { color: c.text }]}>
+          <Text testID="detail-title" accessibilityRole="header" style={[type.section, { color: c.ink }, todo.done && styles.doneTitle]}>
             {todo.title}
           </Text>
-          <Text testID="detail-notes" style={[font.body, { color: todo.notes !== '' ? c.text : c.textMuted }]}>
+          <View style={[styles.divider, { backgroundColor: c.line }]} />
+          <Text testID="detail-notes" style={[type.body, { color: todo.notes !== '' ? c.ink : c.inkMuted }]}>
             {todo.notes !== '' ? todo.notes : 'No notes'}
           </Text>
         </View>
         <View style={styles.actions}>
           <Button
             testID="toggle-done"
-            variant="secondary"
+            variant={todo.done ? 'secondary' : 'primary'}
             icon={todo.done ? undefined : 'check'}
             label={todo.done ? 'Mark as open' : 'Mark as done'}
             onPress={() => todoStore.toggle(todo.id)}
@@ -63,9 +64,19 @@ export default function TodoDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: space.lg, gap: space.xl },
-  card: { borderWidth: 1, borderRadius: radius.md, padding: space.xl, gap: space.md },
-  pill: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.xs },
+  content: { padding: space.lg, gap: space.lg },
+  panel: { borderWidth: 1, borderRadius: radius.lg, padding: space.lg, gap: space.md },
+  pill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm - 2,
+    borderRadius: radius.full,
+    paddingHorizontal: space.sm + 2,
+    paddingVertical: space.xs,
+  },
+  divider: { height: 1 },
+  doneTitle: { textDecorationLine: 'line-through' },
   actions: { gap: space.md },
   missing: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xl },
 });

@@ -33,6 +33,6 @@ npm run e2e:android
 | `src/app/` | The screens: `index.tsx` (list), `new.tsx` (form), `todo/[id].tsx` (details) |
 | `src/store.ts` | The todos, in memory |
 | `src/backdoors.ts`, `src/e2e.ts` | The `seedTodos` backdoor and the reset hook (e2e builds only) |
-| `src/theme.ts` | Design tokens: colors for light and dark mode, spacing, type |
+| `src/theme.ts` | Design tokens from the Quiesco design system ([DESIGN.md](https://github.com/h2nology/quiesco/blob/main/DESIGN.md)): colors for light and dark mode, Geist type, spacing, radii |
 | `e2e/` | The tests |
 | `quiesco.config.mts`, `vitest.config.mts` | Quiesco and Vitest configuration |

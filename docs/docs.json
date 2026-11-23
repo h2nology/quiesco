@@ -42,6 +42,18 @@
     {
       "source": "/ja/native",
       "destination": "/ja/quickstart"
+    },
+    {
+      "source": "/example-app",
+      "destination": "/tutorial"
+    },
+    {
+      "source": "/zh/example-app",
+      "destination": "/zh/tutorial"
+    },
+    {
+      "source": "/ja/example-app",
+      "destination": "/ja/tutorial"
     }
   ],
   "navigation": {
@@ -54,16 +66,7 @@
             "pages": [
               "index",
               "quickstart",
-              "tutorial",
-              {
-                "group": "Test runners",
-                "pages": [
-                  "runners",
-                  "vitest",
-                  "jest",
-                  "cucumber"
-                ]
-              }
+              "tutorial"
             ]
           },
           {
@@ -85,27 +88,30 @@
               "api-tags",
               "api-errors",
               "api-artifacts",
-              "api-custom-runners"
+              "api-custom-runners",
+              "config",
+              "cli"
             ]
           },
           {
             "group": "Guides",
             "pages": [
               "sync",
-              "platforms",
+              {
+                "group": "Test runners",
+                "pages": [
+                  "runners",
+                  "vitest",
+                  "jest",
+                  "cucumber",
+                  "steps"
+                ]
+              },
               "driver-pattern",
               "parallel",
+              "platforms",
               "ui",
               "troubleshooting"
-            ]
-          },
-          {
-            "group": "Reference",
-            "pages": [
-              "config",
-              "cli",
-              "steps",
-              "example-app"
             ]
           }
         ]
@@ -118,16 +124,7 @@
             "pages": [
               "zh/index",
               "zh/quickstart",
-              "zh/tutorial",
-              {
-                "group": "测试运行器",
-                "pages": [
-                  "zh/runners",
-                  "zh/vitest",
-                  "zh/jest",
-                  "zh/cucumber"
-                ]
-              }
+              "zh/tutorial"
             ]
           },
           {
@@ -149,27 +146,30 @@
               "zh/api-tags",
               "zh/api-errors",
               "zh/api-artifacts",
-              "zh/api-custom-runners"
+              "zh/api-custom-runners",
+              "zh/config",
+              "zh/cli"
             ]
           },
           {
             "group": "指南",
             "pages": [
               "zh/sync",
-              "zh/platforms",
+              {
+                "group": "测试运行器",
+                "pages": [
+                  "zh/runners",
+                  "zh/vitest",
+                  "zh/jest",
+                  "zh/cucumber",
+                  "zh/steps"
+                ]
+              },
               "zh/driver-pattern",
               "zh/parallel",
+              "zh/platforms",
               "zh/ui",
               "zh/troubleshooting"
-            ]
-          },
-          {
-            "group": "参考",
-            "pages": [
-              "zh/config",
-              "zh/cli",
-              "zh/steps",
-              "zh/example-app"
             ]
           }
         ]
@@ -182,16 +182,7 @@
             "pages": [
               "ja/index",
               "ja/quickstart",
-              "ja/tutorial",
-              {
-                "group": "テストランナー",
-                "pages": [
-                  "ja/runners",
-                  "ja/vitest",
-                  "ja/jest",
-                  "ja/cucumber"
-                ]
-              }
+              "ja/tutorial"
             ]
           },
           {
@@ -213,27 +204,30 @@
               "ja/api-tags",
               "ja/api-errors",
               "ja/api-artifacts",
-              "ja/api-custom-runners"
+              "ja/api-custom-runners",
+              "ja/config",
+              "ja/cli"
             ]
           },
           {
             "group": "ガイド",
             "pages": [
               "ja/sync",
-              "ja/platforms",
+              {
+                "group": "テストランナー",
+                "pages": [
+                  "ja/runners",
+                  "ja/vitest",
+                  "ja/jest",
+                  "ja/cucumber",
+                  "ja/steps"
+                ]
+              },
               "ja/driver-pattern",
               "ja/parallel",
+              "ja/platforms",
               "ja/ui",
               "ja/troubleshooting"
-            ]
-          },
-          {
-            "group": "リファレンス",
-            "pages": [
-              "ja/config",
-              "ja/cli",
-              "ja/steps",
-              "ja/example-app"
             ]
           }
         ]
