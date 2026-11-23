@@ -223,8 +223,11 @@ await app.device.setPermission('camera', 'reset');
 - **`'reset'`** means not determined, as after a fresh install: the app's next request shows the system
   dialog again. Android: revoked, with "don't ask again" cleared; iOS: `simctl privacy reset`; web: the
   browser asks.
-- **On iOS, notifications and the camera** can only be reset by reinstalling the app. Quiesco reinstalls
-  and starts it, **deleting its data** (needs `binaryPath`; a warning says so).
+- **On iOS, notifications** are changed in SpringBoard's settings, which restarts SpringBoard and ends
+  the app: Quiesco starts it again (data kept) before resolving, when the setting changed.
+- **On iOS, the camera** can only be reset by reinstalling the app (`'grant'` / `'revoke'` fail with
+  `ACTION_NOT_SUPPORTED`). Quiesco reinstalls and starts it, **deleting its data** (needs `binaryPath`; a
+  warning says so).
 
 Answering the system's permission dialog itself is on [system UI](./api-system#system-allowpermission).
 

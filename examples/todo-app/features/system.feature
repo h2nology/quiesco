@@ -57,6 +57,17 @@ Feature: 系统集成（系统集成页）
     And 在系统对话框中允许
     Then 系统集成页显示通知权限 "granted"
 
+  # 不经过对话框，直接在系统设置里改（iOS 也可以，issue #113）。
+  Scenario: 在系统设置中允许通知
+    Given App 可以显示通知
+    When 读取通知权限
+    Then 系统集成页显示通知权限 "granted"
+
+  Scenario: 在系统设置中关闭通知
+    Given 在系统设置中关闭了通知
+    When 读取通知权限
+    Then 系统集成页显示通知权限 "denied"
+
   Scenario: 摇动设备
     When 摇动设备
     Then 系统集成页显示摇动次数 "1"

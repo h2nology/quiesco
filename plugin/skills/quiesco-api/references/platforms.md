@@ -41,7 +41,7 @@ The same features, steps and `this.app` calls run on all three platforms. What d
 | `setFontScale()` | `simctl ui content_size`, nearest Dynamic Type size (0.823 … 3.571), live | `settings put system font_scale`, then the app is started again (data kept) | `ACTION_NOT_SUPPORTED` |
 | `setLocale()` | relaunch with `-AppleLanguages` / `-AppleLocale` (needs `CFBundleLocalizations`) | per-app language, `cmd locale set-app-locales` (Android 13+), then the app is started again | a new browser context with that locale (data kept) |
 | `setLocation()` | `simctl location set` (reset: `clear`) | `adb emu geo fix` (emulators only) | `context.setGeolocation` |
-| `setPermission()` | `simctl privacy grant / revoke / reset` (no camera / notifications; their `'reset'` reinstalls the app); the app keeps running | `pm grant / revoke` (+ `clear-permission-flags`); a revoke or reset kills the app → started again | `grantPermissions` / `clearPermissions`; WebKit: a location change relaunches the app (data kept) |
+| `setPermission()` | `simctl privacy grant / revoke / reset`; the app keeps running. Notifications: SpringBoard's settings, then SpringBoard restarts → the app is started again (only when the setting changes). No camera; its `'reset'` reinstalls the app | `pm grant / revoke` (+ `clear-permission-flags`); a revoke or reset kills the app → started again | `grantPermissions` / `clearPermissions`; WebKit: a location change relaunches the app (data kept) |
 | `setNetwork('offline')` | the agent fails the app's new connections; no device switch (NetInfo stays online) | the agent, plus `svc wifi / data disable` (NetInfo sees it; `adb reverse` keeps working) | the agent, plus aborted page requests and `navigator.onLine` with `offline` / `online` events (Chromium: CDP `Network.overrideNetworkState`, also `connection` `change`; Firefox, WebKit: set in the page) |
 | `clipboard.set()` / `get()` | `UIPasteboard` in the app (`@quiesco/native` ≥ Phase 6.6); `get` without it: `simctl pbpaste` | `ClipboardManager` in the app (same; without it `ACTION_NOT_SUPPORTED`) | `navigator.clipboard` (clipboard permissions granted to the page); WebKit: a text clipboard kept by Quiesco |
 | `setStatusBar()` | `simctl status_bar override` (reset: `clear`) | SystemUI demo mode (`sysui_demo_allowed`, notification icons hidden; reset: `exit`) | no status bar: nothing to do |
@@ -68,13 +68,18 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
 | `camera` | — (no simctl service) | `CAMERA` | `camera` |
 | `microphone` | `microphone` | `RECORD_AUDIO` | `microphone` |
 | `location` | `location` | `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | `geolocation` |
-| `notifications` | — (no simctl service) | `POST_NOTIFICATIONS` | `notifications` |
+| `notifications` | SpringBoard's notification settings (no simctl service) | `POST_NOTIFICATIONS` | `notifications` |
 | `contacts` | `contacts` | `READ_CONTACTS` | — |
 | `photos` | `photos` | `READ_MEDIA_IMAGES` | — |
 | `calendar` | `calendar` | `READ_CALENDAR`, `WRITE_CALENDAR` | — |
 
 - Android grants only permissions the app declares in its manifest (`expo.android.permissions` in
   `app.json`); others are reported as a warning.
+- iOS notifications: `simctl privacy` has no service for them. Quiesco writes the app's entry in the
+  simulator's notification settings (`Library/BulletinBoard/VersionedSectionInfo.plist`, as Detox's
+  applesimutils does) and restarts SpringBoard to read it (under a second), which also ends the running
+  app. Nothing is written or restarted when the setting already matches, so a pre-grant costs a restart
+  only after the app was (re)installed.
 - iOS still needs the usage description (`NSLocationWhenInUseUsageDescription`, …) in `Info.plist`
   (`expo.ios.infoPlist`) for the app to request the permission at all.
 

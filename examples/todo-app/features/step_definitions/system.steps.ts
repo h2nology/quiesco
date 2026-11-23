@@ -47,11 +47,9 @@ Then('系统集成页显示摇动次数 {string}', async function (this: Quiesco
   await this.app.expectText('shake-count', count);
 });
 
-// The iOS simulator cannot grant notifications up front (simctl privacy has no such service): ask, then allow.
+// Granted in the system settings, no dialog (iOS restarts SpringBoard and the app when it changes: issue #113).
 Given('App 可以显示通知', async function (this: QuiescoWorld) {
-  await resetNotificationPermission(this);
-  await this.app.tap('request-notification-permission');
-  await this.app.device.system.allowPermission();
+  await setNotificationPermission(this, 'grant');
 });
 
 When('向 App 发送通知 {string}', async function (this: QuiescoWorld, title: string) {
@@ -104,16 +102,26 @@ Then('系统集成页显示对话框结果 {string}', async function (this: Quie
   await this.app.expectText('dialog-result', result);
 });
 
-// Back to "not determined", as after a fresh install (iOS reinstalls the app; Android kills and restarts
-// it), so the page is opened again.
-async function resetNotificationPermission(world: QuiescoWorld): Promise<void> {
-  await world.app.device.setPermission('notifications', 'reset');
-  await world.app.backdoor('openSystem');
+// A change the app may only see after a restart (iOS restarts SpringBoard, which ends the app; Android kills
+// it on a revoke or reset): Quiesco then starts it again, and the page is opened again. Nothing restarts
+// when the permission already was in that state.
+async function setNotificationPermission(world: QuiescoWorld, state: 'grant' | 'revoke' | 'reset'): Promise<void> {
+  await world.app.device.setPermission('notifications', state);
+  if ((await world.app.query('system')).length === 0) await world.app.backdoor('openSystem');
   await world.app.expectVisible('system');
 }
 
+// Back to "not determined", as after a fresh install.
 Given('通知权限尚未决定', async function (this: QuiescoWorld) {
-  await resetNotificationPermission(this);
+  await setNotificationPermission(this, 'reset');
+});
+
+Given('在系统设置中关闭了通知', async function (this: QuiescoWorld) {
+  await setNotificationPermission(this, 'revoke');
+});
+
+When('读取通知权限', async function (this: QuiescoWorld) {
+  await this.app.tap('read-notification-permission');
 });
 
 When('请求通知权限', async function (this: QuiescoWorld) {

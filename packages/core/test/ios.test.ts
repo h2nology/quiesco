@@ -145,15 +145,12 @@ describe('IosProvider', () => {
   it('maps permissions to simctl privacy services and warns for the ones it has not', async () => {
     const { p, calls, warnings } = provider([]);
     await p.boot();
-    await p.grantPermissions(['location', 'photos', 'camera', 'notifications']);
+    await p.grantPermissions(['location', 'photos', 'camera']);
     expect(calls.filter((c) => c.includes('privacy'))).toEqual([
       'xcrun simctl privacy NEW-17 grant location com.example.todo',
       'xcrun simctl privacy NEW-17 grant photos com.example.todo',
     ]);
-    expect(warnings.filter((w) => w.includes('pre-granted'))).toEqual([
-      expect.stringContaining('"camera" cannot be pre-granted'),
-      expect.stringContaining('"notifications" cannot be pre-granted'),
-    ]);
+    expect(warnings.filter((w) => w.includes('pre-granted'))).toEqual([expect.stringContaining('"camera" cannot be pre-granted')]);
   });
 
   it('takes screenshots through a temporary file', async () => {
@@ -358,13 +355,13 @@ describe('IosProvider device state (Phase 6.6)', () => {
     await expect(p.setOrientation('landscape', inApp({ supported: true, error: 'unsupported orientation' }))).rejects.toThrow(/app\.json "orientation"/);
   });
 
-  it('resets permissions with simctl privacy reset; notifications / camera (no service) only by reinstalling', async () => {
+  it('resets permissions with simctl privacy reset; camera (no service) only by reinstalling', async () => {
     const { p, calls } = provider([]);
     await p.boot();
     calls.length = 0;
     await expect(p.resetPermission('location')).resolves.toEqual({ relaunch: false });
     expect(calls).toContain('xcrun simctl privacy NEW-17 reset location com.example.todo');
-    await expect(p.resetPermission('notifications')).resolves.toEqual({ relaunch: true, reinstall: true });
+    await expect(p.resetPermission('camera')).resolves.toEqual({ relaunch: true, reinstall: true });
   });
 
   it('sets location, permissions, appearance and text size with simctl, and restores the previous values', async () => {

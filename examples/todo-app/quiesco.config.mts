@@ -55,8 +55,8 @@ export default defineConfig(({ workerIndex }) => ({
     web: { browser, viewport },
   },
   // Granted before the app starts, so no system dialog interrupts a scenario (features/permissions.feature).
-  // Location is the one permission every platform can pre-grant (camera / notifications cannot be on the
-  // iOS simulator: simctl privacy has no such service).
+  // Location is pre-granted on every platform (camera cannot be on the iOS simulator: simctl privacy has
+  // no such service). Notifications are not: features/system.feature asks for them.
   permissions: ['location'],
   // actions.mode is not set: `native` (real touches) when the app has @quiesco/native, else `js`.
   // Run with QUIESCO_ACTION_MODE=js to force callback mode.
