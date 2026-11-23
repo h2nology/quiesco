@@ -19,6 +19,11 @@ console.log(rows.map((r) => r.text));
 if ((await app.query('onboarding-tip')).length > 0) await app.tap('dismiss-tip');
 ```
 
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+
 ### `attributes(target, options?)` {#attributes}
 
 要素が存在するまで待ったうえで、マッチした唯一の要素の[概要](#element-summary)を返します（Detoxの`getAttributes`）。複数の要素がマッチした場合は`MULTIPLE_MATCHES`で失敗します。
@@ -30,6 +35,11 @@ expect(slider.value).toBeGreaterThan(0.5);
 const row = await app.attributes({ id: 'todo-row', index: 0 });
 console.log(row.rect); // { x, y, width, height }
 ```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | 要素が現れるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
 
 ### `getTree()` {#gettree}
 

@@ -20,9 +20,12 @@ await app.tap('save');
 await app.tap('map', { point: { x: 40, y: 120 } });
 ```
 
-| 选项 | 含义 |
-|---|---|
-| `point` | 元素自身坐标系中的 `{ x, y }`，代替其中心 |
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `point` | 中心 | 元素自身坐标系中的 `{ x, y }`，代替其中心 |
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待目标元素出现、App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 ### `doubleTap(target, options?)` {#doubletap}
 
@@ -32,6 +35,12 @@ await app.tap('map', { point: { x: 40, y: 120 } });
 await app.doubleTap('photo');
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待目标元素出现、App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
+
 ### `multiTap(target, count, options?)` {#multitap}
 
 在一个手势中点击 `count` 次。
@@ -40,6 +49,12 @@ await app.doubleTap('photo');
 // 连点三次打开隐藏的调试菜单
 await app.multiTap('version-label', 3);
 ```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待目标元素出现、App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 ### `longPress(target, options?)` {#longpress}
 
@@ -55,6 +70,9 @@ await app.longPress('message', { durationMs: 1500, point: { x: 10, y: 10 } });
 |---|---|---|
 | `durationMs` | `800` | 按住多久 |
 | `point` | 中心 | 元素自身坐标系中的 `{ x, y }` |
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待目标元素出现、App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 ### `tapAt(point, options?)` {#tapat}
 
@@ -65,6 +83,12 @@ await app.longPress('message', { durationMs: 1500, point: { x: 10, y: 10 } });
 await app.tapAt({ x: 200, y: 100 });
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待 App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
+
 ### `longPressAt(point, options?)` {#longpressat}
 
 按住屏幕上的一个点（窗口坐标）。
@@ -72,6 +96,12 @@ await app.tapAt({ x: 200, y: 100 });
 ```ts
 await app.longPressAt({ x: 200, y: 400 }, { durationMs: 1000 });
 ```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待 App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 ## 文本输入 {#text-input}
 
@@ -90,6 +120,9 @@ await app.type('search', 'milk', { perCharacter: true });
 |---|---|---|
 | `perCharacter` | `false` | 逐字输入，让 App 收到每一次按键。调用会在最后等待空闲 |
 | `intervalMs` | `80` | 配合 `perCharacter`：两个字符之间的间隔 |
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待目标元素出现、App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 ### `replaceText(target, text, options?)` {#replacetext}
 
@@ -99,6 +132,12 @@ await app.type('search', 'milk', { perCharacter: true });
 await app.replaceText('email', 'bob@example.com');
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待目标元素出现、App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
+
 ### `clear(target, options?)` {#clear}
 
 清空输入框。
@@ -106,6 +145,12 @@ await app.replaceText('email', 'bob@example.com');
 ```ts
 await app.clear('search');
 ```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待目标元素出现、App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 ### `pressKey(target, key, options?)` {#presskey}
 
@@ -118,6 +163,12 @@ await app.pressKey('search', 'enter');
 await app.pressKey('code-input', 'backspace');
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待目标元素出现、App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
+
 ### `dismissKeyboard(options?)` {#dismisskeyboard}
 
 隐藏软键盘。
@@ -126,6 +177,12 @@ await app.pressKey('code-input', 'backspace');
 await app.type('notes', 'Call before noon');
 await app.dismissKeyboard();
 ```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待 App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 ## 滚动 {#scrolling}
 
@@ -139,10 +196,13 @@ await app.scroll('feed', 'down');
 await app.scroll('feed', 'down', { distance: 300, from: { x: 0.5, y: 0.8 } });
 ```
 
-| 选项 | 含义 |
-|---|---|
-| `distance` | 滚动多远，逻辑单位 |
-| `from` | 手指的起点，在元素内归一化为 0–1 |
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `distance` | — | 滚动多远，逻辑单位 |
+| `from` | — | 手指的起点，在元素内归一化为 0–1 |
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待目标元素出现、App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 ### `scrollTo(container, target, options?)` {#scrollto}
 
@@ -153,6 +213,12 @@ await app.scrollTo('settings-list', 'sign-out');
 await app.tap('sign-out');
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待目标元素出现、App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
+
 ### `scrollToEdge(target, edge, options?)` {#scrolltoedge}
 
 滚动到 `'top'`、`'bottom'`、`'left'` 或 `'right'` 一端。滚动时会渲染更多行的虚拟化列表，在增长时会被一直跟随（`native` 模式下使用真实的快速滑动）。
@@ -161,6 +227,12 @@ await app.tap('sign-out');
 await app.scrollToEdge('feed', 'bottom');
 await app.expectVisible({ text: 'No more posts' });
 ```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待目标元素出现、App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 ### `scrollToIndex(list, index, options?)` {#scrolltoindex}
 
@@ -176,6 +248,9 @@ await app.scrollToIndex('contacts', 120, { viewPosition: 0.5 });
 | 选项 | 默认值 | 含义 |
 |---|---|---|
 | `viewPosition` | `0` | 该行最终所在的位置：`0` 顶部，`0.5` 中间，`1` 底部 |
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待目标元素出现、App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 `scrollTo`、`scrollToEdge` 和 `scrollToIndex` 分多步完成（最多 60 步）；每一步最多可等待一个调用超时时长，让 App 稳定下来。
 
@@ -197,6 +272,9 @@ await app.swipe('carousel', 'left', { speed: 'fast', distance: 250 });
 | `speed` | `'normal'` | `'slow'`、`'normal'` 或 `'fast'` |
 | `distance` | | 手指移动多远 |
 | `from` | | 手指的起点，在元素内归一化为 0–1 |
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待目标元素出现、App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 ### `drag(target, to, options?)` {#drag}
 
@@ -213,6 +291,9 @@ await app.drag('pin', { point: { x: 160, y: 420 } }, { holdMs: 300, speed: 'slow
 |---|---|---|
 | `holdMs` | `800` | 移动之前按住多久 |
 | `speed` | `'normal'` | `'slow'`、`'normal'` 或 `'fast'` |
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待目标元素出现、App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 捏合、旋转以及其他多指手势见 [多指手势](./api-gestures)。
 
@@ -228,6 +309,12 @@ await app.goBack();
 await app.expectVisible('todo-list-screen');
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待 App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
+
 ### `pressBack(options?)` {#pressback}
 
 Android 返回键，web 上是浏览器后退。iOS 上不可用（`ACTION_NOT_SUPPORTED`）：要在所有平台上运行的测试请使用 `goBack()`。
@@ -237,6 +324,12 @@ Android 返回键，web 上是浏览器后退。iOS 上不可用（`ACTION_NOT_S
 await app.pressBack();
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待 App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
+
 ### `openUrl(url, options?)` {#openurl}
 
 打开一个深层链接：iOS 上在 App 内打开，Android 上用 `am start`，web 上通过地址栏。App 在后台时（`app.device.sendToBackground()`），像其他 App 那样从 App 外打开该链接；iOS 上会回答系统的「在 … 中打开？」确认。App 回到前台并空闲后 resolve。
@@ -245,6 +338,12 @@ await app.pressBack();
 await app.openUrl('myapp://todos/42');
 await app.expectText('detail-title', 'Buy milk');
 ```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待 App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 ## 其他输入 {#other-inputs}
 

@@ -36,6 +36,9 @@ await app.pinch('photo', 0.5, { angle: Math.PI / 2, speed: 'slow' });
 |---|---|---|
 | `angle` | `0` (horizontal) | The angle of the line the fingers move on, in radians |
 | `speed` | `'normal'` | `'slow'`, `'normal'` or `'fast'` |
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the target and for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 `scale` must be a positive number. A pinch that does not fit on the screen in one go (e.g.
 `pinch('map', 10)`) is done as several pinches, as a user would. The fingers go down on the element and
@@ -56,6 +59,9 @@ await app.rotate('photo', -Math.PI / 2, { speed: 'slow' });
 | Option | Default | Meaning |
 |---|---|---|
 | `speed` | `'normal'` | `'slow'`, `'normal'` or `'fast'` |
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the target and for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 ### Recognizer thresholds {#recognizer-thresholds}
 
@@ -100,6 +106,9 @@ await app.multiTouch([
 | Option | Default | Meaning |
 |---|---|---|
 | `within` | | A target: the points are in that element's own coordinates (it must be visible). Without it, window coordinates |
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 It takes 1 to 10 fingers. Each finger needs at least one point, and its times must be non-negative and
 non-decreasing.

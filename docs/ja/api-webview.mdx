@@ -67,6 +67,11 @@ help.element({ css: '.faq-item', index: 1 });
 await help.element({ text: 'Contact us' }).tap();
 ```
 
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | ページが落ち着き、要素が現れるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+
 複数の要素がマッチすると直ちに`MULTIPLE_MATCHES`で失敗し、表示されていて有効なマッチがタイムアウトまでに現れなければ`ELEMENT_NOT_FOUND`で失敗します。
 
 ### `type(text, options?)` {#type}
@@ -77,6 +82,11 @@ await help.element({ text: 'Contact us' }).tap();
 await help.element({ css: '#name' }).type('Alice');
 ```
 
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | ページが落ち着き、要素が現れるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+
 ### `replaceText(text, options?)` {#replacetext}
 
 フィールドをタップし、値全体を`text`で置き換えます。
@@ -84,6 +94,11 @@ await help.element({ css: '#name' }).type('Alice');
 ```ts
 await help.element({ xpath: '//input[@name="name"]' }).replaceText('Bob');
 ```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | ページが落ち着き、要素が現れるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
 
 ### `scrollIntoView(options?)` {#scrollintoview}
 
@@ -93,6 +108,11 @@ await help.element({ xpath: '//input[@name="name"]' }).replaceText('Bob');
 await help.element({ css: '#footer' }).scrollIntoView();
 ```
 
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | ページが落ち着き、要素が現れるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+
 ### `screenshot(options?)` {#screenshot}
 
 先に要素が見える位置までスクロールしてから撮る、要素のPNGです。WebViewの表示領域内にある部分が写ります。詳しくは[スクリーンショット](./api-screenshots)を参照してください。
@@ -100,6 +120,11 @@ await help.element({ css: '#footer' }).scrollIntoView();
 ```ts
 const png = await help.element({ css: '#chart' }).screenshot();
 ```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | ページが落ち着き、要素が現れるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
 
 ## アサーション {#assertions}
 
@@ -114,6 +139,11 @@ await help.element({ id: 'result' }).expectText('Hello, Bob');
 await help.element({ css: '#name' }).expectText(/^Bo/);
 ```
 
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | ページが落ち着き、要素が現れるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+
 ### `expectExists(options?)` {#expectexists}
 
 表示されているかどうかにかかわらず、少なくとも1つの要素がマッチすることを確認します。
@@ -121,6 +151,11 @@ await help.element({ css: '#name' }).expectText(/^Bo/);
 ```ts
 await help.element({ css: 'form#contact' }).expectExists();
 ```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | ページが落ち着き、要素が現れるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
 
 ### `expectNotExists(options?)` {#expectnotexists}
 
@@ -130,6 +165,11 @@ await help.element({ css: 'form#contact' }).expectExists();
 await help.element({ css: '.error' }).expectNotExists();
 ```
 
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | ページが落ち着き、要素が現れるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+
 ### `expectVisible(options?)` {#expectvisible}
 
 マッチが表示されていることを確認します。表示されているとは、ページのビューポート内にあり（スクロールで外れていない）、CSSで隠されていないことです。
@@ -138,6 +178,11 @@ await help.element({ css: '.error' }).expectNotExists();
 await help.element({ text: 'Thanks for your message' }).expectVisible();
 ```
 
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | ページが落ち着き、要素が現れるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+
 ### `expectNotVisible(options?)` {#expectnotvisible}
 
 どのマッチも表示されていないことを確認します。いずれもスクロールで外れているか、CSSで隠されているか、存在しない状態です。
@@ -145,6 +190,11 @@ await help.element({ text: 'Thanks for your message' }).expectVisible();
 ```ts
 await help.element({ text: /^Loading/ }).expectNotVisible();
 ```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | ページが落ち着き、要素が現れるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
 
 ## ページ {#the-page}
 
@@ -164,6 +214,11 @@ const count = await help.runScript<number>(
 const status = await help.runScript<number>('return fetch("/api/ping").then((r) => r.status)');
 ```
 
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | ページが落ち着き、要素が現れるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+
 ページで例外が発生すると、呼び出しは`APP_ERROR`で失敗します。`runScript`は`new Function`を使うため、ページのContent-Security-Policyによっては禁止されることがあります。
 
 ### `url(options?)` {#url}
@@ -175,6 +230,11 @@ await help.element({ text: 'Pricing' }).tap();
 expect(await help.url()).toMatch(/\/pricing$/);
 ```
 
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | ページが落ち着き、要素が現れるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+
 ### `title(options?)` {#title}
 
 ページのタイトル（`document.title`）です。
@@ -182,3 +242,8 @@ expect(await help.url()).toMatch(/\/pricing$/);
 ```ts
 expect(await help.title()).toBe('Help center');
 ```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | ページが落ち着き、要素が現れるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |

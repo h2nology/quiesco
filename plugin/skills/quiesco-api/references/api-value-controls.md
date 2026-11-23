@@ -37,6 +37,12 @@ await app.setValue('due-date-picker', '2031-12-24');
 await app.setValue('due-date-picker', new Date(2031, 11, 24));
 ```
 
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the target and for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
+
 #### Which controls it knows {#supported-controls}
 
 `setValue` looks at the props of the component around the target: the element itself and a few levels up.
@@ -160,6 +166,12 @@ mouse. Use it when the test should exercise the drag itself; `setValue` sets an 
 await app.adjustSlider('volume-slider', 0.5);
 ```
 
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the target and for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
+
 - **`native` mode:** the thumb follows the finger less the touch slop, so Quiesco reads the value back and
   drags again (always one way, with a run-up) until the slider is within one step (1% of a continuous
   slider's range) of the position.
@@ -181,6 +193,12 @@ await app.expectText('quantity', '2');
 // a custom action, as in VoiceOver's Actions rotor
 await app.accessibilityAction({ id: 'todo-row', index: 0 }, 'archive');
 ```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the target and for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 `name` must be one the element declares; otherwise the error lists the declared ones. How the action is
 performed:

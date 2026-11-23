@@ -26,9 +26,11 @@ await app.expectVisible('todo-list-screen');
 await app.expectVisible('promo-banner', { ratio: 0.75 });
 ```
 
-| 选项 | 含义 |
-|---|---|
-| `ratio` | (0, 1] 之间的数：元素至少要显示出其面积的这一比例。超出范围会抛出 `RangeError` |
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `ratio` | — | (0, 1] 之间的数：元素至少要显示出其面积的这一比例。超出范围会抛出 `RangeError` |
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 断言成立之前重试的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 ### `expectNotVisible(target, options?)` {#expectnotvisible}
 
@@ -39,6 +41,11 @@ await app.tap('close-dialog');
 await app.expectNotVisible('confirm-dialog');
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 断言成立之前重试的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+
 ### `expectExists(target, options?)` {#expectexists}
 
 有匹配元素在元素树中时成立，无论是否可见。
@@ -47,6 +54,11 @@ await app.expectNotVisible('confirm-dialog');
 // 已渲染在列表下方，但还没有滚动到
 await app.expectExists({ id: 'todo-row', index: 49 });
 ```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 断言成立之前重试的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 ### `expectNotExists(target, options?)` {#expectnotexists}
 
@@ -58,6 +70,11 @@ await app.tap('delete');
 await app.expectNotExists({ text: 'Buy milk' });
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 断言成立之前重试的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+
 ### `expectCount(target, n, options?)` {#expectcount}
 
 恰好有 `n` 个元素匹配时成立。
@@ -67,6 +84,11 @@ await app.type('new-todo', 'Walk the dog');
 await app.pressKey('new-todo', 'enter');
 await app.expectCount({ id: 'todo-row' }, 3);
 ```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 断言成立之前重试的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 ## 内容 {#content}
 
@@ -79,6 +101,11 @@ await app.expectText('todo-title', 'Buy milk');
 
 await app.expectText('items-left', /^\d+ items? left$/);
 ```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 断言成立之前重试的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 ### `expectValue(target, value, options?)` {#expectvalue}
 
@@ -93,6 +120,11 @@ await app.expectValue('volume-slider', 0.5);
 await app.expectValue('due-date', new Date(2031, 11, 24));
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 断言成立之前重试的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+
 日期 / 时间选择器的值是它显示的内容，用设备的本地时间表示：`"2031-12-24"`（mode 为 `date`）、`"20:15"`（`time`）、`"2031-12-24T20:15"`（`datetime`），秒不为 0 时带上秒。这些部分一致时 `Date` 即匹配。见 [日期和时间选择器](./api-value-controls#date-and-time-pickers)。
 
 ### `expectLabel(target, text, options?)` {#expectlabel}
@@ -105,6 +137,11 @@ await app.expectLabel('cart-button', 'Cart, 3 items');
 await app.expectLabel('cart-button', /^Cart, \d+ items$/);
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 断言成立之前重试的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+
 ### `expectProp(target, prop, value, options?)` {#expectprop}
 
 恰好一个元素匹配，且其 prop `prop` 的 JSON 值等于此值时成立。先查 host 元素的 props，再查其组件的（例如 `disabled`、`value`）。
@@ -114,6 +151,11 @@ await app.expectProp('new-todo', 'placeholder', 'What needs to be done?');
 
 await app.expectProp('save', 'disabled', false);
 ```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 断言成立之前重试的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 ## 状态 {#state}
 
@@ -127,6 +169,11 @@ await app.type('password', 'secret');
 await app.expectEnabled('sign-in');
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 断言成立之前重试的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+
 ### `expectDisabled(target, options?)` {#expectdisabled}
 
 恰好一个元素匹配，且它已禁用时成立。
@@ -135,6 +182,11 @@ await app.expectEnabled('sign-in');
 // 表单为空
 await app.expectDisabled('sign-in');
 ```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 断言成立之前重试的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 元素通过 `disabled`、`accessibilityState.disabled`、`aria-disabled` 或 `editable={false}` 被禁用，也包括从祖先继承的情况。
 
@@ -147,6 +199,11 @@ await app.tap({ type: 'switch', label: 'Notifications' });
 await app.expectChecked({ type: 'switch', label: 'Notifications' });
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 断言成立之前重试的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+
 ### `expectNotChecked(target, options?)` {#expectnotchecked}
 
 恰好一个元素匹配，且它未选中时成立。
@@ -154,6 +211,11 @@ await app.expectChecked({ type: 'switch', label: 'Notifications' });
 ```ts
 await app.expectNotChecked({ type: 'checkbox', label: 'Remember me' });
 ```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 断言成立之前重试的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 没有选中状态的元素，`expectChecked` 和 `expectNotChecked` 都不成立。
 
@@ -166,6 +228,11 @@ await app.tap('new-todo');
 await app.expectFocused('new-todo');
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 断言成立之前重试的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+
 ### `expectNotFocused(target, options?)` {#expectnotfocused}
 
 恰好一个元素匹配，且它没有输入焦点时成立。
@@ -175,6 +242,11 @@ await app.pressKey('new-todo', 'enter');
 await app.dismissKeyboard();
 await app.expectNotFocused('new-todo');
 ```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 断言成立之前重试的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 ## 链式写法 {#chained-form}
 

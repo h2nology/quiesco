@@ -22,6 +22,11 @@ console.log(rows.map((r) => r.text));
 if ((await app.query('onboarding-tip')).length > 0) await app.tap('dismiss-tip');
 ```
 
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api#call-options)) |
+
 ### `attributes(target, options?)` {#attributes}
 
 Returns the [summary](#element-summary) of the single matching element, after waiting for it to exist
@@ -34,6 +39,11 @@ expect(slider.value).toBeGreaterThan(0.5);
 const row = await app.attributes({ id: 'todo-row', index: 0 });
 console.log(row.rect); // { x, y, width, height }
 ```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the element to exist |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api#call-options)) |
 
 ### `getTree()` {#gettree}
 

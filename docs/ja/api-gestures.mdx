@@ -30,6 +30,9 @@ await app.pinch('photo', 0.5, { angle: Math.PI / 2, speed: 'slow' });
 |---|---|---|
 | `angle` | `0`（水平） | 指が動く直線の角度（ラジアン） |
 | `speed` | `'normal'` | `'slow'`、`'normal'`、`'fast'`のいずれか |
+| `timeoutMs` | `sync.timeoutMs`（10秒） | 対象の要素が現れ、アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 `scale`は正の数でなければなりません。1回では画面に収まらないピンチ（例：`pinch('map', 10)`）は、ユーザーと同じように複数回のピンチに分けて行います。指は要素の上に置かれ、ウィンドウの外には出ません。
 
@@ -48,6 +51,9 @@ await app.rotate('photo', -Math.PI / 2, { speed: 'slow' });
 | オプション | デフォルト | 意味 |
 |---|---|---|
 | `speed` | `'normal'` | `'slow'`、`'normal'`、`'fast'`のいずれか |
+| `timeoutMs` | `sync.timeoutMs`（10秒） | 対象の要素が現れ、アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 ### 認識器のしきい値 {#recognizer-thresholds}
 
@@ -87,5 +93,8 @@ await app.multiTouch([
 | オプション | デフォルト | 意味 |
 |---|---|---|
 | `within` | | ターゲット。点はその要素自身の座標系になります（要素は表示されている必要があります）。指定しなければウィンドウ座標 |
+| `timeoutMs` | `sync.timeoutMs`（10秒） | アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 指は1本から10本まで指定できます。各指には少なくとも1つの点が必要で、時刻は負でなく、減少してはいけません。

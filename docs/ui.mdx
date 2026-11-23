@@ -43,20 +43,82 @@ runner must send its progress, as for the [progress bar](./cli#quiesco-test): Vi
 
 ## The page {#the-page}
 
-- **Progress** — done / total, passed, failed and skipped, the time so far, and with several workers one
-  lane per device with the test it is running.
-- **Tests** — files and their tests as listed by the runner without running them (the same list as
-  [`quiesco list`](./cli#quiesco-list)), with each test's last result. Search by name, file or tag, filter by
-  status, sort by failures or duration. The list follows changes to the test files.
-- **Details** of the selected test — **Report**: the error, the expected / actual difference and the stack.
-  **Evidence**: the failure screenshot with the asserted element outlined, the element tree, the idle state
-  and the logs. **Console**: the test's own output (Vitest keeps console output per test, cucumber-js keeps
-  `this.log()`) and the runner's output. **Source**: the test file, read-only, with the test's line and the
-  failing line marked.
+The screenshots below are the [tutorial](./tutorial)'s todo app run on the web, with one test made to fail.
+
+### Header and progress {#header-and-progress}
+
+<Frame caption="A run in progress: 6 of 8 tests done, two running">
+  <img src="/images/ui/running.png" alt="The test UI while a run is in progress: the progress ring at 6 of 8, the test tree with passed tests and one running" />
+</Frame>
+
+- **Header**: the project, the runner and the platform (`todo-tutorial · vitest · web`); the search box;
+  whether the page is connected to `quiesco ui`; the language and the theme; **Stop** and **Run all**.
+  While a run is going, Run all turns into *Running…*.
+- **Progress**: done / total with a ring, the run's state and the time so far, and how many tests passed,
+  failed and were skipped. With several workers there is one lane per device, with the test it is running.
+
+### Test list {#test-list}
+
+The left column lists the test files and their tests as the runner reports them without running them (the
+same list as [`quiesco list`](./cli#quiesco-list)). Each test shows its last result and duration; each file
+how many of its tests have run, in red once one of them failed. The list follows changes to the test files;
+the ↻ button lists them again.
+
+- **Filters**: All, Failed, Running, Skipped, Passed, each with its count.
+- **Order**: file order, failed first, or slowest first.
+- **Search** (in the header): by test name, file or `@tag`.
+- **Run**: the ▶ next to a file or a test runs just that.
+
+### Report {#report}
+
+<Frame caption="Report: the error, the stack and the evidence saved at the failure">
+  <img src="/images/ui/report.png" alt="The Report tab of a failed test: the expected and actual text, the evidence files and the stack" />
+</Frame>
+
+Selecting a test opens its details: the result, the file and line, the device, the duration, and
+**Run again**. The **Report** tab has the error as the runner reported it — here what `expectText`
+expected, what it found and the current route — the paths of the evidence files, and the stack. **View
+evidence** opens the next tab.
+
+### Evidence {#evidence}
+
+<Frame caption="Evidence: the failure screenshot and the files Quiesco saved">
+  <img src="/images/ui/evidence.png" alt="The Evidence tab: the failure screenshot with the asserted element framed in red, and the JSON and timeline files" />
+</Frame>
+
+Everything Quiesco saved at the failure ([artifacts](./api-artifacts)): `failure.png` with the elements of
+the failed call framed in red, then `elements.json`, `element-tree.json`, `idle-state.json` and the
+timeline, each with the beginning of its content and an **Open** link. The device log is listed here too
+when the [artifacts policy](./api-artifacts) keeps it.
+
+### Console {#console}
+
+<Frame caption="Console: the test's own output and the runner's">
+  <img src="/images/ui/console.png" alt="The Console tab: no output kept for this test, and the runner output of the last run" />
+</Frame>
+
+**This test** is the test's own output: Vitest keeps console output per test, cucumber-js keeps
+`this.log()`. **Runner output** is everything the runner printed in the last run, with its summary.
+
+### Source {#source}
+
+<Frame caption="Source: the test, with its first line and the failing line marked">
+  <img src="/images/ui/source.png" alt="The Source tab: the test file read-only, the test's first line marked in blue and the failing line in red" />
+</Frame>
+
+The test file, read-only, scrolled to the test: its first line is marked in blue, the line that failed in
+red.
+
+### Keyboard, language and theme {#keyboard-language-and-theme}
+
+<Frame caption="The same page in Chinese, with the dark theme">
+  <img src="/images/ui/dark-zh.png" alt="The test UI in Simplified Chinese with the dark theme" />
+</Frame>
 
 Keyboard: `/` search, ↑ ↓ ← → in the tree, `r` runs the focused file or test, Ctrl/⌘ + Enter runs all,
-Ctrl/⌘ + . stops. The page is in English, 简体中文 or 日本語 (the browser's language, or the one chosen in
-the header), in a dark or a light theme.
+Ctrl/⌘ + . stops (the shortcuts are listed under the tree). The page is in English, 简体中文 or 日本語 (the
+browser's language, or the one chosen in the header), in a light or a dark theme (the button next to the
+language).
 
 ## Running tests {#running-tests}
 

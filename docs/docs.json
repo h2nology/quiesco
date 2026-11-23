@@ -67,17 +67,6 @@
             ]
           },
           {
-            "group": "Guides",
-            "pages": [
-              "sync",
-              "platforms",
-              "driver-pattern",
-              "parallel",
-              "ui",
-              "troubleshooting"
-            ]
-          },
-          {
             "group": "API reference",
             "pages": [
               "api",
@@ -97,6 +86,17 @@
               "api-errors",
               "api-artifacts",
               "api-custom-runners"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "sync",
+              "platforms",
+              "driver-pattern",
+              "parallel",
+              "ui",
+              "troubleshooting"
             ]
           },
           {
@@ -131,17 +131,6 @@
             ]
           },
           {
-            "group": "指南",
-            "pages": [
-              "zh/sync",
-              "zh/platforms",
-              "zh/driver-pattern",
-              "zh/parallel",
-              "zh/ui",
-              "zh/troubleshooting"
-            ]
-          },
-          {
             "group": "API 参考",
             "pages": [
               "zh/api",
@@ -161,6 +150,17 @@
               "zh/api-errors",
               "zh/api-artifacts",
               "zh/api-custom-runners"
+            ]
+          },
+          {
+            "group": "指南",
+            "pages": [
+              "zh/sync",
+              "zh/platforms",
+              "zh/driver-pattern",
+              "zh/parallel",
+              "zh/ui",
+              "zh/troubleshooting"
             ]
           },
           {
@@ -195,17 +195,6 @@
             ]
           },
           {
-            "group": "ガイド",
-            "pages": [
-              "ja/sync",
-              "ja/platforms",
-              "ja/driver-pattern",
-              "ja/parallel",
-              "ja/ui",
-              "ja/troubleshooting"
-            ]
-          },
-          {
             "group": "APIリファレンス",
             "pages": [
               "ja/api",
@@ -225,6 +214,17 @@
               "ja/api-errors",
               "ja/api-artifacts",
               "ja/api-custom-runners"
+            ]
+          },
+          {
+            "group": "ガイド",
+            "pages": [
+              "ja/sync",
+              "ja/platforms",
+              "ja/driver-pattern",
+              "ja/parallel",
+              "ja/ui",
+              "ja/troubleshooting"
             ]
           },
           {

@@ -31,6 +31,12 @@ await app.setValue('due-date-picker', '2031-12-24');
 await app.setValue('due-date-picker', new Date(2031, 11, 24));
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待目标元素出现、App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
+
 #### 支持哪些控件 {#supported-controls}
 
 `setValue` 查看目标周围组件的 props：元素本身及其上几层。如果都没有，则取元素内部唯一的控件——例如一个承载 testID、包裹着会丢掉 testID 的组件的 `View`。
@@ -133,6 +139,12 @@ await app.setValue('due-date-picker', '2031-12-24');
 await app.adjustSlider('volume-slider', 0.5);
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待目标元素出现、App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
+
 - **`native` 模式：** 滑柄跟随手指移动时会扣除触摸 slop，因此 Quiesco 会读回值并再次拖动（始终朝同一方向，并带助跑），直到滑块与目标位置相差不超过一个步长（连续滑块为范围的 1%）。
 - **Web：** 用鼠标拖动滑柄。
 - **`js` 模式：** 通过回调设置该位置对应的值。
@@ -151,6 +163,12 @@ await app.expectText('quantity', '2');
 // 自定义操作，如 VoiceOver 的“操作”转子中那样
 await app.accessibilityAction({ id: 'todo-row', index: 0 }, 'archive');
 ```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待目标元素出现、App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 `name` 必须是元素已声明的名称；否则错误信息会列出已声明的名称。操作的执行方式：
 

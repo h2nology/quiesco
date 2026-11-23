@@ -24,9 +24,12 @@ await app.tap('save');
 await app.tap('map', { point: { x: 40, y: 120 } });
 ```
 
-| Option | Meaning |
-|---|---|
-| `point` | `{ x, y }` in the element's own coordinates, instead of its center |
+| Option | Default | Meaning |
+|---|---|---|
+| `point` | the center | `{ x, y }` in the element's own coordinates, instead of its center |
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the target and for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 ### `doubleTap(target, options?)` {#doubletap}
 
@@ -36,6 +39,12 @@ Two taps in one gesture.
 await app.doubleTap('photo');
 ```
 
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the target and for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
+
 ### `multiTap(target, count, options?)` {#multitap}
 
 `count` taps in one gesture.
@@ -44,6 +53,12 @@ await app.doubleTap('photo');
 // triple-tap to open the hidden debug menu
 await app.multiTap('version-label', 3);
 ```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the target and for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 ### `longPress(target, options?)` {#longpress}
 
@@ -59,6 +74,9 @@ await app.longPress('message', { durationMs: 1500, point: { x: 10, y: 10 } });
 |---|---|---|
 | `durationMs` | `800` | How long to hold |
 | `point` | the center | `{ x, y }` in the element's own coordinates |
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the target and for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 ### `tapAt(point, options?)` {#tapat}
 
@@ -69,6 +87,12 @@ Taps a point of the screen (window coordinates), whatever is there.
 await app.tapAt({ x: 200, y: 100 });
 ```
 
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
+
 ### `longPressAt(point, options?)` {#longpressat}
 
 Presses and holds a point of the screen (window coordinates).
@@ -76,6 +100,12 @@ Presses and holds a point of the screen (window coordinates).
 ```ts
 await app.longPressAt({ x: 200, y: 400 }, { durationMs: 1000 });
 ```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 ## Text input {#text-input}
 
@@ -96,6 +126,9 @@ await app.type('search', 'milk', { perCharacter: true });
 |---|---|---|
 | `perCharacter` | `false` | Type one character at a time, so the app sees every keystroke. The call waits for idle at the end |
 | `intervalMs` | `80` | With `perCharacter`: the time between two characters |
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the target and for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 ### `replaceText(target, text, options?)` {#replacetext}
 
@@ -105,6 +138,12 @@ Replaces the whole text of the input at once.
 await app.replaceText('email', 'bob@example.com');
 ```
 
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the target and for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
+
 ### `clear(target, options?)` {#clear}
 
 Empties the input.
@@ -112,6 +151,12 @@ Empties the input.
 ```ts
 await app.clear('search');
 ```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the target and for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 ### `pressKey(target, key, options?)` {#presskey}
 
@@ -126,6 +171,12 @@ await app.pressKey('search', 'enter');
 await app.pressKey('code-input', 'backspace');
 ```
 
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the target and for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
+
 ### `dismissKeyboard(options?)` {#dismisskeyboard}
 
 Hides the software keyboard.
@@ -134,6 +185,12 @@ Hides the software keyboard.
 await app.type('notes', 'Call before noon');
 await app.dismissKeyboard();
 ```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 ## Scrolling {#scrolling}
 
@@ -149,10 +206,13 @@ await app.scroll('feed', 'down');
 await app.scroll('feed', 'down', { distance: 300, from: { x: 0.5, y: 0.8 } });
 ```
 
-| Option | Meaning |
-|---|---|
-| `distance` | How far to scroll, in logical units |
-| `from` | Where the finger starts, normalized 0–1 within the element |
+| Option | Default | Meaning |
+|---|---|---|
+| `distance` | — | How far to scroll, in logical units |
+| `from` | — | Where the finger starts, normalized 0–1 within the element |
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the target and for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 ### `scrollTo(container, target, options?)` {#scrollto}
 
@@ -165,6 +225,12 @@ await app.scrollTo('settings-list', 'sign-out');
 await app.tap('sign-out');
 ```
 
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the target and for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
+
 ### `scrollToEdge(target, edge, options?)` {#scrolltoedge}
 
 Scrolls to the `'top'`, `'bottom'`, `'left'` or `'right'` end. A virtualized list that renders more rows as
@@ -174,6 +240,12 @@ it scrolls is followed while it grows (in `native` mode with real flings).
 await app.scrollToEdge('feed', 'bottom');
 await app.expectVisible({ text: 'No more posts' });
 ```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the target and for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 ### `scrollToIndex(list, index, options?)` {#scrolltoindex}
 
@@ -189,6 +261,9 @@ await app.scrollToIndex('contacts', 120, { viewPosition: 0.5 });
 | Option | Default | Meaning |
 |---|---|---|
 | `viewPosition` | `0` | Where the row ends up: `0` top, `0.5` middle, `1` bottom |
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the target and for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 `scrollTo`, `scrollToEdge` and `scrollToIndex` take several steps (at most 60); each step may wait up to the
 call's timeout for the app to settle.
@@ -211,6 +286,9 @@ await app.swipe('carousel', 'left', { speed: 'fast', distance: 250 });
 | `speed` | `'normal'` | `'slow'`, `'normal'` or `'fast'` |
 | `distance` | | How far the finger moves |
 | `from` | | Where the finger starts, normalized 0–1 within the element |
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the target and for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 ### `drag(target, to, options?)` {#drag}
 
@@ -228,6 +306,9 @@ await app.drag('pin', { point: { x: 160, y: 420 } }, { holdMs: 300, speed: 'slow
 |---|---|---|
 | `holdMs` | `800` | How long to hold before moving |
 | `speed` | `'normal'` | `'slow'`, `'normal'` or `'fast'` |
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the target and for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 Pinch, rotate and other gestures with several fingers are on [multi-finger gestures](./api-gestures.md).
 
@@ -245,6 +326,12 @@ await app.goBack();
 await app.expectVisible('todo-list-screen');
 ```
 
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
+
 ### `pressBack(options?)` {#pressback}
 
 The Android back button, or the browser's back on the web. Not available on iOS (`ACTION_NOT_SUPPORTED`):
@@ -254,6 +341,12 @@ use `goBack()` for a test that runs everywhere.
 // Android: close the bottom sheet with the back button
 await app.pressBack();
 ```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 ### `openUrl(url, options?)` {#openurl}
 
@@ -266,6 +359,12 @@ and idle.
 await app.openUrl('myapp://todos/42');
 await app.expectText('detail-title', 'Buy milk');
 ```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the app to be idle |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
+| `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 ## Other inputs {#other-inputs}
 

@@ -30,6 +30,9 @@ await app.pinch('photo', 0.5, { angle: Math.PI / 2, speed: 'slow' });
 |---|---|---|
 | `angle` | `0`（水平） | 手指移动所沿直线的角度，单位为弧度 |
 | `speed` | `'normal'` | `'slow'`、`'normal'` 或 `'fast'` |
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待目标元素出现、App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 `scale` 必须是正数。一次无法在屏幕内完成的捏合（例如 `pinch('map', 10)`）会像用户那样分成多次捏合完成。手指在元素上按下，并始终留在窗口内。
 
@@ -48,6 +51,9 @@ await app.rotate('photo', -Math.PI / 2, { speed: 'slow' });
 | 选项 | 默认值 | 含义 |
 |---|---|---|
 | `speed` | `'normal'` | `'slow'`、`'normal'` 或 `'fast'` |
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待目标元素出现、App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 ### 识别器阈值 {#recognizer-thresholds}
 
@@ -87,5 +93,8 @@ await app.multiTouch([
 | 选项 | 默认值 | 含义 |
 |---|---|---|
 | `within` | | 一个 target：各点使用该元素自身的坐标（元素必须可见）。不指定时使用窗口坐标 |
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待 App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 支持 1 到 10 根手指。每根手指至少需要一个点，其时间必须非负且非递减。

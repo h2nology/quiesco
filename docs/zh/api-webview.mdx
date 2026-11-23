@@ -67,6 +67,11 @@ help.element({ css: '.faq-item', index: 1 });
 await help.element({ text: 'Contact us' }).tap();
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待页面稳定、元素出现的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+
 多个元素匹配时立即以 `MULTIPLE_MATCHES` 失败；超时内没有出现可见且启用的匹配时以 `ELEMENT_NOT_FOUND` 失败。
 
 ### `type(text, options?)` {#type}
@@ -77,6 +82,11 @@ await help.element({ text: 'Contact us' }).tap();
 await help.element({ css: '#name' }).type('Alice');
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待页面稳定、元素出现的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+
 ### `replaceText(text, options?)` {#replacetext}
 
 点击字段，然后用 `text` 替换其全部值。
@@ -84,6 +94,11 @@ await help.element({ css: '#name' }).type('Alice');
 ```ts
 await help.element({ xpath: '//input[@name="name"]' }).replaceText('Bob');
 ```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待页面稳定、元素出现的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 ### `scrollIntoView(options?)` {#scrollintoview}
 
@@ -93,6 +108,11 @@ await help.element({ xpath: '//input[@name="name"]' }).replaceText('Bob');
 await help.element({ css: '#footer' }).scrollIntoView();
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待页面稳定、元素出现的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+
 ### `screenshot(options?)` {#screenshot}
 
 元素的 PNG，先将其滚入视图：截取它位于 WebView 可见区域内的部分。更多内容见 [截图](./api-screenshots)。
@@ -100,6 +120,11 @@ await help.element({ css: '#footer' }).scrollIntoView();
 ```ts
 const png = await help.element({ css: '#chart' }).screenshot();
 ```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待页面稳定、元素出现的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 ## 断言 {#assertions}
 
@@ -114,6 +139,11 @@ await help.element({ id: 'result' }).expectText('Hello, Bob');
 await help.element({ css: '#name' }).expectText(/^Bo/);
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待页面稳定、元素出现的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+
 ### `expectExists(options?)` {#expectexists}
 
 至少有一个元素匹配，无论是否可见。
@@ -121,6 +151,11 @@ await help.element({ css: '#name' }).expectText(/^Bo/);
 ```ts
 await help.element({ css: 'form#contact' }).expectExists();
 ```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待页面稳定、元素出现的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 ### `expectNotExists(options?)` {#expectnotexists}
 
@@ -130,6 +165,11 @@ await help.element({ css: 'form#contact' }).expectExists();
 await help.element({ css: '.error' }).expectNotExists();
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待页面稳定、元素出现的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+
 ### `expectVisible(options?)` {#expectvisible}
 
 有一个匹配可见：位于页面视口内（未被滚出）且未被 CSS 隐藏。
@@ -138,6 +178,11 @@ await help.element({ css: '.error' }).expectNotExists();
 await help.element({ text: 'Thanks for your message' }).expectVisible();
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待页面稳定、元素出现的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+
 ### `expectNotVisible(options?)` {#expectnotvisible}
 
 没有可见的匹配：每一个都被滚出、被 CSS 隐藏或不存在。
@@ -145,6 +190,11 @@ await help.element({ text: 'Thanks for your message' }).expectVisible();
 ```ts
 await help.element({ text: /^Loading/ }).expectNotVisible();
 ```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待页面稳定、元素出现的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 ## 页面 {#the-page}
 
@@ -164,6 +214,11 @@ const count = await help.runScript<number>(
 const status = await help.runScript<number>('return fetch("/api/ping").then((r) => r.status)');
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待页面稳定、元素出现的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+
 页面中的异常会让调用以 `APP_ERROR` 失败。`runScript` 使用 `new Function`，页面的 Content-Security-Policy 可能会禁止它。
 
 ### `url(options?)` {#url}
@@ -175,6 +230,11 @@ await help.element({ text: 'Pricing' }).tap();
 expect(await help.url()).toMatch(/\/pricing$/);
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待页面稳定、元素出现的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+
 ### `title(options?)` {#title}
 
 页面的标题，即 `document.title`。
@@ -182,3 +242,8 @@ expect(await help.url()).toMatch(/\/pricing$/);
 ```ts
 expect(await help.title()).toBe('Help center');
 ```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待页面稳定、元素出现的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |

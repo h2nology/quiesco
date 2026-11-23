@@ -31,9 +31,11 @@ await app.expectVisible('todo-list-screen');
 await app.expectVisible('promo-banner', { ratio: 0.75 });
 ```
 
-| Option | Meaning |
-|---|---|
-| `ratio` | A number in (0, 1]: the element must show at least this fraction of its area. Out of range throws a `RangeError` |
+| Option | Default | Meaning |
+|---|---|---|
+| `ratio` | — | A number in (0, 1]: the element must show at least this fraction of its area. Out of range throws a `RangeError` |
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to retry until the assertion holds |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api#call-options)) |
 
 ### `expectNotVisible(target, options?)` {#expectnotvisible}
 
@@ -44,6 +46,11 @@ await app.tap('close-dialog');
 await app.expectNotVisible('confirm-dialog');
 ```
 
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to retry until the assertion holds |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api#call-options)) |
+
 ### `expectExists(target, options?)` {#expectexists}
 
 Holds when a matching element is in the element tree, visible or not.
@@ -52,6 +59,11 @@ Holds when a matching element is in the element tree, visible or not.
 // rendered further down the list, not yet scrolled to
 await app.expectExists({ id: 'todo-row', index: 49 });
 ```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to retry until the assertion holds |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api#call-options)) |
 
 ### `expectNotExists(target, options?)` {#expectnotexists}
 
@@ -63,6 +75,11 @@ await app.tap('delete');
 await app.expectNotExists({ text: 'Buy milk' });
 ```
 
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to retry until the assertion holds |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api#call-options)) |
+
 ### `expectCount(target, n, options?)` {#expectcount}
 
 Holds when exactly `n` elements match.
@@ -72,6 +89,11 @@ await app.type('new-todo', 'Walk the dog');
 await app.pressKey('new-todo', 'enter');
 await app.expectCount({ id: 'todo-row' }, 3);
 ```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to retry until the assertion holds |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api#call-options)) |
 
 ## Content {#content}
 
@@ -85,6 +107,11 @@ await app.expectText('todo-title', 'Buy milk');
 
 await app.expectText('items-left', /^\d+ items? left$/);
 ```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to retry until the assertion holds |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api#call-options)) |
 
 ### `expectValue(target, value, options?)` {#expectvalue}
 
@@ -101,6 +128,11 @@ await app.expectValue('volume-slider', 0.5);
 await app.expectValue('due-date', new Date(2031, 11, 24));
 ```
 
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to retry until the assertion holds |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api#call-options)) |
+
 A date / time picker's value is what it shows, in the device's local time: `"2031-12-24"` (mode `date`),
 `"20:15"` (`time`), `"2031-12-24T20:15"` (`datetime`), with seconds when they are not 0. A `Date` matches
 when those parts agree. See [date and time pickers](./api-value-controls#date-and-time-pickers).
@@ -116,6 +148,11 @@ await app.expectLabel('cart-button', 'Cart, 3 items');
 await app.expectLabel('cart-button', /^Cart, \d+ items$/);
 ```
 
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to retry until the assertion holds |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api#call-options)) |
+
 ### `expectProp(target, prop, value, options?)` {#expectprop}
 
 Holds when exactly one element matches and its prop `prop` has this JSON value. The host element's props
@@ -126,6 +163,11 @@ await app.expectProp('new-todo', 'placeholder', 'What needs to be done?');
 
 await app.expectProp('save', 'disabled', false);
 ```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to retry until the assertion holds |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api#call-options)) |
 
 ## State {#state}
 
@@ -139,6 +181,11 @@ await app.type('password', 'secret');
 await app.expectEnabled('sign-in');
 ```
 
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to retry until the assertion holds |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api#call-options)) |
+
 ### `expectDisabled(target, options?)` {#expectdisabled}
 
 Holds when exactly one element matches and it is disabled.
@@ -147,6 +194,11 @@ Holds when exactly one element matches and it is disabled.
 // the form is empty
 await app.expectDisabled('sign-in');
 ```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to retry until the assertion holds |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api#call-options)) |
 
 An element is disabled through `disabled`, `accessibilityState.disabled`, `aria-disabled` or
 `editable={false}`, also when it inherits it from an ancestor.
@@ -161,6 +213,11 @@ await app.tap({ type: 'switch', label: 'Notifications' });
 await app.expectChecked({ type: 'switch', label: 'Notifications' });
 ```
 
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to retry until the assertion holds |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api#call-options)) |
+
 ### `expectNotChecked(target, options?)` {#expectnotchecked}
 
 Holds when exactly one element matches and it is unchecked.
@@ -168,6 +225,11 @@ Holds when exactly one element matches and it is unchecked.
 ```ts
 await app.expectNotChecked({ type: 'checkbox', label: 'Remember me' });
 ```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to retry until the assertion holds |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api#call-options)) |
 
 An element without a checked state fails both `expectChecked` and `expectNotChecked`.
 
@@ -180,6 +242,11 @@ await app.tap('new-todo');
 await app.expectFocused('new-todo');
 ```
 
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to retry until the assertion holds |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api#call-options)) |
+
 ### `expectNotFocused(target, options?)` {#expectnotfocused}
 
 Holds when exactly one element matches and it does not have the input focus.
@@ -189,6 +256,11 @@ await app.pressKey('new-todo', 'enter');
 await app.dismissKeyboard();
 await app.expectNotFocused('new-todo');
 ```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to retry until the assertion holds |
+| `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api#call-options)) |
 
 ## Chained form {#chained-form}
 

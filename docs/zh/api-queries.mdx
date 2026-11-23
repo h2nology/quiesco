@@ -19,6 +19,11 @@ console.log(rows.map((r) => r.text));
 if ((await app.query('onboarding-tip')).length > 0) await app.tap('dismiss-tip');
 ```
 
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待 App 空闲的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
+
 ### `attributes(target, options?)` {#attributes}
 
 等待元素出现后，返回唯一匹配元素的 [摘要](#element-summary)（相当于 Detox 的 `getAttributes`）。匹配到多个元素时以 `MULTIPLE_MATCHES` 失败。
@@ -30,6 +35,11 @@ expect(slider.value).toBeGreaterThan(0.5);
 const row = await app.attributes({ id: 'todo-row', index: 0 });
 console.log(row.rect); // { x, y, width, height }
 ```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待元素出现的最长时间 |
+| `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 ### `getTree()` {#gettree}
 

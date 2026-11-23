@@ -20,9 +20,12 @@ await app.tap('save');
 await app.tap('map', { point: { x: 40, y: 120 } });
 ```
 
-| オプション | 意味 |
-|---|---|
-| `point` | 中心の代わりにタップする、要素自身の座標系での`{ x, y }` |
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `point` | 中心 | 中心の代わりにタップする、要素自身の座標系での`{ x, y }` |
+| `timeoutMs` | `sync.timeoutMs`（10秒） | 対象の要素が現れ、アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 ### `doubleTap(target, options?)` {#doubletap}
 
@@ -32,6 +35,12 @@ await app.tap('map', { point: { x: 40, y: 120 } });
 await app.doubleTap('photo');
 ```
 
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | 対象の要素が現れ、アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
+
 ### `multiTap(target, count, options?)` {#multitap}
 
 1つのジェスチャーで`count`回タップします。
@@ -40,6 +49,12 @@ await app.doubleTap('photo');
 // 3回タップして隠しデバッグメニューを開く
 await app.multiTap('version-label', 3);
 ```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | 対象の要素が現れ、アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 ### `longPress(target, options?)` {#longpress}
 
@@ -55,6 +70,9 @@ await app.longPress('message', { durationMs: 1500, point: { x: 10, y: 10 } });
 |---|---|---|
 | `durationMs` | `800` | 押し続ける時間 |
 | `point` | 中心 | 要素自身の座標系での`{ x, y }` |
+| `timeoutMs` | `sync.timeoutMs`（10秒） | 対象の要素が現れ、アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 ### `tapAt(point, options?)` {#tapat}
 
@@ -65,6 +83,12 @@ await app.longPress('message', { durationMs: 1500, point: { x: 10, y: 10 } });
 await app.tapAt({ x: 200, y: 100 });
 ```
 
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
+
 ### `longPressAt(point, options?)` {#longpressat}
 
 画面上の一点（ウィンドウ座標）を押し続けます。
@@ -72,6 +96,12 @@ await app.tapAt({ x: 200, y: 100 });
 ```ts
 await app.longPressAt({ x: 200, y: 400 }, { durationMs: 1000 });
 ```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 ## テキスト入力 {#text-input}
 
@@ -90,6 +120,9 @@ await app.type('search', 'milk', { perCharacter: true });
 |---|---|---|
 | `perCharacter` | `false` | 1文字ずつ入力し、アプリがキー入力を1回ずつ受け取るようにする。呼び出しは最後にアイドルを待つ |
 | `intervalMs` | `80` | `perCharacter`のとき：文字と文字の間隔 |
+| `timeoutMs` | `sync.timeoutMs`（10秒） | 対象の要素が現れ、アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 ### `replaceText(target, text, options?)` {#replacetext}
 
@@ -99,6 +132,12 @@ await app.type('search', 'milk', { perCharacter: true });
 await app.replaceText('email', 'bob@example.com');
 ```
 
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | 対象の要素が現れ、アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
+
 ### `clear(target, options?)` {#clear}
 
 入力欄を空にします。
@@ -106,6 +145,12 @@ await app.replaceText('email', 'bob@example.com');
 ```ts
 await app.clear('search');
 ```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | 対象の要素が現れ、アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 ### `pressKey(target, key, options?)` {#presskey}
 
@@ -118,6 +163,12 @@ await app.pressKey('search', 'enter');
 await app.pressKey('code-input', 'backspace');
 ```
 
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | 対象の要素が現れ、アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
+
 ### `dismissKeyboard(options?)` {#dismisskeyboard}
 
 ソフトウェアキーボードを閉じます。
@@ -126,6 +177,12 @@ await app.pressKey('code-input', 'backspace');
 await app.type('notes', 'Call before noon');
 await app.dismissKeyboard();
 ```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 ## スクロール {#scrolling}
 
@@ -139,10 +196,13 @@ await app.scroll('feed', 'down');
 await app.scroll('feed', 'down', { distance: 300, from: { x: 0.5, y: 0.8 } });
 ```
 
-| オプション | 意味 |
-|---|---|
-| `distance` | スクロールする距離（論理単位） |
-| `from` | 指の開始点。要素内で0–1に正規化した位置 |
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `distance` | — | スクロールする距離（論理単位） |
+| `from` | — | 指の開始点。要素内で0–1に正規化した位置 |
+| `timeoutMs` | `sync.timeoutMs`（10秒） | 対象の要素が現れ、アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 ### `scrollTo(container, target, options?)` {#scrollto}
 
@@ -153,6 +213,12 @@ await app.scrollTo('settings-list', 'sign-out');
 await app.tap('sign-out');
 ```
 
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | 対象の要素が現れ、アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
+
 ### `scrollToEdge(target, edge, options?)` {#scrolltoedge}
 
 `'top'`、`'bottom'`、`'left'`、`'right'`のいずれかの端までスクロールします。スクロールに応じて行を追加描画する仮想化リストは、伸びていく間も追従します（`native`モードでは実際のフリックで）。
@@ -161,6 +227,12 @@ await app.tap('sign-out');
 await app.scrollToEdge('feed', 'bottom');
 await app.expectVisible({ text: 'No more posts' });
 ```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | 対象の要素が現れ、アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 ### `scrollToIndex(list, index, options?)` {#scrolltoindex}
 
@@ -176,6 +248,9 @@ await app.scrollToIndex('contacts', 120, { viewPosition: 0.5 });
 | オプション | デフォルト | 意味 |
 |---|---|---|
 | `viewPosition` | `0` | 行が来る位置：`0`は上端、`0.5`は中央、`1`は下端 |
+| `timeoutMs` | `sync.timeoutMs`（10秒） | 対象の要素が現れ、アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 `scrollTo`、`scrollToEdge`、`scrollToIndex`は複数のステップ（最大60）に分けて動き、各ステップでアプリが落ち着くまで、呼び出しのタイムアウトを上限に待つことがあります。
 
@@ -197,6 +272,9 @@ await app.swipe('carousel', 'left', { speed: 'fast', distance: 250 });
 | `speed` | `'normal'` | `'slow'`、`'normal'`、`'fast'`のいずれか |
 | `distance` | | 指が動く距離 |
 | `from` | | 指の開始点。要素内で0–1に正規化した位置 |
+| `timeoutMs` | `sync.timeoutMs`（10秒） | 対象の要素が現れ、アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 ### `drag(target, to, options?)` {#drag}
 
@@ -213,6 +291,9 @@ await app.drag('pin', { point: { x: 160, y: 420 } }, { holdMs: 300, speed: 'slow
 |---|---|---|
 | `holdMs` | `800` | 動かし始める前に押し続ける時間 |
 | `speed` | `'normal'` | `'slow'`、`'normal'`、`'fast'`のいずれか |
+| `timeoutMs` | `sync.timeoutMs`（10秒） | 対象の要素が現れ、アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 ピンチ、回転など複数の指を使うジェスチャーは[マルチタッチジェスチャー](./api-gestures)にあります。
 
@@ -228,6 +309,12 @@ await app.goBack();
 await app.expectVisible('todo-list-screen');
 ```
 
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
+
 ### `pressBack(options?)` {#pressback}
 
 Androidの戻るボタン、WebではブラウザーのBackです。iOSでは使えません（`ACTION_NOT_SUPPORTED`）。どのプラットフォームでも動くテストには`goBack()`を使ってください。
@@ -237,6 +324,12 @@ Androidの戻るボタン、WebではブラウザーのBackです。iOSでは使
 await app.pressBack();
 ```
 
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
+
 ### `openUrl(url, options?)` {#openurl}
 
 ディープリンクを開きます。iOSではアプリ内で、Androidでは`am start`で、Webではアドレスバーで開きます。アプリがバックグラウンドにあるとき（`app.device.sendToBackground()`）は、ほかのアプリからと同じようにアプリの外からリンクを開きます。iOSではシステムの「“…”で開きますか？」に答えます。アプリが前面に来てアイドルになった時点で解決します。
@@ -245,6 +338,12 @@ await app.pressBack();
 await app.openUrl('myapp://todos/42');
 await app.expectText('detail-title', 'Buy milk');
 ```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 ## その他の入力 {#other-inputs}
 

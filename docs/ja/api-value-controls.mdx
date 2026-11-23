@@ -31,6 +31,12 @@ await app.setValue('due-date-picker', '2031-12-24');
 await app.setValue('due-date-picker', new Date(2031, 11, 24));
 ```
 
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | 対象の要素が現れ、アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
+
 #### 対応するコントロール {#supported-controls}
 
 `setValue`は、ターゲットを囲むコンポーネントのprops（要素自身と数階層上まで）を調べます。見つからなければ、要素の中にある唯一のコントロールを使います。たとえば、testIDを落としてしまうコンポーネントを、testIDを持つ`View`で囲んだ場合です。
@@ -133,6 +139,12 @@ await app.setValue('due-date-picker', '2031-12-24');
 await app.adjustSlider('volume-slider', 0.5);
 ```
 
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | 対象の要素が現れ、アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
+
 - **`native`モード：** つまみはタッチスロップの分だけ指に遅れて動くため、Quiescoは値を読み返し、スライダーが目標位置から1ステップ（連続値スライダーでは範囲の1%）以内に収まるまで再度ドラッグします（常に同じ向きに、助走をつけて）。
 - **Web：** つまみをマウスでドラッグします。
 - **`js`モード：** その位置に当たる値をコールバックで渡します。
@@ -151,6 +163,12 @@ await app.expectText('quantity', '2');
 // カスタムアクション。VoiceOverのアクションローターと同じ
 await app.accessibilityAction({ id: 'todo-row', index: 0 }, 'archive');
 ```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | 対象の要素が現れ、アプリがアイドルになるまで待つ最大時間 |
+| `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
+| `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 `name`は要素が宣言しているものでなければなりません。そうでない場合、エラーに宣言済みのアクションが列挙されます。アクションの実行方法は次のとおりです。
 
