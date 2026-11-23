@@ -4,7 +4,7 @@ The host side of Quiesco: WebSocket server, the `Driver` your tests call (`this.
 and the iOS simulator and Android emulator device providers. Independent of any test runner — the
 adapters [`@quiesco/cucumber`](https://github.com/h2nology/quiesco/tree/main/packages/cucumber), [`@quiesco/vitest`](https://github.com/h2nology/quiesco/tree/main/packages/vitest)
 and [`@quiesco/jest`](https://github.com/h2nology/quiesco/tree/main/packages/jest) build on it; use it directly for another runner
-([using Quiesco without Cucumber](https://shift-14cc7601.mintlify.site/api#using-quiesco-without-cucumber)).
+([using Quiesco without Cucumber](https://shift-14cc7601.mintlify.site/api-custom-runners)).
 
 ```sh
 npm i -D @quiesco/core

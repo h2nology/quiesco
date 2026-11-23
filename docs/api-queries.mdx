@@ -1,0 +1,153 @@
+---
+title: "Queries and state"
+description: "Read elements and the element tree, wait for idle, see what keeps the app busy, call backdoors and reset the app."
+---
+
+Assertions are the usual way to check the screen. The methods on this page are for the rest: reading an
+element's details into the test, waiting for the app or finding out why it is busy, setting up state
+through the app's backdoors, and resetting it.
+
+## Reading elements {#reading-elements}
+
+### `query(target, options?)` {#query}
+
+Returns the [summaries](#element-summary) of all matching elements, at once: it waits for the app to be
+idle like every call, but not for a match to appear. No match gives `[]`.
+
+```ts
+const rows = await app.query({ id: 'todo-row' });
+console.log(rows.map((r) => r.text));
+
+// is the onboarding tip there? (no failure when it is not)
+if ((await app.query('onboarding-tip')).length > 0) await app.tap('dismiss-tip');
+```
+
+### `attributes(target, options?)` {#attributes}
+
+Returns the [summary](#element-summary) of the single matching element, after waiting for it to exist
+(Detox `getAttributes`). Fails with `MULTIPLE_MATCHES` when several elements match.
+
+```ts
+const slider = await app.attributes('volume-slider');
+expect(slider.value).toBeGreaterThan(0.5);
+
+const row = await app.attributes({ id: 'todo-row', index: 0 });
+console.log(row.rect); // { x, y, width, height }
+```
+
+### `getTree()` {#gettree}
+
+Returns the element tree as JSON, with semantic types: each node has `type`, `testID`, `text`, `role`,
+`semanticType`, a rounded `rect` and its `children`. The tree is also attached to failed tests
+([artifacts](./api-artifacts)).
+
+```ts
+const tree = await app.getTree();
+console.log(JSON.stringify(tree, null, 2));
+```
+
+## The element summary {#element-summary}
+
+`query`, `attributes` and every assertion return element summaries. A summary has:
+
+| Field | Meaning |
+|---|---|
+| `type` | The host component, e.g. `RCTView`, `RCTText`, `div` |
+| `semanticType` | The [semantic type](./api-matchers#semantic-types), when it is one of them |
+| `testID` | The test id |
+| `text` | The text of the element and its descendants (below) |
+| `label` | The accessibility label |
+| `role` | The accessibility role |
+| `value` | The value: text of an input, state of a switch, value of a slider or picker, or `accessibilityValue` |
+| `checked` | The checked state of a switch, checkbox or radio: `true`, `false` or `'mixed'` |
+| `enabled` | `false` when disabled |
+| `focused` | Whether it has the input focus |
+| `rect` | `{ x, y, width, height }` in window coordinates and logical units |
+| `visible` | Whether it is [visible](./api-matchers#visibility) |
+| `visibleRatio` | The visible fraction of its area, 0–1 |
+| `props` | Its serializable props (functions and React elements are left out) |
+
+The `text` of a summary (also in error messages and `elements.json`) puts a space between separate texts,
+e.g. `张 张三 S2024001` for an avatar, a name and an ID. The runs of one text stay together:
+`<Text>a<Text>b</Text></Text>` gives `ab`. Matching by `text` is unchanged: it compares the text without
+those spaces.
+
+## Waiting for the app {#waiting}
+
+### `waitForIdle(options?)` {#waitforidle}
+
+Waits until the app is idle and resolves with the time it took, in milliseconds. Every call already does
+this; use it before work outside the driver, such as reading the app's backend.
+
+```ts
+await app.tap('sync-now');
+const ms = await app.waitForIdle({ timeoutMs: 30_000 });
+console.log(`sync took ${ms} ms`);
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait |
+
+### `getIdleState()` {#getidlestate}
+
+Returns every [tracker's](./sync#trackers) state right now: what keeps the app busy.
+
+```ts
+for (const t of await app.getIdleState()) {
+  if (!t.idle) console.log(t.name, t.busy);
+  // network [ 'GET https://api.example.com/todos (1200ms)' ]
+}
+```
+
+Each entry has the tracker's `name`, whether it is `idle`, and `busy`, the reasons it is busy.
+
+## Setting up and resetting {#state}
+
+### `backdoor(name, ...args)` {#backdoor}
+
+Calls a backdoor that the app registered with `quiesco.backdoor` ([in-app API](./api-in-app)), and resolves
+with its result. The arguments and the result are JSON; TypeScript interfaces are fine. An argument that is
+not JSON fails with `NOT_SERIALIZABLE`.
+
+```ts
+// sign in without typing in the login form
+await app.backdoor('loginAs', 'ann@example.com');
+
+const todos = await app.backdoor<Todo[]>('todos.list');
+```
+
+With a `Backdoors` declaration, the name, the arguments and the result are type-checked
+([typed backdoors](./api-in-app#typed-backdoors)).
+
+### `reset()` {#reset}
+
+A soft reset: clears the app's storage, runs its `onReset` hooks, remounts it and waits for idle. Resolves
+with how long it took, in milliseconds. Quiesco does this before every test, so a test only calls it to
+start over in the middle.
+
+```ts
+await app.backdoor('loginAs', 'ann@example.com');
+// ...
+await app.reset();
+await app.expectVisible('login-screen');
+```
+
+## Platform {#platform-section}
+
+### `platform` {#platform}
+
+The platform under test: `'ios'`, `'android'` or `'web'`. A property, not a method. It is also
+`this.platform` in a Cucumber `QuiescoWorld`, and `session.platform`
+([per-platform steps](./driver-pattern#per-platform-steps)).
+
+```ts
+if (app.platform === 'android') {
+  // close the bottom sheet with the back button
+  await app.pressBack();
+} else {
+  await app.tap('sheet-close');
+}
+```
+
+A test that only runs on some platforms is better [tagged](./api-tags).

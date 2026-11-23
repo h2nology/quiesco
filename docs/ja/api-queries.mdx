@@ -1,0 +1,136 @@
+---
+title: "クエリと状態"
+description: "要素と要素ツリーを読み取り、アイドルを待ち、アプリをビジーにしているものを調べ、バックドアを呼び出し、アプリをリセットする。"
+---
+
+画面の確認には、通常はアサーションを使います。このページのメソッドはそれ以外の用途のためのものです。要素の詳細をテストに読み込む、アプリを待つ、またはアプリがビジーな理由を調べる、アプリのバックドアで状態をセットアップする、そしてアプリをリセットする、といった用途です。
+
+## 要素を読み取る {#reading-elements}
+
+### `query(target, options?)` {#query}
+
+マッチするすべての要素の[概要](#element-summary)をすぐに返します。ほかの呼び出しと同じくアプリがアイドルになるのは待ちますが、マッチが現れるのは待ちません。マッチがなければ`[]`です。
+
+```ts
+const rows = await app.query({ id: 'todo-row' });
+console.log(rows.map((r) => r.text));
+
+// オンボーディングのヒントはあるか？（なくても失敗しない）
+if ((await app.query('onboarding-tip')).length > 0) await app.tap('dismiss-tip');
+```
+
+### `attributes(target, options?)` {#attributes}
+
+要素が存在するまで待ったうえで、マッチした唯一の要素の[概要](#element-summary)を返します（Detoxの`getAttributes`）。複数の要素がマッチした場合は`MULTIPLE_MATCHES`で失敗します。
+
+```ts
+const slider = await app.attributes('volume-slider');
+expect(slider.value).toBeGreaterThan(0.5);
+
+const row = await app.attributes({ id: 'todo-row', index: 0 });
+console.log(row.rect); // { x, y, width, height }
+```
+
+### `getTree()` {#gettree}
+
+セマンティックな型付きの要素ツリーをJSONで返します。各ノードは`type`、`testID`、`text`、`role`、`semanticType`、丸めた`rect`、そして`children`を持ちます。ツリーは失敗したテストにも添付されます（[成果物](./api-artifacts)）。
+
+```ts
+const tree = await app.getTree();
+console.log(JSON.stringify(tree, null, 2));
+```
+
+## 要素の概要 {#element-summary}
+
+`query`、`attributes`、そしてすべてのアサーションは要素の概要を返します。概要には次のフィールドがあります。
+
+| フィールド | 意味 |
+|---|---|
+| `type` | ホストコンポーネント。例：`RCTView`、`RCTText`、`div` |
+| `semanticType` | [セマンティックな型](./api-matchers#semantic-types)（そのいずれかに当たる場合） |
+| `testID` | テストID |
+| `text` | 要素とその子孫のテキスト（後述） |
+| `label` | アクセシビリティラベル |
+| `role` | アクセシビリティロール |
+| `value` | 値：入力欄のテキスト、スイッチの状態、スライダーやピッカーの値、または`accessibilityValue` |
+| `checked` | スイッチ、チェックボックス、ラジオのチェック状態：`true`、`false`、`'mixed'`のいずれか |
+| `enabled` | 無効なら`false` |
+| `focused` | 入力フォーカスがあるかどうか |
+| `rect` | ウィンドウ座標・論理単位での`{ x, y, width, height }` |
+| `visible` | [表示されている](./api-matchers#visibility)かどうか |
+| `visibleRatio` | 面積のうち表示されている割合（0–1） |
+| `props` | シリアライズ可能なprops（関数とReact要素は除く） |
+
+概要の`text`（エラーメッセージや`elements.json`でも同じ）は、別々のテキストの間に空白を入れます。たとえばアバター、名前、学籍番号は`张 张三 S2024001`となります。1つのテキストの中の部分はつながったままです：`<Text>a<Text>b</Text></Text>`は`ab`になります。`text`での照合は変わらず、空白を入れないテキストで比べます。
+
+## アプリを待つ {#waiting}
+
+### `waitForIdle(options?)` {#waitforidle}
+
+アプリがアイドルになるまで待ち、かかった時間（ミリ秒）で解決します。すべての呼び出しが既にこれを行っています。アプリのバックエンドを読むなど、ドライバーの外で作業する前に使ってください。
+
+```ts
+await app.tap('sync-now');
+const ms = await app.waitForIdle({ timeoutMs: 30_000 });
+console.log(`sync took ${ms} ms`);
+```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10秒） | 待つ時間 |
+
+### `getIdleState()` {#getidlestate}
+
+すべての[トラッカー](./sync#trackers)の現在の状態を返します。アプリを何がビジーにしているかがわかります。
+
+```ts
+for (const t of await app.getIdleState()) {
+  if (!t.idle) console.log(t.name, t.busy);
+  // network [ 'GET https://api.example.com/todos (1200ms)' ]
+}
+```
+
+各エントリーには、トラッカーの`name`、アイドルかどうかを表す`idle`、ビジーな理由を表す`busy`があります。
+
+## セットアップとリセット {#state}
+
+### `backdoor(name, ...args)` {#backdoor}
+
+アプリが`quiesco.backdoor`で登録したバックドアを呼び出し（[アプリ内API](./api-in-app)）、その結果で解決します。引数と結果はJSONです（TypeScriptのinterfaceも可）。JSONでない引数は`NOT_SERIALIZABLE`で失敗します。
+
+```ts
+// ログインフォームに入力せずにサインインする
+await app.backdoor('loginAs', 'ann@example.com');
+
+const todos = await app.backdoor<Todo[]>('todos.list');
+```
+
+`Backdoors`を宣言すると、名前、引数、結果が型チェックされます（[型付きバックドア](./api-in-app#typed-backdoors)）。
+
+### `reset()` {#reset}
+
+ソフトリセットです。アプリのストレージをクリアし、`onReset`フックを実行し、アプリを再マウントしてアイドルを待ちます。かかった時間（ミリ秒）で解決します。Quiescoは各テストの前にこれを行うので、テストでこれを呼ぶのは途中でやり直したいときだけです。
+
+```ts
+await app.backdoor('loginAs', 'ann@example.com');
+// ...
+await app.reset();
+await app.expectVisible('login-screen');
+```
+
+## プラットフォーム {#platform-section}
+
+### `platform` {#platform}
+
+テスト対象のプラットフォームで、`'ios'`、`'android'`、`'web'`のいずれかです。メソッドではなくプロパティです。Cucumberの`QuiescoWorld`では`this.platform`、また`session.platform`でも取得できます（[プラットフォームごとに異なるステップ](./driver-pattern#per-platform-steps)）。
+
+```ts
+if (app.platform === 'android') {
+  // 戻るボタンでボトムシートを閉じる
+  await app.pressBack();
+} else {
+  await app.tap('sheet-close');
+}
+```
+
+一部のプラットフォームでだけ実行するテストには、[タグを付ける](./api-tags)ほうが適しています。

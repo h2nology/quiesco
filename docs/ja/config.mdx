@@ -265,7 +265,7 @@ export default defineConfig(({ workerIndex, workerCount }) => ({
 </ResponseField>
 
 <ResponseField name="actions.gestureSlop" type="{ pinch?: number; rotation?: number }" default="プラットフォームごと">
-  アプリのピンチ / 回転の認識器が反応するまでに指が動く量（論理単位、ラジアン）。`pinch`と`rotate`はまずこの分だけ動かします。デフォルト値は標準の認識器（UIKit、react-native-gesture-handler）に合わせてあります。ほかの認識器ではこの値を設定し、補正しないなら`0`にします（[マルチタッチジェスチャー](./api#multi-finger-gestures)）。
+  アプリのピンチ / 回転の認識器が反応するまでに指が動く量（論理単位、ラジアン）。`pinch`と`rotate`はまずこの分だけ動かします。デフォルト値は標準の認識器（UIKit、react-native-gesture-handler）に合わせてあります。ほかの認識器ではこの値を設定し、補正しないなら`0`にします（[マルチタッチジェスチャー](./api-gestures)）。
 </ResponseField>
 
 ## reset {#reset}
@@ -298,7 +298,7 @@ export default defineConfig(({ workerIndex, workerCount }) => ({
 
 ## artifacts {#artifacts}
 
-シナリオごとに記録するファイル。`artifacts/<date-time>-<platform>/<nnn>-<scenario>/`に書き出します（[ファイルの中身](./api#artifacts)）。`video`、`logs`、`timeline`はそれぞれポリシーを取ります：`'none'`、`'failing'`（すべてのシナリオで記録し、失敗したときに残す）、`'all'`。`QUIESCO_ARTIFACTS=none|failing|all`で、1回の実行の3つをまとめて設定できます。
+シナリオごとに記録するファイル。`artifacts/<date-time>-<platform>/<nnn>-<scenario>/`に書き出します（[ファイルの中身](./api-artifacts)）。`video`、`logs`、`timeline`はそれぞれポリシーを取ります：`'none'`、`'failing'`（すべてのシナリオで記録し、失敗したときに残す）、`'all'`。`QUIESCO_ARTIFACTS=none|failing|all`で、1回の実行の3つをまとめて設定できます。
 
 <ResponseField name="artifacts.dir" type="string" default="'artifacts'">
   書き出し先（実行ディレクトリからの相対パス）。並列実行で別のディレクトリにするときは、config pluginにも渡します：`withQuiesco(config, { artifactsDir })`。
@@ -347,7 +347,7 @@ export default defineConfig(({ workerIndex, workerCount }) => ({
 ## tags {#tags}
 
 <ResponseField name="tags" type="object">
-  Quiescoが反応する[シナリオタグ](./api#scenario-tags)の名前を変えます。例：`{ web: '@browser', webkit: '@safari' }`。Vitestでは、`vitest.config.ts`の`quiesco({ tags })`にも同じ値を渡します。
+  Quiescoが反応する[シナリオタグ](./api-tags)の名前を変えます。例：`{ web: '@browser', webkit: '@safari' }`。Vitestでは、`vitest.config.ts`の`quiesco({ tags })`にも同じ値を渡します。
 
   <Expandable title="プロパティ">
     <ResponseField name="ios" type="string" default="'@ios'" />

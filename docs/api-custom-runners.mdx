@@ -1,0 +1,235 @@
+---
+title: "Other test runners"
+description: "How the Vitest and Jest adapters run a session, and how to drive Quiesco from any other runner with Lifecycle or the session."
+---
+
+Quiesco has adapters for Cucumber, Vitest and Jest ([test runners](./runners)). This page describes what
+the Vitest and Jest adapters do, and how to use `@quiesco/core` directly from any other runner (Mocha, a
+plain script).
+
+## Vitest and Jest {#vitest-and-jest}
+
+`@quiesco/vitest` and `@quiesco/jest` behave like the Cucumber adapter. Examples are in
+[Vitest](./vitest), [Jest](./jest) and
+[examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e).
+
+| | Vitest (`@quiesco/vitest`) | Jest (`@quiesco/jest`) |
+|---|---|---|
+| Setup | `plugins: [quiescoPlugin()]`, `test: { ...quiesco() }` from `@quiesco/vitest/config` | `preset: '@quiesco/jest'`, `maxWorkers`, a `testTimeout` |
+| The driver | `test('…', async ({ app, session }) => …)` | the global `quiesco.app` / `quiesco.session` |
+| Session | One per worker: a worker fixture | One per worker process: kept by the test environment, closed when Jest ends the worker (in band: by the preset's `globalTeardown`) |
+| Platform tags | In `describe` / test titles and `{ tags }` (declared by `quiesco()`) | In `describe` / test titles |
+| Before each test | Skipped if tagged for another platform, else reset | Same (Jest's `test_start` / `test_started` events) |
+| After a failure | Evidence written to the artifacts directory, its files listed in the failure message | Same |
+| Parallel runs | `quiesco({ workers: N })`: each worker on a device of its own ([parallel runs](./parallel)) | `maxWorkers: N`, same |
+
+Details:
+
+- The innermost level with a platform tag decides, as in Gherkin: a test tagged `@android` in a
+  `describe('… @native')` runs on Android only ([test tags](./api-tags)).
+- A session that fails to start fails the remaining tests at once, instead of starting again for each.
+- With Jest, a config's own `globalTeardown` replaces the preset's: call `@quiesco/jest/teardown` from it
+  (see the example app).
+- The first test of a Vitest run also waits for the session to start, and booting a device can take
+  minutes: `quiesco()` sets `testTimeout` to 300 s for that reason.
+
+## Lifecycle {#lifecycle}
+
+Any other runner uses `@quiesco/core` directly. `Lifecycle` maps a run onto four calls; the adapters above
+are thin layers over it.
+
+```ts
+import { Lifecycle, titleTags } from '@quiesco/core';
+
+// config from quiesco.config.*, platform from QUIESCO_PLATFORM
+const lifecycle = new Lifecycle();
+
+// once: server, device, install, launch, connect
+await lifecycle.beforeAll();
+
+// per test
+const name = 'logs in @native';
+const tags = [titleTags(name)];
+let failed = false;
+try {
+  if ((await lifecycle.before(tags, name)) !== 'skipped') {
+    // the driver: the same object as `app` in the other pages
+    const app = lifecycle.current.driver;
+    await app.tap('login-button');
+  }
+} catch (e) {
+  failed = true;
+  throw e;
+} finally {
+  // evidence + artifacts per policy
+  const { attachments, files } = await lifecycle.after({ tags: tags.flat(), failed });
+}
+
+// once, at the end
+await lifecycle.afterAll();
+```
+
+### `new Lifecycle(options?)` {#new-lifecycle}
+
+| Option | Default | Meaning |
+|---|---|---|
+| `config` | loaded from `quiesco.config.*` (`QUIESCO_CONFIG` picks another file) | The config to use |
+| `platform` | `QUIESCO_PLATFORM` | `'ios'`, `'android'` or `'web'` |
+| `worker` | `{ index: 0, count: 1 }` | The parallel worker this lifecycle runs in: the config function gets it, and the session takes its own device, port and artifacts directory |
+| `logger` | the console | Where the repeated-failure hint goes |
+| `env` | `process.env` | The environment to read `QUIESCO_CONFIG` and `QUIESCO_PLATFORM` from |
+| `createSession` | `createSession` | A session factory, for tests and custom setups |
+
+### `beforeAll()` {#beforeall}
+
+Loads the config, starts the server and the device, installs and launches the app, and waits for the agent
+to connect.
+
+```ts
+await lifecycle.beforeAll();
+```
+
+### `before(tags, name?)` {#before}
+
+Before each test. Returns `'skipped'` for a test tagged for another platform or browser (or once the run
+bailed out after repeated identical failures, [`bailOnRepeatedFailure`](./config#top-level)); otherwise it
+starts the test's artifacts and resets the app. Pass the tags grouped by level, outermost (suite / feature)
+first, so the innermost platform tag decides.
+
+```ts
+// a test inside describe('settings @native')
+const result = await lifecycle.before([['@native'], titleTags('back closes it @android')], 'back closes it');
+if (result === 'skipped') return;
+```
+
+### `current` {#current}
+
+The running session; `lifecycle.current.driver` is the driver. Throws when `beforeAll` did not complete.
+
+```ts
+const app = lifecycle.current.driver;
+await app.expectVisible('home-screen');
+```
+
+### `after({ tags, failed, error? })` {#after}
+
+After each test. On failure it collects the evidence; with the artifacts policy it also keeps video, logs
+and timeline. It returns `{ attachments, files }`: attachments for runners with a report that takes them,
+the files written for runners that print paths. Pass `error` (an Error or the runner's message) so repeated
+identical failures can be told apart. A test that passed still fails (`after` throws) when the app reported
+an error after its last step.
+
+```ts
+const { attachments, files } = await lifecycle.after({ tags: ['@native'], failed: true, error });
+if (files.length > 0) console.log(`evidence:\n  ${files.join('\n  ')}`);
+```
+
+### `afterAll()` {#afterall}
+
+Closes the connection, the app and the device (per config).
+
+```ts
+await lifecycle.afterAll();
+```
+
+### `titleTags(title)` {#titletags}
+
+The tags written in a test or suite title.
+
+```ts
+titleTags('adds a todo @ios @smoke'); // ['@ios', '@smoke']
+```
+
+## The session {#session}
+
+Below `Lifecycle` is the session itself, for full control: tags and skipping are then up to you.
+
+```ts
+import { createSession, loadConfig, resolvePlatform } from '@quiesco/core';
+
+const { config } = await loadConfig();
+const session = await createSession({ config, platform: resolvePlatform() });
+
+// per test
+await session.startScenario({ name: 'logs in' });
+await session.beforeScenario({ tags: ['@native'], name: 'logs in' });
+let failed = false;
+try {
+  await session.driver.tap('login-button');
+} catch (e) {
+  failed = true;
+  throw e;
+} finally {
+  const { attachments, files } = await session.afterScenario({ failed });
+}
+
+await session.dispose();
+```
+
+### `createSession({ config, platform, worker?, logger? })` {#createsession}
+
+Starts the server, boots the device, installs and launches the app, and waits until the agent connects.
+`worker` (`{ index, count }`, default the only worker) gives the session its own device, server port
+(`server.port + index`) and artifacts directory.
+
+```ts
+const session = await createSession({ config, platform: 'android', worker: { index: 1, count: 2 } });
+```
+
+### `startScenario({ name })` {#startscenario}
+
+Starts a test's artifacts (timeline, video) in a directory named after it. Call it before `beforeScenario`,
+so the reset is part of the video.
+
+```ts
+await session.startScenario({ name: 'adds a todo' });
+```
+
+### `beforeScenario({ tags?, name? })` {#beforescenario}
+
+Undoes the previous test's [runtime sync](./api-runtime-sync) and [device](./api-device) changes, brings a
+backgrounded app back or starts a terminated one, then soft resets the app, or terminates and relaunches it
+for `@hard-reset` (or `reset.default: 'hard'`). If the app crashed or stopped answering, it is started
+again.
+
+```ts
+await session.beforeScenario({ tags: ['@hard-reset'], name: 'first launch' });
+```
+
+### `afterScenario({ failed })` {#afterscenario}
+
+Ends the test. On failure: the framed screenshot, element tree and idle state; plus video, logs and
+timeline per [the artifacts policy](./api-artifacts). Returns `{ attachments, files }`.
+
+```ts
+const { files } = await session.afterScenario({ failed: true });
+```
+
+### `collectEvidence()` {#collectevidence}
+
+Returns the failure evidence alone, without writing artifacts: `screenshot`, `tree`, `elements`, `idle`,
+and `errors` for any piece it could not collect (after a crash, the screenshot and `crash` only).
+
+```ts
+const evidence = await session.collectEvidence();
+if (evidence.screenshot) await fs.writeFile('failure.png', evidence.screenshot);
+```
+
+### `dispose()` {#dispose}
+
+At the end: undoes the last test's device changes and closes the app. The device keeps running unless
+[`devices.*.shutdown`](./config#devices) is set.
+
+```ts
+await session.dispose();
+```
+
+## Running {#running}
+
+One session drives one device; for [parallel runs](./parallel) each worker has its own, with its `worker`
+index. `quiesco test --runner cucumber|jest|vitest` sets `QUIESCO_PLATFORM` and starts the runner. For other
+runners, set `QUIESCO_PLATFORM` (or pass the platform to `resolvePlatform`) and start the runner yourself:
+
+```sh
+QUIESCO_PLATFORM=ios npx mocha e2e/**/*.test.ts
+```

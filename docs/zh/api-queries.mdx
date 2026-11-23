@@ -1,0 +1,136 @@
+---
+title: "查询与状态"
+description: "读取元素和元素树、等待空闲、查看是什么让 App 忙碌、调用后门以及重置 App。"
+---
+
+断言是检查屏幕的常用方式。本页的方法用于其余的需求：把元素的详细信息读进测试，等待 App 或查明它为什么忙碌，通过 App 的后门准备状态，以及重置 App。
+
+## 读取元素 {#reading-elements}
+
+### `query(target, options?)` {#query}
+
+立即返回所有匹配元素的 [摘要](#element-summary)：它和所有调用一样会等待 App 空闲，但不会等待匹配出现。没有匹配时返回 `[]`。
+
+```ts
+const rows = await app.query({ id: 'todo-row' });
+console.log(rows.map((r) => r.text));
+
+// 新手引导提示在不在？（不在时也不会失败）
+if ((await app.query('onboarding-tip')).length > 0) await app.tap('dismiss-tip');
+```
+
+### `attributes(target, options?)` {#attributes}
+
+等待元素出现后，返回唯一匹配元素的 [摘要](#element-summary)（相当于 Detox 的 `getAttributes`）。匹配到多个元素时以 `MULTIPLE_MATCHES` 失败。
+
+```ts
+const slider = await app.attributes('volume-slider');
+expect(slider.value).toBeGreaterThan(0.5);
+
+const row = await app.attributes({ id: 'todo-row', index: 0 });
+console.log(row.rect); // { x, y, width, height }
+```
+
+### `getTree()` {#gettree}
+
+以 JSON 返回元素树，带语义类型：每个节点包含 `type`、`testID`、`text`、`role`、`semanticType`、取整后的 `rect` 及其 `children`。失败的测试也会附上这棵树（[产物](./api-artifacts)）。
+
+```ts
+const tree = await app.getTree();
+console.log(JSON.stringify(tree, null, 2));
+```
+
+## 元素摘要 {#element-summary}
+
+`query`、`attributes` 和所有断言都返回元素摘要。摘要包含：
+
+| 字段 | 含义 |
+|---|---|
+| `type` | host 组件，例如 `RCTView`、`RCTText`、`div` |
+| `semanticType` | [语义类型](./api-matchers#semantic-types)（属于其中之一时） |
+| `testID` | test id |
+| `text` | 元素及其后代的文本（见下文） |
+| `label` | 无障碍标签 |
+| `role` | 无障碍角色 |
+| `value` | 值：输入框的文本、开关的状态、滑块或选择器的值，或 `accessibilityValue` |
+| `checked` | 开关、复选框或单选框的选中状态：`true`、`false` 或 `'mixed'` |
+| `enabled` | 禁用时为 `false` |
+| `focused` | 是否拥有输入焦点 |
+| `rect` | `{ x, y, width, height }`，窗口坐标，逻辑单位 |
+| `visible` | 是否 [可见](./api-matchers#visibility) |
+| `visibleRatio` | 其面积中可见部分的比例，0–1 |
+| `props` | 可序列化的 props（不含函数和 React 元素） |
+
+摘要中的 `text`（错误信息和 `elements.json` 里也一样）在分开的文本之间加空格，例如头像、姓名和学号显示为 `张 张三 S2024001`。同一个文本里的各段仍连在一起：`<Text>a<Text>b</Text></Text>` 得到 `ab`。按 `text` 匹配的行为不变：比较的是不带这些空格的文本。
+
+## 等待 App {#waiting}
+
+### `waitForIdle(options?)` {#waitforidle}
+
+等待直到 App 空闲，resolve 的值为所用时间（毫秒）。每个调用本来就会这样做；在 driver 之外的操作（例如读取 App 的后端）之前使用它。
+
+```ts
+await app.tap('sync-now');
+const ms = await app.waitForIdle({ timeoutMs: 30_000 });
+console.log(`sync took ${ms} ms`);
+```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs`（10 s） | 最多等待多久 |
+
+### `getIdleState()` {#getidlestate}
+
+返回此刻每个 [跟踪器](./sync#trackers) 的状态：是什么让 App 处于忙碌。
+
+```ts
+for (const t of await app.getIdleState()) {
+  if (!t.idle) console.log(t.name, t.busy);
+  // network [ 'GET https://api.example.com/todos (1200ms)' ]
+}
+```
+
+每一项包含跟踪器的 `name`、是否 `idle`，以及 `busy`，即它忙碌的原因。
+
+## 准备与重置 {#state}
+
+### `backdoor(name, ...args)` {#backdoor}
+
+调用 App 用 `quiesco.backdoor` 注册的后门（[App 内 API](./api-in-app)），并以其结果 resolve。参数和结果均为 JSON；TypeScript 的 interface 也可以。不是 JSON 的参数会以 `NOT_SERIALIZABLE` 失败。
+
+```ts
+// 登录，无需在登录表单中输入
+await app.backdoor('loginAs', 'ann@example.com');
+
+const todos = await app.backdoor<Todo[]>('todos.list');
+```
+
+声明了 `Backdoors` 后，名称、参数和结果都会经过类型检查（[类型化后门](./api-in-app#typed-backdoors)）。
+
+### `reset()` {#reset}
+
+软重置：清空 App 的存储，运行其 `onReset` hook，重新挂载 App 并等待空闲。resolve 的值为所用时间（毫秒）。Quiesco 在每个测试之前都会执行它，所以测试只在需要中途从头开始时才调用它。
+
+```ts
+await app.backdoor('loginAs', 'ann@example.com');
+// ...
+await app.reset();
+await app.expectVisible('login-screen');
+```
+
+## 平台 {#platform-section}
+
+### `platform` {#platform}
+
+被测平台：`'ios'`、`'android'` 或 `'web'`。它是属性，不是方法。在 Cucumber 的 `QuiescoWorld` 中也可以用 `this.platform`，以及 `session.platform`（[按平台区分的步骤](./driver-pattern#per-platform-steps)）。
+
+```ts
+if (app.platform === 'android') {
+  // 用返回键关闭底部面板
+  await app.pressBack();
+} else {
+  await app.tap('sheet-close');
+}
+```
+
+只在部分平台上运行的测试，最好用 [标签](./api-tags) 来标注。

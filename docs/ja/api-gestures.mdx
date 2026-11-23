@@ -1,0 +1,91 @@
+---
+title: "マルチタッチジェスチャー"
+description: "ピンチ、回転、そして任意の本数の指を時刻付きの経路に沿って動かす操作を、実際のタッチで行う。"
+---
+
+`pinch`、`rotate`、`multiTouch`は、複数の実際の指を同時に画面に置きます。iOSは1つのイベントに合成した`UITouch`、Androidはマルチポインターの`MotionEvent`、WebはCDPの`Input.dispatchTouchEvent`です。どれもほかのアクションと同じく、前後でアプリがアイドルになるのを待ち（[すべての呼び出しはアプリを待つ](./api#every-call-waits)）、[呼び出しのオプション](./api#call-options)を受け取ります。
+
+これらには実際のタッチが必要です。
+
+- `js`モードでは実行できません。ジェスチャー認識器には実際のタッチが必要なためです。
+- Webではタッチ対応のビューポートが必要です。タッチ非対応のビューポートでは`ACTION_NOT_SUPPORTED`で失敗します。複数の指が必要なテストにはタグを付け、そうしたビューポートではスキップできるようにしてください（[テストタグ](./api-tags)）。サンプルアプリでは`@multi-touch`タグを付け、デスクトップのビューポートを`--tags 'not @multi-touch'`で実行しています。
+
+座標は論理単位です（iOSではpt、Androidではdp、WebではCSS px）。
+
+## ピンチと回転 {#pinch-and-rotate}
+
+### `pinch(target, scale, options?)` {#pinch}
+
+要素上の2本の指を、間隔が`scale`倍になるまで広げます（`scale` > 1、拡大）または狭めます（`scale` < 1、縮小）。
+
+```ts
+// 地図を2倍に拡大する
+await app.pinch('map', 2);
+
+// 縮小する。指は垂直線上を動く
+await app.pinch('photo', 0.5, { angle: Math.PI / 2, speed: 'slow' });
+```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `angle` | `0`（水平） | 指が動く直線の角度（ラジアン） |
+| `speed` | `'normal'` | `'slow'`、`'normal'`、`'fast'`のいずれか |
+
+`scale`は正の数でなければなりません。1回では画面に収まらないピンチ（例：`pinch('map', 10)`）は、ユーザーと同じように複数回のピンチに分けて行います。指は要素の上に置かれ、ウィンドウの外には出ません。
+
+### `rotate(target, radians, options?)` {#rotate}
+
+2本の指が要素の中心のまわりを`radians`だけ回ります。正の値は画面上で時計回りです。
+
+```ts
+// 写真を時計回りに90度回す
+await app.rotate('photo', Math.PI / 2);
+
+// ゆっくり元に戻す
+await app.rotate('photo', -Math.PI / 2, { speed: 'slow' });
+```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `speed` | `'normal'` | `'slow'`、`'normal'`、`'fast'`のいずれか |
+
+### 認識器のしきい値 {#recognizer-thresholds}
+
+ジェスチャー認識器は、指が少し動いて有効になってから測定を始めます。そのため、単に「指の間隔を2倍にする」だけでは、アプリ側では2未満のスケールとして現れます。Quiescoはまずその有効化に必要な距離だけ指を動かすので、アプリの認識器は要求どおりのスケールや角度を報告します（誤差は約2%と1°以内）。デフォルト値は各プラットフォームの標準の認識器に合わせています。
+
+| | ピンチ | 回転 |
+|---|---|---|
+| iOS（UIKitの認識器。react-native-gesture-handlerや`ScrollView`のズームの裏側でも使われる） | 9 pt | 7° |
+| Android（react-native-gesture-handler：3 × タッチスロップ） | 26 dp | 9° |
+| Web（react-native-gesture-handlerのWeb版：3 × 15 px） | 46 px | 0° |
+
+別の認識器を使う場合は[`actions.gestureSlop`](./config#actions)に`{ pinch, rotation }`を設定します（論理単位とラジアン）。`0`にすると、指を`scale` / `radians`のとおり正確に動かします。
+
+## 任意のタッチ経路 {#any-touch-paths}
+
+### `multiTouch(fingers, options?)` {#multitouch}
+
+任意の本数の指を、時刻付きの経路に沿って動かします。`fingers[i]`は指`i`の`{ x, y, t }`の点列で、`t`は開始からのミリ秒です。各指は最初の点で触れ、最後の点で離れます。
+
+```ts
+// 2本の指でチャートを一緒に上へスワイプする
+await app.multiTouch(
+  [
+    [{ x: 100, y: 300, t: 0 }, { x: 100, y: 100, t: 300 }],
+    [{ x: 200, y: 300, t: 0 }, { x: 200, y: 100, t: 300 }],
+  ],
+  { within: 'chart' },
+);
+
+// 1本の指で長押ししながら、もう1本でタップする（ウィンドウ座標）
+await app.multiTouch([
+  [{ x: 80, y: 400, t: 0 }, { x: 80, y: 400, t: 1000 }],
+  [{ x: 280, y: 400, t: 400 }, { x: 280, y: 400, t: 450 }],
+]);
+```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `within` | | ターゲット。点はその要素自身の座標系になります（要素は表示されている必要があります）。指定しなければウィンドウ座標 |
+
+指は1本から10本まで指定できます。各指には少なくとも1つの点が必要で、時刻は負でなく、減少してはいけません。

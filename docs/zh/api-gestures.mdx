@@ -1,0 +1,91 @@
+---
+title: "多指手势"
+description: "捏合、旋转，以及任意数量的手指沿定时路径移动，都是真实的触摸。"
+---
+
+`pinch`、`rotate` 和 `multiTouch` 会同时把多根真实的手指放到屏幕上：iOS 在一个事件中合成多个 `UITouch`，Android 使用多指针的 `MotionEvent`，web 使用 CDP 的 `Input.dispatchTouchEvent`。与所有操作一样，它们前后都会等待 App 空闲（[每个调用都会等待](./api#every-call-waits)），并接受 [调用选项](./api#call-options)。
+
+它们需要真实的触摸：
+
+- `js` 模式无法执行它们：手势识别器需要真实的触摸。
+- 在 web 上，它们需要支持触摸的视口。不支持触摸的视口会以 `ACTION_NOT_SUPPORTED` 失败。请给需要多指的测试加上标签，以便这类视口跳过它们（[测试标签](./api-tags)）；示例 App 给它们加上 `@multi-touch`，并以 `--tags 'not @multi-touch'` 运行桌面视口。
+
+坐标使用逻辑单位：iOS 上为 pt，Android 上为 dp，web 上为 CSS px。
+
+## 捏合与旋转 {#pinch-and-rotate}
+
+### `pinch(target, scale, options?)` {#pinch}
+
+两根手指在元素上张开（`scale` > 1，放大）或捏合（`scale` < 1，缩小），直到两指距离变为原来的 `scale` 倍。
+
+```ts
+// 把地图放大到两倍
+await app.pinch('map', 2);
+
+// 缩小，两指位于一条竖直线上
+await app.pinch('photo', 0.5, { angle: Math.PI / 2, speed: 'slow' });
+```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `angle` | `0`（水平） | 手指移动所沿直线的角度，单位为弧度 |
+| `speed` | `'normal'` | `'slow'`、`'normal'` 或 `'fast'` |
+
+`scale` 必须是正数。一次无法在屏幕内完成的捏合（例如 `pinch('map', 10)`）会像用户那样分成多次捏合完成。手指在元素上按下，并始终留在窗口内。
+
+### `rotate(target, radians, options?)` {#rotate}
+
+两根手指绕元素中心转动 `radians` 弧度；正值为屏幕上的顺时针方向。
+
+```ts
+// 把照片顺时针转四分之一圈
+await app.rotate('photo', Math.PI / 2);
+
+// 再慢慢转回来
+await app.rotate('photo', -Math.PI / 2, { speed: 'slow' });
+```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `speed` | `'normal'` | `'slow'`、`'normal'` 或 `'fast'` |
+
+### 识别器阈值 {#recognizer-thresholds}
+
+手势识别器只有在激活之后（手指移动了一小段距离后）才开始测量，因此单纯的“两指距离变为两倍”在 App 中显示出的缩放比例会小于 2。Quiesco 会先让手指移动这段激活距离，因此 App 的识别器报告的缩放比例或角度就是所请求的值（实测误差在约 2% 和 1° 以内）。默认值对应各平台的标准识别器：
+
+| | 捏合 | 旋转 |
+|---|---|---|
+| iOS（UIKit 识别器，也包括 react-native-gesture-handler 和 `ScrollView` 缩放所用的识别器） | 9 pt | 7° |
+| Android（react-native-gesture-handler：3 × touch slop） | 26 dp | 9° |
+| Web（react-native-gesture-handler web：3 × 15 px） | 46 px | 0° |
+
+对于其他识别器，设置 [`actions.gestureSlop`](./config#actions)：`{ pinch, rotation }`，单位为逻辑单位和弧度。`0` 表示手指严格按 `scale` / `radians` 移动。
+
+## 任意触摸路径 {#any-touch-paths}
+
+### `multiTouch(fingers, options?)` {#multitouch}
+
+让任意数量的手指沿定时路径移动。`fingers[i]` 是第 `i` 根手指的 `{ x, y, t }` 点列，`t` 为从开始算起的毫秒数；手指从第一个点按下，到最后一个点抬起。
+
+```ts
+// 两根手指在图表上一起向上滑动
+await app.multiTouch(
+  [
+    [{ x: 100, y: 300, t: 0 }, { x: 100, y: 100, t: 300 }],
+    [{ x: 200, y: 300, t: 0 }, { x: 200, y: 100, t: 300 }],
+  ],
+  { within: 'chart' },
+);
+
+// 一根手指长按，同时另一根手指点击，使用窗口坐标
+await app.multiTouch([
+  [{ x: 80, y: 400, t: 0 }, { x: 80, y: 400, t: 1000 }],
+  [{ x: 280, y: 400, t: 400 }, { x: 280, y: 400, t: 450 }],
+]);
+```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `within` | | 一个 target：各点使用该元素自身的坐标（元素必须可见）。不指定时使用窗口坐标 |
+
+支持 1 到 10 根手指。每根手指至少需要一个点，其时间必须非负且非递减。

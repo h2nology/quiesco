@@ -265,7 +265,7 @@ Quiesco 在每次调用前如何判断 App 已经空闲（[同步机制](./sync)
 </ResponseField>
 
 <ResponseField name="actions.gestureSlop" type="{ pinch?: number; rotation?: number }" default="按平台而定">
-  App 的捏合 / 旋转识别器生效之前手指需要移动的距离（逻辑单位、弧度）。`pinch` 和 `rotate` 会先移动这么多。默认值适用于标准识别器（UIKit、react-native-gesture-handler）；使用其他识别器时自行设置，设为 `0` 则不做补偿（[多指手势](./api#multi-finger-gestures)）。
+  App 的捏合 / 旋转识别器生效之前手指需要移动的距离（逻辑单位、弧度）。`pinch` 和 `rotate` 会先移动这么多。默认值适用于标准识别器（UIKit、react-native-gesture-handler）；使用其他识别器时自行设置，设为 `0` 则不做补偿（[多指手势](./api-gestures)）。
 </ResponseField>
 
 ## reset {#reset}
@@ -298,7 +298,7 @@ App 加载 JS 的 Metro 开发服务器。当 App 需要 Metro（`devClient.metr
 
 ## artifacts {#artifacts}
 
-每个场景记录的文件，位于 `artifacts/<date-time>-<platform>/<nnn>-<scenario>/`（[文件内容](./api#artifacts)）。`video`、`logs`、`timeline` 各自取一个策略：`'none'`、`'failing'`（每个场景都记录，失败时保留）或 `'all'`。`QUIESCO_ARTIFACTS=none|failing|all` 会在一次运行中同时设置这三项。
+每个场景记录的文件，位于 `artifacts/<date-time>-<platform>/<nnn>-<scenario>/`（[文件内容](./api-artifacts)）。`video`、`logs`、`timeline` 各自取一个策略：`'none'`、`'failing'`（每个场景都记录，失败时保留）或 `'all'`。`QUIESCO_ARTIFACTS=none|failing|all` 会在一次运行中同时设置这三项。
 
 <ResponseField name="artifacts.dir" type="string" default="'artifacts'">
   输出目录，相对于运行目录。并行运行时如果换了目录，也要传给 config plugin：`withQuiesco(config, { artifactsDir })`。
@@ -347,7 +347,7 @@ App 中未捕获的错误会让当前步骤失败。这些配置项决定哪些�
 ## tags {#tags}
 
 <ResponseField name="tags" type="object">
-  重命名 Quiesco 识别的[场景标签](./api#scenario-tags)，例如 `{ web: '@browser', webkit: '@safari' }`。使用 Vitest 时，在 `vitest.config.ts` 中给 `quiesco({ tags })` 传入同样的值。
+  重命名 Quiesco 识别的[场景标签](./api-tags)，例如 `{ web: '@browser', webkit: '@safari' }`。使用 Vitest 时，在 `vitest.config.ts` 中给 `quiesco({ tags })` 传入同样的值。
 
   <Expandable title="属性">
     <ResponseField name="ios" type="string" default="'@ios'" />

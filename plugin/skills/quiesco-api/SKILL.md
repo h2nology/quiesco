@@ -40,7 +40,7 @@ build tells the host when the app is idle, so every Driver call waits by itself.
 | Vitest (recommended) | `test('…', async ({ app }) => …)` from `@quiesco/vitest` | `plugins: [quiescoPlugin()]`, `test: { ...quiesco() }` from `@quiesco/vitest/config` |
 | Jest | global `quiesco.app` | `preset: '@quiesco/jest'` |
 | Cucumber | `this.app` in steps (`QuiescoWorld`) | `import '@quiesco/cucumber/register'` or `registerQuiesco({ world })` |
-| Anything else | `new Lifecycle()` from `@quiesco/core` | see `references/api.md` "Vitest, Jest and other runners" |
+| Anything else | `new Lifecycle()` from `@quiesco/core` | see `references/api-custom-runners.md` |
 
 ## Driver at a glance
 
@@ -60,10 +60,9 @@ build tells the host when the app is idle, so every Driver call waits by itself.
 - **Per-call options (last argument):** `{ timeoutMs }`, `{ sync: false }` for a screen with an endless
   animation, `{ mode: 'native' | 'js' }` for actions.
 
-Look up exact signatures in `references/api.md` before using a less common method. It is large; grep
-it by method name or list its headings:
-`grep -n 'scrollToIndex' "${CLAUDE_PLUGIN_ROOT}/skills/quiesco-api/references/api.md"`,
-`grep -n '^##' "${CLAUDE_PLUGIN_ROOT}/skills/quiesco-api/references/api.md"`.
+Look up exact signatures in the `references/api-*.md` pages before using a less common method. Every
+method has its own `###` heading and an example; grep them by method name:
+`grep -n 'scrollToIndex' "${CLAUDE_PLUGIN_ROOT}"/skills/quiesco-api/references/api-*.md`.
 
 ## Synchronization
 
@@ -96,10 +95,13 @@ and default is in `references/config.md`.
 Read the reference that matches the task; they are generated from the official docs and match this
 plugin's Quiesco version.
 
-- **`references/api.md`** — the complete API: Driver (actions, value controls, gestures, assertions,
-  queries, device, screenshots, WebView, runtime sync), matchers and semantic types, in-app API and typed
-  backdoors, configuration table, scenario tags, error names, artifacts, other runners. Large: grep by
-  heading or method name instead of reading it whole.
+- **`references/api.md`** — the API overview: how tests get the driver, waiting, per-call options, and
+  which page covers what. One page per topic, each method with an example:
+  `api-matchers.md` (matchers, semantic types, visibility), `api-actions.md`, `api-value-controls.md`,
+  `api-gestures.md`, `api-assertions.md`, `api-queries.md` (queries, backdoors, reset),
+  `api-runtime-sync.md`, `api-device.md` (lifecycle and device state), `api-system.md` (system UI,
+  biometrics, notifications), `api-screenshots.md`, `api-webview.md`, `api-in-app.md` (`@quiesco/agent`,
+  typed backdoors), `api-tags.md`, `api-errors.md`, `api-artifacts.md`, `api-custom-runners.md`.
 - **`references/sync.md`** — trackers and what to do for each kind of `SYNC_TIMEOUT`.
 - **`references/platforms.md`** — iOS / Android / web differences, permissions, keyboards, system dialogs.
 - **`references/parallel.md`** — `--workers N`, one device per worker, isolation rules.

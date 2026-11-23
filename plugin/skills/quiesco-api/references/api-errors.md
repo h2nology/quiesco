@@ -1,0 +1,105 @@
+<!-- Generated from docs/api-errors.mdx by scripts/build-plugin-refs.mjs — do not edit. -->
+
+# Errors
+
+The QuiescoError a failed call throws, how to read it, and what every error code means.
+When a call fails, it throws a `QuiescoError`. Its message says what went wrong and what to do; its
+`errorName` and `data` say the same in a form code can read.
+
+## `QuiescoError` {#quiescoerror}
+
+| Property | Meaning |
+|---|---|
+| `errorName` | The error code, e.g. `'ELEMENT_NOT_FOUND'` ([all codes](#error-codes)) |
+| `message` | What happened, and what to do about it |
+| `data` | Structured details, depending on the code (e.g. `data.expected` and `data.actual` of an assertion) |
+| `code` | The numeric protocol code for errors that come from the app, else `undefined` |
+
+Its stack starts at the code that made the call (your test or [driver class](../../writing-tests/references/driver-pattern.md)), without
+Quiesco's own frames or the WebSocket library's.
+
+When the app logged a `console.error` during the test, the message ends with the last one, and
+`data.appLogErrors` has them all. They are also attached to the failed test as `app-errors.txt`: they are
+often the cause.
+
+Most tests never catch these errors: the test fails with the message. To check a failure on purpose, or to
+read its details:
+
+```ts
+import { QuiescoError } from '@quiesco/core';
+import { expect } from 'vitest';
+
+// the "Save" button must not be there for a read-only user
+const error = await app.tap('save', { timeoutMs: 2_000 }).catch((e: unknown) => e);
+expect(error).toBeInstanceOf(QuiescoError);
+expect((error as QuiescoError).errorName).toBe('ELEMENT_NOT_FOUND');
+```
+
+```ts
+try {
+  await app.expectText('total', '$42.00');
+} catch (e) {
+  if (e instanceof QuiescoError && e.errorName === 'ASSERTION_FAILED') {
+    console.log('expected', e.data['expected'], 'but got', e.data['actual']);
+  }
+  throw e;
+}
+```
+
+To check that something is not on screen, prefer an assertion such as
+[`expectNotVisible`](./api-assertions.md#expectnotvisible) over catching an error.
+
+## Error codes {#error-codes}
+
+### Finding elements and assertions {#finding-and-assertions}
+
+| Error | Meaning |
+|---|---|
+| `ELEMENT_NOT_FOUND` | No visible element matched within the timeout: missing, or present but hidden. The message says which ([finding elements](./api.md#finding-elements)) |
+| `MULTIPLE_MATCHES` | The action's matcher matched several elements; `data.matches` lists them |
+| `ELEMENT_OBSCURED` | A real touch would land on something else: `data.obscuredBy` names it (and, on iOS, the native hit chain) ([troubleshooting](../../debug/references/troubleshooting.md#element-obscured)) |
+| `ASSERTION_FAILED` | An assertion did not hold within the timeout: `data.expected`, `data.actual` and the elements seen |
+
+### Synchronization {#sync-errors}
+
+| Error | Meaning |
+|---|---|
+| `SYNC_TIMEOUT` | The app did not become idle in time; the message lists every busy tracker ([details](./sync.md#when-the-app-never-becomes-idle)) |
+
+### Actions and the device {#action-errors}
+
+| Error | Meaning |
+|---|---|
+| `ACTION_NOT_SUPPORTED` | Not available here, e.g. `pressBack` on iOS, or `native` mode without the native module (with a hint) |
+| `APP_NOT_RUNNING` | The test terminated the app (`app.device`); [relaunch](./api-device.md#relaunch) it first |
+| `APP_IN_BACKGROUND` | The test sent the app to the background (`app.device`); bring it back first |
+| `DIALOG_OPEN` | Web: the page shows a JavaScript dialog (`data.message`). Answer it first with `app.device.system.tap({ text: 'OK' })` or `{ text: 'Cancel' }` ([JavaScript dialogs](./api-system.md#web-dialogs)) |
+| `DEVICE_ERROR` | The device tooling failed (adb, simctl, Playwright) |
+
+### Backdoors {#backdoor-errors}
+
+| Error | Meaning |
+|---|---|
+| `BACKDOOR_NOT_REGISTERED` | No backdoor with that name; the message lists the registered names ([backdoors](./api-in-app.md#backdoor)) |
+| `BACKDOOR_FAILED` | The backdoor threw; its message and stack are in `data` |
+| `NOT_SERIALIZABLE` | An argument or the result is not JSON; `data.path` is the path of the bad value |
+
+### The app {#app-errors}
+
+| Error | Meaning |
+|---|---|
+| `APP_ERROR` | An uncaught error in the app failed the current step (see [`appErrors`](./config.md#apperrors) to ignore known ones; [troubleshooting](../../debug/references/troubleshooting.md#app-error)) |
+| `APP_CRASHED` | The app's process died (iOS / Android). The message has the crash's reason from the device: Android's `FATAL EXCEPTION` (or native `Fatal signal`) from logcat; on iOS the exception type and the crashing thread's top frames from the crash report, whose path it gives. The evidence has `crash.txt` and, on iOS, the report. The next test starts the app again at once |
+| `RESET_FAILED` | The reset before a test failed; `data.step` says which step: `storage:<name>`, `onReset#<n>`, `navigation`, `remount`, `expectVisible` ([reset](./api-in-app.md#reset)) |
+| `AGENT_ERROR` | The app answered with an error that has no Quiesco code, or a script in a [WebView](./api-webview.md) failed |
+
+### Connection and setup {#connection-errors}
+
+| Error | Meaning |
+|---|---|
+| `CONNECT_TIMEOUT` | The app did not connect after launch; the message has a checklist ([troubleshooting](../../debug/references/troubleshooting.md#app-does-not-connect)) |
+| `AGENT_TIMEOUT` | The app stopped answering, usually because its JS thread is blocked ([troubleshooting](../../debug/references/troubleshooting.md#agent-timeout)) |
+| `AGENT_DISCONNECTED` | The connection to the app was lost |
+| `PROTOCOL_MISMATCH` | The agent in the app and the test host are different versions ([troubleshooting](../../debug/references/troubleshooting.md#quiesco-versions)) |
+| `SESSION_MISMATCH` | An app from another run connected |
+| `CONFIG_ERROR` | The config is invalid, or no platform is set |

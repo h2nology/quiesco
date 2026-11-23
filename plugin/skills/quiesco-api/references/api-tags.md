@@ -1,0 +1,107 @@
+<!-- Generated from docs/api-tags.mdx by scripts/build-plugin-refs.mjs — do not edit. -->
+
+# Test tags
+
+Run a test only on some platforms or browsers, or relaunch the app before it, with tags in test titles or Gherkin.
+Tags say where a test runs and how the app is reset before it. A test without tags runs on every
+platform, after a soft reset.
+
+## The tags {#the-tags}
+
+| Tag | Effect |
+|---|---|
+| `@ios`, `@android`, `@web` | Run the test only on these platforms (several tags: any of them) |
+| `@native` | iOS and Android only |
+| `@chromium`, `@firefox`, `@webkit` | On the web, run the test only in these browsers ([`devices.web.browser`](./config.md#devices-web)); iOS and Android ignore them |
+| `@hard-reset` | Relaunch the app before this test instead of the [soft reset](./api-in-app.md#reset) |
+
+Your own tags (e.g. `@smoke`) can sit next to them; Quiesco ignores those.
+
+## Writing tags {#writing-tags}
+
+**Vitest:**
+
+```ts
+import { describe, test } from '@quiesco/vitest';
+
+// in the title
+test('the back button closes the sheet @android', async ({ app }) => {
+  await app.pressBack();
+});
+
+// or in the tags option
+test('Face ID login', { tags: ['@native', '@hard-reset'] }, async ({ app }) => {
+  await app.device.biometrics.enroll();
+});
+
+describe('settings @native', () => {
+  // runs on Android only: the innermost tag decides
+  test('the back button closes it @android', async ({ app }) => {
+    await app.pressBack();
+  });
+});
+```
+
+**Jest:**
+
+```js
+// Jest has no test options: tags go in the test or describe title
+describe('settings @native', () => {
+  // runs on Android only: the innermost tag decides
+  test('the back button closes it @android', async () => {
+    await quiesco.app.pressBack();
+  });
+});
+```
+
+**Cucumber:**
+
+```gherkin
+@native
+Feature: Settings
+
+  # runs on iOS and Android
+  Scenario: Dark mode
+    When I turn on dark mode
+
+  # runs on Android only
+  @android
+  Scenario: The back button closes the settings
+    When I press back
+
+  @hard-reset
+  Scenario: First launch shows the onboarding
+    Then I see the onboarding
+```
+
+With Vitest, `quiesco()` declares the platform and browser tags for the `tags` option; declare your own
+with `extraTags` ([Vitest](./vitest.md)).
+
+## The innermost level decides {#innermost-level}
+
+Platform tags can sit on several levels: in Gherkin the feature, a `Rule`, the scenario or an `Examples`
+block; with Vitest and Jest a `describe` title and the test. The innermost level that has a platform tag
+decides:
+
+- in a feature (or `describe`) tagged `@native`, an untagged test runs on iOS and Android, and a test
+  tagged `@android` runs on Android only.
+
+Browser tags follow the same rule, decided apart from the platform tags:
+
+- `@web @webkit` runs on the web in WebKit only;
+- a test tagged `@firefox` in a `@chromium` feature runs in Firefox only.
+
+This differs from cucumber-js `--tags`, which matches inherited tags too.
+
+## Renaming the tags {#renaming}
+
+The [`tags`](./config.md#tags) config renames them:
+
+```ts
+// quiesco.config.ts
+export default defineConfig({
+  tags: { web: '@browser', webkit: '@safari' },
+});
+```
+
+With Vitest, pass the same object to `quiesco({ tags })`.

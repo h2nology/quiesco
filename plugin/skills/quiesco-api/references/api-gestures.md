@@ -1,0 +1,105 @@
+<!-- Generated from docs/api-gestures.mdx by scripts/build-plugin-refs.mjs — do not edit. -->
+
+# Multi-finger gestures
+
+Pinch, rotate, and any number of fingers along timed paths, as real touches.
+`pinch`, `rotate` and `multiTouch` put several real fingers on the screen at once: synthesized `UITouch`es
+in one event on iOS, multi-pointer `MotionEvent`s on Android, CDP `Input.dispatchTouchEvent` on the web.
+Like every action, they wait for the app to be idle before and after ([every call
+waits](./api.md#every-call-waits)) and take the [call options](./api.md#call-options).
+
+They need real touches:
+
+- `js` mode cannot run them: gesture recognizers need real touches.
+- On the web they need a viewport with touch. A viewport without touch fails with `ACTION_NOT_SUPPORTED`.
+  Tag tests that need several fingers so such viewports can skip them ([test tags](./api-tags.md)); the
+  example app tags them `@multi-touch` and runs its desktop viewport with `--tags 'not @multi-touch'`.
+
+Coordinates are logical units: points on iOS, dp on Android, CSS pixels on the web.
+
+## Pinch and rotate {#pinch-and-rotate}
+
+### `pinch(target, scale, options?)` {#pinch}
+
+Two fingers on the element move apart (`scale` > 1, zoom in) or together (`scale` < 1, zoom out) until
+their distance has changed by `scale`.
+
+```ts
+// zoom the map in to twice the size
+await app.pinch('map', 2);
+
+// zoom out, fingers on a vertical line
+await app.pinch('photo', 0.5, { angle: Math.PI / 2, speed: 'slow' });
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `angle` | `0` (horizontal) | The angle of the line the fingers move on, in radians |
+| `speed` | `'normal'` | `'slow'`, `'normal'` or `'fast'` |
+
+`scale` must be a positive number. A pinch that does not fit on the screen in one go (e.g.
+`pinch('map', 10)`) is done as several pinches, as a user would. The fingers go down on the element and
+stay in the window.
+
+### `rotate(target, radians, options?)` {#rotate}
+
+Two fingers turn `radians` around the element's center; positive is clockwise on screen.
+
+```ts
+// turn the photo a quarter clockwise
+await app.rotate('photo', Math.PI / 2);
+
+// and back, slowly
+await app.rotate('photo', -Math.PI / 2, { speed: 'slow' });
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `speed` | `'normal'` | `'slow'`, `'normal'` or `'fast'` |
+
+### Recognizer thresholds {#recognizer-thresholds}
+
+A gesture recognizer starts measuring only once it activates, after the fingers have moved a little. So a
+plain "fingers twice as far apart" shows up in the app as a scale below 2. Quiesco first moves the fingers
+by that activation distance, so the app's recognizer reports the requested scale or angle (measured within
+about 2% and 1°). The defaults are the platforms' standard recognizers:
+
+| | Pinch | Rotation |
+|---|---|---|
+| iOS (UIKit recognizers, also behind react-native-gesture-handler and `ScrollView` zooming) | 9 pt | 7° |
+| Android (react-native-gesture-handler: 3 × touch slop) | 26 dp | 9° |
+| Web (react-native-gesture-handler web: 3 × 15 px) | 46 px | 0° |
+
+For another recognizer, set [`actions.gestureSlop`](./config.md#actions): `{ pinch, rotation }` in logical
+units and radians. `0` moves the fingers exactly by `scale` / `radians`.
+
+## Any touch paths {#any-touch-paths}
+
+### `multiTouch(fingers, options?)` {#multitouch}
+
+Moves any fingers along timed paths. `fingers[i]` is finger `i`'s list of `{ x, y, t }` points, `t` in
+milliseconds from the start; a finger is down from its first point to its last.
+
+```ts
+// two fingers swipe up together on the chart
+await app.multiTouch(
+  [
+    [{ x: 100, y: 300, t: 0 }, { x: 100, y: 100, t: 300 }],
+    [{ x: 200, y: 300, t: 0 }, { x: 200, y: 100, t: 300 }],
+  ],
+  { within: 'chart' },
+);
+
+// a long press with one finger while the other taps, in window coordinates
+await app.multiTouch([
+  [{ x: 80, y: 400, t: 0 }, { x: 80, y: 400, t: 1000 }],
+  [{ x: 280, y: 400, t: 400 }, { x: 280, y: 400, t: 450 }],
+]);
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `within` | | A target: the points are in that element's own coordinates (it must be visible). Without it, window coordinates |
+
+It takes 1 to 10 fingers. Each finger needs at least one point, and its times must be non-negative and
+non-decreasing.

@@ -1,0 +1,89 @@
+---
+title: "运行时同步"
+description: "在测试中更改 driver 要等待的内容：关闭跟踪器，或忽略更多请求和元素。"
+---
+
+每个调用都会等待 App 空闲（[同步](./sync)）。当某个页面让 App 一直忙碌——它在轮询、动画永不停止，或保持着一个未完成的请求——`app.sync` 可以在测试的剩余部分更改 Quiesco 要等待的内容，而不是把同步完全关闭。
+
+```ts
+// 每 200 ms 轮询一次、显示实时计数的仪表盘
+await app.sync.disableTracker('timer');
+await app.sync.ignoreElements.add('poll-count');
+```
+
+这些更改持续到测试结束，并会在下一个测试之前撤销。它们在重新启动和重新连接之后依然有效。如果只想让单次调用不等待，`{ sync: false }` 依然可用（[调用选项](./api#call-options)）。
+
+## 跟踪器 {#trackers}
+
+### `disableTracker(name)` {#disabletracker}
+
+不再等待某一个 [跟踪器](./sync#trackers)，即一种忙碌来源。
+
+```ts
+// 实时比分页面每 200 ms 轮询一次
+await app.sync.disableTracker('timer');
+await app.tap('live-scores');
+```
+
+`name` 是 `network`、`timer`、`react`、`idle-callback`、`frame-stable`、`native` 和 `native-module`（构建包装原生模块时开启：[原生模块调用](./sync#native-module-calls)）之一。其他名称会抛出 `RangeError`。
+
+### `enableTracker(name)` {#enabletracker}
+
+重新等待某个跟踪器，包括配置中关闭的跟踪器。
+
+```ts
+await app.sync.disableTracker('timer');
+await app.tap('live-scores');
+await app.goBack();
+await app.sync.enableTracker('timer');
+```
+
+### `disable()` {#disable}
+
+完全不再等待 App：在 `enable()` 之前，所有跟踪器都关闭（Detox 的 `disableSynchronization`）。
+
+```ts
+// 永远不会结束的启动动画
+await app.sync.disable();
+await app.expectVisible('splash');
+```
+
+### `enable()` {#enable}
+
+重新等待 App：跟踪器恢复为配置中的状态，`disableTracker` 和 `enableTracker` 所做的更改仍然有效。
+
+```ts
+await app.sync.disable();
+await app.tap('skip-intro');
+await app.sync.enable();
+```
+
+## 忽略列表 {#ignore-lists}
+
+### `ignoreUrls.add(pattern)` / `ignoreUrls.remove(pattern)` {#ignoreurls}
+
+在配置的 `sync.ignoreUrls`（[配置](./config#sync)）基础上，向 `network` 跟踪器忽略的请求中添加或移除一个 URL。`pattern` 是字符串或正则表达式。
+
+```ts
+// 一个永不结束的统计分析请求
+await app.sync.ignoreUrls.add(/\/analytics/);
+
+// 聊天页面上的长轮询
+await app.sync.ignoreUrls.add('/chat/poll');
+```
+
+`remove` 也能在测试的剩余部分移除来自配置的模式。
+
+### `ignoreElements.add(target)` / `ignoreElements.remove(target)` {#ignoreelements}
+
+在配置的 `sync.ignoreElements`（[配置](./config#sync)）基础上，向 `frame-stable` 跟踪器排除的元素中添加或移除一个元素。`target` 是一个 [匹配器](./api-matchers)。
+
+```ts
+// 它的文本随每次轮询变化
+await app.sync.ignoreElements.add('poll-count');
+
+// header 中一直在转的加载指示器
+await app.sync.ignoreElements.add({ type: 'progress', within: 'header' });
+```
+
+`remove` 也能在测试的剩余部分移除来自配置的匹配器。

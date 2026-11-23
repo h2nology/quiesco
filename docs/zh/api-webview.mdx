@@ -1,0 +1,184 @@
+---
+title: "WebView"
+description: "查找、点击、输入和检查 App 内所显示网页中的元素，并在页面中运行脚本。"
+---
+
+`app.webview()` 用于访问 WebView 中所显示页面的元素：iOS / Android 上是 react-native-webview，web 上是 `<iframe>`。react-native-webview 没有 web 实现，因此 App 在 web 上要自己渲染一个 iframe，例如在 `MyWebView.web.tsx` 中。
+
+```ts
+const help = app.webview('help');
+
+await help.element({ css: '#name' }).type('Bob');
+await help.element({ text: 'Say hello' }).tap();
+await help.element({ id: 'result' }).expectText('Hello, Bob');
+```
+
+- **每个调用都会等待** App 空闲、页面稳定：加载完成，且页面没有正在进行的 `fetch` / `XMLHttpRequest`（由 Quiesco 注入页面的脚本统计）。页面的定时器不被跟踪；反正断言会一直重试到超时。
+- **只处理 WebView 的主框架：** 页面内的 iframe 和 shadow DOM 无法访问。
+- **iOS 和 Android 需要 `@quiesco/native`**：脚本通过原生 WebView 运行，因此 App 中无需 `onMessage`。没有它时，调用会以 `ACTION_NOT_SUPPORTED` 失败。
+
+每个方法都接受 `timeoutMs` 和 `sync` [调用选项](./api#call-options) 作为最后一个参数。
+
+## 查找页面及其元素 {#finding}
+
+### `webview(target?)` {#webview}
+
+与 `target` 匹配的 WebView，可以是任意 [匹配器](./api-matchers)，例如它的 testID。不传参数时，取屏幕上唯一的那个 WebView。
+
+```ts
+const help = app.webview('help');
+
+// 屏幕上唯一的 WebView
+const page = app.webview();
+```
+
+### `element(query)` {#element}
+
+页面中的一个元素。`query` 恰好包含 `css`、`xpath`、`id` 或 `text` 中的一个，多个元素匹配时还可以加上 `index`。
+
+```ts
+help.element({ css: '#name' });
+help.element({ xpath: '//input[@name="name"]' });
+help.element({ id: 'result' });
+
+// 元素文本（空白合并后），精确匹配
+help.element({ text: 'Say hello' });
+help.element({ text: /^Loading/ });
+
+// 多个匹配中的第二个
+help.element({ css: '.faq-item', index: 1 });
+```
+
+| 字段 | 含义 |
+|---|---|
+| `css` | CSS 选择器 |
+| `xpath` | XPath 表达式 |
+| `id` | 元素的 `id` 属性 |
+| `text` | 元素文本（空白合并后）的精确匹配，或一个 RegExp。取最内层的匹配元素 |
+| `index` | 第几个匹配，从 `0` 开始 |
+
+## 操作元素 {#actions}
+
+### `tap(options?)` {#tap}
+
+先将元素滚入视图，再进行一次真实点击：iOS / Android 上在元素的屏幕位置触摸，web 上使用 Playwright 输入。
+
+```ts
+await help.element({ text: 'Contact us' }).tap();
+```
+
+多个元素匹配时立即以 `MULTIPLE_MATCHES` 失败；超时内没有出现可见且启用的匹配时以 `ELEMENT_NOT_FOUND` 失败。
+
+### `type(text, options?)` {#type}
+
+点击字段，像用户一样让它获得焦点，然后在光标处插入 `text`（`execCommand('insertText')`，会产生与键入相同的 `input` 事件）。不经由软键盘输入。
+
+```ts
+await help.element({ css: '#name' }).type('Alice');
+```
+
+### `replaceText(text, options?)` {#replacetext}
+
+点击字段，然后用 `text` 替换其全部值。
+
+```ts
+await help.element({ xpath: '//input[@name="name"]' }).replaceText('Bob');
+```
+
+### `scrollIntoView(options?)` {#scrollintoview}
+
+滚动页面，直到元素进入视图。
+
+```ts
+await help.element({ css: '#footer' }).scrollIntoView();
+```
+
+### `screenshot(options?)` {#screenshot}
+
+元素的 PNG，先将其滚入视图：截取它位于 WebView 可见区域内的部分。更多内容见 [截图](./api-screenshots)。
+
+```ts
+const png = await help.element({ css: '#chart' }).screenshot();
+```
+
+## 断言 {#assertions}
+
+与 App 自身的 [断言](./api-assertions) 一样，这些断言会不断重试，直到成立或调用超时。
+
+### `expectText(text, options?)` {#expecttext}
+
+唯一匹配的文本（空白合并后）等于 `text`，或匹配一个 RegExp。对于输入框，比较的是其值。
+
+```ts
+await help.element({ id: 'result' }).expectText('Hello, Bob');
+await help.element({ css: '#name' }).expectText(/^Bo/);
+```
+
+### `expectExists(options?)` {#expectexists}
+
+至少有一个元素匹配，无论是否可见。
+
+```ts
+await help.element({ css: 'form#contact' }).expectExists();
+```
+
+### `expectNotExists(options?)` {#expectnotexists}
+
+没有元素匹配。
+
+```ts
+await help.element({ css: '.error' }).expectNotExists();
+```
+
+### `expectVisible(options?)` {#expectvisible}
+
+有一个匹配可见：位于页面视口内（未被滚出）且未被 CSS 隐藏。
+
+```ts
+await help.element({ text: 'Thanks for your message' }).expectVisible();
+```
+
+### `expectNotVisible(options?)` {#expectnotvisible}
+
+没有可见的匹配：每一个都被滚出、被 CSS 隐藏或不存在。
+
+```ts
+await help.element({ text: /^Loading/ }).expectNotVisible();
+```
+
+## 页面 {#the-page}
+
+### `runScript(body, args?, options?)` {#runscript}
+
+在页面中运行一个函数体，并以 JSON 返回其值。`args` 作为 `arguments` 传入；返回的 promise 会被 await。
+
+```ts
+const title = await help.runScript<string>('return document.title');
+
+const count = await help.runScript<number>(
+  'return document.querySelectorAll(arguments[0]).length',
+  ['.faq-item'],
+);
+
+// promise 会被 await
+const status = await help.runScript<number>('return fetch("/api/ping").then((r) => r.status)');
+```
+
+页面中的异常会让调用以 `APP_ERROR` 失败。`runScript` 使用 `new Function`，页面的 Content-Security-Policy 可能会禁止它。
+
+### `url(options?)` {#url}
+
+页面的 URL，即 `location.href`。
+
+```ts
+await help.element({ text: 'Pricing' }).tap();
+expect(await help.url()).toMatch(/\/pricing$/);
+```
+
+### `title(options?)` {#title}
+
+页面的标题，即 `document.title`。
+
+```ts
+expect(await help.title()).toBe('Help center');
+```

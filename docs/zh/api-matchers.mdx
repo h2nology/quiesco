@@ -1,0 +1,158 @@
+---
+title: "匹配器"
+description: "target 如何找到元素：按 test id、文本、标签、角色、类型、位置、后代和祖先。"
+---
+
+大多数方法都接受一个 **target**：要操作或检查的元素。普通字符串表示 `testID`；对象可以组合多个条件，全部成立的元素才算匹配。匹配器在 iOS、Android 和 web 上都相同。
+
+```ts
+// 字符串表示 testID
+await app.tap('add-todo');
+
+// 对象组合多个条件
+await app.tap({ role: 'button', text: 'Save' });
+```
+
+在 web 上，`testID` 渲染为 `data-testid`；匹配器不变。
+
+## 匹配器字段 {#fields}
+
+### `id` {#id}
+
+即 `testID`：精确字符串或正则表达式。`'save'` 是 `{ id: 'save' }` 的简写。
+
+```ts
+await app.tap({ id: 'save' });
+
+// 所有待办行：todo-1、todo-2……
+await app.expectCount({ id: /^todo-\d+$/ }, 3);
+```
+
+### `text` {#text}
+
+显示的文本：精确字符串或正则表达式。它匹配自身文本相符的**最深层**元素，因此按钮和它内部的标签不会同时匹配。
+
+```ts
+await app.tap({ text: 'Sign in' });
+
+await app.expectVisible({ text: /saved \d+ items/i });
+```
+
+### `label` {#label}
+
+无障碍标签：iOS / Android 上是 `accessibilityLabel`，web 上是 `aria-label`。精确字符串或正则表达式。
+
+```ts
+// 只有图标的关闭按钮
+await app.tap({ label: 'Close' });
+```
+
+### `role` {#role}
+
+无障碍角色：iOS / Android 上是 `accessibilityRole`，web 上是 `role`。
+
+```ts
+await app.tap({ role: 'button', text: 'Save' });
+```
+
+### `type` {#type}
+
+元素的类别。可以是[语义类型](#semantic-types)（各平台相同），也可以是 host 类型（`'RCTView'`、`'div'`），或渲染该元素的组件的 `displayName`。
+
+```ts
+// 语义类型：所有平台通用
+await app.tap({ type: 'switch' });
+
+// App 中的一个组件
+await app.expectCount({ type: 'TodoCard' }, 2);
+```
+
+### `has` {#has}
+
+元素带有与这个匹配器相符的后代元素（Detox 的 `withDescendant`）。
+
+```ts
+// 包含 "Buy milk" 的那一行
+await app.swipe({ id: 'todo-row', has: { text: 'Buy milk' } }, 'left');
+
+await app.tap({ type: 'button', has: { text: 'Buy milk' } });
+```
+
+### `not` {#not}
+
+排除与这个匹配器相符的元素。
+
+```ts
+// 唯一一个不是 Cancel 的按钮
+await app.tap({ type: 'button', not: { id: 'cancel' } });
+```
+
+### `within` {#within}
+
+元素位于这个匹配器所匹配的唯一元素内部（Detox 的 `withAncestor`）。
+
+```ts
+// 某个待办项的删除按钮
+await app.tap({ text: 'Delete', within: 'todo-item-3' });
+```
+
+### `index` {#index}
+
+第 n 个匹配，从 `0` 开始，按渲染顺序计数。该顺序在所有平台上都相同（Detox 的 `atIndex` 顺序在 iOS 和 Android 之间不同）。
+
+```ts
+// 多个待办行中的第一个
+await app.expectText({ id: 'todo-title', index: 0 }, 'Buy milk');
+```
+
+## 语义类型 {#semantic-types}
+
+`type` 接受以下与平台无关的类别。它们首先取自无障碍角色，其次取自 host 组件，因此在组件名被压缩的 release 构建中也能使用。
+
+| `type` | iOS / Android host（React Native 0.88） | Web（react-native-web） | 角色 |
+|---|---|---|---|
+| `button` | `Pressable`、`Touchable*`、`Button`，或其组件带有 `onPress` 的视图 | `<button>`，以及相同的组件 | `button`、`togglebutton`、`imagebutton` |
+| `link` | — | `<a>` | `link` |
+| `header` | — | `<h1>`–`<h6>` | `header`、`heading` |
+| `text` | `RCTText`、`RCTVirtualText`、`RCTSelectableText` | `Text` | `text` |
+| `input` | `RCTSinglelineTextInputView`、`RCTMultilineTextInputView`、`AndroidTextInput` | `<input>`、`<textarea>` | `textbox`、`searchbox`、`search` |
+| `image` | `RCTImageView`、`ExpoImage` | `<img>`、`Image` | `image`、`img` |
+| `switch` | `Switch`（iOS）、`AndroidSwitch` | `Switch` | `switch` |
+| `checkbox` / `radio` | — | `<input type="checkbox">` / `"radio"` | `checkbox` / `radio` |
+| `slider` | `RNCSlider` | `<input type="range">` | `adjustable`、`slider` |
+| `picker` | `RNCPicker`、`RNCAndroidDialogPicker`、`RNCAndroidDropdownPicker`、`RNDateTimePicker` | `<select>` | `combobox`、`spinbutton` |
+| `progress` | `ActivityIndicatorView`、`AndroidProgressBar` | `<progress>`、`ActivityIndicator` | `progressbar` |
+| `scroll` | `RCTScrollView`、`AndroidHorizontalScrollView` | `ScrollView` | — |
+| `list` | `FlatList` / `SectionList` / `FlashList` 的滚动视图（其组件带有 `renderItem`） | 同左 | `list` |
+
+```ts
+// 设置页面上的 Wi-Fi 开关
+await app.tap({ type: 'switch', label: 'Wi-Fi' });
+await app.expectChecked({ type: 'switch', label: 'Wi-Fi' });
+```
+
+由多个 host 组成的控件只算一个。例如，react-native-web 的 `Switch` 是一个包裹着 `<input role="switch">` 的 `<div>`：`{ type: 'switch' }` 匹配外层元素，它同时会报告内部 input 的选中状态、值、焦点、禁用状态和标签。
+
+## 可见性 {#visibility}
+
+操作和 `expectVisible` 需要一个**可见**元素。满足以下条件时，元素即为可见：
+
+- 元素本身及其祖先都没有被样式隐藏（`display: none`、`opacity: 0`），并且
+- 它有一部分在屏幕上：位于窗口内，**并且**位于每一个会裁剪内容的祖先（滚动视图、`overflow` 不为 `visible` 的元素）之内。
+
+被滚出滚动视图的元素即使其位置在窗口内也不可见。元素的 `visibleRatio`（[元素摘要](./api-queries#element-summary)）是其面积中可见部分的比例。
+
+不在最上层的页面上的元素也不可见：在 iOS / Android 上，原生栈会保留下面的页面，并被后推入的页面覆盖（以透明模态方式呈现的除外），非活动标签页的页面也会被分离。
+
+被其他元素遮挡不属于可见性的范畴。操作会单独检查这一点，并以 `ELEMENT_OBSCURED` 失败（[查找元素](./api#finding-elements)）。
+
+```ts
+// 最后一行在首屏之下：滚动到它之前不可见
+await app.expectExists({ id: 'todo-row', index: 49 });
+await app.expectNotVisible({ id: 'todo-row', index: 49 });
+
+await app.scrollTo('todo-list', { id: 'todo-row', index: 49 });
+await app.expectVisible({ id: 'todo-row', index: 49 });
+```
+
+找到了元素但它不可见时，失败信息会说明原因：在不是最上层的页面上、被祖先的样式隐藏、在窗口之外、被滚动视图裁剪，或没有尺寸。使用 Expo Router 的 App，失败信息末尾会带上当前路由：`(current route: /students/new)`。

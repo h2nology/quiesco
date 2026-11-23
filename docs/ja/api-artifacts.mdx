@@ -1,0 +1,59 @@
+---
+title: "成果物"
+description: "実行がテストごとに残すもの：失敗時の証跡、保存したスクリーンショット、動画、デバイスのログ、すべての呼び出しのタイムライン。"
+---
+
+Quiescoはテストごとに、何が起きたかを確認するためのファイルを書き出し、テストランナーのレポートに添付します。保存先は次のとおりです。
+
+```
+artifacts/<date-time>-<platform>/<nnn>-<test name>/
+```
+
+[並列実行](./parallel)では、各ワーカーが`artifacts/<date-time>-<platform>-wN/`に書き出します。
+
+## 書き出されるもの {#what-is-written}
+
+| 成果物 | 条件 | 内容 |
+|---|---|---|
+| 失敗時の証跡 | テストが失敗したとき | `failure.png`：失敗した呼び出しに関わる要素（アサーションの要素、遮られたターゲット、複数のマッチ）を赤枠で囲んだ画面。`elements.json`：現在のルートと、testID・ラベル・自身のテキストを持つすべての要素（表示されているか、されていなければその理由）。`element-tree.json`。`idle-state.json`：何がビジーだったか |
+| 保存したスクリーンショット | [`screenshot(…, { name })`](./api-screenshots) | `<name>.png` |
+| `video` | ポリシーによる | iOS：`simctl io recordVideo`（MP4）。Android：`screenrecord`（MP4、3分ごとに新しいセグメント）。Web：Playwrightのスクリーンキャスト（WebM）。ファイルパスとして添付されます |
+| `logs` | ポリシーによる | `device.log`。iOS：アプリプロセスの統合ログ（`log stream`、info以上）。Android：アプリのuidのlogcat。Web：ページのコンソールとキャッチされないエラー。最後の300行はインラインで添付されます |
+| `timeline` | ポリシーによる | アプリに対するすべての呼び出しと、その所要時間およびそのうちアイドル待ちに費やした時間、失敗した呼び出しとそのエラー、`scrollTo`の各ステップはその下に（テストランナーのタイムアウトで先に終わった呼び出しも、「still running when the scenario ended」として残ります）。`timeline.html`（インラインで添付）と`timeline.trace.json`（Chromeのトレース形式：`chrome://tracing`またはui.perfetto.devで開けます） |
+
+クラッシュの後は、証跡に`crash.txt`と、iOSではクラッシュレポートも入ります。アプリが`console.error`を出していた場合は`app-errors.txt`も入ります（[エラー](./api-errors#quiescoerror)）。
+
+## 記録するものを選ぶ {#policies}
+
+```ts
+// quiesco.config.ts
+export default defineConfig({
+  artifacts: {
+    dir: 'artifacts',
+    video: 'failing',
+    logs: 'failing',
+    timeline: 'failing',
+  },
+});
+```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `dir` | `'artifacts'` | 実行結果を書き出す場所（作業ディレクトリからの相対パス）。別のディレクトリにした場合は、[`withQuiesco`](./api-in-app#withquiesco)にも渡してください |
+| `video` | `'none'` | 録画はどのテストでも少しコストがかかります。CIではオンにしてください |
+| `logs` | `'failing'` | |
+| `timeline` | `'failing'` | |
+
+`video`、`logs`、`timeline`はそれぞれポリシーを受け取ります。
+
+- `none`：記録しない
+- `failing`：すべてのテストで記録し、失敗したときだけ残す
+- `all`：すべてのテストで記録して残す
+
+`QUIESCO_ARTIFACTS=all`（または`failing`、`none`）で、1回の実行に限り3つすべてを設定できます。
+
+```sh
+QUIESCO_ARTIFACTS=all npx quiesco test --platform android
+```
+
+すべてのオプションは[設定](./config#artifacts)のページにあります。アダプターのないランナーも、セッションを通じて同じ成果物を得られます：[その他のテストランナー](./api-custom-runners#session)。

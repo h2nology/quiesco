@@ -1,0 +1,184 @@
+---
+title: "WebView"
+description: "アプリ内に表示されたWebページの要素を探し、タップし、入力し、確認します。ページ内でスクリプトも実行できます。"
+---
+
+`app.webview()`は、WebViewに表示されたページの要素を扱います。iOS / Androidではreact-native-webview、Webでは`<iframe>`です。react-native-webviewにはWeb実装がないため、アプリはWebではiframeを自分で描画します（例：`MyWebView.web.tsx`の中で）。
+
+```ts
+const help = app.webview('help');
+
+await help.element({ css: '#name' }).type('Bob');
+await help.element({ text: 'Say hello' }).tap();
+await help.element({ id: 'result' }).expectText('Hello, Bob');
+```
+
+- **どの呼び出しも**、アプリがアイドルになり、ページが落ち着くのを待ちます。落ち着くとは、読み込みが終わり、ページの`fetch` / `XMLHttpRequest`が実行中でないことです（Quiescoがページに追加するスクリプトで数えます）。ページのタイマーは追跡しませんが、アサーションはいずれにせよタイムアウトまで再試行します。
+- **対象はWebViewのメインフレームだけです。** ページ内のiframeやshadow DOMには届きません。
+- **iOSとAndroidでは`@quiesco/native`が必要です。** スクリプトはネイティブのWebView経由で実行されるので、アプリに`onMessage`は不要です。ない場合、呼び出しは`ACTION_NOT_SUPPORTED`で失敗します。
+
+どのメソッドも、最後の引数に`timeoutMs`と`sync`の[呼び出しオプション](./api#call-options)を受け取ります。
+
+## ページとその要素を探す {#finding}
+
+### `webview(target?)` {#webview}
+
+`target`に一致するWebViewです。testIDなど、任意の[マッチャー](./api-matchers)を指定できます。引数なしなら、画面上の唯一のWebViewです。
+
+```ts
+const help = app.webview('help');
+
+// 画面上の唯一のWebView
+const page = app.webview();
+```
+
+### `element(query)` {#element}
+
+ページ内の要素です。`query`には`css`、`xpath`、`id`、`text`のうちちょうど1つと、複数の要素がマッチする場合は省略可能な`index`を指定します。
+
+```ts
+help.element({ css: '#name' });
+help.element({ xpath: '//input[@name="name"]' });
+help.element({ id: 'result' });
+
+// 空白をまとめた要素のテキストとの完全一致
+help.element({ text: 'Say hello' });
+help.element({ text: /^Loading/ });
+
+// 複数のマッチのうち2番目
+help.element({ css: '.faq-item', index: 1 });
+```
+
+| フィールド | 意味 |
+|---|---|
+| `css` | CSSセレクター |
+| `xpath` | XPath式 |
+| `id` | 要素の`id`属性 |
+| `text` | 空白をまとめた要素のテキストとの完全一致、またはRegExp。マッチする最も内側の要素 |
+| `index` | 何番目のマッチか（`0`始まり） |
+
+## 要素を操作する {#actions}
+
+### `tap(options?)` {#tap}
+
+要素が見える位置までスクロールしてから、実際にタップします。iOS / Androidでは画面上の要素の位置をタッチし、WebではPlaywrightの入力を使います。
+
+```ts
+await help.element({ text: 'Contact us' }).tap();
+```
+
+複数の要素がマッチすると直ちに`MULTIPLE_MATCHES`で失敗し、表示されていて有効なマッチがタイムアウトまでに現れなければ`ELEMENT_NOT_FOUND`で失敗します。
+
+### `type(text, options?)` {#type}
+
+フィールドをタップし（ユーザーの操作と同じくフォーカスが入ります）、キャレット位置に`text`を挿入します（`execCommand('insertText')`。入力時と同じ`input`イベントが発生します）。ソフトウェアキーボードからの入力ではありません。
+
+```ts
+await help.element({ css: '#name' }).type('Alice');
+```
+
+### `replaceText(text, options?)` {#replacetext}
+
+フィールドをタップし、値全体を`text`で置き換えます。
+
+```ts
+await help.element({ xpath: '//input[@name="name"]' }).replaceText('Bob');
+```
+
+### `scrollIntoView(options?)` {#scrollintoview}
+
+要素が見える位置までページをスクロールします。
+
+```ts
+await help.element({ css: '#footer' }).scrollIntoView();
+```
+
+### `screenshot(options?)` {#screenshot}
+
+先に要素が見える位置までスクロールしてから撮る、要素のPNGです。WebViewの表示領域内にある部分が写ります。詳しくは[スクリーンショット](./api-screenshots)を参照してください。
+
+```ts
+const png = await help.element({ css: '#chart' }).screenshot();
+```
+
+## アサーション {#assertions}
+
+アプリ自体の[アサーション](./api-assertions)と同じく、成り立つか呼び出しのタイムアウトが切れるまで再試行します。
+
+### `expectText(text, options?)` {#expecttext}
+
+唯一のマッチのテキストが`text`と等しい（空白はまとめる）、またはRegExpにマッチすることを確認します。入力欄では値を比べます。
+
+```ts
+await help.element({ id: 'result' }).expectText('Hello, Bob');
+await help.element({ css: '#name' }).expectText(/^Bo/);
+```
+
+### `expectExists(options?)` {#expectexists}
+
+表示されているかどうかにかかわらず、少なくとも1つの要素がマッチすることを確認します。
+
+```ts
+await help.element({ css: 'form#contact' }).expectExists();
+```
+
+### `expectNotExists(options?)` {#expectnotexists}
+
+マッチする要素がないことを確認します。
+
+```ts
+await help.element({ css: '.error' }).expectNotExists();
+```
+
+### `expectVisible(options?)` {#expectvisible}
+
+マッチが表示されていることを確認します。表示されているとは、ページのビューポート内にあり（スクロールで外れていない）、CSSで隠されていないことです。
+
+```ts
+await help.element({ text: 'Thanks for your message' }).expectVisible();
+```
+
+### `expectNotVisible(options?)` {#expectnotvisible}
+
+どのマッチも表示されていないことを確認します。いずれもスクロールで外れているか、CSSで隠されているか、存在しない状態です。
+
+```ts
+await help.element({ text: /^Loading/ }).expectNotVisible();
+```
+
+## ページ {#the-page}
+
+### `runScript(body, args?, options?)` {#runscript}
+
+ページ内で関数本体を実行し、その値をJSONで返します。`args`は`arguments`として渡され、返されたPromiseは待たれます。
+
+```ts
+const title = await help.runScript<string>('return document.title');
+
+const count = await help.runScript<number>(
+  'return document.querySelectorAll(arguments[0]).length',
+  ['.faq-item'],
+);
+
+// Promiseは待たれる
+const status = await help.runScript<number>('return fetch("/api/ping").then((r) => r.status)');
+```
+
+ページで例外が発生すると、呼び出しは`APP_ERROR`で失敗します。`runScript`は`new Function`を使うため、ページのContent-Security-Policyによっては禁止されることがあります。
+
+### `url(options?)` {#url}
+
+ページのURL（`location.href`）です。
+
+```ts
+await help.element({ text: 'Pricing' }).tap();
+expect(await help.url()).toMatch(/\/pricing$/);
+```
+
+### `title(options?)` {#title}
+
+ページのタイトル（`document.title`）です。
+
+```ts
+expect(await help.title()).toBe('Help center');
+```

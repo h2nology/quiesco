@@ -1,0 +1,96 @@
+---
+title: "テストタグ"
+description: "テストのタイトルやGherkinのタグで、テストを特定のプラットフォームやブラウザーでだけ実行したり、実行前にアプリを再起動したりします。"
+---
+
+タグは、テストをどこで実行するかと、その前にアプリをどうリセットするかを指定します。タグのないテストは、すべてのプラットフォームでソフトリセットの後に実行されます。
+
+## タグ一覧 {#the-tags}
+
+| タグ | 効果 |
+|---|---|
+| `@ios`、`@android`、`@web` | テストをこれらのプラットフォームでだけ実行する（複数のタグはいずれか一つに該当すれば実行） |
+| `@native` | iOSとAndroidのみ |
+| `@chromium`、`@firefox`、`@webkit` | Webでは、テストをこれらのブラウザーでだけ実行する（[`devices.web.browser`](./config#devices-web)）。iOSとAndroidでは無視される |
+| `@hard-reset` | このテストの前に、[ソフトリセット](./api-in-app#reset)の代わりにアプリを再起動する |
+
+独自のタグ（`@smoke`など）を並べて付けることもできます。Quiescoはそれらを無視します。
+
+## タグの書き方 {#writing-tags}
+
+<CodeGroup>
+```ts Vitest
+import { describe, test } from '@quiesco/vitest';
+
+// タイトルに書く
+test('the back button closes the sheet @android', async ({ app }) => {
+  await app.pressBack();
+});
+
+// またはtagsオプションで指定する
+test('Face ID login', { tags: ['@native', '@hard-reset'] }, async ({ app }) => {
+  await app.device.biometrics.enroll();
+});
+
+describe('settings @native', () => {
+  // Androidでだけ実行される：最も内側のタグが判定に使われる
+  test('the back button closes it @android', async ({ app }) => {
+    await app.pressBack();
+  });
+});
+```
+```js Jest
+// Jestにはテストのオプションがない：タグはtestやdescribeのタイトルに書く
+describe('settings @native', () => {
+  // Androidでだけ実行される：最も内側のタグが判定に使われる
+  test('the back button closes it @android', async () => {
+    await quiesco.app.pressBack();
+  });
+});
+```
+```gherkin Cucumber
+@native
+Feature: Settings
+
+  # iOSとAndroidで実行される
+  Scenario: Dark mode
+    When I turn on dark mode
+
+  # Androidでだけ実行される
+  @android
+  Scenario: The back button closes the settings
+    When I press back
+
+  @hard-reset
+  Scenario: First launch shows the onboarding
+    Then I see the onboarding
+```
+</CodeGroup>
+
+Vitestでは、`quiesco()`がプラットフォームタグとブラウザータグを`tags`オプション用に宣言します。独自のタグは`extraTags`で宣言してください（[Vitest](./vitest)）。
+
+## 最も内側の階層が判定に使われる {#innermost-level}
+
+プラットフォームタグは複数の階層に付けられます。Gherkinではfeature、`Rule`、シナリオ、`Examples`ブロック、VitestとJestでは`describe`のタイトルとテストです。プラットフォームタグの付いた最も内側の階層が判定に使われます。
+
+- `@native`タグの付いたfeature（または`describe`）では、タグのないテストはiOSとAndroidで実行され、`@android`タグの付いたテストはAndroidでだけ実行されます。
+
+ブラウザータグも同じ規則で、プラットフォームタグとは別に判定されます。
+
+- `@web @webkit`はWebのWebKitでだけ実行されます。
+- `@chromium`のfeature内で`@firefox`タグの付いたテストは、Firefoxでだけ実行されます。
+
+継承したタグにもマッチするcucumber-jsの`--tags`とは、この点が異なります。
+
+## タグの名前を変える {#renaming}
+
+[`tags`](./config#tags)設定でタグの名前を変えられます。
+
+```ts
+// quiesco.config.ts
+export default defineConfig({
+  tags: { web: '@browser', webkit: '@safari' },
+});
+```
+
+Vitestでは、同じオブジェクトを`quiesco({ tags })`に渡してください。

@@ -195,7 +195,7 @@ The same features run in all three. What differs underneath, where Playwright or
 - Synthetic events are not trusted (`isTrusted` is false); react-native-gesture-handler and
   react-native-web's responder system do not look at it.
 - Pick the browser with an environment variable to run the same suite in each, and use
-  [browser tags](./api.md#scenario-tags) (`@chromium`, `@firefox`, `@webkit`) for scenarios that only make
+  [browser tags](./api-tags.md) (`@chromium`, `@firefox`, `@webkit`) for scenarios that only make
   sense in some of them.
 - `npx playwright install chromium firefox webkit` installs the browsers; `npx quiesco doctor` checks the
   configured one.

@@ -1,0 +1,161 @@
+---
+title: "値コントロール"
+description: "スイッチ、スライダー、ピッカー、セグメンテッドコントロール、日付ピッカーに値を設定し、スライダーをドラッグし、スクリーンリーダーのアクションを実行する。"
+---
+
+値を持つコントロール（スイッチ、スライダー、ピッカー、セグメンテッドコントロール、日付ピッカー）は、どのライブラリが描画していても、`setValue`という1つの呼び出しで設定できます。`adjustSlider`はスライダーのつまみを指と同じようにドラッグし、`accessibilityAction`はスクリーンリーダーと同じ操作を行います。どれもほかのアクションと同じく、前後でアプリがアイドルになるのを待ち（[すべての呼び出しはアプリを待つ](./api#every-call-waits)）、[呼び出しのオプション](./api#call-options)を受け取ります。
+
+## 値を設定する {#setting-a-value}
+
+### `setValue(target, value, options?)` {#setvalue}
+
+`target`のコントロールに`value`（数値、真偽値、文字列、`Date`のいずれか）を設定します。コントロールが実際の入力を受け付けるならそれを使い（スイッチのタップ、iOSで指で回すホイール、ブラウザーの`<select>`）、そうでなければコンポーネントのコールバックを使います。
+
+```ts
+// スイッチ
+await app.setValue('notifications-switch', true);
+
+// スライダー：正確な値
+await app.setValue('volume-slider', 0.75);
+
+// ピッカー：項目の値、またはそのラベル
+await app.setValue('priority-picker', 'high');
+await app.setValue('priority-picker', 'High priority');
+
+// セグメンテッドコントロール：セグメントの値、またはそのインデックス
+await app.setValue('filter-tabs', 'Done');
+await app.setValue('filter-tabs', 2);
+
+// 日付ピッカー
+await app.setValue('due-date-picker', '2031-12-24');
+await app.setValue('due-date-picker', new Date(2031, 11, 24));
+```
+
+#### 対応するコントロール {#supported-controls}
+
+`setValue`は、ターゲットを囲むコンポーネントのprops（要素自身と数階層上まで）を調べます。見つからなければ、要素の中にある唯一のコントロールを使います。たとえば、testIDを落としてしまうコンポーネントを、testIDを持つ`View`で囲んだ場合です。
+
+| コントロール | 判別方法 | `value` |
+|---|---|---|
+| `@react-native-community/slider` | `onValueChange` / `onSlidingComplete`と、数値の`value`または`minimumValue` / `maximumValue` | 範囲内で、`step`に乗った数値 |
+| `Switch`、`expo-checkbox` | 真偽値の`value`と`onValueChange` | `true` / `false` |
+| `@react-native-picker/picker` | `onValueChange`と`selectedValue` | 項目の値（文字列でも可）、またはそのラベル |
+| `@react-native-segmented-control/segmented-control` | `values`配列と`onChange` / `onValueChange` | セグメントの値、またはそのインデックス |
+| `@react-native-community/datetimepicker` | `Date`型の`value`と`onChange` / `onValueChange` | `Date`、またはローカル時刻の文字列`"2031-12-24"` / `"20:15"` / `"2031-12-24T20:15"`。ピッカーが受け持つ部分だけが変わります（[日付・時刻ピッカー](#date-and-time-pickers)） |
+| `@expo/ui/community/datetime-picker`（`DateTimePicker`） | `@react-native-community/datetimepicker`と同じ | 同じ（[`@expo/ui`のピッカー](#expo-ui-date-picker)） |
+| DOMの`<select>`、`<input type="date" / "time" / "datetime-local" / "month" / "week" / "range" / "number">`、チェックボックス | 要素そのもの（Web） | 選択肢の値またはラベル。`Date`（ローカル時刻で書き込まれます）、または入力欄自身の文字列 |
+
+- 現在と同じ値を設定してもイベントは送られません。
+- 無効なコントロールには何もしません（ユーザーが操作しようとした場合と同じです）。
+- それ以外は`ACTION_NOT_SUPPORTED`で失敗します。メッセージには、見つかったコールバックと探した範囲が示されます。対象から上にたどったコンポーネント（コントロールの種類を決めるpropsつき）と、対象の中にあるコントロールらしいコンポーネント、それぞれが採用されなかった理由（要素から8階層より上にある、または中に複数のコントロールがある）です。これを見て、testIDを移すか、コントロールを包むか、[バックドア](./api-queries#backdoor)を使うかを決めてください。
+
+#### 値の入れ方 {#how-the-value-gets-in}
+
+| | `native`（iOS / Android） | Web（実際の入力） | `js` |
+|---|---|---|---|
+| スイッチ / チェックボックス | 値を変える必要があるときに実際にタップ | クリック | `onChange` + `onValueChange` |
+| セグメンテッドコントロール | セグメントを実際にタップ | セグメントをクリック | `onChange`（ネイティブイベント）+ `onValueChange` |
+| ピッカー | iOS：指でホイールを回す（離す前に静止するゆっくりしたドラッグで、値を読み返して補正）。Android：コールバック（ドロップダウン / ダイアログは別ウィンドウのため） | `<select>`：`selectOption` | `onValueChange(value, index)` |
+| 日付ピッカー | iOSのホイール（`display="spinner"`）：各列を指で回します。どの列がどの単位かは1行回して判定するので、どのロケールや並び順でも動作します。compact / inlineスタイルとAndroid（システムダイアログ）：コールバック | 日付入力：`fill` | `{ type: 'set', nativeEvent: { timestamp, utcOffset } }`を渡して`onValueChange` / `onChange` |
+| スライダー | コールバック（正確な値。実際にドラッグするには[`adjustSlider`](#adjustslider)） | コールバック | `onSlidingStart`、`onValueChange`、`onSlidingComplete` |
+
+Androidの`DateTimePicker`はビューを描画せず、システムダイアログを開きます。そのため、アプリがダイアログを表示した後は、`setValue({ id })`がtestIDでコンポーネント自体を見つけます（名前で探すなら`{ type: 'DateTimePicker' }`）。アプリは変更を処理するときにダイアログを閉じます。ユーザーが選んだときと同じです。こうしたコンポーネントに届く[マッチャー](./api-matchers)は`id`、`type`、`index`だけです。
+
+```ts
+// Android：アプリが日付ダイアログを開く。コンポーネントを通して値を設定する
+await app.tap('pick-due-date');
+await app.setValue({ id: 'due-date-picker' }, '2031-12-24');
+```
+
+## 日付・時刻ピッカー {#date-and-time-pickers}
+
+ネイティブのダイアログと同じく、`setValue`はピッカーの`value`のうち`mode`が表示する部分だけを変えます。計算はピッカーのタイムゾーン（`timeZoneOffsetInMinutes`、なければデバイスのタイムゾーン）で行います。
+
+| `mode` | 変わるもの | 受け付ける値 |
+|---|---|---|
+| `date`（デフォルト） | 日付。時・分はそのままで、秒は0になります | `Date`または`"2031-12-24"` |
+| `time` | 時・分。日付はそのまま | `Date`または`"20:15"`（秒付きは`"20:15:30"`） |
+| `datetime` | `Date`ならすべて、文字列なら指定した部分 | `Date`、`"2031-12-24T20:15"`、`"2031-12-24"`、`"20:15"` |
+| `countdown` | すべて | `Date` |
+
+そのため、Androidの2つのダイアログで日付、時刻の順に選んでも日付は保たれます。
+
+```ts
+await app.setValue('due-date-picker', '2031-12-24');
+
+// 日付をでっち上げる必要はない：日付はそのまま
+await app.setValue('due-time-picker', '20:15');
+```
+
+- `minimumDate` / `maximumDate`は結果と照合されます。
+- 文字列はデバイス上のローカル時刻なので、ホストのタイムゾーンに左右されません。`Date`はデバイスのタイムゾーンに換算されます。
+
+### ピッカーの値を読む {#reading-a-pickers-value}
+
+ピッカーの値（[`expectValue`](./api-assertions#expectvalue)や[クエリ](./api-queries)結果の`value`）は、表示されている内容をデバイスのローカル時刻で表したものです：`"2031-12-24"`（`date`）、`"20:15"`（`time`）、`"2031-12-24T20:15"`（`datetime`、`countdown`）。秒が0でなければ`:ss`が付きます。`expectValue`はこの文字列か、これらの部分が一致する`Date`を受け付けます。
+
+```ts
+await app.setValue('due-time-picker', '20:15');
+await app.expectValue('due-time-picker', '20:15');
+```
+
+Androidのダイアログはアプリが変更を処理すると消えるので、代わりにアプリが表示している内容を確認してください。
+
+### `@expo/ui`のDateTimePicker {#expo-ui-date-picker}
+
+`@expo/ui/community/datetime-picker`（iOSではSwiftUI、AndroidではJetpack Compose）も同じ値を受け付けます。`testID`は`DateTimePicker`そのものに付けてください。
+
+```tsx
+// アプリ側
+<Host matchContents>
+  <DateTimePicker testID="due-date-picker" value={due} onValueChange={setDue} />
+</Host>
+```
+
+```ts
+// テスト側
+await app.setValue('due-date-picker', '2031-12-24');
+```
+
+- **iOS、およびAndroidの`presentation="inline"`：** `testID`が付くビューは、ピッカーが描画されていてもReact Nativeにサイズを報告しません。Quiescoは、サイズを持つ最も近い祖先（`Host`。`alignItems: 'center'`の下で`Host`の幅が0のときはその親）で可視性を判定します。
+- **Androidのダイアログ（`presentation`の既定値）：** `testID`はどのビューにも渡されません。QuiescoはAndroidの`@react-native-community/datetimepicker`と同じく、`DateTimePicker`自身の`testID` propで見つけます。
+
+`setValue`はどのモードでもピッカーの`onValueChange` / `onChange`を呼び、ホイールは回しません。Webではこのコンポーネントは何も描画しません。
+
+## スライダー {#sliders}
+
+### `adjustSlider(target, position, options?)` {#adjustslider}
+
+スライダーのつまみを、実際の指またはマウスで`position`（`0`が最小、`1`が最大）までドラッグします。ドラッグそのものをテストしたいときに使います。`setValue`は代わりに正確な値を設定します。
+
+```ts
+// つまみを中央までドラッグする
+await app.adjustSlider('volume-slider', 0.5);
+```
+
+- **`native`モード：** つまみはタッチスロップの分だけ指に遅れて動くため、Quiescoは値を読み返し、スライダーが目標位置から1ステップ（連続値スライダーでは範囲の1%）以内に収まるまで再度ドラッグします（常に同じ向きに、助走をつけて）。
+- **Web：** つまみをマウスでドラッグします。
+- **`js`モード：** その位置に当たる値をコールバックで渡します。
+
+## アクセシビリティアクション {#accessibility-actions}
+
+### `accessibilityAction(target, name, options?)` {#accessibilityaction}
+
+アクセシビリティアクション`name`を、スクリーンリーダーと同じように実行します。ターゲット、または`accessibilityActions`を宣言している最も近い祖先に作用します。ターゲットが画面上にある必要はありません。
+
+```ts
+// accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]} を宣言したステッパー
+await app.accessibilityAction('quantity-stepper', 'increment');
+await app.expectText('quantity', '2');
+
+// カスタムアクション。VoiceOverのアクションローターと同じ
+await app.accessibilityAction({ id: 'todo-row', index: 0 }, 'archive');
+```
+
+`name`は要素が宣言しているものでなければなりません。そうでない場合、エラーに宣言済みのアクションが列挙されます。アクションの実行方法は次のとおりです。
+
+| プラットフォーム | 方法 |
+|---|---|
+| iOS | `increment` / `decrement`は`accessibilityIncrement` / `accessibilityDecrement`で、`magicTap` / `escape`はそれぞれのperformメソッドで、それ以外の名前はビューのカスタムアクション（VoiceOverのアクションローター）で実行 |
+| Android | React Nativeがアクションに割り当てたIDで`performAccessibilityAction` |
+| Webと`js`モード | `onAccessibilityAction({ nativeEvent: { actionName } })`（`accessibilityActions`はDOMに届かない） |

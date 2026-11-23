@@ -27,11 +27,31 @@ const SITE = 'https://shift-14cc7601.mintlify.site';
 
 /** skill -> the pages its references/ holds */
 const PAGES = {
-  'quiesco-api': ['api', 'config', 'sync', 'platforms', 'parallel', 'runners', 'vitest', 'jest', 'cucumber'],
+  'quiesco-api': [
+    'api',
+    'api-matchers',
+    'api-actions',
+    'api-value-controls',
+    'api-gestures',
+    'api-assertions',
+    'api-queries',
+    'api-runtime-sync',
+    'api-device',
+    'api-system',
+    'api-screenshots',
+    'api-webview',
+    'api-in-app',
+    'api-tags',
+    'api-errors',
+    'api-artifacts',
+    'api-custom-runners',
+    'config', 'sync', 'platforms', 'parallel', 'runners', 'vitest', 'jest', 'cucumber'],
   'writing-tests': ['tutorial', 'steps', 'driver-pattern'],
   setup: ['quickstart', 'cli'],
   debug: ['troubleshooting'],
 };
+
+const PACKAGE_MANAGERS = ['npm', 'pnpm', 'bun', 'yarn'];
 
 /** page -> skill */
 const owner = new Map(Object.entries(PAGES).flatMap(([skill, pages]) => pages.map((p) => [p, skill])));
@@ -61,7 +81,7 @@ export function convert(source, page, skill) {
   const out = [];
   let fence = false;
   let quote = false;
-  /** Inside a <CodeGroup> (one tab per package manager): only the npm tab is kept, as a plain code block. */
+  /** Inside a <CodeGroup>: of package-manager tabs only npm's is kept; other tabs are kept under their names. */
   let group = false;
   let skip = false;
   let step = 0;
@@ -93,7 +113,9 @@ export function convert(source, page, skill) {
       fence = !fence;
       if (group && fence) {
         const [lang = '', tab = ''] = trimmed.slice(3).trim().split(/\s+/);
-        skip = tab !== 'npm';
+        // Package-manager tabs: keep npm's. Other tabs (Vitest / Jest / Cucumber): keep each, under its name.
+        skip = PACKAGE_MANAGERS.includes(tab) && tab !== 'npm';
+        if (!skip && tab !== '' && !PACKAGE_MANAGERS.includes(tab)) out.push('', `**${tab}:**`, '');
         line = line.slice(0, line.indexOf(trimmed)) + trimmed.slice(0, 3) + lang;
       }
       if (!skip) out.push(quote ? `> ${line}` : line);
@@ -159,7 +181,7 @@ export function convert(source, page, skill) {
     }
 
     if (/^<\/?(CardGroup|Expandable)\b.*>$/.test(trimmed)) continue;
-    const c = /^<Card title="(.*?)".*?href="\/([a-z0-9-]+)">$/.exec(trimmed);
+    const c = /^<Card title="(.*?)".*?href="\.?\/([a-z0-9-]+)">$/.exec(trimmed);
     if (c) {
       card = { title: c[1], href: c[2], text: [] };
       continue;

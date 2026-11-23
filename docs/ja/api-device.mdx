@@ -1,0 +1,282 @@
+---
+title: "アプリとデバイス"
+description: "アプリの再起動、停止、バックグラウンド化と、デバイスの変更：画面の向き、ダークモード、文字サイズ、ロケール、位置情報、権限、ネットワーク、クリップボード、ステータスバー。"
+---
+
+`app.device`は、アプリのプロセスと、アプリが動くデバイスを操作します。起動引数やディープリンクを指定してアプリを起動し直す、バックグラウンドに送る、画面を回転させる、ダークモードに切り替える、オフラインにする、といったことができます。どの変更も次のテストの前に元に戻されるので（[テストの間](#between-tests)）、テスト同士は独立したままです。
+
+アプリ外のシステムUI（権限ダイアログ、生体認証、通知）は[システムUI](./api-system)を、スクリーンショットは[スクリーンショット](./api-screenshots)を参照してください。
+
+## アプリのライフサイクル {#app-lifecycle}
+
+### `relaunch(options?)` {#relaunch}
+
+アプリを終了して再び起動します。常に新しいプロセスです。`clearData`や`reinstall`を指定しない限り、アプリのデータは残ります。アプリが接続した時点で解決します。
+
+```ts
+// 型付きの起動引数とディープリンク：本当のコールドスタートで、getInitialURLにもリンクが見える
+await app.device.relaunch({ args: { user: 'ann', retries: 3 }, url: 'myapp://todos/1' });
+
+// 初回起動：先にアプリのデータを削除
+await app.device.relaunch({ clearData: true });
+
+// 新規インストール。カメラは許可済み
+await app.device.relaunch({ reinstall: true, permissions: ['camera'] });
+```
+
+| オプション | 意味 |
+|---|---|
+| `args` | 起動引数（任意のJSON）。設定の[`launchArgs`](./config#top-level)の上にマージされます。アプリは`quiesco.launchArgs()`で読みます（[アプリ内API](./api-in-app)） |
+| `url` | このディープリンクでアプリを開きます。Webではそのパスを開きます |
+| `clearData` | 先にアプリのデータを削除します（ネイティブ：アプリのストレージ。Web：新しいブラウザーコンテキスト） |
+| `reinstall` | 先にアプリをアンインストールしてインストールし直します。アプリの`binaryPath`が必要です。Webでは`clearData`と同じです |
+| `permissions` | 設定の権限に加えて、起動前に付与する権限（[権限](./platforms#permissions)）。`clearData` / `reinstall`の後は、設定の権限も再度付与されます |
+
+`@quiesco/native`がない場合、リンク付きで起動できないアプリは先に起動され、起動後にリンクが開かれます（警告が出ます）。このとき`getInitialURL`はリンクを返しません。
+
+### `terminate()` {#terminate}
+
+アプリを停止します。次の`relaunch()`までは、要素に対する呼び出しはすべて待たずに直ちに`APP_NOT_RUNNING`で失敗します。
+
+```ts
+await app.device.terminate();
+await app.device.relaunch();
+await app.expectVisible('home-screen');
+```
+
+### `sendToBackground()` {#sendtobackground}
+
+ホームボタンと同じくホーム画面へ移動します。プロセスは動き続けます。`bringToForeground()`までは、要素に対する呼び出しは`APP_IN_BACKGROUND`で失敗します。Webでは使えません（`ACTION_NOT_SUPPORTED`）。
+
+```ts
+await app.device.sendToBackground();
+
+// ディープリンクは、別のアプリからと同じくアプリの外から開かれる
+await app.openUrl('myapp://todos/42');
+```
+
+### `bringToForeground()` {#bringtoforeground}
+
+バックグラウンドのアプリを前面に戻し（再起動ではなく同じプロセス）、アクティブかつアイドルになるまで待ちます。Webでは使えません（`ACTION_NOT_SUPPORTED`）。
+
+```ts
+await app.device.sendToBackground();
+await app.device.bringToForeground();
+
+// 離れている間にアプリがロックされた
+await app.expectVisible('pin-screen');
+```
+
+### `install()` {#install}
+
+設定の`binaryPath`からアプリのバイナリをインストールします（[アプリ](./config#apps)）。実行中のアプリは停止されるので、`relaunch()`で起動してください。
+
+```ts
+await app.device.install();
+await app.device.relaunch();
+```
+
+### `uninstall()` {#uninstall}
+
+デバイスからアプリを削除します。Webにはアンインストールするものがないので（`ACTION_NOT_SUPPORTED`）、代わりに`relaunch({ clearData: true })`を使ってください。
+
+```ts
+await app.device.uninstall();
+await app.device.install();
+await app.device.relaunch();
+```
+
+### `appState` {#appstate}
+
+テストがアプリに対して最後に行ったことを表します：`'running'`、`'background'`、`'terminated'`のいずれか。メソッドではなくプロパティです。
+
+```ts
+await app.device.sendToBackground();
+expect(app.device.appState).toBe('background');
+```
+
+### `openUrl(url)` {#openurl}
+
+[`app.openUrl`](./api-actions#openurl)と同じで、ディープリンクを開きます。
+
+```ts
+await app.device.openUrl('myapp://settings');
+```
+
+### `pressBack()` {#pressback}
+
+[`app.pressBack`](./api-actions#pressback)と同じで、Androidの戻るボタン、Webではブラウザーの「戻る」です。
+
+```ts
+await app.device.pressBack();
+```
+
+## ネットワークポート {#network-ports}
+
+### `reversePort(port)` {#reverseport}
+
+ホストのポートを、Androidデバイスから`localhost:port`として到達できるようにします（`adb reverse`）。iOSシミュレーターとWebはホストのネットワークを共有しているので、何もしません。
+
+```ts
+// アプリはホスト上のモックサーバーと通信する
+await app.device.reversePort(3001);
+```
+
+### `unreversePort(port)` {#unreverseport}
+
+`reversePort`で設定した転送を解除します。iOSシミュレーターとWebでは何もしません。
+
+```ts
+await app.device.unreversePort(3001);
+```
+
+## デバイスの状態 {#device-state}
+
+### `setOrientation(orientation)` {#setorientation}
+
+アプリを`'portrait'`または`'landscape'`に回転させ、アプリのウィンドウが新しい形になってアプリがアイドルになった時点で解決します。アプリが画面の向きを固定していてはいけません（app.jsonの`"orientation": "default"`）。
+
+```ts
+await app.device.setOrientation('landscape');
+await app.expectVisible('side-by-side-layout');
+```
+
+### `setAppearance(scheme)` {#setappearance}
+
+システムのカラースキームを`'light'`または`'dark'`に切り替え、アプリが新しい値を報告することを確認します。アプリがシステムの設定に従っている必要があります（app.jsonの`"userInterfaceStyle": "automatic"`）。
+
+```ts
+await app.device.setAppearance('dark');
+await app.device.screenshot(undefined, { name: 'home-dark' });
+```
+
+### `setFontScale(scale)` {#setfontscale}
+
+システムの文字サイズを`0.5`から`4`の範囲で設定し、適用されたスケールで解決します。iOSは最も近いDynamic Typeのサイズを使い、その場で適用します。Androidはアプリを再起動します（データは保持）。Webでは使えません。
+
+```ts
+const applied = await app.device.setFontScale(1.3);
+
+// 長いタイトルもまだ収まる
+await app.expectVisible('todo-title', { ratio: 1 });
+```
+
+### `setLocale(locale)` {#setlocale}
+
+アプリの言語と地域を、`'ja-JP'`のようなBCP 47タグで設定します。`null`でデバイスのデフォルトに戻ります。その設定でアプリを再起動します（データは保持）。
+
+```ts
+await app.device.setLocale('ja-JP');
+await app.expectText('add-todo', '追加');
+
+await app.device.setLocale(null);
+```
+
+- アプリの優先言語（iOSの`AppleLanguages`。expo-localizationが読む値）か、JSのロケールが新しい言語になれば成功です。
+- iOSは`Intl`とアプリのネイティブ文字列を、`CFBundleLocalizations`にある言語にしか解決しません。その言語がない場合は警告が出ます。JSでローカライズしているアプリはそのまま動きます。
+
+### `setLocation(latitude, longitude)` {#setlocation}
+
+擬似的なGPS位置を設定します。Androidではエミュレーターのみです。
+
+```ts
+// 東京
+await app.device.setLocation(35.68, 139.76);
+await app.tap('nearby-stores');
+```
+
+### `setPermission(name, state)` {#setpermission}
+
+アプリの実行中に権限を変更します。`state`は`'grant'`、`'revoke'`、`'reset'`のいずれかで、名前は[権限](./platforms#permissions)のもの（`camera`、`microphone`、`location`、`notifications`、`contacts`、`photos`、`calendar`）です。
+
+```ts
+await app.device.setPermission('location', 'revoke');
+await app.tap('nearby-stores');
+await app.expectVisible('location-denied-banner');
+
+// もう一度確認させる：アプリが次に要求するとシステムダイアログが表示される
+await app.device.setPermission('camera', 'reset');
+```
+
+- **Androidでの取り消し**はアプリを強制終了します。Quiescoは解決する前にアプリを再起動する（データは保持）ため、アプリは最初の画面に戻ります。
+- **`'reset'`**は、新規インストール直後と同じ未決定の状態です。アプリが次に要求するとシステムダイアログが再び表示されます。Android：取り消し済みにし、「今後表示しない」をクリア。iOS：`simctl privacy reset`。Web：ブラウザーが確認します。
+- **iOSの通知とカメラ**は、アプリを再インストールしないとリセットできません。Quiescoは再インストールして起動するため、**アプリのデータは削除されます**（`binaryPath`が必要。その旨の警告が出ます）。
+
+システムの権限ダイアログ自体に応答するには、[システムUI](./api-system#system-allowpermission)を参照してください。
+
+### `setNetwork(state)` {#setnetwork}
+
+`'offline'`：アプリが新たに開く`fetch` / `XMLHttpRequest` / `WebSocket`接続は、ネットワークがないときと同じように失敗します。Quiesco自身の接続は動き続け、既に開いている接続も開いたままです。`'online'`で元に戻ります。
+
+```ts
+await app.device.setNetwork('offline');
+await app.tap('sync-now');
+await app.expectVisible({ text: 'You are offline' });
+
+await app.device.setNetwork('online');
+```
+
+- AndroidではWi-Fiとモバイルデータもオフにし、Webでは`navigator.onLine === false`を報告するので、これらではNetInfoも検知します。
+- iOSシミュレーターにはネットワークの切り替えがないため、NetInfoはオンラインと報告し続けます。
+- 再起動をまたいで、`'online'`にするか次のテストまで持続します。
+
+アプリのリクエストをアイドルの判定に数えないようにするには、[実行時の同期](./api-runtime-sync)を参照してください（Detoxの`setURLBlacklist`は、ここでは`app.sync.ignoreUrls.add()`です）。
+
+### `clipboard.set(text)` {#clipboard-set}
+
+デバイスのクリップボードに、アプリの中でプレーンテキストを書き込みます。アプリが貼り付ける内容です。次のテストの前にクリアされます。
+
+```ts
+await app.device.clipboard.set('SAVE20');
+await app.tap('paste-coupon');
+await app.expectValue('coupon-input', 'SAVE20');
+```
+
+iOSとAndroidでは`@quiesco/native`（≥ Phase 6.6）が必要です。
+
+### `clipboard.get()` {#clipboard-get}
+
+デバイスのクリップボードを読み取ります。アプリがコピーした内容です。
+
+```ts
+await app.tap('copy-invite-link');
+expect(await app.device.clipboard.get()).toMatch(/^https:\/\/example\.com\/invite\//);
+```
+
+iOSとAndroidでは`@quiesco/native`（≥ Phase 6.6）が必要です。iOSの読み取りは`simctl pbpaste`にフォールバックします。
+
+### `setStatusBar(options)` {#setstatusbar}
+
+きれいなスクリーンショットのために、ステータスバー（時刻、バッテリー、電波）を上書きします。Webにはステータスバーがないので、何もしません。
+
+```ts
+await app.device.setStatusBar({ time: '9:41', batteryLevel: 100, wifiBars: 3, cellularBars: 4 });
+await app.device.screenshot(undefined, { name: 'store-listing' });
+```
+
+| オプション | 意味 |
+|---|---|
+| `time` | 時刻。`'H:MM'` / `'HH:MM'`、例：`'9:41'` |
+| `batteryLevel` | 0–100 |
+| `charging` | `true` / `false` |
+| `wifiBars` | 0–3 |
+| `cellularBars` | 0–4 |
+| `dataNetwork` | `'wifi'`、`'3g'`、`'4g'`、`'lte'`、`'5g'`、またはモバイル通信の表示を隠す`'hide'` |
+
+### `resetStatusBar()` {#resetstatusbar}
+
+実際のステータスバーに戻します。
+
+```ts
+await app.device.resetStatusBar();
+```
+
+## スクリーンショット {#screenshots}
+
+`app.device.screenshot()`は、画面、要素、スクロールするページ全体のPNGを撮ります。[スクリーンショット](./api-screenshots)を参照してください。
+
+## テストの間 {#between-tests}
+
+- Quiescoは各テストの前に、前のテストが終了させたアプリを起動し、バックグラウンドに送られたアプリを前面に戻します。
+- デバイスへの変更はどれも、次のテストの前とセッション終了時に元に戻されます。権限は設定どおりに戻り、それ以外はデバイスの元の状態に戻ります。変更したものだけが対象です。
+- アプリを再起動する呼び出し（`setLocale`、Androidでの`setFontScale`、Androidでの取り消し）の後は、アプリは最初の画面にあります。

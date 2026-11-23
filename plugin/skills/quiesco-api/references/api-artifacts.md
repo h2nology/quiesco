@@ -1,0 +1,62 @@
+<!-- Generated from docs/api-artifacts.mdx by scripts/build-plugin-refs.mjs — do not edit. -->
+
+# Artifacts
+
+What a run leaves behind for each test: failure evidence, saved screenshots, videos, device logs and a timeline of every call.
+For each test, Quiesco writes files that help you see what happened, and attaches them to the test
+runner's report. They go under
+
+```
+artifacts/<date-time>-<platform>/<nnn>-<test name>/
+```
+
+In [parallel runs](./parallel.md) each worker writes to `artifacts/<date-time>-<platform>-wN/`.
+
+## What is written {#what-is-written}
+
+| Artifact | When | What |
+|---|---|---|
+| Failure evidence | The test failed | `failure.png`: the screen with the elements of the failed call framed in red (an assertion's elements, an obscured target, several matches). `elements.json`: the current route and every element with a testID, a label or text of its own, with whether it is visible and why not. `element-tree.json`. `idle-state.json`: what was busy |
+| Saved screenshots | [`screenshot(…, { name })`](./api-screenshots.md) | `<name>.png` |
+| `video` | Per policy | iOS: `simctl io recordVideo` (MP4). Android: `screenrecord` (MP4, a new segment every 3 minutes). Web: Playwright's screencast (WebM). Attached as a file path |
+| `logs` | Per policy | `device.log`. iOS: the app process's unified log (`log stream`, info and above). Android: logcat of the app's uid. Web: the page console and uncaught errors. The last 300 lines are attached inline |
+| `timeline` | Per policy | Every call on the app with its duration and how much of it was waiting for idle, failed calls with their error, and the steps of a `scrollTo` under it (also of one that the test runner's timeout ended first, marked "still running when the scenario ended"). `timeline.html` (attached inline) and `timeline.trace.json` (a Chrome trace: open it in `chrome://tracing` or ui.perfetto.dev) |
+
+After a crash the evidence also has `crash.txt` and, on iOS, the crash report; when the app logged
+`console.error`s, `app-errors.txt` ([errors](./api-errors.md#quiescoerror)).
+
+## Choosing what to record {#policies}
+
+```ts
+// quiesco.config.ts
+export default defineConfig({
+  artifacts: {
+    dir: 'artifacts',
+    video: 'failing',
+    logs: 'failing',
+    timeline: 'failing',
+  },
+});
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `dir` | `'artifacts'` | Where runs are written, relative to the working directory. With another directory, pass it to [`withQuiesco`](./api-in-app.md#withquiesco) too |
+| `video` | `'none'` | Recording costs a little on every test; turn it on in CI |
+| `logs` | `'failing'` | |
+| `timeline` | `'failing'` | |
+
+Each of `video`, `logs` and `timeline` takes a policy:
+
+- `none`: not recorded;
+- `failing`: recorded for every test, kept only when it fails;
+- `all`: recorded and kept for every test.
+
+`QUIESCO_ARTIFACTS=all` (or `failing`, `none`) sets all three for one run:
+
+```sh
+QUIESCO_ARTIFACTS=all npx quiesco test --platform android
+```
+
+All options are on the [configuration](./config.md#artifacts) page. A runner without an adapter gets the same
+artifacts through the session: [other test runners](./api-custom-runners.md#session).

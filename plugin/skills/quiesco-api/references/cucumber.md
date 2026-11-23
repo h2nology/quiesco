@@ -122,7 +122,7 @@ Step and support files run with Node's type stripping, not `tsc`:
 ## Tags {#tags}
 
 Platform and browser tags go on the feature, a `Rule`, the scenario or an `Examples` block; the innermost
-one decides ([scenario tags](./api.md#scenario-tags)). `@hard-reset` relaunches the app before that scenario.
+one decides ([scenario tags](./api-tags.md)). `@hard-reset` relaunches the app before that scenario.
 
 ## Running {#running}
 

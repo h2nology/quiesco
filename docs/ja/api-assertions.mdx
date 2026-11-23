@@ -1,0 +1,210 @@
+---
+title: "アサーション"
+description: "画面の内容を確認する：表示、テキスト、値、ラベル、有効、チェック、フォーカス、props、個数。成り立つまで再試行されます。"
+---
+
+アサーションは画面を確認し、成り立つか呼び出しのタイムアウトになるまで**再試行します**（[呼び出しのオプション](./api#call-options)を参照）。タイムアウトになると、期待値と実際の値を含む`ASSERTION_FAILED`で失敗します。そのため、テストで確認の前にアプリを待つ必要はありません。
+
+```ts
+await app.tap('add-todo');
+// 新しい行が現れるまで再試行される
+await app.expectText({ id: 'todo-title', index: 0 }, 'Buy milk');
+```
+
+どのアサーションも、マッチした要素の[概要](./api-queries#element-summary)で解決します。1つの要素についてのアサーション（テキスト、値、ラベル、フォーカス、有効、チェック、props）のほとんどは、マッチが**ちょうど1つ**必要です。そうしたアサーションは以下にその旨を書いています。各アサーションには[チェーン形式](#expect)の`app.expect(target).toBe…()`もあります。
+
+## 表示と存在 {#visibility-and-presence}
+
+### `expectVisible(target, options?)` {#expectvisible}
+
+マッチする要素が少なくとも1つ[表示されている](./api-matchers#visibility)ときに成り立ちます。
+
+```ts
+await app.expectVisible('todo-list-screen');
+
+// バナーの面積の75%以上が表示されている
+await app.expectVisible('promo-banner', { ratio: 0.75 });
+```
+
+| オプション | 意味 |
+|---|---|
+| `ratio` | (0, 1]の数値。要素の面積のうち少なくともこの割合が表示されている必要がある。範囲外なら`RangeError`をスロー |
+
+### `expectNotVisible(target, options?)` {#expectnotvisible}
+
+マッチする要素が1つも表示されていないとき（存在しない、または隠れている）に成り立ちます。
+
+```ts
+await app.tap('close-dialog');
+await app.expectNotVisible('confirm-dialog');
+```
+
+### `expectExists(target, options?)` {#expectexists}
+
+表示の有無にかかわらず、マッチする要素が要素ツリーにあるときに成り立ちます。
+
+```ts
+// リストのさらに下に描画されているが、まだスクロールしていない
+await app.expectExists({ id: 'todo-row', index: 49 });
+```
+
+### `expectNotExists(target, options?)` {#expectnotexists}
+
+マッチする要素が要素ツリーにないときに成り立ちます。
+
+```ts
+await app.swipe({ id: 'todo-row', has: { text: 'Buy milk' } }, 'left');
+await app.tap('delete');
+await app.expectNotExists({ text: 'Buy milk' });
+```
+
+### `expectCount(target, n, options?)` {#expectcount}
+
+マッチする要素がちょうど`n`個のときに成り立ちます。
+
+```ts
+await app.type('new-todo', 'Walk the dog');
+await app.pressKey('new-todo', 'enter');
+await app.expectCount({ id: 'todo-row' }, 3);
+```
+
+## 内容 {#content}
+
+### `expectText(target, text, options?)` {#expecttext}
+
+マッチがちょうど1つで、そのテキストが`text`と等しい（`text`が正規表現ならマッチする）ときに成り立ちます。
+
+```ts
+await app.expectText('todo-title', 'Buy milk');
+
+await app.expectText('items-left', /^\d+ items? left$/);
+```
+
+### `expectValue(target, value, options?)` {#expectvalue}
+
+マッチがちょうど1つで、その値が`value`と等しい（`value`が正規表現ならマッチする）ときに成り立ちます。値とは、入力欄のテキスト、スイッチの状態、スライダーやピッカーの値、または`accessibilityValue`です。
+
+```ts
+await app.expectValue('email', 'ann@example.com');
+await app.expectValue('dark-mode-switch', true);
+await app.expectValue('volume-slider', 0.5);
+
+// 日付ピッカー：表示内容をデバイスのローカル時刻で比較する
+await app.expectValue('due-date', new Date(2031, 11, 24));
+```
+
+日付・時刻ピッカーの値は、表示されている内容をデバイスのローカル時刻で表したものです：`"2031-12-24"`（モード`date`）、`"20:15"`（`time`）、`"2031-12-24T20:15"`（`datetime`）。秒が0でなければ秒も付きます。`Date`は、これらの部分が一致すればマッチします。[日付・時刻ピッカー](./api-value-controls#date-and-time-pickers)を参照してください。
+
+### `expectLabel(target, text, options?)` {#expectlabel}
+
+マッチがちょうど1つで、そのアクセシビリティラベルが`text`と等しい（`text`が正規表現ならマッチする）ときに成り立ちます。
+
+```ts
+await app.expectLabel('cart-button', 'Cart, 3 items');
+
+await app.expectLabel('cart-button', /^Cart, \d+ items$/);
+```
+
+### `expectProp(target, prop, value, options?)` {#expectprop}
+
+マッチがちょうど1つで、`prop`で指定したpropがこのJSON値を持つときに成り立ちます。まずホスト要素のprops、次にそのコンポーネントのpropsを調べます（例：`disabled`、`value`）。
+
+```ts
+await app.expectProp('new-todo', 'placeholder', 'What needs to be done?');
+
+await app.expectProp('save', 'disabled', false);
+```
+
+## 状態 {#state}
+
+### `expectEnabled(target, options?)` {#expectenabled}
+
+マッチがちょうど1つで、それが有効なときに成り立ちます。
+
+```ts
+await app.type('email', 'ann@example.com');
+await app.type('password', 'secret');
+await app.expectEnabled('sign-in');
+```
+
+### `expectDisabled(target, options?)` {#expectdisabled}
+
+マッチがちょうど1つで、それが無効なときに成り立ちます。
+
+```ts
+// フォームが空
+await app.expectDisabled('sign-in');
+```
+
+要素は`disabled`、`accessibilityState.disabled`、`aria-disabled`、`editable={false}`によって無効になります。祖先から継承した場合も含みます。
+
+### `expectChecked(target, options?)` {#expectchecked}
+
+マッチがちょうど1つで、それがチェックされているときに成り立ちます。対象はスイッチ、チェックボックス、ラジオ、または`accessibilityState.checked`を持つ任意の要素です。
+
+```ts
+await app.tap({ type: 'switch', label: 'Notifications' });
+await app.expectChecked({ type: 'switch', label: 'Notifications' });
+```
+
+### `expectNotChecked(target, options?)` {#expectnotchecked}
+
+マッチがちょうど1つで、それがチェックされていないときに成り立ちます。
+
+```ts
+await app.expectNotChecked({ type: 'checkbox', label: 'Remember me' });
+```
+
+チェック状態を持たない要素は、`expectChecked`と`expectNotChecked`の両方で失敗します。
+
+### `expectFocused(target, options?)` {#expectfocused}
+
+マッチがちょうど1つで、それに入力フォーカスがあるときに成り立ちます。
+
+```ts
+await app.tap('new-todo');
+await app.expectFocused('new-todo');
+```
+
+### `expectNotFocused(target, options?)` {#expectnotfocused}
+
+マッチがちょうど1つで、それに入力フォーカスがないときに成り立ちます。
+
+```ts
+await app.pressKey('new-todo', 'enter');
+await app.dismissKeyboard();
+await app.expectNotFocused('new-todo');
+```
+
+## チェーン形式 {#chained-form}
+
+### `expect(target)` {#expect}
+
+同じアサーションを、DetoxやJestのようなチェーン形式で書けます。どちらの形式も動作は同じで、アイドルを待ち、アサーションが成り立つまで再試行します。各メソッドは最後の引数に[呼び出しのオプション](./api#call-options)を受け取り、`.not`で否定できます。
+
+```ts
+await app.expect('save').toBeEnabled();
+await app.expect({ type: 'switch', label: 'Wi-Fi' }).not.toBeChecked();
+
+// Detoxでは toBeVisible(75)
+await app.expect('promo-banner').toBeVisible({ ratio: 0.75 });
+
+await app.expect({ id: 'todo-title', index: 0 }).not.toHaveValue('');
+```
+
+| チェーン形式 | 対応するメソッド |
+|---|---|
+| `toBeVisible({ ratio })` | `expectVisible`（`.not`：`expectNotVisible`） |
+| `toExist()` | `expectExists`（`.not`：`expectNotExists`） |
+| `toBeFocused()` | `expectFocused`（`.not`：`expectNotFocused`） |
+| `toBeEnabled()` | `expectEnabled`（`.not`：`expectDisabled`） |
+| `toBeDisabled()` | `expectDisabled`（`.not`：`expectEnabled`） |
+| `toBeChecked()` | `expectChecked`（`.not`：`expectNotChecked`） |
+| `toHaveText(text)` | `expectText` |
+| `toHaveValue(value)` | `expectValue`（`Date`の形を除く） |
+| `toHaveLabel(text)` | `expectLabel` |
+| `toHaveProp(prop, value)` | `expectProp` |
+| `toHaveCount(n)` | `expectCount` |
+| `toHaveId(id)` | マッチする要素がこの`testID`（文字列または正規表現）を持つ |
+
+1つの要素についての否定のアサーション（`not.toHaveText`、`not.toHaveValue`など）でも、マッチはちょうど1つ必要です。マッチがなければ失敗します。

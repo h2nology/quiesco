@@ -1,0 +1,161 @@
+---
+title: "值控件"
+description: "设置开关、滑块、选择器、分段控件和日期选择器，拖动滑块，以及执行屏幕阅读器的操作。"
+---
+
+持有值的控件——开关、滑块、选择器、分段控件、日期选择器——无论由哪个库绘制，都用同一个调用 `setValue` 来设置。`adjustSlider` 像手指一样拖动滑块的滑柄，`accessibilityAction` 则做屏幕阅读器所做的事。与所有操作一样，它们前后都会等待 App 空闲（[每个调用都会等待](./api#every-call-waits)），并接受 [调用选项](./api#call-options)。
+
+## 设置值 {#setting-a-value}
+
+### `setValue(target, value, options?)` {#setvalue}
+
+把 `target` 处的控件设置为 `value`：一个数字、布尔值、字符串或 `Date`。控件支持真实输入时就用真实输入（点击开关、用手指转动 iOS 滚轮、浏览器的 `<select>`），否则调用组件的回调。
+
+```ts
+// 开关
+await app.setValue('notifications-switch', true);
+
+// 滑块：精确值
+await app.setValue('volume-slider', 0.75);
+
+// 选择器：某一项的值，或其标签
+await app.setValue('priority-picker', 'high');
+await app.setValue('priority-picker', 'High priority');
+
+// 分段控件：某一段的值，或其索引
+await app.setValue('filter-tabs', 'Done');
+await app.setValue('filter-tabs', 2);
+
+// 日期选择器
+await app.setValue('due-date-picker', '2031-12-24');
+await app.setValue('due-date-picker', new Date(2031, 11, 24));
+```
+
+#### 支持哪些控件 {#supported-controls}
+
+`setValue` 查看目标周围组件的 props：元素本身及其上几层。如果都没有，则取元素内部唯一的控件——例如一个承载 testID、包裹着会丢掉 testID 的组件的 `View`。
+
+| 控件 | 识别依据 | `value` |
+|---|---|---|
+| `@react-native-community/slider` | `onValueChange` / `onSlidingComplete`，以及数值型的 `value` 或 `minimumValue` / `maximumValue` | 范围内且落在 `step` 上的数字 |
+| `Switch`、`expo-checkbox` | 布尔型的 `value` 和 `onValueChange` | `true` / `false` |
+| `@react-native-picker/picker` | `onValueChange` 和 `selectedValue` | 某一项的值（也可以是字符串形式），或其标签 |
+| `@react-native-segmented-control/segmented-control` | `values` 数组和 `onChange` / `onValueChange` | 某一段的值，或其索引 |
+| `@react-native-community/datetimepicker` | `Date` 类型的 `value` 和 `onChange` / `onValueChange` | 一个 `Date`，或本地时间字符串 `"2031-12-24"` / `"20:15"` / `"2031-12-24T20:15"`；只改变选择器负责的那部分（[日期和时间选择器](#date-and-time-pickers)） |
+| `@expo/ui/community/datetime-picker`（`DateTimePicker`） | 与 `@react-native-community/datetimepicker` 相同 | 相同（[`@expo/ui` 的选择器](#expo-ui-date-picker)） |
+| DOM `<select>`、`<input type="date" / "time" / "datetime-local" / "month" / "week" / "range" / "number">`、复选框 | 元素本身（web） | 某个选项的值或标签；一个 `Date`（按本地时间写入），或输入框自身格式的字符串 |
+
+- 设置为控件当前已有的值时不会发送事件。
+- 禁用的控件不会被改动，与用户尝试操作时一样。
+- 其他控件都会以 `ACTION_NOT_SUPPORTED` 失败。错误信息会列出找到的回调和查找过的内容：从目标往上的各个组件（附带决定控件种类的 props），以及目标里面看起来像控件的组件和各自没有被采用的原因（离它的元素超过 8 层，或者是多个控件之一）。据此可以移动 testID、包一层控件，或改用 [后门](./api-queries#backdoor)。
+
+#### 值是如何设置进去的 {#how-the-value-gets-in}
+
+| | `native`（iOS / Android） | web（真实输入） | `js` |
+|---|---|---|---|
+| 开关 / 复选框 | 需要改变值时进行一次真实点击 | 一次 click | `onChange` + `onValueChange` |
+| 分段控件 | 在该段上真实点击 | 在该段上 click | `onChange`（原生事件）+ `onValueChange` |
+| 选择器 | iOS：用手指转动滚轮（缓慢拖动，抬起前停顿，读回结果并修正）；Android：回调（下拉菜单 / 对话框是单独的窗口） | `<select>`：`selectOption` | `onValueChange(value, index)` |
+| 日期选择器 | iOS 滚轮（`display="spinner"`）：每一列都用手指转动——通过将某列转动一行来判断它对应哪个单位，因此任何语言区域和顺序都适用；compact / inline 样式以及 Android（系统对话框）：回调 | 日期输入框：`fill` | `onValueChange` / `onChange`，参数为 `{ type: 'set', nativeEvent: { timestamp, utcOffset } }` |
+| 滑块 | 回调（精确值；真实拖动请用 [`adjustSlider`](#adjustslider)） | 回调 | `onSlidingStart`、`onValueChange`、`onSlidingComplete` |
+
+Android 的 `DateTimePicker` 不渲染任何视图：它会打开一个系统对话框。因此在 App 显示它之后，`setValue({ id })` 会通过 testID（或按名称用 `{ type: 'DateTimePicker' }`）直接找到该组件。App 处理这次变更时会关闭对话框，与处理用户的选择一样。只有 `id`、`type` 和 `index` [匹配器](./api-matchers) 能找到这类组件。
+
+```ts
+// Android：App 打开日期对话框；通过组件设置值
+await app.tap('pick-due-date');
+await app.setValue({ id: 'due-date-picker' }, '2031-12-24');
+```
+
+## 日期和时间选择器 {#date-and-time-pickers}
+
+与原生对话框一样，`setValue` 只改变选择器 `value` 中由其 `mode` 显示的那部分，按选择器的时区计算（`timeZoneOffsetInMinutes`，否则为设备的时区）：
+
+| `mode` | 改变什么 | 接受 |
+|---|---|---|
+| `date`（默认） | 日期；时、分保持不变，秒变为 0 | `Date` 或 `"2031-12-24"` |
+| `time` | 时、分；日期保持不变 | `Date` 或 `"20:15"`（带秒为 `"20:15:30"`） |
+| `datetime` | `Date`：全部；字符串：它给出的部分 | `Date`、`"2031-12-24T20:15"`、`"2031-12-24"` 或 `"20:15"` |
+| `countdown` | 全部 | `Date` |
+
+因此在 Android 的两个对话框中先选日期再选时间，日期会保留：
+
+```ts
+await app.setValue('due-date-picker', '2031-12-24');
+
+// 不必编造一个日期：日期会保留
+await app.setValue('due-time-picker', '20:15');
+```
+
+- `minimumDate` / `maximumDate` 会对照结果检查。
+- 字符串是设备上的本地时间，因此不受 host 时区影响。`Date` 会换算成设备的时区。
+
+### 读取选择器的值 {#reading-a-pickers-value}
+
+选择器的值（[`expectValue`](./api-assertions#expectvalue)、[查询](./api-queries) 结果中的 `value`）是它显示的内容，用设备上的本地时间表示：`"2031-12-24"`（`date`）、`"20:15"`（`time`）、`"2031-12-24T20:15"`（`datetime`、`countdown`），秒不为 0 时带上 `:ss`。`expectValue` 接受这样的字符串，或者一个 `Date`，这些部分一致时即匹配。
+
+```ts
+await app.setValue('due-time-picker', '20:15');
+await app.expectValue('due-time-picker', '20:15');
+```
+
+Android 的对话框在 App 处理完变更后就消失了：请改为检查 App 显示的内容。
+
+### `@expo/ui` 的 DateTimePicker {#expo-ui-date-picker}
+
+`@expo/ui/community/datetime-picker`（iOS 上是 SwiftUI，Android 上是 Jetpack Compose）接受同样的值。请把 `testID` 直接加在 `DateTimePicker` 上：
+
+```tsx
+// 在 App 中
+<Host matchContents>
+  <DateTimePicker testID="due-date-picker" value={due} onValueChange={setDue} />
+</Host>
+```
+
+```ts
+// 在测试中
+await app.setValue('due-date-picker', '2031-12-24');
+```
+
+- **iOS，以及 Android 的 `presentation="inline"`：** 拿到 `testID` 的那个视图向 React Native 报告的尺寸为 0，但选择器实际上是画出来的。Quiesco 会用它最近一个有尺寸的祖先（`Host`；在 `alignItems: 'center'` 下 `Host` 宽度为 0 时，用它的父元素）来判断是否可见。
+- **Android 的对话框（`presentation` 的默认值）：** `testID` 不会传给任何视图。Quiesco 会按 `DateTimePicker` 自己的 `testID` prop 找到它，和 Android 上的 `@react-native-community/datetimepicker` 一样。
+
+`setValue` 在所有模式下都调用选择器的 `onValueChange` / `onChange`，不会滚动滚轮。在 web 上这个组件什么也不渲染。
+
+## 滑块 {#sliders}
+
+### `adjustSlider(target, position, options?)` {#adjustslider}
+
+用真实的手指或鼠标将滑块的滑柄拖到 `position`，从 `0`（最小值）到 `1`（最大值）。当测试需要检验拖动本身时使用它；`setValue` 则设置精确值。
+
+```ts
+// 把滑柄拖到中间
+await app.adjustSlider('volume-slider', 0.5);
+```
+
+- **`native` 模式：** 滑柄跟随手指移动时会扣除触摸 slop，因此 Quiesco 会读回值并再次拖动（始终朝同一方向，并带助跑），直到滑块与目标位置相差不超过一个步长（连续滑块为范围的 1%）。
+- **Web：** 用鼠标拖动滑柄。
+- **`js` 模式：** 通过回调设置该位置对应的值。
+
+## 无障碍操作 {#accessibility-actions}
+
+### `accessibilityAction(target, name, options?)` {#accessibilityaction}
+
+像屏幕阅读器一样执行无障碍操作 `name`。它作用于目标，或最近的声明了 `accessibilityActions` 的祖先；目标不必在屏幕上。
+
+```ts
+// 声明了 accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]} 的步进器
+await app.accessibilityAction('quantity-stepper', 'increment');
+await app.expectText('quantity', '2');
+
+// 自定义操作，如 VoiceOver 的“操作”转子中那样
+await app.accessibilityAction({ id: 'todo-row', index: 0 }, 'archive');
+```
+
+`name` 必须是元素已声明的名称；否则错误信息会列出已声明的名称。操作的执行方式：
+
+| 平台 | 方式 |
+|---|---|
+| iOS | `increment` / `decrement` 通过 `accessibilityIncrement` / `accessibilityDecrement`；`magicTap` / `escape` 通过各自的 perform 方法；其他名称都通过视图的自定义操作（VoiceOver 的“操作”转子） |
+| Android | `performAccessibilityAction`，使用 React Native 为该操作分配的 id |
+| Web 和 `js` 模式 | `onAccessibilityAction({ nativeEvent: { actionName } })`（`accessibilityActions` 不会传到 DOM） |

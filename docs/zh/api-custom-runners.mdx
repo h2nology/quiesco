@@ -1,0 +1,208 @@
+---
+title: "其他测试运行器"
+description: "Vitest 和 Jest 适配器如何运行会话，以及如何用 Lifecycle 或会话从其他任何运行器驱动 Quiesco。"
+---
+
+Quiesco 为 Cucumber、Vitest 和 Jest 提供了适配器（[测试运行器](./runners)）。本页介绍 Vitest 和 Jest 适配器做了什么，以及如何从其他任何运行器（Mocha、普通脚本）直接使用 `@quiesco/core`。
+
+## Vitest 和 Jest {#vitest-and-jest}
+
+`@quiesco/vitest` 和 `@quiesco/jest` 的行为与 Cucumber 适配器一致。示例见 [Vitest](./vitest)、[Jest](./jest) 和 [examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e)。
+
+| | Vitest（`@quiesco/vitest`） | Jest（`@quiesco/jest`） |
+|---|---|---|
+| 配置 | 来自 `@quiesco/vitest/config` 的 `plugins: [quiescoPlugin()]`、`test: { ...quiesco() }` | `preset: '@quiesco/jest'`、`maxWorkers`，以及一个 `testTimeout` |
+| Driver | `test('…', async ({ app, session }) => …)` | 全局的 `quiesco.app` / `quiesco.session` |
+| 会话 | 每个 worker 一个：一个 worker fixture | 每个 worker 进程一个：由测试环境持有，在 Jest 结束该 worker 时关闭（in band 模式下：由 preset 的 `globalTeardown` 关闭） |
+| 平台标签 | 写在 `describe` / 测试标题和 `{ tags }` 中（由 `quiesco()` 声明） | 写在 `describe` / 测试标题中 |
+| 每个测试之前 | 若标记为其他平台则跳过，否则重置 | 同左（Jest 的 `test_start` / `test_started` 事件） |
+| 失败之后 | 证据写入产物目录，其文件列在失败消息中 | 同左 |
+| 并行运行 | `quiesco({ workers: N })`：每个 worker 使用各自的设备（[并行运行](./parallel)） | `maxWorkers: N`，同左 |
+
+细节：
+
+- 与 Gherkin 一样，由带有平台标签的最内层决定：在 `describe('… @native')` 中标记为 `@android` 的测试只在 Android 上运行（[测试标签](./api-tags)）。
+- 启动失败的会话会让剩余的测试立即失败，而不是为每个测试重新启动。
+- 使用 Jest 时，配置自己的 `globalTeardown` 会替换 preset 的：请在其中调用 `@quiesco/jest/teardown`（见示例 App）。
+- Vitest 运行中的第一个测试还要等待会话启动，而启动设备可能需要几分钟：因此 `quiesco()` 把 `testTimeout` 设为 300 s。
+
+## Lifecycle {#lifecycle}
+
+其他任何运行器都直接使用 `@quiesco/core`。`Lifecycle` 把一次运行映射为四个调用；上面的适配器只是它之上的薄封装。
+
+```ts
+import { Lifecycle, titleTags } from '@quiesco/core';
+
+// 配置来自 quiesco.config.*，平台来自 QUIESCO_PLATFORM
+const lifecycle = new Lifecycle();
+
+// 一次：服务器、设备、安装、启动、连接
+await lifecycle.beforeAll();
+
+// 每个测试
+const name = 'logs in @native';
+const tags = [titleTags(name)];
+let failed = false;
+try {
+  if ((await lifecycle.before(tags, name)) !== 'skipped') {
+    // driver：与其他页面中的 `app` 是同一个对象
+    const app = lifecycle.current.driver;
+    await app.tap('login-button');
+  }
+} catch (e) {
+  failed = true;
+  throw e;
+} finally {
+  // 证据 + 按策略生成的产物
+  const { attachments, files } = await lifecycle.after({ tags: tags.flat(), failed });
+}
+
+// 一次，在最后
+await lifecycle.afterAll();
+```
+
+### `new Lifecycle(options?)` {#new-lifecycle}
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `config` | 从 `quiesco.config.*` 加载（`QUIESCO_CONFIG` 可指定其他文件） | 要使用的配置 |
+| `platform` | `QUIESCO_PLATFORM` | `'ios'`、`'android'` 或 `'web'` |
+| `worker` | `{ index: 0, count: 1 }` | 此 lifecycle 所在的并行 worker：配置函数会收到它，会话会使用它自己的设备、端口和产物目录 |
+| `logger` | 控制台 | 重复失败提示的输出位置 |
+| `env` | `process.env` | 读取 `QUIESCO_CONFIG` 和 `QUIESCO_PLATFORM` 的环境 |
+| `createSession` | `createSession` | 会话工厂，用于测试和自定义设置 |
+
+### `beforeAll()` {#beforeall}
+
+加载配置，启动服务器和设备，安装并启动 App，然后等待 agent 连接。
+
+```ts
+await lifecycle.beforeAll();
+```
+
+### `before(tags, name?)` {#before}
+
+在每个测试之前调用。对于标记为其他平台或浏览器的测试（或在连续出现相同失败而提前终止运行之后，见 [`bailOnRepeatedFailure`](./config#top-level)），返回 `'skipped'`；否则开始该测试的产物记录并重置 App。请按层级分组传入标签，最外层（suite / feature）在前，这样由最内层的平台标签决定。
+
+```ts
+// describe('settings @native') 中的一个测试
+const result = await lifecycle.before([['@native'], titleTags('back closes it @android')], 'back closes it');
+if (result === 'skipped') return;
+```
+
+### `current` {#current}
+
+正在运行的会话；`lifecycle.current.driver` 就是 driver。`beforeAll` 未完成时会抛出错误。
+
+```ts
+const app = lifecycle.current.driver;
+await app.expectVisible('home-screen');
+```
+
+### `after({ tags, failed, error? })` {#after}
+
+在每个测试之后调用。失败时收集证据；按产物策略还会保留 video、logs 和 timeline。它返回 `{ attachments, files }`：attachments 供能接收附件的报告使用，files 是写入的文件，供打印路径的运行器使用。请传入 `error`（一个 Error 或运行器的消息），以便区分连续相同的失败。如果 App 在测试最后一步之后报告了错误，通过的测试仍会失败（`after` 抛出错误）。
+
+```ts
+const { attachments, files } = await lifecycle.after({ tags: ['@native'], failed: true, error });
+if (files.length > 0) console.log(`evidence:\n  ${files.join('\n  ')}`);
+```
+
+### `afterAll()` {#afterall}
+
+关闭连接、App 和设备（按配置）。
+
+```ts
+await lifecycle.afterAll();
+```
+
+### `titleTags(title)` {#titletags}
+
+写在测试或 suite 标题中的标签。
+
+```ts
+titleTags('adds a todo @ios @smoke'); // ['@ios', '@smoke']
+```
+
+## 会话 {#session}
+
+`Lifecycle` 之下是会话本身，可以完全控制：此时标签和跳过都由你自己处理。
+
+```ts
+import { createSession, loadConfig, resolvePlatform } from '@quiesco/core';
+
+const { config } = await loadConfig();
+const session = await createSession({ config, platform: resolvePlatform() });
+
+// 每个测试
+await session.startScenario({ name: 'logs in' });
+await session.beforeScenario({ tags: ['@native'], name: 'logs in' });
+let failed = false;
+try {
+  await session.driver.tap('login-button');
+} catch (e) {
+  failed = true;
+  throw e;
+} finally {
+  const { attachments, files } = await session.afterScenario({ failed });
+}
+
+await session.dispose();
+```
+
+### `createSession({ config, platform, worker?, logger? })` {#createsession}
+
+启动服务器、启动设备、安装并启动 App，然后等待 agent 连接。`worker`（`{ index, count }`，默认为唯一的 worker）让会话使用它自己的设备、服务器端口（`server.port + index`）和产物目录。
+
+```ts
+const session = await createSession({ config, platform: 'android', worker: { index: 1, count: 2 } });
+```
+
+### `startScenario({ name })` {#startscenario}
+
+在以测试命名的目录中开始该测试的产物记录（timeline、video）。请在 `beforeScenario` 之前调用，这样重置也会被录进视频。
+
+```ts
+await session.startScenario({ name: 'adds a todo' });
+```
+
+### `beforeScenario({ tags?, name? })` {#beforescenario}
+
+撤销上一个测试的 [运行时同步](./api-runtime-sync) 和 [设备](./api-device) 更改，把处于后台的 App 切回前台或启动已终止的 App，然后对 App 进行软重置；对于 `@hard-reset`（或 `reset.default: 'hard'`），则终止并重新启动它。如果 App 崩溃或不再响应，会重新启动它。
+
+```ts
+await session.beforeScenario({ tags: ['@hard-reset'], name: 'first launch' });
+```
+
+### `afterScenario({ failed })` {#afterscenario}
+
+结束该测试。失败时：带红框的截图、元素树和空闲状态；以及按 [产物策略](./api-artifacts) 生成的 video、logs 和 timeline。返回 `{ attachments, files }`。
+
+```ts
+const { files } = await session.afterScenario({ failed: true });
+```
+
+### `collectEvidence()` {#collectevidence}
+
+只返回失败证据，不写入产物：`screenshot`、`tree`、`elements`、`idle`，以及记录无法收集的部分的 `errors`（崩溃之后只有截图和 `crash`）。
+
+```ts
+const evidence = await session.collectEvidence();
+if (evidence.screenshot) await fs.writeFile('failure.png', evidence.screenshot);
+```
+
+### `dispose()` {#dispose}
+
+最后调用：撤销最后一个测试的设备更改并关闭 App。除非设置了 [`devices.*.shutdown`](./config#devices)，否则设备会继续运行。
+
+```ts
+await session.dispose();
+```
+
+## 运行 {#running}
+
+一个会话驱动一台设备；在 [并行运行](./parallel) 中，每个 worker 有自己的会话，带有各自的 `worker` 序号。`quiesco test --runner cucumber|jest|vitest` 会设置 `QUIESCO_PLATFORM` 并启动运行器。对于其他运行器，请自行设置 `QUIESCO_PLATFORM`（或把平台传给 `resolvePlatform`）并启动运行器：
+
+```sh
+QUIESCO_PLATFORM=ios npx mocha e2e/**/*.test.ts
+```

@@ -1,0 +1,262 @@
+---
+title: "アクション"
+description: "ユーザーと同じようにタップ、入力、スクロール、スワイプ、ドラッグし、前の画面に戻り、ディープリンクを開く。"
+---
+
+アクションはユーザーが行う操作を再現します。`native`モード（アプリに`@quiesco/native`がある場合のデフォルト）では実際のタッチとキーボード入力です。`js`モードでは代わりにコンポーネントのコールバックを呼びます（[呼び出しのオプション](./api#call-options)を参照）。どのアクションも前後でアプリがアイドルになるのを待ち、表示されているターゲットがちょうど1つ必要です（[要素を見つける](./api#finding-elements)）。
+
+座標は論理単位です（iOSではpt、Androidではdp、WebではCSS px）。
+
+## タップ {#tapping}
+
+### `tap(target, options?)` {#tap}
+
+要素の中心をタップします。スクロールビューや`overflow`の祖先に一部が切り取られた要素は、見えている部分の中心をタップします。
+
+```ts
+await app.tap('save');
+
+// 要素内の一点。左上隅から
+await app.tap('map', { point: { x: 40, y: 120 } });
+```
+
+| オプション | 意味 |
+|---|---|
+| `point` | 中心の代わりにタップする、要素自身の座標系での`{ x, y }` |
+
+### `doubleTap(target, options?)` {#doubletap}
+
+1つのジェスチャーで2回タップします。
+
+```ts
+await app.doubleTap('photo');
+```
+
+### `multiTap(target, count, options?)` {#multitap}
+
+1つのジェスチャーで`count`回タップします。
+
+```ts
+// 3回タップして隠しデバッグメニューを開く
+await app.multiTap('version-label', 3);
+```
+
+### `longPress(target, options?)` {#longpress}
+
+要素を押し続けます。
+
+```ts
+await app.longPress('message');
+
+await app.longPress('message', { durationMs: 1500, point: { x: 10, y: 10 } });
+```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `durationMs` | `800` | 押し続ける時間 |
+| `point` | 中心 | 要素自身の座標系での`{ x, y }` |
+
+### `tapAt(point, options?)` {#tapat}
+
+画面上の一点（ウィンドウ座標）をタップします。そこに何があっても構いません。
+
+```ts
+// ボトムシートの上側をタップして閉じる
+await app.tapAt({ x: 200, y: 100 });
+```
+
+### `longPressAt(point, options?)` {#longpressat}
+
+画面上の一点（ウィンドウ座標）を押し続けます。
+
+```ts
+await app.longPressAt({ x: 200, y: 400 }, { durationMs: 1000 });
+```
+
+## テキスト入力 {#text-input}
+
+### `type(target, text, options?)` {#type}
+
+入力欄にフォーカスし、既にある内容の後ろに`text`を入力します。`native`モードではテキストがシステムのIMEを経由するので、どの言語でも入力できます。iOSとAndroidではテキスト全体が一度に届き、Webでは1文字ごとに1キーが送られます。
+
+```ts
+await app.type('email', 'ann@example.com');
+
+// 1文字ずつ：デバウンス付き検索、入力マスク、onKeyPress向け
+await app.type('search', 'milk', { perCharacter: true });
+```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `perCharacter` | `false` | 1文字ずつ入力し、アプリがキー入力を1回ずつ受け取るようにする。呼び出しは最後にアイドルを待つ |
+| `intervalMs` | `80` | `perCharacter`のとき：文字と文字の間隔 |
+
+### `replaceText(target, text, options?)` {#replacetext}
+
+入力欄のテキスト全体を一度に置き換えます。
+
+```ts
+await app.replaceText('email', 'bob@example.com');
+```
+
+### `clear(target, options?)` {#clear}
+
+入力欄を空にします。
+
+```ts
+await app.clear('search');
+```
+
+### `pressKey(target, key, options?)` {#presskey}
+
+Returnキー（`'enter'`）または`'backspace'`をフィールドに送ります。`'enter'`は1行の入力欄では送信し、複数行の入力欄では改行を追加します。フィールドが存在しさえすればよく、キーボードのReturnキーに手が届かない状況でもキーはフィールドに届きます。
+
+```ts
+await app.type('search', 'milk');
+await app.pressKey('search', 'enter');
+
+await app.pressKey('code-input', 'backspace');
+```
+
+### `dismissKeyboard(options?)` {#dismisskeyboard}
+
+ソフトウェアキーボードを閉じます。
+
+```ts
+await app.type('notes', 'Call before noon');
+await app.dismissKeyboard();
+```
+
+## スクロール {#scrolling}
+
+### `scroll(target, direction, options?)` {#scroll}
+
+スクロールビューをスクロールします。`'down'`で下のコンテンツが現れます。`native`モードでは指をドラッグして徐々に減速させて止めるので、慣性スクロールせずにコンテンツがおよそ`distance`だけ動きます（システムのタッチスロップの分だけ短くなります。iOSで約10pt、Androidで約7%）。
+
+```ts
+await app.scroll('feed', 'down');
+
+await app.scroll('feed', 'down', { distance: 300, from: { x: 0.5, y: 0.8 } });
+```
+
+| オプション | 意味 |
+|---|---|
+| `distance` | スクロールする距離（論理単位） |
+| `from` | 指の開始点。要素内で0–1に正規化した位置 |
+
+### `scrollTo(container, target, options?)` {#scrollto}
+
+`target`の中心（タップが当たる位置）が見えるまで`container`をスクロールします。下、次に上へ。横方向のリストでは右、次に左へ。1ステップの移動は1画面分より短いので、要素を飛ばしません。コンテンツの端まで来ても中心が切り取られたままのターゲットは、そのまま返します。
+
+```ts
+await app.scrollTo('settings-list', 'sign-out');
+await app.tap('sign-out');
+```
+
+### `scrollToEdge(target, edge, options?)` {#scrolltoedge}
+
+`'top'`、`'bottom'`、`'left'`、`'right'`のいずれかの端までスクロールします。スクロールに応じて行を追加描画する仮想化リストは、伸びていく間も追従します（`native`モードでは実際のフリックで）。
+
+```ts
+await app.scrollToEdge('feed', 'bottom');
+await app.expectVisible({ text: 'No more posts' });
+```
+
+### `scrollToIndex(list, index, options?)` {#scrolltoindex}
+
+`FlatList` / `FlashList`の`index`行目を表示します。`getItemLayout`がなくても動作します。
+
+```ts
+await app.scrollToIndex('contacts', 120);
+
+// 120行目をリストの中央に
+await app.scrollToIndex('contacts', 120, { viewPosition: 0.5 });
+```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `viewPosition` | `0` | 行が来る位置：`0`は上端、`0.5`は中央、`1`は下端 |
+
+`scrollTo`、`scrollToEdge`、`scrollToIndex`は複数のステップ（最大60）に分けて動き、各ステップでアプリが落ち着くまで、呼び出しのタイムアウトを上限に待つことがあります。
+
+## ジェスチャー {#gestures}
+
+### `swipe(target, direction, options?)` {#swipe}
+
+慣性のあるスワイプです。`direction`は指の動く向きです。
+
+```ts
+// 行の削除ボタンを出す
+await app.swipe({ id: 'todo-row', index: 0 }, 'left');
+
+await app.swipe('carousel', 'left', { speed: 'fast', distance: 250 });
+```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `speed` | `'normal'` | `'slow'`、`'normal'`、`'fast'`のいずれか |
+| `distance` | | 指が動く距離 |
+| `from` | | 指の開始点。要素内で0–1に正規化した位置 |
+
+### `drag(target, to, options?)` {#drag}
+
+要素を長押しし、`to`の中心（要素）または`{ point }`（ウィンドウ座標）まで動かして離します。実際のタッチが必要なので、`js`モードでは使えません。
+
+```ts
+// 並べ替え：最初の行を3行目にドラッグする
+await app.drag({ id: 'todo-row', index: 0 }, { id: 'todo-row', index: 2 });
+
+await app.drag('pin', { point: { x: 160, y: 420 } }, { holdMs: 300, speed: 'slow' });
+```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `holdMs` | `800` | 動かし始める前に押し続ける時間 |
+| `speed` | `'normal'` | `'slow'`、`'normal'`、`'fast'`のいずれか |
+
+ピンチ、回転など複数の指を使うジェスチャーは[マルチタッチジェスチャー](./api-gestures)にあります。
+
+## ナビゲーション {#navigation}
+
+### `goBack(options?)` {#goback}
+
+各プラットフォームでユーザーが行うのと同じ方法で前の画面に戻ります。Androidは戻るボタン（キーボードは先に閉じる）、Webはブラウザーの戻る、iOSはナビゲーションバーの戻るボタン、なければ左端からのスワイプです。Expo Routerを使うアプリでは、ルートが変わらなければ失敗します。
+
+```ts
+await app.tap({ text: 'Buy milk' });
+await app.goBack();
+await app.expectVisible('todo-list-screen');
+```
+
+### `pressBack(options?)` {#pressback}
+
+Androidの戻るボタン、WebではブラウザーのBackです。iOSでは使えません（`ACTION_NOT_SUPPORTED`）。どのプラットフォームでも動くテストには`goBack()`を使ってください。
+
+```ts
+// Android：戻るボタンでボトムシートを閉じる
+await app.pressBack();
+```
+
+### `openUrl(url, options?)` {#openurl}
+
+ディープリンクを開きます。iOSではアプリ内で、Androidでは`am start`で、Webではアドレスバーで開きます。アプリがバックグラウンドにあるとき（`app.device.sendToBackground()`）は、ほかのアプリからと同じようにアプリの外からリンクを開きます。iOSではシステムの「“…”で開きますか？」に答えます。アプリが前面に来てアイドルになった時点で解決します。
+
+```ts
+await app.openUrl('myapp://todos/42');
+await app.expectText('detail-title', 'Buy milk');
+```
+
+## その他の入力 {#other-inputs}
+
+値を持つコントロール（スイッチ、スライダー、ピッカー、日付ピッカー）は`setValue`と`adjustSlider`で設定し、`accessibilityAction`はスクリーンリーダーのアクションを実行します。[値コントロール](./api-value-controls)を参照してください。
+
+## `js`モードでは {#js-mode}
+
+アクションが画面をタッチする代わりにコールバックを呼ぶ場合：
+
+- 座標を指定したタップは、その位置の最前面の要素を押します。
+- `onPress`のないスイッチへのタップは、`onValueChange`で切り替えます。
+- `pressKey`は`onSubmitEditing` / `onKeyPress`を呼びます。
+- `scrollToEdge`はスクロールオフセットを設定します。
+- `from`は無視されます。
+- `drag`は実際のタッチが必要なため、サポートされません。

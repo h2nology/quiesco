@@ -411,7 +411,7 @@ export function nativePerformer(ctx: NativeContext): ActionPerformer {
      * tapped, an iOS wheel (Picker, DatePicker in wheels style) is turned. Sliders get their exact
      * value through their callbacks (a drag lands on a pixel, not a value: use adjustSlider for a real
      * drag); Android's picker dialogs / date dialogs, iOS compact / inline date pickers and components
-     * without a native view are set through their callbacks too (docs/api.mdx, value controls).
+     * without a native view are set through their callbacks too (docs/api-value-controls.mdx).
      */
     async setValue(control, v) {
       const node = control.node;

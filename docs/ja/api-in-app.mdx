@@ -1,0 +1,189 @@
+---
+title: "アプリ内API"
+description: "アプリ自身が@quiesco/agentでテスト用に用意するもの：ルートコンポーネント、Metroのラッパー、バックドア、リセットフック、追加のストレージ、起動引数、ワーカー番号。"
+---
+
+Quiescoの大部分はテスト側で動きますが、ごく一部はアプリの中で動きます。それが**エージェント**（`@quiesco/agent`）です。エージェントは要素を探し、アプリがアイドルかどうかを追跡し、テストの間にアプリをリセットします。アプリはエージェントを通じて、テストに近道を提供することもできます。セットアップ用のバックドア、状態をクリアするフック、起動時の引数です。このページのサンプルはテストのコードではなく、アプリのコードです。
+
+## セットアップ {#setup}
+
+### `QuiescoRoot` {#quiescoroot}
+
+アプリはエントリーファイルの**1行目**でエージェントをimportし、ルートを`<QuiescoRoot>`でラップします。`npx quiesco init`が両方を設定します。要素のクエリは`<QuiescoRoot>`の中にあるものだけを対象とし、ソフトリセットはその下にあるものをすべて再マウントします。
+
+```tsx
+// app/_layout.tsx：エージェントのimportが最初
+import { QuiescoRoot } from '@quiesco/agent';
+import { Stack } from 'expo-router';
+
+export default function RootLayout() {
+  return (
+    <QuiescoRoot>
+      <Stack />
+    </QuiescoRoot>
+  );
+}
+```
+
+### `withQuiesco(config, options?)` {#withquiesco}
+
+Metroの設定をラップします（`@quiesco/agent/metro`から）。`EXPO_PUBLIC_QUIESCO=1`なしのビルドでは、エージェントを何もしないスタブに置き換えます。そのため、このページのコードはアプリに残しておけます。本番のバンドルには一切入りません。
+
+```js
+// metro.config.js
+const { getDefaultConfig } = require('expo/metro-config');
+const { withQuiesco } = require('@quiesco/agent/metro');
+
+module.exports = withQuiesco(getDefaultConfig(__dirname));
+
+// 別の成果物ディレクトリを使い、ネイティブモジュールの呼び出しを追跡する
+module.exports = withQuiesco(getDefaultConfig(__dirname), {
+  artifactsDir: 'e2e-artifacts',
+  nativeModules: true,
+});
+```
+
+Metroが成果物ディレクトリを監視しないようにもします。Metroは監視中のファイルが変わるたびにアプリへHMRの更新を送るため、dev clientの「Refreshing...」ウィンドウが、別のワーカーがタップしている最中のアプリを覆ってしまいます（[並列実行](./parallel)）。`.expo/devices.json`も除外されます。Expoの開発サーバーが、dev clientアプリが起動するたびにこのファイルを書き換えるためです。
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `artifactsDir` | `'artifacts'` | プロジェクトルートからの相対パス。[`artifacts.dir`](./config#artifacts)を変更した場合はそれに合わせる必要があります。`false`：除外しない |
+| `nativeModules` | `EXPO_PUBLIC_QUIESCO_NATIVE_MODULES`が`1`かどうか | ネイティブモジュールをラップしてアプリをビルドし、`native-module`トラッカーをオンにします（[ネイティブモジュールの呼び出し](./sync#native-module-calls)） |
+
+### テスト用のコードを本番に入れない {#e2e-module}
+
+バックドアとフックは、e2eビルドでだけimportされるモジュールに登録してください。そうすれば、テスト用のコードは本番のバンドルに一切入りません。
+
+```ts
+// app/_layout.tsx
+if (process.env.EXPO_PUBLIC_QUIESCO === '1') require('../src/e2e');
+```
+
+以下のどの登録も、登録を解除する関数を返します。
+
+## バックドア {#backdoors}
+
+### `quiesco.backdoor(name, fn)` {#backdoor}
+
+テスト専用の関数を登録します。テストは[`app.backdoor(name, ...args)`](./api-queries#backdoor)でそれを呼び出し、UIを通さずに状態をセットアップできます。`fn`はasyncでもかまいません。引数と結果はJSONでなければなりません。同じ名前で再び登録すると置き換えます。
+
+```ts
+// src/e2e.ts
+import { quiesco } from '@quiesco/agent';
+
+quiesco.backdoor('loginAs', async (email: string) => {
+  await authStore.setSession(await testApi.createSession(email));
+});
+
+quiesco.backdoor('seedTodos', (titles: string[]) => {
+  store.setTodos(titles.map((title, i) => ({ id: String(i), title })));
+});
+```
+
+テストでは：
+
+```ts
+await app.backdoor('loginAs', 'ann@example.com');
+await app.backdoor('seedTodos', ['Buy milk', 'Call Bob']);
+```
+
+### 型付きバックドア {#typed-backdoors}
+
+アプリとテストの両方がコンパイルするファイルでバックドアを一度宣言すると、両側がそれに照らしてチェックされます。`quiesco.backdoor(name, fn)`は宣言した名前と、それに合う関数（asyncでもよい）だけを受け付け、`app.backdoor(name, ...args)`は名前、引数、結果（何も返さないバックドアは`null`）をチェックします。宣言がなければ、どの名前でも使え、引数はJSONにできる値であればよいだけです。
+
+```ts
+// src/backdoors.ts：アプリとテストの両方がコンパイルする
+declare module '@quiesco/agent' {
+  interface Backdoors {
+    'students.set': (list: Student[]) => void;
+    'students.get': (id: string) => Student | null;
+  }
+}
+```
+
+```ts
+// テストの中：名前、引数、結果がチェックされる
+const student = await app.backdoor('students.get', 's-1'); // Student | null
+```
+
+実行時にしか分からない名前（featureファイルの文から取った名前など）は、`name as keyof Backdoors`で絞り込みます。
+
+```ts
+import type { Backdoors } from '@quiesco/core';
+
+await app.backdoor(name as keyof Backdoors);
+```
+
+テストのtsconfigにそのファイルが含まれないときは、型だけのimportで取り込みます。
+
+```ts
+import type {} from '../../src/backdoors';
+```
+
+通常の`import '../../src/backdoors'`は、cucumber-jsがステップを実行するときに失敗します。Nodeにはファイル拡張子が必要で、しかもそのファイルには型しかないためです。
+
+## リセット {#reset}
+
+各テストの前に、アプリは**ソフトリセット**されます。ストレージがクリアされ、`onReset`フックが実行され、ナビゲーションが最初に戻り、`<QuiescoRoot>`の下にあるものがすべて再マウントされます。[`@hard-reset`](./api-tags)タグを付けたテストでは、代わりにアプリを再起動します。
+
+### `quiesco.onReset(hook)` {#onreset}
+
+ソフトリセットのたびに、ストレージのクリア後、アプリの再マウント前に`hook`を実行します。キャッシュ、ストア、モックバックエンドなど、Reactの外のメモリ上にある状態に使います。
+
+```ts
+quiesco.onReset(async () => {
+  queryClient.clear();
+  await api.replaceTodos([]);
+});
+```
+
+### `quiesco.registerStorage({ name, clear })` {#registerstorage}
+
+組み込みのストレージ（iOS / AndroidではAsyncStorageのデフォルトストア、Webでは`localStorage`、`sessionStorage`、IndexedDB）に加えて、ソフトリセット時にクリアするストレージを追加します。`clear`はasyncでもかまいません。
+
+```ts
+// storage：アプリのreact-native-mmkvのインスタンス
+quiesco.registerStorage({ name: 'mmkv', clear: () => storage.clearAll() });
+```
+
+クリアに失敗したストレージがあると、リセットはステップ`storage:<name>`の`RESET_FAILED`で失敗します。
+
+### ソフトリセットとナビゲーション {#navigation-on-soft-reset}
+
+Expo Routerを使うアプリでは、ソフトリセットはナビゲーションの状態もアプリ起動時の状態に戻します（`onReset`フックの後、再マウントの前）。プッシュした画面、タブ、ネストしたスタックで終わったテストがあっても、次のテストはその画面から始まりません。設定は不要です。
+
+リセットの後、アプリが実行中の最初のリセット後と同じルートにいるかを確認します。違う場合（リセットでクリアされなかった状態をもとに、アプリがマウント時に別の画面へ移動した場合）は、両方のルートを示して`RESET_FAILED`で失敗します。その状態を`onReset`でクリアするか、テストに`@hard-reset`タグを付けてください。Expo Routerを使わないアプリでは、設定の[`reset.expectVisible`](./config#reset)で、要素を使って同じ確認ができます。
+
+## 起動とワーカー {#launch-and-worker}
+
+### `quiesco.launchArgs()` {#launchargs}
+
+今回の起動の起動引数（設定の`launchArgs`と[`app.device.relaunch({ args })`](./api-device#relaunch)をマージしたもの）を、JSONの型のまま返します。同期的なので、アプリは起動時に読めます。引数がないとき、本番環境、iOS / Androidで`@quiesco/native`を含まないビルドでは`{}`を返します。
+
+```ts
+// src/config.ts
+const { user, apiUrl } = quiesco.launchArgs() as { user?: string; apiUrl?: string };
+
+export const API_URL = apiUrl ?? 'https://api.example.com';
+```
+
+テストでは：
+
+```ts
+await app.device.relaunch({ args: { user: 'ann', apiUrl: 'http://localhost:3001' } });
+```
+
+### `quiesco.workerIndex()` {#workerindex}
+
+このアプリを操作している[並列実行のワーカー](./parallel)の番号です。直列実行では`0`、テストホストが接続するまで（最初のテストコマンドの前に接続します）と本番環境では`null`です。ワーカーごとのモックバックエンドなど、そのワーカー専用のリソースと通信するのに使います。
+
+```ts
+// src/e2e.ts：ワーカーNはポート3001 + Nのモックバックエンドを使う
+setApiBase(() => {
+  const url = new URL('http://localhost:3001');
+  url.port = String(Number(url.port) + (quiesco.workerIndex() ?? 0));
+  return url.origin;
+});
+```
+
+アプリの起動中はまだ分かりません。起動時に必要なもの（APIのURLなど）は、代わりに起動引数で渡してください。設定はワーカー番号の関数にできます：`({ workerIndex }) => ({ launchArgs: { … } })`（[ワーカーごとの設定](./config#config-per-worker)）。

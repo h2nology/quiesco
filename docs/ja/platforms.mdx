@@ -133,5 +133,5 @@ description: "iOS、Android、Webの比較：入力、権限、システムダ�
 
 - `drag`と`adjustSlider`は、どのブラウザーでも所要時間に合わせてポインターを少しずつ動かし、終点で100 ms止まってから離します（そうしないと、WebKitではすべての移動が一度に届き、ずれた位置で離されます）。
 - 合成イベントは信頼されたイベントではありません（`isTrusted`はfalse）。react-native-gesture-handlerとreact-native-webのレスポンダーシステムはこれを確認しません。
-- 環境変数でブラウザーを選べば、同じテストを各ブラウザーで実行できます。一部のブラウザーでしか意味のないシナリオには[ブラウザータグ](./api#scenario-tags)（`@chromium`、`@firefox`、`@webkit`）を付けてください。
+- 環境変数でブラウザーを選べば、同じテストを各ブラウザーで実行できます。一部のブラウザーでしか意味のないシナリオには[ブラウザータグ](./api-tags)（`@chromium`、`@firefox`、`@webkit`）を付けてください。
 - ブラウザーは`npx playwright install chromium firefox webkit`でインストールします。`npx quiesco doctor`は設定されたブラウザーをチェックします。

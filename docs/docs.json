@@ -31,9 +31,18 @@
     }
   },
   "redirects": [
-    { "source": "/native", "destination": "/quickstart" },
-    { "source": "/zh/native", "destination": "/zh/quickstart" },
-    { "source": "/ja/native", "destination": "/ja/quickstart" }
+    {
+      "source": "/native",
+      "destination": "/quickstart"
+    },
+    {
+      "source": "/zh/native",
+      "destination": "/zh/quickstart"
+    },
+    {
+      "source": "/ja/native",
+      "destination": "/ja/quickstart"
+    }
   ],
   "navigation": {
     "languages": [
@@ -69,9 +78,30 @@
             ]
           },
           {
-            "group": "Reference",
+            "group": "API reference",
             "pages": [
               "api",
+              "api-matchers",
+              "api-actions",
+              "api-value-controls",
+              "api-gestures",
+              "api-assertions",
+              "api-queries",
+              "api-runtime-sync",
+              "api-device",
+              "api-system",
+              "api-screenshots",
+              "api-webview",
+              "api-in-app",
+              "api-tags",
+              "api-errors",
+              "api-artifacts",
+              "api-custom-runners"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
               "config",
               "cli",
               "steps",
@@ -112,9 +142,30 @@
             ]
           },
           {
-            "group": "参考",
+            "group": "API 参考",
             "pages": [
               "zh/api",
+              "zh/api-matchers",
+              "zh/api-actions",
+              "zh/api-value-controls",
+              "zh/api-gestures",
+              "zh/api-assertions",
+              "zh/api-queries",
+              "zh/api-runtime-sync",
+              "zh/api-device",
+              "zh/api-system",
+              "zh/api-screenshots",
+              "zh/api-webview",
+              "zh/api-in-app",
+              "zh/api-tags",
+              "zh/api-errors",
+              "zh/api-artifacts",
+              "zh/api-custom-runners"
+            ]
+          },
+          {
+            "group": "参考",
+            "pages": [
               "zh/config",
               "zh/cli",
               "zh/steps",
@@ -155,9 +206,30 @@
             ]
           },
           {
-            "group": "リファレンス",
+            "group": "APIリファレンス",
             "pages": [
               "ja/api",
+              "ja/api-matchers",
+              "ja/api-actions",
+              "ja/api-value-controls",
+              "ja/api-gestures",
+              "ja/api-assertions",
+              "ja/api-queries",
+              "ja/api-runtime-sync",
+              "ja/api-device",
+              "ja/api-system",
+              "ja/api-screenshots",
+              "ja/api-webview",
+              "ja/api-in-app",
+              "ja/api-tags",
+              "ja/api-errors",
+              "ja/api-artifacts",
+              "ja/api-custom-runners"
+            ]
+          },
+          {
+            "group": "リファレンス",
+            "pages": [
               "ja/config",
               "ja/cli",
               "ja/steps",

@@ -2,876 +2,119 @@
 
 # API reference
 
-this.app (the Driver), matchers, the in-app API, configuration, scenario tags, errors and artifacts.
-- [Driver (`this.app`)](#driver-thisapp): actions, assertions, queries, backdoors
-- [Matchers](#matchers)
-- [In-app API (`@quiesco/agent`)](#in-app-api-quiescoagent)
-- [Configuration (`quiesco.config.ts`)](#configuration)
-- [Scenario tags](#scenario-tags)
-- [Errors](#errors)
-- [Vitest, Jest and other runners](#using-quiesco-without-cucumber)
+How tests talk to the app: the driver, how every call waits for the app, the options all calls take, and where each part of the API is described.
+A test drives the app through one object, the **driver**. It taps, types and scrolls like a user, checks
+what is on screen, and reaches into the app for setup. This section describes every method, one page per
+topic, with an example for each.
 
-## Driver (`this.app`) {#driver-thisapp}
+## The driver {#driver-thisapp}
 
-The `Driver` of the current session (`@quiesco/core`) is the `app` fixture in Vitest tests, the global
-`quiesco.app` in Jest and `this.app` in Cucumber steps; the examples on this page write `this.app`. Every call is
-`async`, waits for the app to be idle first (see [synchronization](./sync.md)) and, for actions, again
-after it. Nothing in a step needs to wait or sleep.
+The driver is the same object in every test runner; only the way a test gets it differs:
 
-All calls take an optional last argument:
-
-| Option | Meaning |
-|---|---|
-| `timeoutMs` | Timeout of this call (default `sync.timeoutMs`, 10 s) |
-| `sync: false` | Do not wait for idle around this call (screens with endless animations) |
-| `mode: 'native' \| 'js'` | Actions only: real input or calling the component's callbacks (default from `actions.mode`) |
-
-### Actions
-
-| Method | What it does |
-|---|---|
-| `tap(target, { point })` | Tap the element: its center, or `point` in its own coordinates (`{ x, y }` from its top-left corner). An element cut off by a scroll view or `overflow` ancestor is tapped at the center of its visible part |
-| `doubleTap(target)` / `multiTap(target, n)` | `n` taps in one gesture |
-| `longPress(target, { durationMs, point })` | Press and hold (default 800 ms) |
-| `type(target, text, { perCharacter, intervalMs })` | Focus the input and enter `text` (native mode: through the IME, so any language works). Native: the whole text at once. `perCharacter: true` types one character at a time, `intervalMs` (80 ms) apart, then waits for idle: the app sees every keystroke (debounced search, input masks, `onKeyPress`). The web already sends a key per character; `perCharacter` adds the interval |
-| `replaceText(target, text)` | Replace the whole text at once |
-| `clear(target)` | Clear a text input |
-| `pressKey(target, 'enter' \| 'backspace')` | The return key (submits; a newline in a multi-line input) or backspace, sent to the field. The field only has to exist: the key reaches it even where a keyboard's return key would be out of reach |
-| `scroll(target, direction, { distance, from })` | Scroll a scroll view (`down` reveals content below). `from`: start point normalized 0–1 in the element. `native` mode drags a finger that slows down to a stop, so the content moves by about `distance` without a fling (the system's touch slop less: about 10 pt on iOS, 7% on Android) |
-| `scrollTo(container, target)` | Scroll `container` until the center of `target` is visible (where a tap goes): down, then up; right, then left for a horizontal list. Each step moves less than one view, so nothing is skipped. At an end of the content a target whose center stays cut off is returned as it is |
-| `scrollToEdge(target, 'top' \| 'bottom' \| 'left' \| 'right')` | Scroll to an end; a virtualized list is followed while it grows (native mode: real flings) |
-| `scrollToIndex(list, index, { viewPosition })` | Bring row `index` of a FlatList / FlashList into view, also without `getItemLayout`; `viewPosition` 0 = top, 0.5 = middle, 1 = bottom |
-| `swipe(target, direction, { speed, distance, from })` | A swipe gesture (with inertia); `direction` is the finger's |
-| `drag(target, to, { holdMs, speed })` | Press and hold the element (default 800 ms), move to the center of `to` (an element) or to `{ point }` (window coordinates), release |
-| `tapAt({ x, y })` / `longPressAt({ x, y }, { durationMs })` | Touch a point of the screen (window coordinates), whatever is there |
-| `pressBack()` | Android back button; browser back on the web; not available on iOS |
-| `goBack()` | Back to the previous screen as a user would, on every platform: Android back (the keyboard is closed first), browser back, on iOS the navigation bar's back button, else the edge swipe (through the system UI runner). In Expo Router apps it fails when the route did not change |
-| `openUrl(url)` | Open a deep link (in the app on iOS, `am start` on Android, the address bar on the web). While the app is in the background (`sendToBackground()`), from outside the app as another app would (a warm start): iOS answers the system's "Open in …?" confirmation; resolves when the app is in front and idle |
-| `dismissKeyboard()` | Hide the software keyboard |
-| `setValue(target, value)` | Set a value control: slider (number), switch / checkbox (boolean), picker (an item's value or label), segmented control (a segment's value or index), date / time picker or date input (`Date`). See [Value controls](#value-controls) |
-| `adjustSlider(target, position)` | Drag a slider's thumb to `position` (0 = minimum, 1 = maximum) with a real finger / mouse; lands within one step of it |
-| `accessibilityAction(target, name)` | Perform an action the element declares in `accessibilityActions`, as a screen reader does |
-| `pinch(target, scale, { angle, speed })` | Two fingers move apart (`scale` > 1) or together (&lt; 1) on the element, on a line at `angle` radians (0 = horizontal). See [Multi-finger gestures](#multi-finger-gestures) |
-| `rotate(target, radians, { speed })` | Two fingers turn around the element's center (positive: clockwise on screen) |
-| `multiTouch(fingers, { within })` | Any fingers along timed paths: `fingers[i]` is finger i's `{ x, y, t }` points (t in ms, non-decreasing); element coordinates with `within`, else window coordinates |
-
-Coordinates are logical units (pt on iOS, dp on Android, CSS px on the web). `scrollTo`,
-`scrollToEdge` and `scrollToIndex` take several steps (at most 60); each step may wait up to the call
-timeout for the app to settle.
-
-In `js` mode (callbacks instead of real input), a tap at a point presses the topmost element there, a
-tap on a switch without `onPress` toggles it through `onValueChange`, `pressKey` calls
-`onSubmitEditing` / `onKeyPress`, `scrollToEdge` sets the scroll offset, `from` is ignored, and `drag` is
-not supported (it needs real touches).
-
-### Value controls {#value-controls}
-
-`setValue` finds the control by the props of the component around the target (the element and a few
-levels up; if there is none, the single control inside the element, e.g. a `View` carrying the testID
-around a component that drops it):
-
-| Control | Recognized by | `value` |
-|---|---|---|
-| `@react-native-community/slider` | `onValueChange` / `onSlidingComplete` with a numeric `value` or `minimumValue` / `maximumValue` | a number within the range and on a `step` |
-| `Switch`, `expo-checkbox` | a boolean `value` and `onValueChange` | `true` / `false` |
-| `@react-native-picker/picker` | `onValueChange` and `selectedValue` | an item's value (also as a string), or its label |
-| `@react-native-segmented-control/segmented-control` | a `values` array and `onChange` / `onValueChange` | a segment's value, or its index |
-| `@react-native-community/datetimepicker` | a `Date` `value` and `onChange` / `onValueChange` | a `Date`, or a local string `"2031-12-24"` / `"20:15"` / `"2031-12-24T20:15"`; only the picker's part changes ([date and time pickers](#date-and-time-pickers)) |
-| `@expo/ui/community/datetime-picker` (`DateTimePicker`) | the same as `@react-native-community/datetimepicker` | the same ([`@expo/ui`'s picker](#expo-ui-date-picker)) |
-| DOM `<select>`, `<input type="date" / "time" / "datetime-local" / "month" / "week" / "range" / "number">`, checkbox | the element itself (web) | an option's value or label; a `Date` (written in local time) or the input's own string |
-
-Anything else fails with `ACTION_NOT_SUPPORTED` naming the callbacks that were found and what was
-searched: the components going up from the target (with the props that decide a control's kind), and the
-control-shaped components inside it with why each was not taken (more than 8 levels above its element,
-or one of several controls). From that, move the testID, wrap the control, or use a backdoor. Setting the
-current value sends no event, and a disabled control is left alone (as with a user's attempt).
-
-How the value gets in, per mode:
-
-| | `native` (iOS / Android) | web (real input) | `js` |
-|---|---|---|---|
-| Switch / checkbox | a real tap when the value must change | a click | `onChange` + `onValueChange` |
-| Segmented control | a real tap on the segment | a click on the segment | `onChange` (native event) + `onValueChange` |
-| Picker | iOS: the wheel is turned by a finger (slow drags that rest before lifting, read back and corrected); Android: callbacks (the dropdown / dialog is a separate window) | `<select>`: `selectOption` | `onValueChange(value, index)` |
-| Date picker | iOS wheels (`display="spinner"`): every column is turned by a finger — which unit a column turns is found by turning it one row, so any locale and order works; compact / inline style and Android (a system dialog): callbacks | date inputs: `fill` | `onValueChange` / `onChange` with `{ type: 'set', nativeEvent: { timestamp, utcOffset } }` |
-| Slider | callbacks (exact value; use `adjustSlider` for a real drag) | callbacks | `onSlidingStart`, `onValueChange`, `onSlidingComplete` |
-
-Android's `DateTimePicker` renders no view (it opens a dialog), so after the app shows it, `setValue({ id })`
-finds the component itself by its testID (or `{ type: 'DateTimePicker' }` by name); the app closes the
-dialog when it handles the change, as it would for the user's choice. Only `id`, `type` and `index`
-reach such components.
-
-#### Date and time pickers {#date-and-time-pickers}
-
-Like the native dialogs, `setValue` changes only the part of the picker's `value` that its `mode` shows,
-in the picker's time zone (`timeZoneOffsetInMinutes`, else the device's):
-
-| `mode` | What changes | Takes |
-|---|---|---|
-| `date` (default) | the day; the hours and minutes stay, seconds become 0 | a `Date` or `"2031-12-24"` |
-| `time` | the hours and minutes; the day stays | a `Date` or `"20:15"` (`"20:15:30"` with seconds) |
-| `datetime` | a `Date`: all of it; a string: what it gives | a `Date`, `"2031-12-24T20:15"`, `"2031-12-24"` or `"20:15"` |
-| `countdown` | all of it | a `Date` |
-
-So picking a date and then a time on Android's two dialogs keeps the date:
+**Vitest:**
 
 ```ts
-await this.app.setValue('due-date-picker', '2031-12-24');
+import { test } from '@quiesco/vitest';
 
-// no need to invent a day
-await this.app.setValue('due-time-picker', '20:15');
-```
-
-`minimumDate` / `maximumDate` are checked against the result. The strings are local time on the device,
-so they do not depend on the host's time zone; a `Date` is converted to the device's time zone.
-
-A picker's value (`expectValue`, the `value` of a query) is what it shows, in local time on the device:
-`"2031-12-24"` (`date`), `"20:15"` (`time`), `"2031-12-24T20:15"` (`datetime`, `countdown`), with
-`:ss` when the seconds are not 0. `expectValue` takes that string, or a `Date` that matches when those
-parts agree: `expectValue('due-time-picker', '20:15')`. Android's dialogs are gone once the app handled
-the change; check what the app shows instead.
-
-##### `@expo/ui`'s DateTimePicker {#expo-ui-date-picker}
-
-`@expo/ui/community/datetime-picker` (SwiftUI on iOS, Jetpack Compose on Android) takes the same values.
-Put the `testID` on the `DateTimePicker` itself:
-
-- **iOS, and Android with `presentation="inline"`:** the view that gets the `testID` reports no size to
-  React Native, although the picker is drawn. Quiesco checks visibility on its nearest ancestor that has a
-  size (the `Host`, or its parent when the `Host` is 0 wide under `alignItems: 'center'`).
-- **Android dialogs (the default `presentation`):** the `testID` is not passed on to any view. Quiesco finds
-  the `DateTimePicker` by its own `testID` prop, as it does for `@react-native-community/datetimepicker`
-  on Android.
-
-`setValue` calls the picker's `onValueChange` / `onChange` in every mode; it does not scroll the wheels.
-On the web the component renders nothing.
-
-`adjustSlider` drags the thumb in `native` mode and reads the value back: the thumb follows the finger
-less the touch slop, so it drags again (always one way, with a run-up) until the slider is within one
-step (1% of a continuous slider's range) of the position. Web: a mouse drag of the thumb. `js`: the value
-at that position, through the callbacks.
-
-`accessibilityAction(target, name)` acts on the target or the nearest ancestor declaring
-`accessibilityActions`; the target does not have to be on screen. `name` must be declared (otherwise the
-error lists the declared ones). iOS: `increment` / `decrement` through `accessibilityIncrement` /
-`accessibilityDecrement`, `magicTap` / `escape` through their perform methods, every other name through
-the view's custom actions (VoiceOver's Actions rotor). Android: `performAccessibilityAction` with the id
-React Native gave the action. Web (`accessibilityActions` do not reach the DOM) and `js`:
-`onAccessibilityAction({ nativeEvent: { actionName } })`.
-
-### Multi-finger gestures {#multi-finger-gestures}
-
-`pinch`, `rotate` and `multiTouch` inject several real touches at once: iOS synthesized `UITouch`es in one
-event, Android multi-pointer `MotionEvent`s, the web CDP `Input.dispatchTouchEvent` (touch viewports
-only; a viewport without touch fails with `ACTION_NOT_SUPPORTED`). `js` mode cannot run them (gesture
-recognizers need real touches).
-
-Gesture recognizers start measuring only once they activate, after the fingers have moved a little, so a
-plain "fingers twice as far apart" shows up in the app as less than 2. Quiesco moves the fingers by that
-activation distance first, so the app's recognizer reports the requested scale / angle (measured within
-about 2% and 1°). The defaults are the platforms' standard recognizers:
-
-| | Pinch | Rotation |
-|---|---|---|
-| iOS (UIKit recognizers, also behind react-native-gesture-handler and `ScrollView` zooming) | 9 pt | 7° |
-| Android (react-native-gesture-handler: 3 × touch slop) | 26 dp | 9° |
-| Web (react-native-gesture-handler web: 3 × 15 px) | 46 px | 0° |
-
-For another recognizer set `actions.gestureSlop: { pinch, rotation }` (logical units, radians; `0`: move
-the fingers exactly by `scale` / `radians`). A pinch that does not fit on the screen in one go (e.g.
-`pinch(t, 10)`) is done as several pinches, as a user would; the fingers go down on the element and stay in
-the window. Tag scenarios that need several fingers so viewports without touch can skip them (the
-example uses `@multi-touch` and runs the desktop viewport with `--tags 'not @multi-touch'`).
-
-An action needs exactly one **visible** element: it waits until the target exists and is visible (or
-fails with `ELEMENT_NOT_FOUND`, saying whether it is missing or hidden) and fails at once with
-`MULTIPLE_MATCHES` when several elements match. In `native` mode the touch must also be able to reach the
-element: if a dialog or another window covers it, the action fails with `ELEMENT_OBSCURED` naming what is
-on top. The part of an element its scroll view or `overflow` ancestor cuts off cannot be touched: a touch
-point there fails with `ELEMENT_OBSCURED` too. A software keyboard covering the target is dismissed first.
-
-### Assertions
-
-Assertions retry until they hold or the timeout runs out (`ASSERTION_FAILED` with expected / actual).
-
-| Method | Holds when |
-|---|---|
-| `expectVisible(target, { ratio })` | at least one matching element is visible; with `ratio` (0–1], it shows at least that fraction of its area |
-| `expectNotVisible(target)` | no matching element is visible (absent or hidden) |
-| `expectExists(target)` / `expectNotExists(target)` | an element is / is not in the tree, visible or not |
-| `expectText(target, text \| RegExp)` | exactly one match and its text equals / matches |
-| `expectValue(target, value \| RegExp \| Date)` | exactly one match and its value equals / matches: input text, switch state, slider / picker value (a date / time picker's: [date and time pickers](#date-and-time-pickers)) or `accessibilityValue` |
-| `expectLabel(target, text \| RegExp)` | exactly one match and its accessibility label equals / matches |
-| `expectFocused(target)` / `expectNotFocused(target)` | exactly one match and it has / does not have the input focus |
-| `expectEnabled(target)` / `expectDisabled(target)` | exactly one match and it is enabled / disabled (`disabled`, `accessibilityState.disabled`, `aria-disabled`, `editable={false}`, also inherited from an ancestor) |
-| `expectChecked(target)` / `expectNotChecked(target)` | exactly one match and it is checked / unchecked (switch, checkbox, radio or `accessibilityState.checked`); an element without a checked state fails both |
-| `expectProp(target, prop, value)` | exactly one match and the prop has this JSON value (host props first, then its component's, e.g. `disabled`, `value`) |
-| `expectCount(target, n)` | exactly `n` elements match |
-
-The same assertions in a chained, Detox / Jest-like form (both forms call the same implementation):
-
-```ts
-await this.app.expect('save').toBeEnabled();
-await this.app.expect({ type: 'switch', label: 'Wi-Fi' }).not.toBeChecked();
-
-// Detox: toBeVisible(75)
-await this.app.expect('banner').toBeVisible({ ratio: 0.75 });
-
-await this.app.expect({ id: 'title' }).not.toHaveValue('');
-```
-
-`toBeVisible({ ratio })`, `toExist()`, `toBeFocused()`, `toBeEnabled()`, `toBeDisabled()`, `toBeChecked()`,
-`toHaveText()`, `toHaveValue()`, `toHaveLabel()`, `toHaveProp()`, `toHaveCount()` and `toHaveId()`, each
-with `.not`. A negated single-element assertion (`not.toHaveText`, ...) still needs exactly one match.
-
-### Queries, sync and state
-
-| Method | Returns |
-|---|---|
-| `query(target)` | Summaries of the matching elements (no waiting) |
-| `attributes(target)` | The summary of the single matching element, after waiting for it to exist (Detox `getAttributes`); `MULTIPLE_MATCHES` for several |
-| `getTree()` | The element tree as JSON, with semantic types (also attached to failed scenarios) |
-| `waitForIdle({ timeoutMs })` | Waits until idle; resolves with the time it took |
-| `getIdleState()` | Every tracker's state — what is busy right now |
-| `backdoor(name, ...args)` | Calls a backdoor registered in the app; arguments and result are JSON (interfaces are fine). Typed by name with a `Backdoors` declaration ([Typed backdoors](#typed-backdoors)) |
-| `reset()` | Soft reset (Quiesco does this before every scenario) |
-| `platform` | The platform under test: `'ios'`, `'android'` or `'web'`. Also `this.platform` in a `QuiescoWorld` and `session.platform` ([per-platform steps](../../writing-tests/references/driver-pattern.md#per-platform-steps)) |
-
-An element summary has `type` (host component), `semanticType`, `testID`, `text`, `label`, `role`,
-`value`, `checked`, `enabled`, `focused`, `rect`, `visible`, `visibleRatio` and the serializable `props`.
-Its `text` (also in error messages and `elements.json`) puts a space between separate texts, e.g.
-`张 张三 S2024001` for an avatar, a name and an ID; the runs of one text stay together
-(`<Text>a<Text>b</Text></Text>` → `ab`). Matching by `text` is unchanged: it compares the text without
-the spaces.
-
-### App lifecycle (`this.app.device`)
-
-```ts
-// A new process with typed launch arguments and a deep link (a real cold start: getInitialURL sees it).
-await this.app.device.relaunch({ args: { user: 'ann', retries: 3 }, url: 'myapp://todos/1' });
-
-// app data deleted first
-await this.app.device.relaunch({ clearData: true });
-
-await this.app.device.relaunch({ reinstall: true, permissions: ['camera'] });
-
-// Home button; the process keeps running
-await this.app.device.sendToBackground();
-
-// same process, waits until active and idle
-await this.app.device.bringToForeground();
-
-await this.app.device.terminate();
-
-// one element; no argument: the screen
-const png = await this.app.device.screenshot('avatar');
-
-// the whole list, stitched; saved + attached
-await this.app.device.screenshot({ fullPage: true }, { name: 'todos' });
-
-// Android: adb reverse; elsewhere a no-op
-await this.app.device.reversePort(3001);
-```
-
-| Method | What it does |
-|---|---|
-| `relaunch({ args, url, clearData, reinstall, permissions })` | Terminate and start the app again — always a new process. Keeps the app's data unless `clearData` / `reinstall`. `args` (any JSON) are merged over the config's `launchArgs`; `url` opens the app with that deep link; `permissions` are granted before the launch besides the config's (after `clearData` / `reinstall` the config's are granted again). Resolves once the app has connected |
-| `terminate()` | Stop the app. Until `relaunch()`, every element call fails at once with `APP_NOT_RUNNING` (no waiting) |
-| `sendToBackground()` / `bringToForeground()` | Home screen and back without restarting. In between, element calls fail with `APP_IN_BACKGROUND`. Not on the web (`ACTION_NOT_SUPPORTED`) |
-| `install()` / `uninstall()` | Install `binaryPath` / remove the app |
-| `screenshot(target?, { full, name }?)` | PNG (`Buffer`). No target: the screen as shown (web: the browser viewport). An element: cut out of the screen (its part on the screen); `full: true`: all of it — a scroll view with its whole content, an element partly scrolled away together with the rest — scrolled and stitched. `{ fullPage: true }`: the whole content of the screen's main (largest) scroll view; `{ fullPage: 'list' }`: of that scroll view. See [Screenshots](#screenshots). `name`: also saved in the scenario's artifacts directory and attached to the report |
-| `reversePort(port)` / `unreversePort(port)` | Make a host port reachable as `localhost:port` from an Android device; a no-op on the iOS simulator and the web |
-| `openUrl(url)` / `pressBack()` | Same as `this.app.openUrl` / `this.app.pressBack` |
-| `appState` | `'running'`, `'background'` or `'terminated'` — what the test did to the app |
-
-Before each scenario Quiesco starts an app a previous scenario left terminated, and brings a
-backgrounded one back, so scenarios stay independent.
-
-#### Device state
-
-```ts
-// resolves once the app's window has turned
-await this.app.device.setOrientation('landscape');
-
-await this.app.device.setAppearance('dark');
-
-// iOS: nearest Dynamic Type size; returns the scale applied
-await this.app.device.setFontScale(1.3);
-
-// iOS / web: the app is started again with it
-await this.app.device.setLocale('ja-JP');
-
-await this.app.device.setLocation(35.68, 139.76);
-await this.app.device.setPermission('location', 'revoke');
-
-// the app's requests fail; Quiesco stays connected
-await this.app.device.setNetwork('offline');
-
-// what the app pastes
-await this.app.device.clipboard.set('hello');
-
-// what the app copied
-const copied = await this.app.device.clipboard.get();
-
-// for screenshots
-await this.app.device.setStatusBar({ time: '9:41', batteryLevel: 100 });
-```
-
-| Method | What it does |
-|---|---|
-| `setOrientation('portrait' \| 'landscape')` | Rotates the app and waits until its window has the new shape. The app must not lock its orientation (app.json `"orientation": "default"`) |
-| `setAppearance('light' \| 'dark')` | System color scheme; checked against what the app reports. The app must follow the system (`"userInterfaceStyle": "automatic"`) |
-| `setFontScale(n)` | System text size (0.5–4); resolves with the scale applied. Android starts the app again (data kept). Not on the web |
-| `setLocale(tag \| null)` | The app's language and region (BCP 47); `null` = device default. The app is started again with it (data kept). It passes when the app's preferred language (iOS `AppleLanguages`, what expo-localization reads) or its JS locale is the new one. iOS resolves `Intl` and the app's native strings to a language in `CFBundleLocalizations` only: without it, a warning says so (an app localized in JS works as it is) |
-| `setLocation(lat, lon)` | Simulated GPS position (Android: emulators only) |
-| `setPermission(name, 'grant' \| 'revoke' \| 'reset')` | Change a permission while the app runs. Android kills the app on a revoke: Quiesco starts it again (data kept) before resolving, so the app is back on its first screen. `'reset'` = not determined, as after a fresh install: the app's next request shows the system dialog again (Android: revoked, "don't ask again" cleared; iOS: `simctl privacy reset`; web: the browser asks). On iOS, notifications and the camera can only be reset by reinstalling the app: Quiesco reinstalls and starts it, **deleting its data** (needs `binaryPath`; a warning says so) |
-| `setNetwork('offline' \| 'online')` | Offline: the app's new `fetch` / `XMLHttpRequest` / `WebSocket` connections fail as they do without a network (Quiesco's own connection keeps working; connections already open stay open). Android also turns Wi-Fi and mobile data off, the web reports `navigator.onLine === false`, so NetInfo sees it there; the iOS simulator has no network switch, NetInfo keeps reporting online. Lasts across relaunches |
-| `clipboard.set(text)` / `clipboard.get()` | The device clipboard, written / read inside the app (iOS / Android need `@quiesco/native` ≥ Phase 6.6; iOS reads fall back to `simctl pbpaste`). Cleared before the next scenario when set |
-| `setStatusBar({ time, batteryLevel, charging, wifiBars, cellularBars, dataNetwork })` / `resetStatusBar()` | Status bar for clean screenshots: `time` `'9:41'`, `batteryLevel` 0–100, `wifiBars` 0–3, `cellularBars` 0–4, `dataNetwork` `'wifi' \| '3g' \| '4g' \| 'lte' \| '5g' \| 'hide'`. Nothing to do on the web |
-
-Every change is undone before the next scenario, and when the session ends: permissions go back to the
-configured ones, the rest to what the device had (only what was changed is touched). A call that starts
-the app again leaves it on its first screen. Detox's `setURLBlacklist` is
-`this.app.sync.ignoreUrls.add()` here.
-
-#### System integration
-
-```ts
-// Face ID / Touch ID / a fingerprint is set up
-await this.app.device.biometrics.enroll();
-
-// the app calls LocalAuthentication.authenticateAsync()
-await this.app.tap('login-with-face-id');
-
-// a matching face / finger: the app's authentication succeeds
-await this.app.device.biometrics.match();
-
-await this.app.device.shake();
-
-// iOS
-await this.app.device.clearKeychain();
-
-await this.app.device.sendNotification({ title: 'New message', data: { chatId: '42' } });
-
-// tap it (iOS: banner / Notification Center; Android: shade)
-await this.app.device.openNotification('New message');
-
-// the app asks for a permission
-await this.app.tap('enable-notifications');
-
-// the system dialog's allow button
-await this.app.device.system.allowPermission();
-
-// any system UI outside the app
-await this.app.device.system.tap({ text: 'Cancel' });
-```
-
-| Method | What it does |
-|---|---|
-| `biometrics.enroll(enrolled = true)` | Enroll (or remove) a face / fingerprint. Android: Quiesco sets a screen-lock PIN (required for fingerprints) and goes through Settings' enrollment; the app is brought back to the front. Undone before the next scenario |
-| `biometrics.match()` / `biometrics.fail()` | Present a matching / unknown face or finger to the authentication the app is showing. After `fail()` the system keeps its retry prompt up, as on a device: the app gets no result until the prompt is answered. Several failures in a row lock the sensor for a while (Android emulator: from about 0.5 s up to 30 s) |
-| `shake()` | A device shake (iOS: Simulator's *Device > Shake*; Android emulator: accelerometer pushes), then waits for idle |
-| `sendNotification({ title, body?, data? })` | iOS: a simulated remote push (`simctl push`, `data` next to `aps`); the app's push library gets it while the app is in front, and the system shows it only when the app may show notifications (they cannot be pre-granted on the simulator). Android: an emulator has no push service, so the notification is posted as the app (needs the `notifications` permission); tapping it opens the app with `data` as intent extras, and the push library's callbacks do not fire. Works while the app is in the background |
-| `openNotification(title, { timeoutMs }?)` | Tap the notification: iOS its banner, or in Notification Center once the banner is gone; Android in the notification shade. Waits up to `timeoutMs` (10 s) for the notification to be posted, so a notification scheduled a few seconds ahead is found; on iOS the time the system UI runner takes to start is not counted, and once it has tapped it may take 3 s more to tap again. A tap counts once the app comes to the front (iOS: else it looks again, and in a stack of the app's notifications taps the newest one). On iOS the app's earlier notifications stay in Notification Center, across reboots and reinstalls, and group with the new one: the first tap expands the group, and on iOS 27 the next one reveals an "Open" button to tap; with a slow simulator, raise `timeoutMs`. Resolves when the app is in front and idle |
-| `clearKeychain()` | iOS: resets the simulator's keychain (every app's). Android has no keychain: `ACTION_NOT_SUPPORTED`, use `relaunch({ clearData: true })` |
-| `system.tap(query, { timeoutMs }?)` | Tap system UI outside the app (a permission dialog, the biometric prompt, a web page's JS dialog). `query`: `{ text }` (exact, typographic quotes ignored, or a RegExp) and / or `{ id }` (Android resource-id, or the part after `:id/`). Waits up to `timeoutMs` (10 s) for it to show up, then for the app to be idle. On iOS system UI slides in: it is tapped once two reads 250 ms apart agree on where it is (also for `expectVisible`, `type` and the permission dialogs) |
-| `system.expectVisible(query)` / `system.expectNotVisible(query)` | Wait until such system UI is (not) on screen; `ELEMENT_NOT_FOUND` / `ASSERTION_FAILED` list the texts seen |
-| `system.type(query, text, { timeoutMs }?)` | Tap the field matching `query` (a field before a label with the same text) and type `text` with the device's input: iOS through the keyboard (any text), Android as key events (`input text`, printable ASCII) or, for other text, pasted through @quiesco/native's clipboard. Then waits for the app to be idle |
-| `system.tapAt({ x, y })` | A system-level touch at a screen point (points / dp from the top-left corner), over whatever is there: e.g. above iOS's share sheet, which closes it. On iOS it first waits (up to 2 s) until the system UI on screen stops moving |
-| `system.allowPermission()` / `system.denyPermission()` | Answer the runtime permission dialog whatever the device language (Android: by its buttons' ids, also "while using the app" and "don't ask again"; iOS: by position, as iOS lays them out); resolves when the app is in front and idle |
-
-None of these exist on the web (`ACTION_NOT_SUPPORTED`; tag such scenarios `@native`), except `system.tap` /
-`expectVisible` / `expectNotVisible` for the page's JavaScript dialogs (below). On Android they need an emulator (its console fakes the
-sensors). On iOS, system UI belongs to SpringBoard: Quiesco builds a small XCUITest runner the first time
-it is needed (once per Xcode version, cached in `~/Library/Caches/quiesco/ios-runner`, about 10 s) and starts
-it on the simulator (2–4 s, once per session). Alerts outlive the app: one left by a scenario is dismissed
-(cancel, else its first button) before the next, except a permission alert: either answer sticks (a denied notification
-permission only goes away with a reinstall), so the next scenario fails with `RESET_FAILED` naming it. Answer it in the
-scenario that brings it up. To ask for a permission again, reset it first: `setPermission('notifications', 'reset')`.
-
-**What system UI includes.** Besides the system's own UI (SpringBoard on iOS, other packages on Android),
-`system.*` sees UI that is not React (issues #49–#51):
-
-- the app's own dialog windows on Android, e.g. the date dialog of `DateTimePickerAndroid` (`system.tap({ text: '25' })`,
-  then `{ id: 'android:id/button1' }` for OK in any language). A React Native `Modal` is such a window too;
-- on iOS, the app's UIKit views (an inline `DateTimePicker`'s days, the keyboard's keys, the share sheet), and the
-  web page of an authentication session (`expo-web-browser`'s `openAuthSessionAsync`, SafariViewService) or Safari
-  when they are in front: `system.type({ text: 'Email' }, 'ann@example.com')`, then `system.tap({ text: 'Sign in' })`.
-  The app's React views are in that tree as well; tapping them is a real touch all the same. The share sheet can be
-  closed with `system.tapAt` above it. A React Native `Modal` shown a second time in a session can be missing from
-  the tree XCUITest reports; `app.*` reaches its views.
-
-On the Android emulator, `openAuthSessionAsync` needs a browser with Custom Tabs (an image with Google Play);
-the AOSP images have none.
-
-While a permission dialog (another activity) is in front, Android pauses the app's JS timers; Quiesco's idle
-wait notices that the app went to the background and returns, so the tap that opened the dialog completes.
-
-**Web JavaScript dialogs.** `alert`, `confirm` and `prompt` stay open until the test answers them, as a user
-would: they are system UI too. The dialog's message is a node with id `dialog.message`, its buttons are `OK`
-(`dialog.accept`) and, for `confirm` / `prompt`, `Cancel` (`dialog.dismiss`); a prompt accepted gets its
-default value.
-
-```ts
-// the page calls confirm('Delete all?')
-await this.app.tap('clear-all');
-
-await this.app.device.system.expectVisible({ text: 'Delete all?' });
-
-// confirm() returns false; then waits for idle
-await this.app.device.system.tap({ text: 'Cancel' });
-```
-
-While a dialog is open the page runs no script and takes no input, so the action that opened it returns as
-soon as the dialog is up (without waiting for idle), and any other call on the app fails at once with
-`DIALOG_OPEN` naming the dialog (answer it first); a screenshot too, the page does not paint. A dialog still
-open when the scenario ends is dismissed before the next one, with a warning. `beforeunload` prompts are
-always accepted (leaving or reloading the page is never held up).
-
-### Screenshots {#screenshots}
-
-```ts
-// the screen
-await this.app.device.screenshot();
-
-// an element (its part on the screen)
-await this.app.device.screenshot('avatar');
-
-// all of it, scrolled and stitched
-await this.app.device.screenshot('terms', { full: true });
-
-// the main scroll view's whole content
-await this.app.device.screenshot({ fullPage: true });
-
-// that scroll view's
-await this.app.device.screenshot({ fullPage: 'todo-list' });
-
-// an element of a WebView page
-await this.app.webview('help').element({ css: '#chart' }).screenshot();
-
-// + artifacts/<run>/<scenario>/home.png, attached
-await this.app.device.screenshot(undefined, { name: 'home' });
-```
-
-A full-page screenshot is the same on every platform: Quiesco scrolls the scroll view to the top
-(programmatically, as `scrollToEdge` does in js mode), takes a screenshot per screenful and stitches them —
-everything above the scroll view (status bar, header) from the first one, the newly revealed strip of each
-next one, what is below the scroll view (tab bar) from the last one — so fixed headers and footers appear
-once. A virtualized list that renders more rows as it scrolls is followed to its end. Scroll indicators are
-hidden meanwhile (native) and the scroll position is put back afterwards. Content that changes while it
-scrolls (sticky section headers, animations) shows as it was when each screenful was taken.
-
-### WebView (`this.app.webview()`)
-
-Elements of a page shown in a WebView: react-native-webview on iOS / Android, an `<iframe>` on the web
-(react-native-webview has no web implementation, so an app renders an iframe there, e.g. in a
-`MyWebView.web.tsx`).
-
-```ts
-// the WebView by matcher (testID, ...); no argument: the only one on screen
-const help = this.app.webview('help');
-
-await help.element({ css: '#name' }).type('Alice');
-await help.element({ xpath: '//input[@name="name"]' }).replaceText('Bob');
-await help.element({ text: '打招呼' }).tap();
-await help.element({ id: 'result' }).expectText('你好，Bob');
-await help.element({ text: /^Loading/ }).expectNotVisible();
-
-// a function body; `arguments`, promises awaited
-const title = await help.runScript<string>('return document.title');
-
-await help.url(); await help.title();
-```
-
-| Method | What it does |
-|---|---|
-| `element({ css } \| { xpath } \| { id } \| { text }, index?)` | An element of the page. `text`: the element's text with whitespace collapsed, exactly, or a RegExp; the innermost matching element |
-| `tap()` | A real tap (iOS / Android: a touch at the element's position on screen; web: Playwright input), after scrolling it into view. Fails at once with `MULTIPLE_MATCHES`, or with `ELEMENT_NOT_FOUND` when no visible, enabled match appears within the timeout |
-| `type(text)` / `replaceText(text)` | Tap the field (it gets the focus, as from a user), then insert the text at the caret (`execCommand('insertText')`: `input` events like typing) / replace its value. No software keyboard input |
-| `scrollIntoView()` | Scroll the page until the element is in view |
-| `expectText(text \| RegExp)` | The single match's text (inputs: their value) |
-| `expectExists()` / `expectNotExists()` / `expectVisible()` / `expectNotVisible()` | Visible = in the page's viewport (not scrolled away) and not hidden by CSS |
-| `runScript(body, args?)` | Run a function body in the page and return its (JSON) value; a returned promise is awaited. A page exception fails with `APP_ERROR` |
-| `url()` / `title()` | `location.href` / `document.title` |
-
-Every call waits for the app to be idle and for the page to settle: loaded and no `fetch` / `XMLHttpRequest`
-of the page running (counted by a script Quiesco adds to the page; timers of the page are not tracked —
-assertions retry until their timeout anyway). Only the WebView's main frame: iframes inside the page and
-shadow DOM are not reached. iOS / Android need `@quiesco/native` (scripts run through the native WebView,
-no `onMessage` needed in the app); without it `ACTION_NOT_SUPPORTED`. `runScript` uses `new Function`, which
-a page's Content-Security-Policy may forbid.
-
-### Runtime synchronization (`this.app.sync`)
-
-Change what Quiesco waits for, for the rest of the scenario — instead of switching synchronization off
-altogether:
-
-```ts
-// e.g. a screen that polls every 200 ms
-await this.app.sync.disableTracker('timer');
-
-// its text changes with every poll
-await this.app.sync.ignoreElements.add('poll-count');
-
-// a request that never finishes
-await this.app.sync.ignoreUrls.add(/\/analytics/);
-
-// all trackers off (Detox disableSynchronization)
-await this.app.sync.disable();
-
-await this.app.sync.enable();
-```
-
-`disableTracker` / `enableTracker` take `network`, `timer`, `react`, `idle-callback`, `frame-stable`,
-`native`, `native-module` (on when the build wraps native modules, [native module calls](./sync.md#native-module-calls)). `ignoreUrls` and `ignoreElements` add to / remove from the config's lists. The changes
-survive relaunches and reconnects, and are undone before the next scenario. For a single call,
-`{ sync: false }` still works.
-
-## Matchers {#matchers}
-
-A plain string is a **testID**: `tap('add-todo')`. An object combines conditions:
-
-```ts
-// first of several, in render order
-{ id: 'todo-item', index: 0 }
-
-// testID by regular expression
-{ id: /^todo-\d+$/ }
-
-// displayed text, exact
-{ text: 'Save' }
-
-// or a regular expression
-{ text: /saved \d+ items/i }
-
-// accessibilityLabel / aria-label
-{ label: 'Close' }
-
-// accessibilityRole / role
-{ role: 'button', text: 'Save' }
-
-// semantic type, the same on every platform (below)
-{ type: 'switch' }
-
-// or a host type ('RCTView', 'div') or a component's displayName
-{ type: 'TodoCard' }
-
-// with a matching descendant (Detox withDescendant)
-{ type: 'button', has: { text: 'Buy milk' } }
-
-// excluding elements that match
-{ type: 'button', not: { id: 'cancel' } }
-
-// inside another element (Detox withAncestor)
-{ text: 'Delete', within: 'todo-item-3' }
-```
-
-`text` matches the deepest element whose own text matches (a button and its label do not both match).
-On the web `testID` is rendered as `data-testid`; matchers are the same on every platform, and `index`
-follows render order on every platform (Detox's `atIndex` order differs between iOS and Android).
-
-### Semantic types
-
-`type` accepts these platform-independent kinds. They come from the accessibility role first, then from
-the host component, so they also work in release builds where component names are minified.
-
-| `type` | iOS / Android host (React Native 0.88) | Web (react-native-web) | Role |
-|---|---|---|---|
-| `button` | `Pressable`, `Touchable*`, `Button`, or a view whose component has `onPress` | `<button>`, same components | `button`, `togglebutton`, `imagebutton` |
-| `link` | — | `<a>` | `link` |
-| `header` | — | `<h1>`–`<h6>` | `header`, `heading` |
-| `text` | `RCTText`, `RCTVirtualText`, `RCTSelectableText` | `Text` | `text` |
-| `input` | `RCTSinglelineTextInputView`, `RCTMultilineTextInputView`, `AndroidTextInput` | `<input>`, `<textarea>` | `textbox`, `searchbox`, `search` |
-| `image` | `RCTImageView`, `ExpoImage` | `<img>`, `Image` | `image`, `img` |
-| `switch` | `Switch` (iOS), `AndroidSwitch` | `Switch` | `switch` |
-| `checkbox` / `radio` | — | `<input type="checkbox">` / `"radio"` | `checkbox` / `radio` |
-| `slider` | `RNCSlider` | `<input type="range">` | `adjustable`, `slider` |
-| `picker` | `RNCPicker`, `RNCAndroidDialogPicker`, `RNCAndroidDropdownPicker`, `RNDateTimePicker` | `<select>` | `combobox`, `spinbutton` |
-| `progress` | `ActivityIndicatorView`, `AndroidProgressBar` | `<progress>`, `ActivityIndicator` | `progressbar` |
-| `scroll` | `RCTScrollView`, `AndroidHorizontalScrollView` | `ScrollView` | — |
-| `list` | the scroll view of a `FlatList` / `SectionList` / `FlashList` (its component has `renderItem`) | same | `list` |
-
-A widget made of several hosts counts once. For example, react-native-web's `Switch` is a `<div>`
-around an `<input role="switch">`: `{ type: 'switch' }` matches the outer element, which also reports
-the input's checked state, value, focus, disabled state and label.
-
-### Visibility
-
-An element is visible when neither it nor an ancestor is hidden by style (`display: none`,
-`opacity: 0`) and part of it is on screen: inside the window **and** inside every ancestor that clips its
-content (scroll views, `overflow` other than `visible`). An element scrolled out of a scroll view is not
-visible even if that position is inside the window. `visibleRatio` is the visible fraction of its area.
-An element on a screen that is not on top is not visible either: on iOS / Android a native stack keeps
-the screens below in place, covered by the later one (unless it is presented as a transparent modal), and
-inactive tab screens are detached. Being covered by another element is not part of visibility; actions
-check it separately (`ELEMENT_OBSCURED`).
-
-When an element is found but not visible, the failure says why (on a screen that is not on top, hidden by
-an ancestor's style, outside the window, clipped by a scroll view, no size), and failures in Expo Router
-apps end with the current route: `(current route: /students/new)`.
-
-## In-app API (`@quiesco/agent`) {#in-app-api-quiescoagent}
-
-The app imports the agent on the first line of its entry file and wraps its root in `<QuiescoRoot>`
-(`npx quiesco init` sets both up). In builds without `EXPO_PUBLIC_QUIESCO=1`, `withQuiesco()` in
-`metro.config.js` replaces the package with a no-op stub, so this code can stay in the app.
-
-`withQuiesco(config, options?)` also keeps Metro from watching the artifacts directory: Metro sends the app
-an HMR update for every watched file that changes, and the dev client's "Refreshing..." window would cover
-the app while another worker taps. `options.artifactsDir` (default `'artifacts'`, relative to the project
-root) must match `artifacts.dir` when you change it (`false`: none). `.expo/devices.json` is excluded too:
-Expo's dev server rewrites it every time a dev client app starts. `options.nativeModules` (default: whether
-`EXPO_PUBLIC_QUIESCO_NATIVE_MODULES` is `1`) builds the app with native modules wrapped, which turns the
-`native-module` tracker on ([native module calls](./sync.md#native-module-calls)).
-
-```ts
-import { QuiescoRoot, quiesco } from '@quiesco/agent';
-
-// Test-only setup without the UI. Arguments and the result must be JSON.
-quiesco.backdoor('loginAs', async (email: string) => {
-  await authStore.setSession(await testApi.createSession(email));
-});
-
-// Run during every soft reset, after storage is cleared and before the app is remounted.
-quiesco.onReset(async () => {
-  queryClient.clear();
-});
-
-// Storage cleared on soft reset in addition to the built-in ones
-// (AsyncStorage's default store on iOS / Android; localStorage, sessionStorage, IndexedDB on the web).
-quiesco.registerStorage({ name: 'mmkv', clear: () => storage.clearAll() });
-
-// The launch arguments of this launch (config `launchArgs` + `app.device.relaunch({ args })`), with
-// their JSON types. Synchronous, so it can be read at startup. `{}` in production and in builds
-// without @quiesco/native on iOS / Android.
-const { user } = quiesco.launchArgs() as { user?: string };
-```
-
-Register backdoors and hooks in a module that is only imported in e2e builds
-(`if (process.env.EXPO_PUBLIC_QUIESCO === '1') require('./e2e')`), so the test code is not even in
-production bundles. Each registration returns a function that removes it.
-
-**Navigation on soft reset.** With Expo Router, the soft reset also puts the navigation state back to
-the one the app started in (after the `onReset` hooks, before the remount): a scenario that ends on a
-pushed screen, in a tab or in a nested stack no longer hands that screen to the next one. Nothing to set
-up. The reset then checks that the app is on the route the first reset of the run ended on; when it is
-not (the app navigated away on mount from state the reset did not clear), the reset fails with
-`RESET_FAILED` naming both routes. Clear that state in `onReset`, or tag the scenario `@hard-reset`. For
-apps without Expo Router, `reset.expectVisible` in the config does the same check with an element.
-
-### Typed backdoors {#typed-backdoors}
-
-Declare the backdoors once, in a file both the app and the tests
-compile, and both sides are checked against it: `quiesco.backdoor(name, fn)` takes only declared names
-with a matching function (async or not), and `this.app.backdoor(name, ...args)` checks the name, the
-arguments and the result (`null` for a backdoor that returns nothing). Without a declaration, any name
-works and the arguments only need to be JSON-compatible.
-
-```ts
-// src/backdoors.ts: compiled by the app and by the tests
-declare module '@quiesco/agent' {
-  interface Backdoors {
-    'students.set': (list: Student[]) => void;
-    'students.get': (id: string) => Student | null;
-  }
-}
-```
-
-A name that is only known at run time (e.g. from the feature text) is narrowed with
-`name as keyof Backdoors` (`import type { Backdoors } from '@quiesco/core'`).
-
-When the tests' tsconfig does not include the file, bring it in with `import type {} from '../../src/backdoors'`.
-A plain `import '../../src/backdoors'` fails when cucumber-js runs the steps: Node needs the file
-extension, and the file holds only types.
-
-## Configuration {#configuration}
-
-Every option, with its type and default: [Configuration](./config.md).
-
-`quiesco.config.ts` in the project root (`.mts`, `.js` and `.mjs` also work):
-
-```ts
-import { defineConfig } from '@quiesco/core';
-
-export default defineConfig({
-  apps: {
-    ios: { bundleId: 'com.example.app', binaryPath: 'ios/build/…/App.app', devClient: { metroUrl: 'http://localhost:8081' } },
-    android: { package: 'com.example.app', binaryPath: 'android/app/build/outputs/apk/debug/app-debug.apk', devClient: { scheme: 'myapp' } },
-
-    // or { url: 'http://localhost:8081' }
-    web: { distDir: 'dist' },
-  },
-  devices: {
-    ios: { device: 'iPhone 17', os: '27.0' },
-    android: { avd: 'Pixel_9_API_37' },
-    web: { browser: 'chromium', viewport: { width: 390, height: 844, hasTouch: true, isMobile: true } },
-  },
-  permissions: ['location'],
-  sync: { timeoutMs: 10_000, ignoreUrls: [/\/analytics\//] },
+test('a new todo appears in the list', async ({ app }) => {
+  await app.tap('add-todo');
 });
 ```
 
-| Key | Default | Meaning |
-|---|---|---|
-| `apps.ios.bundleId` / `binaryPath` / `devClient.metroUrl` | | App to install (`.app` for the simulator) and launch; `devClient`: launch the Expo dev client with this Metro |
-| `apps.android.package` / `binaryPath` / `activity` / `devClient` / `reversePorts` | `.MainActivity` | APK to install and launch; `devClient: { scheme, metroUrl }`; `reversePorts`: host ports the app calls on `localhost` (`adb reverse`) |
-| `apps.web.distDir` / `url` / `path` | `/` | An export (static: served by Quiesco; `web.output: "server"`: hosted with `npx expo serve`), or a running server |
-| `devices.ios.device` / `os` / `udid` | the booted simulator | Which simulator; booted if needed |
-| `devices.ios.disablePasswordAutoFill` | `true` | Keep iOS's "Save Password?" sheet from covering the app |
-| `devices.android.avd` / `serial` | a running device | Which emulator / device; the AVD is booted (cold) if not running |
-| `devices.android.gpu` | the AVD's mode; `auto` → `host` on macOS | `-gpu` of the emulators Quiesco boots. On macOS the emulator turns `auto` into `lavapipe`, a CPU renderer (~4 cores per idle emulator) |
-| `devices.*.shutdown` | `false` | Shut down a device Quiesco booted when the run ends |
-| `devices.web.browser` / `headless` / `viewport` | `chromium`, headless | Browser (`chromium`, `firefox` or `webkit`; [differences](./platforms.md#browsers)) and screen size (nothing is built in) |
-| `permissions` | `[]` | Granted before launch: `camera`, `microphone`, `location`, `notifications`, `contacts`, `photos`, `calendar` ([per platform](./platforms.md#permissions)) |
-| `sync.timeoutMs` | `10000` | How long a call waits for idle |
-| `sync.timerThresholdMs` | `1500` | Timers up to this delay keep the app busy |
-| `sync.countIntervals` | `false` | Whether `setInterval` keeps the app busy |
-| `sync.stableFrames` | `2` | Frames the element tree must stay the same |
-| `sync.ignoreUrls` | `[]` | Requests that never keep the app busy (strings match as substrings) |
-| `sync.trackers` | all on (`native-module`: when the build wraps native modules) | e.g. `{ 'frame-stable': false }`, `{ 'native-module': false }` ([trackers](./sync.md#trackers)) |
-| `sync.nativeCallThresholdMs` | `2000` | How long a pending native module call keeps the app busy (`native-module` tracker) |
-| `sync.ignoreNativeCalls` | `[]` | Native module calls (`"Module.method"`, strings match as substrings) that never keep the app busy, besides those that wait for the user ([native module calls](./sync.md#native-module-calls)) |
-| `sync.defaultIgnoreNativeCalls` | `true` | `false`: calls that wait for the user (permission requests, pickers, authentication and share sheets) keep the app busy too |
-| `sync.ignoreElements` | `[]` | Matchers of elements (with their subtrees) left out of the frame-stable check, e.g. a decorative animation: `['logo-glow']` |
-| `actions.mode` | `native` if the app has `@quiesco/native`, else `js` | Real input or callbacks |
-| `actions.gestureSlop` | per platform (see [Multi-finger gestures](#multi-finger-gestures)) | `{ pinch, rotation }`: how far fingers move before the app's recognizers activate |
-| `reset.default` | `soft` | `hard` relaunches the app before every scenario |
-| `reset.expectVisible` | — | A matcher that must be visible after every reset, e.g. `{ id: 'home' }`; otherwise the reset fails with `RESET_FAILED` instead of the scenario's first step |
-| `devServer.autoStart` / `command` / `timeoutMs` | `true` / `npx expo start --port {port}` / `120000` | `quiesco test` starts Metro with `EXPO_PUBLIC_QUIESCO=1` when the app needs it and it is not running, and stops it afterwards |
-| `bailOnRepeatedFailure` | `3` | After this many scenarios in a row fail the same way (same error), print a hint with the current route and skip the rest; `false` runs every scenario (the hint is still printed after 3) |
-| `server.port` / `server.host` | `7357` / all interfaces | The host's WebSocket server |
-| `connectTimeoutMs` | `30000` | How long to wait for the app after launch |
-| `logLevel` | `warn` | App console messages forwarded to the test output (`off` to disable) |
-| `tags` | see below | Rename the scenario tags |
-| `appErrors.ignore` / `ignoreDefaults` | `[]` / `true` | App errors that only log a warning instead of failing the step (also left out of the `console.error`s a failure lists) |
-| `appErrors.logBox` | `'clear'` | React Native's LogBox in dev builds: `'clear'` its logs on every soft reset, `'ignore'` them (no LogBox notifications), or `'keep'` them ([LogBox covers the app](../../debug/references/troubleshooting.md#logbox)) |
+**Jest:**
 
-The platform comes from `QUIESCO_PLATFORM` (`ios`, `android`, `web`) or `quiesco test --platform`.
-The config file is plain TypeScript, so values can come from the environment.
-
-## Scenario tags {#scenario-tags}
-
-| Tag | Effect |
-|---|---|
-| `@ios`, `@android`, `@web` | Run the scenario only on these platforms (several tags: any of them) |
-| `@native` | iOS and Android only |
-| `@chromium`, `@firefox`, `@webkit` | On the web, run the scenario only in these browsers (`devices.web.browser`); iOS and Android ignore them |
-| `@hard-reset` | Relaunch the app before this scenario instead of the soft reset |
-
-Untagged scenarios run everywhere. Rename them with `tags: { web: '@browser', webkit: '@safari' }`.
-
-Platform tags can sit on the feature, a `Rule`, the scenario or an `Examples` block; the innermost one decides.
-In a feature tagged `@native`, an untagged scenario runs on iOS and Android, and a scenario tagged `@android`
-runs on Android only. Browser tags follow the same rule, apart from the platform tags: `@web @webkit` runs
-on the web in WebKit only, and a scenario tagged `@firefox` in a `@chromium` feature runs in Firefox only.
-This differs from cucumber-js `--tags`, which matches inherited tags too.
-
-## Errors {#errors}
-
-Failures are `QuiescoError`s with `errorName`, a message that says what to do, and structured `data`.
-When the app logged a `console.error` during the scenario, the message ends with the last one and
-`data.appLogErrors` has them all (also attached to the failed scenario as `app-errors.txt`): it is often the
-cause.
-Their stack starts at the code that made the call (your step or driver class), without Quiesco's own or
-the WebSocket library's frames.
-
-| Error | Meaning |
-|---|---|
-| `ELEMENT_NOT_FOUND` | No visible element matched within the timeout (missing, or present but hidden) |
-| `MULTIPLE_MATCHES` | The action's matcher matched several elements; `data.matches` lists them |
-| `ELEMENT_OBSCURED` | A real touch would land on something else; `data.obscuredBy` (and the native hit chain on iOS) |
-| `SYNC_TIMEOUT` | The app did not become idle; lists every busy tracker ([details](./sync.md#when-the-app-never-becomes-idle)) |
-| `ASSERTION_FAILED` | `data.expected`, `data.actual` and the elements seen |
-| `ACTION_NOT_SUPPORTED` | e.g. `pressBack` on iOS, or `native` mode without the native module (with a hint) |
-| `BACKDOOR_NOT_REGISTERED` / `BACKDOOR_FAILED` / `NOT_SERIALIZABLE` | Backdoor problems; the first lists the registered names, the last the path of the bad value |
-| `APP_ERROR` | An uncaught error in the app failed the current step (see `appErrors` to ignore known ones) |
-| `RESET_FAILED` | Which reset step failed (`storage:<name>`, `onReset#<n>`, `navigation`, `remount`, `expectVisible`) |
-| `PROTOCOL_MISMATCH` / `SESSION_MISMATCH` | Agent and host versions differ / an app from another run connected |
-| `CONNECT_TIMEOUT` | The app did not connect after launch (the message has a checklist) |
-| `AGENT_TIMEOUT` | The app stopped answering — usually its JS thread is blocked |
-| `AGENT_DISCONNECTED`, `DEVICE_ERROR`, `CONFIG_ERROR` | Lost connection, device tooling failure (adb / simctl / Playwright), invalid config |
-| `APP_CRASHED` | The app's process died (iOS / Android). The message has the crash's reason from the device: Android's `FATAL EXCEPTION` (or native `Fatal signal`) from logcat, iOS's exception type and the crashing thread's top frames from the crash report, whose path it gives; the evidence has `crash.txt` and, on iOS, the report. The next scenario starts the app again at once |
-| `APP_NOT_RUNNING` / `APP_IN_BACKGROUND` | The test terminated the app / sent it to the background (`this.app.device`); relaunch it / bring it back first |
-| `DIALOG_OPEN` | Web: the page shows a JavaScript dialog (`data.message`); answer it with `app.device.system.tap({ text: 'OK' })` / `{ text: 'Cancel' }` first |
-
-## Artifacts {#artifacts}
-
-Per scenario, under `artifacts/<date-time>-<platform>/<nnn>-<scenario>/`, and attached to the report:
-
-| Artifact | When | What |
-|---|---|---|
-| Failure evidence | the scenario failed | `failure.png` — the screen with the elements of the failed call framed in red (an assertion's elements, an obscured target, several matches); `elements.json` — the current route and every element with a testID, label or text of its own, with whether it is visible and why not; `element-tree.json`; `idle-state.json` (what was busy) |
-| Saved screenshots | `screenshot(…, { name })` | `<name>.png` |
-| `video` | per policy | iOS `simctl io recordVideo` (MP4); Android `screenrecord` (MP4, a new segment every 3 minutes); web Playwright's screencast (WebM). Attached as a file path |
-| `logs` | per policy | `device.log`: iOS the app process's unified log (`log stream`, info and above), Android logcat of the app's uid, web the page console and uncaught errors. The last 300 lines inline |
-| `timeline` | per policy | every call on the app with its duration and how much of it was waiting for idle, failed calls with their error, the steps of a `scrollTo` under it (also of one the test runner's timeout ended first: marked "still running when the scenario ended"): `timeline.html` (inline) and `timeline.trace.json` (Chrome trace: `chrome://tracing`, ui.perfetto.dev) |
-
-```ts
-export default defineConfig({
-  artifacts: { dir: 'artifacts', video: 'failing', logs: 'failing', timeline: 'failing' },
+```js
+test('a new todo appears in the list', async () => {
+  await quiesco.app.tap('add-todo');
 });
 ```
 
-Policies: `none`, `failing` (recorded for every scenario, kept when it fails) or `all`. Defaults: video
-`none` (recording costs a little on every scenario; turn it on in CI), logs and timeline `failing`.
-`QUIESCO_ARTIFACTS=all` (or `failing`, `none`) sets all three for one run. Other runners use the same
-through the session: `session.startScenario({ name })` before `beforeScenario`, then
-`session.afterScenario({ failed })` returns the attachments and files.
-
-## Vitest, Jest and other runners {#using-quiesco-without-cucumber}
-
-**Vitest and Jest** have adapters, `@quiesco/vitest` and `@quiesco/jest` (examples in
-[test runners](./runners.md) and
-[examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e)). They behave like the Cucumber one:
-
-| | Vitest (`@quiesco/vitest`) | Jest (`@quiesco/jest`) |
-|---|---|---|
-| Setup | `plugins: [quiescoPlugin()]`, `test: { ...quiesco() }` from `@quiesco/vitest/config` | `preset: '@quiesco/jest'`, `maxWorkers`, a `testTimeout` |
-| The Driver | `test('…', async ({ app, session }) => …)` | the global `quiesco.app` / `quiesco.session` |
-| Session | one per worker: a worker fixture | one per worker process: kept by the test environment, closed when Jest ends the worker (in band: by the preset's `globalTeardown`) |
-| Platform tags | in `describe` / test titles and `{ tags }` (declared by `quiesco()`) | in `describe` / test titles |
-| Before each test | skipped if tagged for another platform, else reset | same (Jest's `test_start` / `test_started` events) |
-| After a failure | evidence written to the artifacts directory, its files listed in the failure message | same |
-| Parallel runs | `quiesco({ workers: N })`: each worker on a device of its own ([parallel.md](./parallel.md)) | `maxWorkers: N`, same |
-
-The innermost level with a platform tag decides, as in Gherkin: a test tagged `@android` in a
-`describe('… @native')` runs on Android only. A session that fails to start fails the remaining tests at
-once instead of starting again for each. With Jest, a config's own `globalTeardown` replaces the
-preset's: call `@quiesco/jest/teardown` from it (see the example). The first test of a Vitest run also
-waits for the session to start (booting a device can take minutes): `quiesco()` sets `testTimeout` to
-300 s for that reason.
-
-**Any other runner** (Mocha, a plain script) uses `@quiesco/core` directly. `Lifecycle` maps a run onto
-four calls — the adapters above are thin layers over it:
+**Cucumber:**
 
 ```ts
-import { Lifecycle, titleTags } from '@quiesco/core';
+import { When } from '@cucumber/cucumber';
+import type { QuiescoWorld } from '@quiesco/cucumber';
 
-// config from quiesco.config.*, QUIESCO_PLATFORM
-const lifecycle = new Lifecycle();
-
-// server, device, install, launch, connect
-await lifecycle.beforeAll();
-
-// tags by level; reset
-if ((await lifecycle.before([titleTags(name)], name)) !== 'skipped') {
-
-  // the Driver
-  await lifecycle.current.driver.tap('login-button');
-}
-
-// evidence + artifacts per policy
-const { attachments, files } = await lifecycle.after({ tags, failed });
-
-await lifecycle.afterAll();
+When('I add a todo', async function (this: QuiescoWorld) {
+  await this.app.tap('add-todo');
+});
 ```
 
-Or the session itself: `createSession`, then `startScenario` + `beforeScenario` before each test,
-`afterScenario` after it (on failure: the framed screenshot, element tree and idle state, plus video /
-logs / timeline per [the artifacts policy](#artifacts)), `dispose` at the end (it closes the app; the device keeps
-running unless `devices.*.shutdown`). `collectEvidence()` still
-returns the failure evidence alone.
+The examples in this section use the Vitest form, `app`. With Jest write `quiesco.app`, in Cucumber steps
+`this.app`.
 
-Runs are serial: one session drives one device. `quiesco test --runner cucumber|jest|vitest` sets
-`QUIESCO_PLATFORM` and starts the runner; for other runners set `QUIESCO_PLATFORM` (or pass the platform
-to `resolvePlatform`) and start the runner yourself.
+## Every call waits for the app {#every-call-waits}
+
+Every method is `async`. Before it runs, it waits until the app is **idle**: no pending timers, requests,
+renders or animations ([synchronization](./sync.md)). An action waits again after it is done. So a test never
+sleeps or polls:
+
+```ts
+// the tap returns once the new screen has finished its transition and its requests
+await app.tap('open-settings');
+
+// so this runs on the new screen
+await app.tap('dark-mode-switch');
+```
+
+Assertions (`expectVisible`, `expectText`, …) also retry until they hold, up to the call's timeout.
+
+## Options every call takes {#call-options}
+
+Every method takes an optional last argument:
+
+| Option | Default | Meaning |
+|---|---|---|
+| `timeoutMs` | `sync.timeoutMs` (10 s) | How long this call may wait |
+| `sync` | `true` | `false`: do not wait for idle around this call. For a screen whose animation never stops |
+| `mode` | `actions.mode` | Actions only. `'native'`: real touches and keyboard input (iOS / Android with `@quiesco/native`, the browser on the web). `'js'`: call the component's callbacks (`onPress`, `onChangeText`) |
+
+```ts
+// a slow screen: wait up to 30 s for it
+await app.expectVisible('report', { timeoutMs: 30_000 });
+
+// a looping animation on this screen: do not wait for idle
+await app.tap('stop-animation', { sync: false });
+
+// call onPress instead of touching the screen
+await app.tap('hidden-debug-button', { mode: 'js' });
+```
+
+## Finding elements {#finding-elements}
+
+Most methods take a **target**: which element to act on. A string is a `testID`; an object combines
+conditions such as the text, the role or the position. See [matchers](./api-matchers.md).
+
+```ts
+await app.tap('save');
+await app.tap({ role: 'button', text: 'Save' });
+await app.expectText({ id: 'todo-title', index: 0 }, 'Buy milk');
+```
+
+An action needs exactly **one visible** element. It waits until the target exists and is visible, and fails
+with `ELEMENT_NOT_FOUND` if it does not appear in time (the message says whether it is missing or hidden).
+Several matches fail at once with `MULTIPLE_MATCHES`. In `native` mode a touch must also be able to reach
+the element: if a dialog or another view covers it, or a scroll view cuts off the point to touch, the
+action fails with `ELEMENT_OBSCURED` naming what is in the way. A software keyboard covering the target is
+dismissed first.
+
+## The API by topic {#by-topic}
+
+- [Matchers](./api-matchers.md): How a target finds elements: test id, text, role, type, position, ancestors.
+- [Actions](./api-actions.md): Tap, type, scroll, swipe, drag, go back, open a deep link.
+- [Value controls](./api-value-controls.md): Switches, sliders, pickers, segmented controls, date pickers.
+- [Multi-finger gestures](./api-gestures.md): Pinch, rotate, and any touch paths.
+- [Assertions](./api-assertions.md): Visible, text, value, enabled, checked, count — retried until they hold.
+- [Queries and state](./api-queries.md): Read elements and the tree, wait for idle, call backdoors, reset.
+- [Runtime synchronization](./api-runtime-sync.md): Change what the driver waits for during a test.
+- [App and device](./api-device.md): Relaunch, background, orientation, dark mode, locale, network, clipboard.
+- [System UI](./api-system.md): Permission dialogs, biometrics, notifications, browser dialogs.
+- [Screenshots](./api-screenshots.md): The screen, an element, or a whole scrolling page.
+- [WebView](./api-webview.md): Elements of a web page inside the app.
+- [In-app API](./api-in-app.md): What the app registers: backdoors, reset hooks, storage, launch arguments.
+- [Test tags](./api-tags.md): Run a test only on some platforms or browsers, or after a full restart.
+- [Errors](./api-errors.md): Every error a call can fail with, and what it means.
+- [Artifacts](./api-artifacts.md): Screenshots, element trees, videos, logs and timelines of a run.
+- [Other test runners](./api-custom-runners.md): Vitest and Jest adapters in detail, and driving Quiesco from any runner.
+
+Every configuration option is on the [configuration](./config.md) page.

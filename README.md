@@ -110,7 +110,7 @@ npx quiesco test --platform ios
 
 `quiesco build` runs `expo prebuild` with `EXPO_PUBLIC_QUIESCO=1` and the native build, and writes the app
 where `binaryPath` in `quiesco.config.mts` says (the generated config has the usual paths). `quiesco test`
-starts Metro for the dev client when it is not running, and stops it afterwards. Set the emulator / simulator in `devices` (see [configuration](https://shift-14cc7601.mintlify.site/api#configuration)). For CI, an
+starts Metro for the dev client when it is not running, and stops it afterwards. Set the emulator / simulator in `devices` (see [configuration](https://shift-14cc7601.mintlify.site/config)). For CI, an
 EAS build profile with `EXPO_PUBLIC_QUIESCO=1` produces the same e2e build; see
 [examples/todo-app](examples/todo-app/README.md) for a complete, tested setup on all three platforms.
 

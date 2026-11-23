@@ -55,7 +55,8 @@ the failed call and error from the script, the platform, the feature or test fil
 the step definition / driver files involved if known, and these documentation paths (the agent cannot
 resolve the plugin root itself): `${CLAUDE_PLUGIN_ROOT}/skills/debug/references/troubleshooting.md`,
 `${CLAUDE_PLUGIN_ROOT}/skills/quiesco-api/references/sync.md`,
-`${CLAUDE_PLUGIN_ROOT}/skills/quiesco-api/references/api.md`. Launch independent investigations in parallel
+`${CLAUDE_PLUGIN_ROOT}/skills/quiesco-api/references/api-errors.md`,
+`${CLAUDE_PLUGIN_ROOT}/skills/quiesco-api/references/api-artifacts.md`. Launch independent investigations in parallel
 (at most three). The agent reads `failure.png`, `elements.json`, `element-tree.json`, `idle-state.json`,
 `device.log` and the timeline, which are too large to load here, and returns the cause, the evidence
 and a proposed fix.
@@ -114,5 +115,5 @@ result. List every file changed, separating test code from app code.
 - **`scripts/find-failures.mjs`** — summary of a run's failures from the artifacts directory
   (`--run <name>` for another run, `--list-runs` to list them).
 - **`references/troubleshooting.md`** — failures by symptom and error name, per platform.
-- **`${CLAUDE_PLUGIN_ROOT}/skills/quiesco-api/references/api.md`** — "Errors" and "Artifacts" sections:
+- **`${CLAUDE_PLUGIN_ROOT}/skills/quiesco-api/references/api-errors.md`** and **`api-artifacts.md`** —
   every error name and every evidence file.

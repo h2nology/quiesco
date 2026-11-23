@@ -255,7 +255,7 @@ How Quiesco decides that the app is idle before each call ([synchronization](./s
   How far the fingers move before the app's pinch / rotation recognizers activate (logical units, radians).
   `pinch` and `rotate` move this much first. The defaults fit the standard recognizers (UIKit,
   react-native-gesture-handler); set it for other recognizers, or `0` for no compensation
-  ([multi-finger gestures](./api.md#multi-finger-gestures)).
+  ([multi-finger gestures](./api-gestures.md)).
 
 ## reset {#reset}
 
@@ -287,7 +287,7 @@ until it is ready, and stops it afterwards. A Metro you started yourself is reus
 ## artifacts {#artifacts}
 
 Files recorded for each scenario, under `artifacts/<date-time>-<platform>/<nnn>-<scenario>/`
-([what is in them](./api.md#artifacts)). Each of `video`, `logs` and `timeline` takes a policy: `'none'`,
+([what is in them](./api-artifacts.md)). Each of `video`, `logs` and `timeline` takes a policy: `'none'`,
 `'failing'` (recorded for every scenario, kept when it fails) or `'all'`. `QUIESCO_ARTIFACTS=none|failing|all`
 sets all three for one run.
 
@@ -335,7 +335,7 @@ The WebSocket server on the host that the app connects to.
 ## tags {#tags}
 
 - **`tags`** (`object`):
-  Rename the [scenario tags](./api.md#scenario-tags) Quiesco reacts to, e.g.
+  Rename the [scenario tags](./api-tags.md) Quiesco reacts to, e.g.
   `{ web: '@browser', webkit: '@safari' }`. With Vitest, pass the same to `quiesco({ tags })` in
   `vitest.config.ts`.
 

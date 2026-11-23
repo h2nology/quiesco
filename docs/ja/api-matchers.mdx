@@ -1,0 +1,158 @@
+---
+title: "マッチャー"
+description: "ターゲットが要素を見つける方法：テストID、テキスト、ラベル、ロール、型、位置、子孫、祖先。"
+---
+
+ほとんどのメソッドは**ターゲット**、つまり操作または確認する要素を受け取ります。単なる文字列は`testID`です。オブジェクトでは条件を組み合わせ、そのすべてが成り立つ要素がマッチします。マッチャーはiOS、Android、Webで同じです。
+
+```ts
+// 文字列はtestID
+await app.tap('add-todo');
+
+// オブジェクトは条件を組み合わせる
+await app.tap({ role: 'button', text: 'Save' });
+```
+
+Webでは`testID`は`data-testid`として描画されます。マッチャーは変わりません。
+
+## マッチャーのフィールド {#fields}
+
+### `id` {#id}
+
+`testID`です。完全一致の文字列か正規表現を指定します。`'save'`は`{ id: 'save' }`の省略形です。
+
+```ts
+await app.tap({ id: 'save' });
+
+// すべてのtodo行：todo-1、todo-2、…
+await app.expectCount({ id: /^todo-\d+$/ }, 3);
+```
+
+### `text` {#text}
+
+表示されているテキストです。完全一致の文字列か正規表現を指定します。自身のテキストがマッチする**最も深い**要素にマッチするので、ボタンとその中のラベルの両方がマッチすることはありません。
+
+```ts
+await app.tap({ text: 'Sign in' });
+
+await app.expectVisible({ text: /saved \d+ items/i });
+```
+
+### `label` {#label}
+
+アクセシビリティラベルです。iOS / Androidでは`accessibilityLabel`、Webでは`aria-label`です。完全一致の文字列か正規表現を指定します。
+
+```ts
+// アイコンだけの閉じるボタン
+await app.tap({ label: 'Close' });
+```
+
+### `role` {#role}
+
+アクセシビリティロールです。iOS / Androidでは`accessibilityRole`、Webでは`role`です。
+
+```ts
+await app.tap({ role: 'button', text: 'Save' });
+```
+
+### `type` {#type}
+
+要素の種類です。どのプラットフォームでも同じ[セマンティックな型](#semantic-types)、ホストの型（`'RCTView'`、`'div'`）、または要素を描画するコンポーネントの`displayName`のいずれかです。
+
+```ts
+// セマンティックな型：どのプラットフォームでも動作する
+await app.tap({ type: 'switch' });
+
+// アプリのコンポーネント
+await app.expectCount({ type: 'TodoCard' }, 2);
+```
+
+### `has` {#has}
+
+このマッチャーにマッチする子孫を持つ要素です（Detoxの`withDescendant`）。
+
+```ts
+// 「Buy milk」を含む行
+await app.swipe({ id: 'todo-row', has: { text: 'Buy milk' } }, 'left');
+
+await app.tap({ type: 'button', has: { text: 'Buy milk' } });
+```
+
+### `not` {#not}
+
+このマッチャーにマッチする要素を除外します。
+
+```ts
+// Cancel以外の唯一のボタン
+await app.tap({ type: 'button', not: { id: 'cancel' } });
+```
+
+### `within` {#within}
+
+このマッチャーにマッチする唯一の要素の内側にある要素です（Detoxの`withAncestor`）。
+
+```ts
+// あるtodoのDeleteボタン
+await app.tap({ text: 'Delete', within: 'todo-item-3' });
+```
+
+### `index` {#index}
+
+`0`から数えてn番目のマッチで、描画順に従います。順序はどのプラットフォームでも同じです（Detoxの`atIndex`の順序はiOSとAndroidで異なります）。
+
+```ts
+// 複数あるtodo行のうち最初のもの
+await app.expectText({ id: 'todo-title', index: 0 }, 'Buy milk');
+```
+
+## セマンティックな型 {#semantic-types}
+
+`type`には、次のプラットフォームに依存しない種別を指定できます。種別はまずアクセシビリティロールから、次にホストコンポーネントから決まるので、コンポーネント名が圧縮されるリリースビルドでも機能します。
+
+| `type` | iOS / Androidのホスト（React Native 0.88） | Web（react-native-web） | ロール |
+|---|---|---|---|
+| `button` | `Pressable`、`Touchable*`、`Button`、またはコンポーネントが`onPress`を持つビュー | `<button>`、同じコンポーネント | `button`、`togglebutton`、`imagebutton` |
+| `link` | — | `<a>` | `link` |
+| `header` | — | `<h1>`–`<h6>` | `header`、`heading` |
+| `text` | `RCTText`、`RCTVirtualText`、`RCTSelectableText` | `Text` | `text` |
+| `input` | `RCTSinglelineTextInputView`、`RCTMultilineTextInputView`、`AndroidTextInput` | `<input>`、`<textarea>` | `textbox`、`searchbox`、`search` |
+| `image` | `RCTImageView`、`ExpoImage` | `<img>`、`Image` | `image`、`img` |
+| `switch` | `Switch`（iOS）、`AndroidSwitch` | `Switch` | `switch` |
+| `checkbox` / `radio` | — | `<input type="checkbox">` / `"radio"` | `checkbox` / `radio` |
+| `slider` | `RNCSlider` | `<input type="range">` | `adjustable`、`slider` |
+| `picker` | `RNCPicker`、`RNCAndroidDialogPicker`、`RNCAndroidDropdownPicker`、`RNDateTimePicker` | `<select>` | `combobox`、`spinbutton` |
+| `progress` | `ActivityIndicatorView`、`AndroidProgressBar` | `<progress>`、`ActivityIndicator` | `progressbar` |
+| `scroll` | `RCTScrollView`、`AndroidHorizontalScrollView` | `ScrollView` | — |
+| `list` | `FlatList` / `SectionList` / `FlashList`のスクロールビュー（コンポーネントが`renderItem`を持つ） | 同じ | `list` |
+
+```ts
+// 設定画面のWi-Fiスイッチ
+await app.tap({ type: 'switch', label: 'Wi-Fi' });
+await app.expectChecked({ type: 'switch', label: 'Wi-Fi' });
+```
+
+複数のホストで構成されたウィジェットは1つとして数えます。たとえば、react-native-webの`Switch`は`<input role="switch">`を囲む`<div>`です。`{ type: 'switch' }`は外側の要素にマッチし、その要素が入力欄のチェック状態、値、フォーカス、無効状態、ラベルも報告します。
+
+## 可視性 {#visibility}
+
+アクションと`expectVisible`には、**表示されている**要素が必要です。要素が表示されているとは、次の両方を満たすことです。
+
+- その要素も祖先もスタイルで隠されていない（`display: none`、`opacity: 0`）。
+- 一部が画面上にある。つまり、ウィンドウの内側**かつ**コンテンツをクリップするすべての祖先（スクロールビュー、`visible`以外の`overflow`）の内側にある。
+
+スクロールビューの外にスクロールされた要素は、その位置がウィンドウの内側でも表示されていません。要素の`visibleRatio`（[要素の概要](./api-queries#element-summary)）は、要素の面積のうち表示されている割合です。
+
+最前面にない画面上の要素も表示されていません。iOS / Androidのネイティブスタックは下の画面をそのまま残し、後から積まれた画面がそれを覆います（透明なモーダルとして表示される場合を除く）。非アクティブなタブの画面も切り離されています。
+
+別の要素に覆われているかどうかは可視性には含まれません。アクションがそれを別途チェックし、`ELEMENT_OBSCURED`で失敗します（[要素を見つける](./api#finding-elements)）。
+
+```ts
+// 最後の行は画面の下にある：スクロールするまで表示されない
+await app.expectExists({ id: 'todo-row', index: 49 });
+await app.expectNotVisible({ id: 'todo-row', index: 49 });
+
+await app.scrollTo('todo-list', { id: 'todo-row', index: 49 });
+await app.expectVisible({ id: 'todo-row', index: 49 });
+```
+
+要素は見つかったが表示されていない場合、失敗メッセージがその理由（最前面にない画面上にある、祖先のスタイルで隠されている、ウィンドウの外にある、スクロールビューにクリップされている、サイズがない）を示します。Expo Routerを使うアプリでは、失敗メッセージの最後に現在のルートが付きます：`(current route: /students/new)`。

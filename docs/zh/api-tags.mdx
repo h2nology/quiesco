@@ -1,0 +1,96 @@
+---
+title: "测试标签"
+description: "在测试标题或 Gherkin 中用标签让测试只在某些平台或浏览器上运行，或在测试之前重新启动 App。"
+---
+
+标签决定测试在哪里运行，以及测试之前如何重置 App。没有标签的测试在所有平台上运行，之前进行软重置。
+
+## 标签 {#the-tags}
+
+| 标签 | 效果 |
+|---|---|
+| `@ios`、`@android`、`@web` | 只在这些平台上运行该测试（多个标签：任一平台即可） |
+| `@native` | 仅限 iOS 和 Android |
+| `@chromium`、`@firefox`、`@webkit` | 在 web 上只在这些浏览器中运行该测试（[`devices.web.browser`](./config#devices-web)）；iOS 和 Android 忽略它们 |
+| `@hard-reset` | 在该测试之前重新启动 App，而不是 [软重置](./api-in-app#reset) |
+
+你自己的标签（例如 `@smoke`）可以和它们写在一起；Quiesco 会忽略这些标签。
+
+## 编写标签 {#writing-tags}
+
+<CodeGroup>
+```ts Vitest
+import { describe, test } from '@quiesco/vitest';
+
+// 写在标题中
+test('the back button closes the sheet @android', async ({ app }) => {
+  await app.pressBack();
+});
+
+// 或写在 tags 选项中
+test('Face ID login', { tags: ['@native', '@hard-reset'] }, async ({ app }) => {
+  await app.device.biometrics.enroll();
+});
+
+describe('settings @native', () => {
+  // 只在 Android 上运行：由最内层的标签决定
+  test('the back button closes it @android', async ({ app }) => {
+    await app.pressBack();
+  });
+});
+```
+```js Jest
+// Jest 没有测试选项：标签写在测试或 describe 的标题中
+describe('settings @native', () => {
+  // 只在 Android 上运行：由最内层的标签决定
+  test('the back button closes it @android', async () => {
+    await quiesco.app.pressBack();
+  });
+});
+```
+```gherkin Cucumber
+@native
+Feature: Settings
+
+  # 在 iOS 和 Android 上运行
+  Scenario: Dark mode
+    When I turn on dark mode
+
+  # 只在 Android 上运行
+  @android
+  Scenario: The back button closes the settings
+    When I press back
+
+  @hard-reset
+  Scenario: First launch shows the onboarding
+    Then I see the onboarding
+```
+</CodeGroup>
+
+使用 Vitest 时，`quiesco()` 会为 `tags` 选项声明平台标签和浏览器标签；你自己的标签用 `extraTags` 声明（[Vitest](./vitest)）。
+
+## 由最内层决定 {#innermost-level}
+
+平台标签可以放在多个层级上：Gherkin 中是 feature、`Rule`、场景或 `Examples` 块；Vitest 和 Jest 中是 `describe` 标题和测试。由带有平台标签的最内层决定：
+
+- 在标记为 `@native` 的 feature（或 `describe`）中，没有标签的测试在 iOS 和 Android 上运行，标记为 `@android` 的测试只在 Android 上运行。
+
+浏览器标签按同样的规则判定，与平台标签互不影响：
+
+- `@web @webkit` 只在 web 的 WebKit 中运行；
+- `@chromium` feature 里标记为 `@firefox` 的测试只在 Firefox 中运行。
+
+这与 cucumber-js 的 `--tags` 不同，后者也会匹配继承来的标签。
+
+## 重命名标签 {#renaming}
+
+用 [`tags`](./config#tags) 配置重命名它们：
+
+```ts
+// quiesco.config.ts
+export default defineConfig({
+  tags: { web: '@browser', webkit: '@safari' },
+});
+```
+
+使用 Vitest 时，把同一个对象传给 `quiesco({ tags })`。

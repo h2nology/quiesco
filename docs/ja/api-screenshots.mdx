@@ -1,0 +1,71 @@
+---
+title: "スクリーンショット"
+description: "画面、1つの要素、またはつなぎ合わせたスクロールページ全体のPNGを撮り、レポートに添付します。"
+---
+
+`app.device.screenshot()`はPNGを`Buffer`で返します。画面、1つの要素、またはスクロールしてつなぎ合わせたスクロールビューのコンテンツ全体です。`name`を指定すると、テストの[成果物](./api-artifacts)としても保存され、レポートに添付されます。
+
+## スクリーンショットを撮る {#taking-a-screenshot}
+
+### `screenshot(target?, options?)` {#screenshot}
+
+ターゲットなしでは、表示されているままの画面です。Webではブラウザーのビューポートです。
+
+```ts
+const png = await app.device.screenshot();
+
+// artifacts/<run>/<test>/home.pngとしても保存され、レポートに添付される
+await app.device.screenshot(undefined, { name: 'home' });
+```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `name` | | PNGをこの名前でテストの成果物ディレクトリにも保存し、レポートに添付します |
+| `full` | `false` | 要素をターゲットにした場合：スクロールしてつなぎ合わせた要素の全体（[要素](#an-element)） |
+
+### 要素 {#an-element}
+
+`screenshot(target)`は、1つの要素を画面から切り出します。画面上にある部分だけです。`{ full: true }`ではその全体を撮ります。コンテンツ全体を含むスクロールビューや、一部がスクロールで隠れた要素の残りの部分も、スクロールしてつなぎ合わせます。
+
+```ts
+// 画面に表示されているままのアバター
+await app.device.screenshot('avatar', { name: 'avatar' });
+
+// 利用規約の全文。スクロールしてつなぎ合わせる
+await app.device.screenshot('terms', { full: true, name: 'terms' });
+```
+
+### ページ全体 {#full-page}
+
+`screenshot({ fullPage: true })`は、画面のメイン（最大）のスクロールビューのコンテンツ全体を撮ります。`{ fullPage: target }`は、`target`に一致するスクロールビューのコンテンツ全体を撮ります。
+
+```ts
+// メインのスクロールビューのコンテンツ全体
+await app.device.screenshot({ fullPage: true }, { name: 'todos' });
+
+// そのスクロールビューのコンテンツ全体
+await app.device.screenshot({ fullPage: 'todo-list' });
+```
+
+フルページのスクリーンショットはどのプラットフォームでも同じです。
+
+1. Quiescoはスクロールビューを先頭まで、プログラムからスクロールします（`js`モードの[`scrollToEdge`](./api-actions#scrolltoedge)と同じ）。
+2. 1画面分ずつスクリーンショットを撮ってつなぎ合わせます。スクロールビューより上にあるもの（ステータスバー、ヘッダー）は最初の1枚から、以降の各枚からは新たに現れた帯の部分を、スクロールビューより下にあるもの（タブバー）は最後の1枚から取ります。そのため固定のヘッダーとフッターは1回だけ写ります。
+3. スクロールに応じて行を追加描画する仮想化リストは、最後まで追従します。
+4. 撮影中はスクロールインジケーターが隠され（ネイティブ）、スクロール位置は撮影後に元に戻されます。
+
+スクロール中に変化するコンテンツ（スティッキーなセクションヘッダー、アニメーション）は、それぞれの画面を撮った時点の状態で写ります。
+
+### WebViewの要素 {#webview-element}
+
+WebView内のページの要素には、専用の`screenshot()`があります。先に要素が見える位置までスクロールし、WebViewの表示領域内にある部分を撮ります。[WebView](./api-webview#screenshot)を参照してください。
+
+```ts
+const chart = await app.webview('help').element({ css: '#chart' }).screenshot();
+```
+
+<Note>
+Webでは、ブラウザーのダイアログ（`alert`、`confirm`）が開いている間、スクリーンショットは`DIALOG_OPEN`で失敗します。応答するまでページが描画されないためです。[システムUI](./api-system)を参照してください。
+</Note>
+
+きれいなスクリーンショットのためのステータスバーの上書き（時刻を9:41に、バッテリーを満充電に）は、[アプリとデバイス](./api-device#setstatusbar)を参照してください。

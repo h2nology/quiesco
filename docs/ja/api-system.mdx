@@ -1,0 +1,295 @@
+---
+title: "システムUI"
+description: "生体認証、シェイク、通知、キーチェーン、権限ダイアログなどアプリ外のシステムUIと、WebページのJavaScriptダイアログ。"
+---
+
+テストに必要なものの中には、アプリの一部ではないものがあります。Face IDのプロンプト、プッシュ通知、権限を求めるダイアログなどです。これらのメソッドは`app.device`にあり、デバイスやシステム自身のUIを操作します。
+
+iOSシミュレーターとAndroidエミュレーターで動作します（Androidではエミュレーターのコンソールでセンサーを偽装するため、実機では使えません）。Webでは`ACTION_NOT_SUPPORTED`で失敗します（そうしたテストには`@native`タグを付けてください。[テストタグ](./api-tags)）。ただし`system.tap`、`system.expectVisible`、`system.expectNotVisible`は例外で、ページの[JavaScriptダイアログ](#web-dialogs)に応答します。
+
+## 生体認証 {#biometrics}
+
+典型的なFace ID / 指紋ログインのテスト：
+
+```ts
+// Face ID / Touch ID / 指紋が設定された状態にする
+await app.device.biometrics.enroll();
+
+// アプリがLocalAuthentication.authenticateAsync()を呼ぶ
+await app.tap('login-with-face-id');
+
+// 一致する顔 / 指：アプリの認証が成功する
+await app.device.biometrics.match();
+await app.expectVisible('home-screen');
+```
+
+### `biometrics.enroll(enrolled?)` {#biometrics-enroll}
+
+顔や指紋を登録します。`enroll(false)`で削除します。`enrolled`のデフォルトは`true`です。Androidでは、Quiescoが画面ロックのPINを設定し（指紋に必須）、設定アプリの登録画面を進めたうえで、アプリを前面に戻します。登録は次のテストの前に元に戻されます。
+
+```ts
+// 生体認証のないデバイス：アプリは代わりにパスワードを提示するはず
+await app.device.biometrics.enroll(false);
+await app.tap('login');
+await app.expectVisible('password-input');
+```
+
+### `biometrics.match()` {#biometrics-match}
+
+アプリが表示している認証に一致する顔や指を提示し、認証を成功させます。
+
+```ts
+await app.tap('unlock');
+await app.device.biometrics.match();
+await app.expectVisible('vault-contents');
+```
+
+### `biometrics.fail()` {#biometrics-fail}
+
+未登録の顔や指を提示します。実機と同じく、その後もシステムは再試行のプロンプトを表示し続け、プロンプトに応答する（もう一度一致させる、または[`system.tap`](#system-tap)でキャンセルする）までアプリには結果が返りません。続けて何度か失敗すると、センサーがしばらくロックされます（Androidエミュレーターでは約0.5秒から最大30秒）。
+
+```ts
+await app.tap('unlock');
+await app.device.biometrics.fail();
+
+// システムのプロンプトがまだ表示されている：キャンセルする
+await app.device.system.tap({ text: 'Cancel' });
+await app.expectText('unlock-error', 'Authentication cancelled');
+```
+
+## デバイス {#device}
+
+### `shake()` {#shake}
+
+デバイスを振り（iOS：シミュレーターの*Device > Shake*。Androidエミュレーター：加速度センサーへの入力）、その後アプリがアイドルになるのを待ちます。
+
+```ts
+// シェイクするとアプリはフィードバックフォームを開く
+await app.device.shake();
+await app.expectVisible('feedback-form');
+```
+
+### `clearKeychain()` {#clearkeychain}
+
+iOS：シミュレーターのキーチェーンを、全アプリ分リセットします。Androidにはキーチェーンがないため`ACTION_NOT_SUPPORTED`で失敗します。[`relaunch({ clearData: true })`](./api-device#relaunch)を使ってください。Keystoreの鍵も含めてアプリのデータが削除されます。
+
+```ts
+// 前のテストでexpo-secure-storeが保存したトークンが消えている
+await app.device.clearKeychain();
+await app.device.relaunch();
+await app.expectVisible('sign-in-screen');
+```
+
+## 通知 {#notifications}
+
+### `sendNotification({ title, body?, data? })` {#sendnotification}
+
+通知を届けます。アプリがバックグラウンドにあっても動作します。
+
+- **iOS**：擬似的なリモートプッシュ（`simctl push`）で、`data`はペイロードの中で`aps`と並べて配置されます。アプリが前面にある間は、アプリのプッシュライブラリが受け取ります。システムが通知を表示するのはアプリが通知を表示できる場合だけで、シミュレーターでは事前に許可できません。アプリに要求させ、[`allowPermission()`](#system-allowpermission)で応答してください。
+- **Android**：エミュレーターにはプッシュサービスがないため、通知はアプリとして投稿されます（`notifications`権限が必要）。タップすると`data`をintentのextrasとしてアプリが開きます。プッシュライブラリのコールバックは呼ばれません。
+
+```ts
+await app.device.sendNotification({
+  title: 'New message',
+  body: 'Ann: are we still on for lunch?',
+  data: { chatId: '42' },
+});
+```
+
+| フィールド | 意味 |
+|---|---|
+| `title` | 通知のタイトル。必須で、空にはできません |
+| `body` | 本文 |
+| `data` | カスタムデータ。値はすべて文字列でなければなりません |
+
+### `openNotification(title, options?)` {#opennotification}
+
+タイトルが`title`の通知を、ユーザーが開くのと同じようにタップします。iOSではバナー、バナーが消えていれば通知センターで、Androidでは通知シェードでタップします。アプリが前面に来てアイドルになった時点で解決します。
+
+```ts
+await app.device.sendToBackground();
+await app.device.sendNotification({ title: 'New message', data: { chatId: '42' } });
+
+// タップするとアプリがチャットを開く
+await app.device.openNotification('New message');
+await app.expectVisible('chat-42');
+```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `10000` | 通知が投稿されるまで待つ時間 |
+
+詳細：
+
+- 通知が投稿されるまで待つので、アプリが数秒後に予約した通知も見つかります。iOSでは、システムUIランナーの起動にかかる時間は`timeoutMs`に含まれません。
+- タップは、アプリが前面に来て初めて成功とみなします。iOSでは、来なければもう一度探します。同じアプリの通知がまとまっていれば、最新の通知をタップします。一度タップした後、再びタップするまでに最大3秒かかることがあります。
+- iOSでは、同じアプリの以前の通知が通知センターに残り（再起動や再インストール後も）、新しい通知とグループになります。最初のタップはグループを開くだけで、iOS 27では次のタップで出る「開く」ボタンをタップします。シミュレーターが遅いときは`timeoutMs`を増やしてください。
+
+## システムUI {#system-ui}
+
+`app.device.system`は、アプリのReactビューの外にあるUI（権限ダイアログ、生体認証のプロンプト、WebページのJavaScriptダイアログ）を見つけてタップします（[含まれるもの](#what-system-ui-includes)）。要素は**クエリ**で探します。
+
+| フィールド | マッチするもの |
+|---|---|
+| `text` | 完全一致するテキスト（タイポグラフィ用の引用符やアポストロフィは通常のものとみなします）、またはRegExp |
+| `id` | Android：resource-idの全体、または`:id/`より後ろの部分 |
+
+`text`、`id`、またはその両方を指定します。どの呼び出しも、UIが表示される（または消える）まで`timeoutMs`（10秒）を上限に待ちます。iOSのシステムUIはスライドして現れるため、250 ms空けた2回の読み取りで位置が一致してから要素を使います（`tap`、`expectVisible`、`type`、権限ダイアログ）。
+
+### `system.tap(query, options?)` {#system-tap}
+
+アプリ外のシステムUIをタップし、その後アプリがアイドルになるのを待ちます。
+
+```ts
+// アプリがネイティブのアクションシートを表示する
+await app.tap('share');
+await app.device.system.tap({ text: 'Cancel' });
+
+// Android：resource-idでボタンを指定
+await app.device.system.tap({ id: 'android:id/button1' });
+
+// "Allow"で始まる任意のテキスト
+await app.device.system.tap({ text: /^Allow/ });
+```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `10000` | 表示されるまで待つ時間 |
+
+### `system.expectVisible(query, options?)` {#system-expectvisible}
+
+そのシステムUIが画面に表示されるまで待ちます。失敗すると`ELEMENT_NOT_FOUND`になり、見つかったテキストが列挙されます。
+
+```ts
+await app.tap('enable-location');
+await app.device.system.expectVisible({ text: /location/i });
+```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `10000` | 待つ時間 |
+
+### `system.expectNotVisible(query, options?)` {#system-expectnotvisible}
+
+そのシステムUIが画面に表示されなくなるまで待ちます。失敗すると`ASSERTION_FAILED`になり、残っているテキストが示されます。
+
+```ts
+await app.device.system.tap({ text: 'OK' });
+await app.device.system.expectNotVisible({ text: 'Delete all?' });
+```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `10000` | 待つ時間 |
+
+### `system.type(query, text, options?)` {#system-type}
+
+`query`に一致する入力欄をタップし、デバイスの入力で`text`を入力します。その後アプリがアイドルになるのを待ちます。ラベルと入力欄が同じテキストを持つ場合は、入力欄を使います（入力欄の隣の「Email」というラベルなど）。iOSではキーボード経由で入力するので、どんなテキストでも入力できます。Androidでは、印字可能なASCIIはキーイベント（`input text`）として送り、それ以外のテキストは`@quiesco/native`のクリップボード経由で貼り付けます。
+
+```ts
+// 認証セッション内のログインページ（expo-web-browserのopenAuthSessionAsync）
+await app.tap('sign-in-with-sso');
+await app.device.system.type({ text: 'Email' }, 'ann@example.com');
+await app.device.system.type({ text: 'Password' }, 'secret');
+await app.device.system.tap({ text: 'Sign in' });
+```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `10000` | 入力欄が表示されるまで待つ時間 |
+
+### `system.tapAt({ x, y })` {#system-tapat}
+
+画面上の点（左上隅からのpt / dp）に、システムレベルのタッチをします。そこにあるものに関係なく届きます。たとえばiOSの共有シートの上側をタップすると、シートが閉じます。iOSでは、画面上のシステムUIが動かなくなるまで（最大2秒）待ってからタッチします。その後アプリがアイドルになるのを待ちます。
+
+```ts
+await app.tap('share');
+
+// 共有シートの上側をタップして閉じる
+await app.device.system.tapAt({ x: 200, y: 100 });
+```
+
+## 権限ダイアログ {#permission-dialogs}
+
+アプリが権限を要求するとシステムがダイアログを表示し、テストはユーザーと同じようにそれに応答します。権限を付与した状態でテストを始めるには、代わりに`permissions`設定か[`setPermission`](./api-device#setpermission)を使ってください（[プラットフォームごと](./platforms#permissions)）。
+
+### `system.allowPermission(options?)` {#system-allowpermission}
+
+デバイスの言語に関係なく、ダイアログの許可ボタンをタップします。AndroidではボタンのIDで判別し、「アプリの使用中のみ」にも対応します。iOSでは、iOSのボタンの配置に従い位置で判別します。アプリが前面に来てアイドルになった時点で解決します。
+
+```ts
+// アプリが権限を要求する
+await app.tap('enable-notifications');
+
+// システムダイアログの許可ボタン
+await app.device.system.allowPermission();
+await app.expectText('notifications-status', 'On');
+```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `10000` | ダイアログを待つ時間 |
+
+### `system.denyPermission(options?)` {#system-denypermission}
+
+同じ方法で、ダイアログの拒否ボタンをタップします（Androidでは「今後表示しない」にも対応）。アプリが前面に来てアイドルになった時点で解決します。
+
+```ts
+await app.tap('enable-location');
+await app.device.system.denyPermission();
+await app.expectVisible('location-denied-banner');
+```
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `timeoutMs` | `10000` | ダイアログを待つ時間 |
+
+**権限ダイアログには、それを表示させたテストの中で応答してください。** アラートはアプリより長く残ります。テストが開いたまま残したアラートは、次のテストの前に閉じられます（キャンセル、なければ最初のボタン）。ただし権限ダイアログは例外です。どちらを答えても結果が残る（通知の拒否は再インストールしないと消えない）ため、次のテストがそのダイアログを示す`RESET_FAILED`で失敗します。権限を再び要求させるには、先にリセットします。
+
+```ts
+await app.device.setPermission('notifications', 'reset');
+```
+
+権限ダイアログ（別のアクティビティ）が前面にある間、AndroidはアプリのJSタイマーを一時停止します。Quiescoのアイドル待機はアプリがバックグラウンドに移ったことを検知して戻るので、ダイアログを開いたタップは完了します。
+
+## システムUIに含まれるもの {#what-system-ui-includes}
+
+システム自身のUI（iOSのSpringBoard、Androidの他パッケージ）に加えて、`system.*`はReactではないUIも扱います。
+
+- **Android**：アプリ自身のダイアログウィンドウ。たとえば`DateTimePickerAndroid`の日付ダイアログです。React Nativeの`Modal`もこのウィンドウです。
+
+  ```ts
+  await app.tap('pick-date');
+  await app.device.system.tap({ text: '25' });
+
+  // OK。どの言語でも
+  await app.device.system.tap({ id: 'android:id/button1' });
+  ```
+
+- **iOS**：アプリのUIKitビュー（インラインの`DateTimePicker`の日付、キーボードのキー、共有シート）と、前面にある認証セッションのWebページ（`expo-web-browser`の`openAuthSessionAsync`、SafariViewService）やSafari。[`system.type`](#system-type)で入力し、[`system.tap`](#system-tap)でタップします。このツリーにはアプリのReactビューも含まれますが、タップはどれも実際のタッチです。共有シートは、その上側を[`system.tapAt`](#system-tapat)でタップすると閉じられます。同じセッションで2回目に表示したReact Nativeの`Modal`は、XCUITestが返すツリーに出ないことがあります。そのビューには`app.*`で届きます。
+
+Androidエミュレーターで`openAuthSessionAsync`を使うには、Custom Tabsに対応したブラウザー（Google Play入りのイメージ）が必要です。AOSPのイメージにはありません。
+
+iOSでは、システムUIはSpringBoardに属します。Quiescoは、初めて必要になったときに小さなXCUITestランナーをビルドし（Xcodeのバージョンごとに1回。`~/Library/Caches/quiesco/ios-runner`にキャッシュされ、約10秒）、シミュレーター上で起動します（2–4秒、セッションごとに1回）。
+
+## Web：JavaScriptダイアログ {#web-dialogs}
+
+Webでは、`alert`、`confirm`、`prompt`は、ユーザーの場合と同じくテストが応答するまで開いたままです。これらもシステムUIとして扱います。ダイアログのメッセージはid `dialog.message`のノードです。ボタンは`OK`（id `dialog.accept`）と、`confirm` / `prompt`の場合は`Cancel`（`dialog.dismiss`）です。承認された`prompt`にはデフォルト値が入ります。
+
+```ts
+// ページがconfirm('Delete all?')を呼ぶ
+await app.tap('clear-all');
+
+await app.device.system.expectVisible({ text: 'Delete all?' });
+
+// confirm()はfalseを返す。その後アイドルを待つ
+await app.device.system.tap({ text: 'Cancel' });
+```
+
+ダイアログが開いている間、ページはスクリプトを実行せず、入力も受け付けません。そのため：
+
+- ダイアログを開いたアクションは、アイドルを待たずに、ダイアログが表示された時点で戻ります。
+- アプリに対するそれ以外の呼び出しは、直ちにダイアログを示す`DIALOG_OPEN`で失敗します。先に応答してください。ページが描画されないため、スクリーンショットも失敗します。
+- テスト終了時に開いたままのダイアログは、警告とともに次のテストの前に閉じられます。
+- `beforeunload`のプロンプトは常に承認されます。ページを離れる・再読み込みする操作が止まることはありません。

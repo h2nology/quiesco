@@ -1,0 +1,99 @@
+---
+title: "错误"
+description: "调用失败时抛出的 QuiescoError、如何解读它，以及每个错误码的含义。"
+---
+
+调用失败时会抛出 `QuiescoError`。它的消息说明出了什么问题、该怎么做；它的 `errorName` 和 `data` 以代码可读的形式表达同样的内容。
+
+## `QuiescoError` {#quiescoerror}
+
+| 属性 | 含义 |
+|---|---|
+| `errorName` | 错误码，例如 `'ELEMENT_NOT_FOUND'`（[全部错误码](#error-codes)） |
+| `message` | 发生了什么，以及该怎么处理 |
+| `data` | 结构化的详情，因错误码而异（例如断言的 `data.expected` 和 `data.actual`） |
+| `code` | 来自 App 的错误的数字协议码，否则为 `undefined` |
+
+它的堆栈从发起调用的代码（你的测试或 [driver 类](./driver-pattern)）开始，不包含 Quiesco 自身和 WebSocket 库的帧。
+
+如果 App 在这个测试中输出过 `console.error`，消息最后会附上最近一条，`data.appLogErrors` 里有全部。它们也会作为 `app-errors.txt` 附在失败的测试上：它们往往就是原因。
+
+大多数测试从不捕获这些错误：测试会带着该消息失败。如果要有意检查某个失败，或读取它的详情：
+
+```ts
+import { QuiescoError } from '@quiesco/core';
+import { expect } from 'vitest';
+
+// 只读用户不应该看到 "Save" 按钮
+const error = await app.tap('save', { timeoutMs: 2_000 }).catch((e: unknown) => e);
+expect(error).toBeInstanceOf(QuiescoError);
+expect((error as QuiescoError).errorName).toBe('ELEMENT_NOT_FOUND');
+```
+
+```ts
+try {
+  await app.expectText('total', '$42.00');
+} catch (e) {
+  if (e instanceof QuiescoError && e.errorName === 'ASSERTION_FAILED') {
+    console.log('expected', e.data['expected'], 'but got', e.data['actual']);
+  }
+  throw e;
+}
+```
+
+要检查某样东西不在屏幕上，请优先使用 [`expectNotVisible`](./api-assertions#expectnotvisible) 这样的断言，而不是捕获错误。
+
+## 错误码 {#error-codes}
+
+### 查找元素与断言 {#finding-and-assertions}
+
+| 错误 | 含义 |
+|---|---|
+| `ELEMENT_NOT_FOUND` | 超时内没有可见元素匹配：缺失，或存在但被隐藏。消息会说明是哪一种（[查找元素](./api#finding-elements)） |
+| `MULTIPLE_MATCHES` | 操作的匹配器匹配到多个元素；`data.matches` 会列出它们 |
+| `ELEMENT_OBSCURED` | 真实触摸会落在别的东西上：`data.obscuredBy` 指出是什么（iOS 上还有原生的命中链）（[故障排查](./troubleshooting#element-obscured)） |
+| `ASSERTION_FAILED` | 断言在超时内没有成立：`data.expected`、`data.actual` 以及看到的元素 |
+
+### 同步 {#sync-errors}
+
+| 错误 | 含义 |
+|---|---|
+| `SYNC_TIMEOUT` | App 没有及时进入空闲；消息会列出每个忙碌的跟踪器（[详情](./sync#when-the-app-never-becomes-idle)） |
+
+### 操作与设备 {#action-errors}
+
+| 错误 | 含义 |
+|---|---|
+| `ACTION_NOT_SUPPORTED` | 在此处不可用，例如 iOS 上的 `pressBack`，或没有原生模块时的 `native` 模式（附带提示） |
+| `APP_NOT_RUNNING` | 测试终止了 App（`app.device`）；请先 [重新启动](./api-device#relaunch) 它 |
+| `APP_IN_BACKGROUND` | 测试把 App 切到了后台（`app.device`）；请先把它切回前台 |
+| `DIALOG_OPEN` | Web：页面正在显示 JavaScript 对话框（`data.message`）。请先用 `app.device.system.tap({ text: 'OK' })` 或 `{ text: 'Cancel' }` 应答它（[JavaScript 对话框](./api-system#web-dialogs)） |
+| `DEVICE_ERROR` | 设备工具失败（adb、simctl、Playwright） |
+
+### 后门 {#backdoor-errors}
+
+| 错误 | 含义 |
+|---|---|
+| `BACKDOOR_NOT_REGISTERED` | 没有该名称的后门；消息会列出已注册的名称（[后门](./api-in-app#backdoor)） |
+| `BACKDOOR_FAILED` | 后门抛出了错误；其消息和堆栈在 `data` 中 |
+| `NOT_SERIALIZABLE` | 某个参数或结果不是 JSON；`data.path` 是不合法值的路径 |
+
+### App {#app-errors}
+
+| 错误 | 含义 |
+|---|---|
+| `APP_ERROR` | App 中未捕获的错误使当前步骤失败（忽略已知错误请见 [`appErrors`](./config#apperrors)；[故障排查](./troubleshooting#app-error)） |
+| `APP_CRASHED` | App 的进程没了（iOS / Android）。消息里有设备记录的崩溃原因：Android 是 logcat 的 `FATAL EXCEPTION`（或原生的 `Fatal signal`）；iOS 是崩溃报告里的异常类型和崩溃线程栈顶的几帧，并给出报告的路径。证据里有 `crash.txt`，iOS 还有报告本身。下一个测试会立即重新启动 App |
+| `RESET_FAILED` | 测试之前的重置失败了；`data.step` 指出是哪一步：`storage:<name>`、`onReset#<n>`、`navigation`、`remount`、`expectVisible`（[重置](./api-in-app#reset)） |
+| `AGENT_ERROR` | App 返回了一个没有 Quiesco 错误码的错误，或 [WebView](./api-webview) 中的脚本失败了 |
+
+### 连接与设置 {#connection-errors}
+
+| 错误 | 含义 |
+|---|---|
+| `CONNECT_TIMEOUT` | App 启动后没有连接上；消息中附有检查清单（[故障排查](./troubleshooting#app-does-not-connect)） |
+| `AGENT_TIMEOUT` | App 不再响应，通常是因为其 JS 线程被阻塞（[故障排查](./troubleshooting#agent-timeout)） |
+| `AGENT_DISCONNECTED` | 与 App 的连接丢失 |
+| `PROTOCOL_MISMATCH` | App 中的 agent 与测试 host 的版本不一致（[故障排查](./troubleshooting#quiesco-versions)） |
+| `SESSION_MISMATCH` | 连接上的是另一次运行的 App |
+| `CONFIG_ERROR` | 配置无效，或没有设置平台 |

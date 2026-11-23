@@ -1,0 +1,100 @@
+---
+title: "Runtime synchronization"
+description: "Change what the driver waits for during a test: turn trackers off, or ignore more requests and elements."
+---
+
+Every call waits for the app to be idle ([synchronization](./sync)). When one screen keeps the app busy —
+it polls, animates forever, or holds a request open — `app.sync` changes what Quiesco waits for, for the
+rest of the test, instead of switching synchronization off altogether.
+
+```ts
+// a dashboard that polls every 200 ms and shows a live counter
+await app.sync.disableTracker('timer');
+await app.sync.ignoreElements.add('poll-count');
+```
+
+The changes last until the end of the test and are undone before the next one. They survive relaunches and
+reconnects. To skip waiting for a single call only, `{ sync: false }` still works
+([call options](./api#call-options)).
+
+## Trackers {#trackers}
+
+### `disableTracker(name)` {#disabletracker}
+
+Stops waiting for one [tracker](./sync#trackers): one source of busyness.
+
+```ts
+// the live-scores screen polls every 200 ms
+await app.sync.disableTracker('timer');
+await app.tap('live-scores');
+```
+
+`name` is one of `network`, `timer`, `react`, `idle-callback`, `frame-stable`, `native` and
+`native-module` (on when the build wraps native modules: [native module calls](./sync#native-module-calls)).
+Another name throws a `RangeError`.
+
+### `enableTracker(name)` {#enabletracker}
+
+Waits for a tracker again, also one the config turns off.
+
+```ts
+await app.sync.disableTracker('timer');
+await app.tap('live-scores');
+await app.goBack();
+await app.sync.enableTracker('timer');
+```
+
+### `disable()` {#disable}
+
+Stops waiting for the app altogether: every tracker is off until `enable()` (Detox
+`disableSynchronization`).
+
+```ts
+// a splash animation that never settles
+await app.sync.disable();
+await app.expectVisible('splash');
+```
+
+### `enable()` {#enable}
+
+Waits for the app again: the trackers are as configured, with the changes made by `disableTracker` and
+`enableTracker` still in effect.
+
+```ts
+await app.sync.disable();
+await app.tap('skip-intro');
+await app.sync.enable();
+```
+
+## Ignore lists {#ignore-lists}
+
+### `ignoreUrls.add(pattern)` / `ignoreUrls.remove(pattern)` {#ignoreurls}
+
+Adds a URL to, or removes it from, the requests the `network` tracker ignores, on top of the config's
+`sync.ignoreUrls` ([configuration](./config#sync)). `pattern` is a string or a regular expression.
+
+```ts
+// an analytics request that never finishes
+await app.sync.ignoreUrls.add(/\/analytics/);
+
+// a long poll on the chat screen
+await app.sync.ignoreUrls.add('/chat/poll');
+```
+
+`remove` also takes out a pattern that comes from the config, for the rest of the test.
+
+### `ignoreElements.add(target)` / `ignoreElements.remove(target)` {#ignoreelements}
+
+Adds an element to, or removes it from, the elements the `frame-stable` tracker leaves out, on top of the
+config's `sync.ignoreElements` ([configuration](./config#sync)). `target` is a
+[matcher](./api-matchers).
+
+```ts
+// its text changes with every poll
+await app.sync.ignoreElements.add('poll-count');
+
+// a spinner in the header that keeps rotating
+await app.sync.ignoreElements.add({ type: 'progress', within: 'header' });
+```
+
+`remove` also takes out a matcher that comes from the config, for the rest of the test.

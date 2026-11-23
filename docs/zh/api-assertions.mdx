@@ -1,0 +1,210 @@
+---
+title: "断言"
+description: "检查屏幕上的内容：可见性、文本、值、标签、启用、选中、焦点、props 和数量，不断重试直到成立。"
+---
+
+断言检查屏幕，并**不断重试直到成立**，或直到调用的超时用完（见 [调用选项](./api#call-options)）。超时后以 `ASSERTION_FAILED` 失败，并给出期望值和实际值。因此测试在检查之前从不需要等待 App。
+
+```ts
+await app.tap('add-todo');
+// 不断重试，直到新的一行出现
+await app.expectText({ id: 'todo-title', index: 0 }, 'Buy milk');
+```
+
+每个断言 resolve 的值都是匹配元素的 [摘要](./api-queries#element-summary)。大多数关于单个元素的断言（文本、值、标签、焦点、启用、选中、props）需要**恰好一个**匹配；需要的断言会在下文注明。每个断言还有一种 [链式写法](#expect)：`app.expect(target).toBe…()`。
+
+## 可见与存在 {#visibility-and-presence}
+
+### `expectVisible(target, options?)` {#expectvisible}
+
+至少有一个匹配元素 [可见](./api-matchers#visibility) 时成立。
+
+```ts
+await app.expectVisible('todo-list-screen');
+
+// 横幅至少显示出其面积的 75%
+await app.expectVisible('promo-banner', { ratio: 0.75 });
+```
+
+| 选项 | 含义 |
+|---|---|
+| `ratio` | (0, 1] 之间的数：元素至少要显示出其面积的这一比例。超出范围会抛出 `RangeError` |
+
+### `expectNotVisible(target, options?)` {#expectnotvisible}
+
+没有可见的匹配元素时成立：元素不存在，或被隐藏。
+
+```ts
+await app.tap('close-dialog');
+await app.expectNotVisible('confirm-dialog');
+```
+
+### `expectExists(target, options?)` {#expectexists}
+
+有匹配元素在元素树中时成立，无论是否可见。
+
+```ts
+// 已渲染在列表下方，但还没有滚动到
+await app.expectExists({ id: 'todo-row', index: 49 });
+```
+
+### `expectNotExists(target, options?)` {#expectnotexists}
+
+元素树中没有匹配元素时成立。
+
+```ts
+await app.swipe({ id: 'todo-row', has: { text: 'Buy milk' } }, 'left');
+await app.tap('delete');
+await app.expectNotExists({ text: 'Buy milk' });
+```
+
+### `expectCount(target, n, options?)` {#expectcount}
+
+恰好有 `n` 个元素匹配时成立。
+
+```ts
+await app.type('new-todo', 'Walk the dog');
+await app.pressKey('new-todo', 'enter');
+await app.expectCount({ id: 'todo-row' }, 3);
+```
+
+## 内容 {#content}
+
+### `expectText(target, text, options?)` {#expecttext}
+
+恰好一个元素匹配，且其文本等于 `text`（`text` 为正则表达式时则与之匹配）时成立。
+
+```ts
+await app.expectText('todo-title', 'Buy milk');
+
+await app.expectText('items-left', /^\d+ items? left$/);
+```
+
+### `expectValue(target, value, options?)` {#expectvalue}
+
+恰好一个元素匹配，且其值等于 `value`（`value` 为正则表达式时则与之匹配）时成立。值是输入框的文本、开关的状态、滑块或选择器的值，或 `accessibilityValue`。
+
+```ts
+await app.expectValue('email', 'ann@example.com');
+await app.expectValue('dark-mode-switch', true);
+await app.expectValue('volume-slider', 0.5);
+
+// 日期选择器：比较它显示的内容，按设备的本地时间
+await app.expectValue('due-date', new Date(2031, 11, 24));
+```
+
+日期 / 时间选择器的值是它显示的内容，用设备的本地时间表示：`"2031-12-24"`（mode 为 `date`）、`"20:15"`（`time`）、`"2031-12-24T20:15"`（`datetime`），秒不为 0 时带上秒。这些部分一致时 `Date` 即匹配。见 [日期和时间选择器](./api-value-controls#date-and-time-pickers)。
+
+### `expectLabel(target, text, options?)` {#expectlabel}
+
+恰好一个元素匹配，且其无障碍标签等于 `text`（`text` 为正则表达式时则与之匹配）时成立。
+
+```ts
+await app.expectLabel('cart-button', 'Cart, 3 items');
+
+await app.expectLabel('cart-button', /^Cart, \d+ items$/);
+```
+
+### `expectProp(target, prop, value, options?)` {#expectprop}
+
+恰好一个元素匹配，且其 prop `prop` 的 JSON 值等于此值时成立。先查 host 元素的 props，再查其组件的（例如 `disabled`、`value`）。
+
+```ts
+await app.expectProp('new-todo', 'placeholder', 'What needs to be done?');
+
+await app.expectProp('save', 'disabled', false);
+```
+
+## 状态 {#state}
+
+### `expectEnabled(target, options?)` {#expectenabled}
+
+恰好一个元素匹配，且它已启用时成立。
+
+```ts
+await app.type('email', 'ann@example.com');
+await app.type('password', 'secret');
+await app.expectEnabled('sign-in');
+```
+
+### `expectDisabled(target, options?)` {#expectdisabled}
+
+恰好一个元素匹配，且它已禁用时成立。
+
+```ts
+// 表单为空
+await app.expectDisabled('sign-in');
+```
+
+元素通过 `disabled`、`accessibilityState.disabled`、`aria-disabled` 或 `editable={false}` 被禁用，也包括从祖先继承的情况。
+
+### `expectChecked(target, options?)` {#expectchecked}
+
+恰好一个元素匹配，且它已选中时成立：开关、复选框或单选框，或任何带有 `accessibilityState.checked` 的元素。
+
+```ts
+await app.tap({ type: 'switch', label: 'Notifications' });
+await app.expectChecked({ type: 'switch', label: 'Notifications' });
+```
+
+### `expectNotChecked(target, options?)` {#expectnotchecked}
+
+恰好一个元素匹配，且它未选中时成立。
+
+```ts
+await app.expectNotChecked({ type: 'checkbox', label: 'Remember me' });
+```
+
+没有选中状态的元素，`expectChecked` 和 `expectNotChecked` 都不成立。
+
+### `expectFocused(target, options?)` {#expectfocused}
+
+恰好一个元素匹配，且它拥有输入焦点时成立。
+
+```ts
+await app.tap('new-todo');
+await app.expectFocused('new-todo');
+```
+
+### `expectNotFocused(target, options?)` {#expectnotfocused}
+
+恰好一个元素匹配，且它没有输入焦点时成立。
+
+```ts
+await app.pressKey('new-todo', 'enter');
+await app.dismissKeyboard();
+await app.expectNotFocused('new-todo');
+```
+
+## 链式写法 {#chained-form}
+
+### `expect(target)` {#expect}
+
+同样的断言也有类似 Detox 和 Jest 的链式写法。两种写法做的事情相同：等待空闲，并不断重试直到断言成立。每个方法都接受 [调用选项](./api#call-options) 作为最后一个参数，`.not` 对其取反。
+
+```ts
+await app.expect('save').toBeEnabled();
+await app.expect({ type: 'switch', label: 'Wi-Fi' }).not.toBeChecked();
+
+// Detox：toBeVisible(75)
+await app.expect('promo-banner').toBeVisible({ ratio: 0.75 });
+
+await app.expect({ id: 'todo-title', index: 0 }).not.toHaveValue('');
+```
+
+| 链式写法 | 等同于 |
+|---|---|
+| `toBeVisible({ ratio })` | `expectVisible`（`.not`：`expectNotVisible`） |
+| `toExist()` | `expectExists`（`.not`：`expectNotExists`） |
+| `toBeFocused()` | `expectFocused`（`.not`：`expectNotFocused`） |
+| `toBeEnabled()` | `expectEnabled`（`.not`：`expectDisabled`） |
+| `toBeDisabled()` | `expectDisabled`（`.not`：`expectEnabled`） |
+| `toBeChecked()` | `expectChecked`（`.not`：`expectNotChecked`） |
+| `toHaveText(text)` | `expectText` |
+| `toHaveValue(value)` | `expectValue`，不支持 `Date` 形式 |
+| `toHaveLabel(text)` | `expectLabel` |
+| `toHaveProp(prop, value)` | `expectProp` |
+| `toHaveCount(n)` | `expectCount` |
+| `toHaveId(id)` | 有一个匹配元素带有这个 `testID`（字符串或正则表达式） |
+
+取反的单元素断言（`not.toHaveText`、`not.toHaveValue`……）仍然需要恰好一个匹配：没有匹配时会失败。

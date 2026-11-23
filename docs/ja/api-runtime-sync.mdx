@@ -1,0 +1,89 @@
+---
+title: "実行時の同期"
+description: "テスト中にドライバーが待つ対象を変更する：トラッカーをオフにする、または無視するリクエストや要素を追加する。"
+---
+
+すべての呼び出しは、アプリがアイドルになるのを待ちます（[同期](./sync)）。ある画面がアプリをビジーにし続ける場合（ポーリングする、アニメーションが終わらない、リクエストを開いたままにする）は、同期を丸ごとオフにする代わりに、`app.sync`でQuiescoが何を待つかをテストの残りの間だけ変更できます。
+
+```ts
+// 200 msごとにポーリングし、ライブカウンターを表示するダッシュボード
+await app.sync.disableTracker('timer');
+await app.sync.ignoreElements.add('poll-count');
+```
+
+変更はテストの終わりまで続き、次のテストの前に元に戻されます。再起動や再接続をまたいでも維持されます。1回の呼び出しだけ待機を省くなら、引き続き`{ sync: false }`も使えます（[呼び出しのオプション](./api#call-options)）。
+
+## トラッカー {#trackers}
+
+### `disableTracker(name)` {#disabletracker}
+
+1つの[トラッカー](./sync#trackers)、つまりビジーの原因の1つを待たないようにします。
+
+```ts
+// ライブスコア画面は200 msごとにポーリングする
+await app.sync.disableTracker('timer');
+await app.tap('live-scores');
+```
+
+`name`には`network`、`timer`、`react`、`idle-callback`、`frame-stable`、`native`、`native-module`（ネイティブモジュールをラップするビルドではオン。[ネイティブモジュールの呼び出し](./sync#native-module-calls)）のいずれかを指定します。それ以外の名前は`RangeError`をスローします。
+
+### `enableTracker(name)` {#enabletracker}
+
+トラッカーを再び待つようにします。設定でオフにしたトラッカーも対象です。
+
+```ts
+await app.sync.disableTracker('timer');
+await app.tap('live-scores');
+await app.goBack();
+await app.sync.enableTracker('timer');
+```
+
+### `disable()` {#disable}
+
+アプリを一切待たないようにします。`enable()`までは、すべてのトラッカーがオフになります（Detoxの`disableSynchronization`）。
+
+```ts
+// いつまでも落ち着かないスプラッシュアニメーション
+await app.sync.disable();
+await app.expectVisible('splash');
+```
+
+### `enable()` {#enable}
+
+再びアプリを待つようにします。トラッカーは設定どおりの状態に戻り、`disableTracker`と`enableTracker`で行った変更は引き続き有効です。
+
+```ts
+await app.sync.disable();
+await app.tap('skip-intro');
+await app.sync.enable();
+```
+
+## 無視リスト {#ignore-lists}
+
+### `ignoreUrls.add(pattern)` / `ignoreUrls.remove(pattern)` {#ignoreurls}
+
+`network`トラッカーが無視するリクエストに、設定の`sync.ignoreUrls`（[設定](./config#sync)）に加えてURLを追加、またはそこから削除します。`pattern`は文字列か正規表現です。
+
+```ts
+// いつまでも終わらないアナリティクスのリクエスト
+await app.sync.ignoreUrls.add(/\/analytics/);
+
+// チャット画面のロングポーリング
+await app.sync.ignoreUrls.add('/chat/poll');
+```
+
+`remove`は、設定由来のパターンもテストの残りの間だけ取り除きます。
+
+### `ignoreElements.add(target)` / `ignoreElements.remove(target)` {#ignoreelements}
+
+`frame-stable`トラッカーが除外する要素に、設定の`sync.ignoreElements`（[設定](./config#sync)）に加えて要素を追加、またはそこから削除します。`target`は[マッチャー](./api-matchers)です。
+
+```ts
+// ポーリングのたびにテキストが変わる
+await app.sync.ignoreElements.add('poll-count');
+
+// ヘッダーで回り続けるスピナー
+await app.sync.ignoreElements.add({ type: 'progress', within: 'header' });
+```
+
+`remove`は、設定由来のマッチャーもテストの残りの間だけ取り除きます。

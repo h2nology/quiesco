@@ -1,0 +1,282 @@
+---
+title: "App 与设备"
+description: "重新启动、停止 App 或将其切到后台，以及更改设备状态：方向、深色模式、文字大小、语言区域、位置、权限、网络、剪贴板和状态栏。"
+---
+
+`app.device` 控制 App 的进程和它所运行的设备：用启动参数或深层链接重新启动 App、把它切到后台、旋转屏幕、切换到深色模式、断开网络。每项更改都会在下一个测试之前撤销（[测试之间](#between-tests)），因此测试之间相互独立。
+
+App 之外的系统 UI（权限弹窗、生物识别、通知）见 [系统 UI](./api-system)；截图见 [截图](./api-screenshots)。
+
+## App 生命周期 {#app-lifecycle}
+
+### `relaunch(options?)` {#relaunch}
+
+终止 App 并重新启动——始终是一个新进程。除非指定 `clearData` 或 `reinstall`，否则保留 App 数据。App 连接上之后 resolve。
+
+```ts
+// 带类型的启动参数和深层链接：真正的冷启动，getInitialURL 能拿到该链接
+await app.device.relaunch({ args: { user: 'ann', retries: 3 }, url: 'myapp://todos/1' });
+
+// 首次启动：先删除 App 数据
+await app.device.relaunch({ clearData: true });
+
+// 全新安装，并预先允许相机权限
+await app.device.relaunch({ reinstall: true, permissions: ['camera'] });
+```
+
+| 选项 | 含义 |
+|---|---|
+| `args` | 启动参数（任意 JSON），合并覆盖配置中的 [`launchArgs`](./config#top-level)。App 用 `quiesco.launchArgs()` 读取（[App 内 API](./api-in-app)） |
+| `url` | 以该深层链接打开 App。在 web 上打开它的路径 |
+| `clearData` | 先删除 App 数据（native：App 的存储；web：一个全新的浏览器上下文） |
+| `reinstall` | 先卸载再安装 App。需要 App 的 `binaryPath`；在 web 上与 `clearData` 相同 |
+| `permissions` | 启动前授予的权限，作为配置中权限的补充（[权限](./platforms#permissions)）。`clearData` / `reinstall` 之后会重新授予配置中的权限 |
+
+没有 `@quiesco/native` 时，无法带着链接启动的 App 会先启动，启动后再打开链接，并给出警告：此时 `getInitialURL` 拿不到该链接。
+
+### `terminate()` {#terminate}
+
+停止 App。在下一次 `relaunch()` 之前，所有元素调用都会立即以 `APP_NOT_RUNNING` 失败，不等待。
+
+```ts
+await app.device.terminate();
+await app.device.relaunch();
+await app.expectVisible('home-screen');
+```
+
+### `sendToBackground()` {#sendtobackground}
+
+回到主屏幕，相当于按下 Home 键；进程继续运行。在 `bringToForeground()` 之前，元素调用会以 `APP_IN_BACKGROUND` 失败。web 上不可用（`ACTION_NOT_SUPPORTED`）。
+
+```ts
+await app.device.sendToBackground();
+
+// 现在深层链接会从 App 外打开，就像从其他 App 打开一样
+await app.openUrl('myapp://todos/42');
+```
+
+### `bringToForeground()` {#bringtoforeground}
+
+把处于后台的 App 切回前台——同一个进程，不重启——并等待它处于活跃且空闲状态。web 上不可用（`ACTION_NOT_SUPPORTED`）。
+
+```ts
+await app.device.sendToBackground();
+await app.device.bringToForeground();
+
+// App 在后台期间自行锁定了
+await app.expectVisible('pin-screen');
+```
+
+### `install()` {#install}
+
+从配置的 `binaryPath` 安装 App（[apps](./config#apps)）。正在运行的 App 会被停止：请用 `relaunch()` 启动它。
+
+```ts
+await app.device.install();
+await app.device.relaunch();
+```
+
+### `uninstall()` {#uninstall}
+
+从设备上移除 App。web 上没有可卸载的东西（`ACTION_NOT_SUPPORTED`）：请改用 `relaunch({ clearData: true })`。
+
+```ts
+await app.device.uninstall();
+await app.device.install();
+await app.device.relaunch();
+```
+
+### `appState` {#appstate}
+
+测试最后对 App 做了什么：`'running'`、`'background'` 或 `'terminated'`。这是属性，不是方法。
+
+```ts
+await app.device.sendToBackground();
+expect(app.device.appState).toBe('background');
+```
+
+### `openUrl(url)` {#openurl}
+
+与 [`app.openUrl`](./api-actions#openurl) 相同：打开一个深层链接。
+
+```ts
+await app.device.openUrl('myapp://settings');
+```
+
+### `pressBack()` {#pressback}
+
+与 [`app.pressBack`](./api-actions#pressback) 相同：Android 返回键，web 上是浏览器后退。
+
+```ts
+await app.device.pressBack();
+```
+
+## 网络端口 {#network-ports}
+
+### `reversePort(port)` {#reverseport}
+
+让 host 端的端口在 Android 设备上可以通过 `localhost:port` 访问（`adb reverse`）。在 iOS 模拟器和 web 上不做任何事，它们与 host 共用网络。
+
+```ts
+// App 访问 host 上的 mock 服务器
+await app.device.reversePort(3001);
+```
+
+### `unreversePort(port)` {#unreverseport}
+
+移除用 `reversePort` 设置的转发。在 iOS 模拟器和 web 上不做任何事。
+
+```ts
+await app.device.unreversePort(3001);
+```
+
+## 设备状态 {#device-state}
+
+### `setOrientation(orientation)` {#setorientation}
+
+把 App 旋转为 `'portrait'` 或 `'landscape'`，在 App 窗口变为新的形状且 App 空闲后 resolve。App 不能锁定方向（app.json 中 `"orientation": "default"`）。
+
+```ts
+await app.device.setOrientation('landscape');
+await app.expectVisible('side-by-side-layout');
+```
+
+### `setAppearance(scheme)` {#setappearance}
+
+把系统配色方案切换为 `'light'` 或 `'dark'`，并检查 App 上报的是新的方案。App 必须跟随系统（app.json 中 `"userInterfaceStyle": "automatic"`）。
+
+```ts
+await app.device.setAppearance('dark');
+await app.device.screenshot(undefined, { name: 'home-dark' });
+```
+
+### `setFontScale(scale)` {#setfontscale}
+
+设置系统文字大小，范围 `0.5` 到 `4`，resolve 的值为实际采用的缩放比例。iOS 使用最接近的 Dynamic Type 尺寸并立即生效；Android 会重新启动 App（保留数据）。web 上不可用。
+
+```ts
+const applied = await app.device.setFontScale(1.3);
+
+// 长标题仍然能完整显示
+await app.expectVisible('todo-title', { ratio: 1 });
+```
+
+### `setLocale(locale)` {#setlocale}
+
+设置 App 的语言和地区，即 `'ja-JP'` 这样的 BCP 47 标签；`null` 恢复为设备默认值。会以该设置重新启动 App（保留数据）。
+
+```ts
+await app.device.setLocale('ja-JP');
+await app.expectText('add-todo', '追加');
+
+await app.device.setLocale(null);
+```
+
+- App 的首选语言（iOS 的 `AppleLanguages`，即 expo-localization 读取的值）或 JS 的 locale 变成新语言即视为成功。
+- iOS 只会把 `Intl` 和 App 的原生字符串解析为 `CFBundleLocalizations` 中列出的语言。没有该语言时会给出警告；只在 JS 里本地化的 App 照常工作。
+
+### `setLocation(latitude, longitude)` {#setlocation}
+
+设置模拟的 GPS 位置。Android 上仅限模拟器。
+
+```ts
+// 东京
+await app.device.setLocation(35.68, 139.76);
+await app.tap('nearby-stores');
+```
+
+### `setPermission(name, state)` {#setpermission}
+
+在 App 运行时更改权限。`state` 为 `'grant'`、`'revoke'` 或 `'reset'`；名称见 [权限](./platforms#permissions)（`camera`、`microphone`、`location`、`notifications`、`contacts`、`photos`、`calendar`）。
+
+```ts
+await app.device.setPermission('location', 'revoke');
+await app.tap('nearby-stores');
+await app.expectVisible('location-denied-banner');
+
+// 重新询问：App 下一次请求时会显示系统弹窗
+await app.device.setPermission('camera', 'reset');
+```
+
+- **在 Android 上撤销权限**会杀掉 App。Quiesco 会在 resolve 之前重新启动它（保留数据），因此 App 会回到首屏。
+- **`'reset'`** 表示未决定状态，与全新安装后相同：App 下一次请求时会再次显示系统弹窗。Android：撤销并清除“不再询问”；iOS：`simctl privacy reset`；web：由浏览器询问。
+- **在 iOS 上，通知和相机权限**只能通过重新安装 App 来重置。Quiesco 会重新安装并启动 App，**删除其数据**（需要 `binaryPath`；会有警告提示）。
+
+应答系统的权限弹窗本身见 [系统 UI](./api-system#system-allowpermission)。
+
+### `setNetwork(state)` {#setnetwork}
+
+`'offline'`：App 新建的 `fetch` / `XMLHttpRequest` / `WebSocket` 连接会像没有网络时一样失败。Quiesco 自己的连接不受影响，已打开的连接保持打开。`'online'` 撤销这一设置。
+
+```ts
+await app.device.setNetwork('offline');
+await app.tap('sync-now');
+await app.expectVisible({ text: 'You are offline' });
+
+await app.device.setNetwork('online');
+```
+
+- Android 还会关闭 Wi-Fi 和移动数据，web 会报告 `navigator.onLine === false`，因此这两个平台上 NetInfo 能感知到。
+- iOS 模拟器没有网络开关：NetInfo 仍报告在线。
+- 跨重新启动持续有效，直到设为 `'online'` 或下一个测试开始。
+
+如果想让 App 自己的请求不计入空闲判断，请见 [运行时同步](./api-runtime-sync)（Detox 的 `setURLBlacklist` 在这里对应 `app.sync.ignoreUrls.add()`）。
+
+### `clipboard.set(text)` {#clipboard-set}
+
+在 App 内向设备剪贴板写入纯文本：即 App 粘贴的内容。会在下一个测试前清空。
+
+```ts
+await app.device.clipboard.set('SAVE20');
+await app.tap('paste-coupon');
+await app.expectValue('coupon-input', 'SAVE20');
+```
+
+iOS 和 Android 需要 `@quiesco/native`（≥ Phase 6.6）。
+
+### `clipboard.get()` {#clipboard-get}
+
+读取设备剪贴板：即 App 复制的内容。
+
+```ts
+await app.tap('copy-invite-link');
+expect(await app.device.clipboard.get()).toMatch(/^https:\/\/example\.com\/invite\//);
+```
+
+iOS 和 Android 需要 `@quiesco/native`（≥ Phase 6.6）；iOS 上读取失败时回退到 `simctl pbpaste`。
+
+### `setStatusBar(options)` {#setstatusbar}
+
+覆盖状态栏（时钟、电量、信号），用于干净的截图。web 没有状态栏，无需处理。
+
+```ts
+await app.device.setStatusBar({ time: '9:41', batteryLevel: 100, wifiBars: 3, cellularBars: 4 });
+await app.device.screenshot(undefined, { name: 'store-listing' });
+```
+
+| 选项 | 含义 |
+|---|---|
+| `time` | 时钟，`'H:MM'` / `'HH:MM'`，例如 `'9:41'` |
+| `batteryLevel` | 0–100 |
+| `charging` | `true` / `false` |
+| `wifiBars` | 0–3 |
+| `cellularBars` | 0–4 |
+| `dataNetwork` | `'wifi'`、`'3g'`、`'4g'`、`'lte'`、`'5g'`，或 `'hide'` 隐藏蜂窝网络指示 |
+
+### `resetStatusBar()` {#resetstatusbar}
+
+恢复为真实的状态栏。
+
+```ts
+await app.device.resetStatusBar();
+```
+
+## 截图 {#screenshots}
+
+`app.device.screenshot()` 对屏幕、单个元素或整个滚动页面截取 PNG：见 [截图](./api-screenshots)。
+
+## 测试之间 {#between-tests}
+
+- 在每个测试之前，Quiesco 会启动被上一个测试终止的 App，并把处于后台的 App 切回前台。
+- 每项设备更改都会在下一个测试之前以及会话结束时撤销：权限恢复为配置中的权限，其余恢复为设备原来的状态。只改动被更改过的部分。
+- 会重新启动 App 的调用（`setLocale`、Android 上的 `setFontScale`、Android 上的撤销权限）会让 App 停在首屏。

@@ -110,4 +110,4 @@ native builds.
   builds, devices).
 - **`references/cli.md`** — every CLI command and option (`init`, `build`, `test`, `ui`, `list`,
   `devices`, `doctor`, `tree`).
-- **`${CLAUDE_PLUGIN_ROOT}/skills/quiesco-api/references/api.md`** — the configuration table.
+- **`${CLAUDE_PLUGIN_ROOT}/skills/quiesco-api/references/config.md`** — every configuration option.

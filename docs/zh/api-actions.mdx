@@ -1,0 +1,262 @@
+---
+title: "操作"
+description: "像用户一样点击、输入、滚动、滑动和拖动，返回上一页，以及打开深层链接。"
+---
+
+操作做的就是用户会做的事。在 `native` 模式下（App 包含 `@quiesco/native` 时的默认模式），它们是真实的触摸和键盘输入；在 `js` 模式下，它们改为调用组件的回调（见 [调用选项](./api#call-options)）。每个操作执行前后都会等待 App 空闲，并且需要恰好一个可见的目标（[查找元素](./api#finding-elements)）。
+
+坐标使用逻辑单位：iOS 上为 pt，Android 上为 dp，web 上为 CSS px。
+
+## 点击 {#tapping}
+
+### `tap(target, options?)` {#tap}
+
+点击元素的中心。被滚动视图或 `overflow` 祖先裁掉一部分的元素，点击其可见部分的中心。
+
+```ts
+await app.tap('save');
+
+// 元素内的一个点，从其左上角算起
+await app.tap('map', { point: { x: 40, y: 120 } });
+```
+
+| 选项 | 含义 |
+|---|---|
+| `point` | 元素自身坐标系中的 `{ x, y }`，代替其中心 |
+
+### `doubleTap(target, options?)` {#doubletap}
+
+在一个手势中点击两次。
+
+```ts
+await app.doubleTap('photo');
+```
+
+### `multiTap(target, count, options?)` {#multitap}
+
+在一个手势中点击 `count` 次。
+
+```ts
+// 连点三次打开隐藏的调试菜单
+await app.multiTap('version-label', 3);
+```
+
+### `longPress(target, options?)` {#longpress}
+
+按住元素。
+
+```ts
+await app.longPress('message');
+
+await app.longPress('message', { durationMs: 1500, point: { x: 10, y: 10 } });
+```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `durationMs` | `800` | 按住多久 |
+| `point` | 中心 | 元素自身坐标系中的 `{ x, y }` |
+
+### `tapAt(point, options?)` {#tapat}
+
+点击屏幕上的一个点（窗口坐标），不管那里是什么。
+
+```ts
+// 点击底部面板上方来关闭它
+await app.tapAt({ x: 200, y: 100 });
+```
+
+### `longPressAt(point, options?)` {#longpressat}
+
+按住屏幕上的一个点（窗口坐标）。
+
+```ts
+await app.longPressAt({ x: 200, y: 400 }, { durationMs: 1000 });
+```
+
+## 文本输入 {#text-input}
+
+### `type(target, text, options?)` {#type}
+
+聚焦输入框，并在已有内容之后输入 `text`。在 `native` 模式下，文本经由系统的输入法输入，因此任何语言都可以。iOS 和 Android 上整段文本一次送达；web 上每个字符一次按键。
+
+```ts
+await app.type('email', 'ann@example.com');
+
+// 逐字输入：用于防抖搜索、输入掩码、onKeyPress
+await app.type('search', 'milk', { perCharacter: true });
+```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `perCharacter` | `false` | 逐字输入，让 App 收到每一次按键。调用会在最后等待空闲 |
+| `intervalMs` | `80` | 配合 `perCharacter`：两个字符之间的间隔 |
+
+### `replaceText(target, text, options?)` {#replacetext}
+
+一次性替换输入框的全部文本。
+
+```ts
+await app.replaceText('email', 'bob@example.com');
+```
+
+### `clear(target, options?)` {#clear}
+
+清空输入框。
+
+```ts
+await app.clear('search');
+```
+
+### `pressKey(target, key, options?)` {#presskey}
+
+向字段发送回车键（`'enter'`）或 `'backspace'`。`'enter'` 在单行输入框中提交，在多行输入框中换行。字段只需存在即可：即使键盘的回车键够不着，按键也能送达。
+
+```ts
+await app.type('search', 'milk');
+await app.pressKey('search', 'enter');
+
+await app.pressKey('code-input', 'backspace');
+```
+
+### `dismissKeyboard(options?)` {#dismisskeyboard}
+
+隐藏软键盘。
+
+```ts
+await app.type('notes', 'Call before noon');
+await app.dismissKeyboard();
+```
+
+## 滚动 {#scrolling}
+
+### `scroll(target, direction, options?)` {#scroll}
+
+滚动一个滚动视图。`'down'` 显示下方的内容。在 `native` 模式下，手指拖动时逐渐减速直到停下，所以内容移动约 `distance`，不会惯性滑动（会少掉系统的触摸 slop：iOS 约 10 pt，Android 约 7%）。
+
+```ts
+await app.scroll('feed', 'down');
+
+await app.scroll('feed', 'down', { distance: 300, from: { x: 0.5, y: 0.8 } });
+```
+
+| 选项 | 含义 |
+|---|---|
+| `distance` | 滚动多远，逻辑单位 |
+| `from` | 手指的起点，在元素内归一化为 0–1 |
+
+### `scrollTo(container, target, options?)` {#scrollto}
+
+滚动 `container`，直到 `target` 的中心可见（点击会落在那里）：先向下再向上；横向列表先向右再向左。每一步移动不到一屏的距离，所以不会跳过任何元素。滚到内容尽头时，中心仍被裁掉的目标按原样返回。
+
+```ts
+await app.scrollTo('settings-list', 'sign-out');
+await app.tap('sign-out');
+```
+
+### `scrollToEdge(target, edge, options?)` {#scrolltoedge}
+
+滚动到 `'top'`、`'bottom'`、`'left'` 或 `'right'` 一端。滚动时会渲染更多行的虚拟化列表，在增长时会被一直跟随（`native` 模式下使用真实的快速滑动）。
+
+```ts
+await app.scrollToEdge('feed', 'bottom');
+await app.expectVisible({ text: 'No more posts' });
+```
+
+### `scrollToIndex(list, index, options?)` {#scrolltoindex}
+
+将 `FlatList` / `FlashList` 的第 `index` 行滚入视图，无需 `getItemLayout`。
+
+```ts
+await app.scrollToIndex('contacts', 120);
+
+// 第 120 行位于列表中间
+await app.scrollToIndex('contacts', 120, { viewPosition: 0.5 });
+```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `viewPosition` | `0` | 该行最终所在的位置：`0` 顶部，`0.5` 中间，`1` 底部 |
+
+`scrollTo`、`scrollToEdge` 和 `scrollToIndex` 分多步完成（最多 60 步）；每一步最多可等待一个调用超时时长，让 App 稳定下来。
+
+## 手势 {#gestures}
+
+### `swipe(target, direction, options?)` {#swipe}
+
+一个带惯性的滑动手势。`direction` 指手指移动的方向。
+
+```ts
+// 露出该行的删除按钮
+await app.swipe({ id: 'todo-row', index: 0 }, 'left');
+
+await app.swipe('carousel', 'left', { speed: 'fast', distance: 250 });
+```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `speed` | `'normal'` | `'slow'`、`'normal'` 或 `'fast'` |
+| `distance` | | 手指移动多远 |
+| `from` | | 手指的起点，在元素内归一化为 0–1 |
+
+### `drag(target, to, options?)` {#drag}
+
+按住元素，移动到 `to`（一个元素）的中心或 `{ point }`（窗口坐标），然后松开。它需要真实的触摸：`js` 模式下不可用。
+
+```ts
+// 重新排序：把第一行拖到第三行上
+await app.drag({ id: 'todo-row', index: 0 }, { id: 'todo-row', index: 2 });
+
+await app.drag('pin', { point: { x: 160, y: 420 } }, { holdMs: 300, speed: 'slow' });
+```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `holdMs` | `800` | 移动之前按住多久 |
+| `speed` | `'normal'` | `'slow'`、`'normal'` 或 `'fast'` |
+
+捏合、旋转以及其他多指手势见 [多指手势](./api-gestures)。
+
+## 导航 {#navigation}
+
+### `goBack(options?)` {#goback}
+
+像用户在各平台上那样返回上一页：Android 按返回键（先关闭键盘），web 浏览器后退，iOS 点导航栏的返回按钮，没有时从左边缘右滑。使用 Expo Router 的 App，路由没有变化时会失败。
+
+```ts
+await app.tap({ text: 'Buy milk' });
+await app.goBack();
+await app.expectVisible('todo-list-screen');
+```
+
+### `pressBack(options?)` {#pressback}
+
+Android 返回键，web 上是浏览器后退。iOS 上不可用（`ACTION_NOT_SUPPORTED`）：要在所有平台上运行的测试请使用 `goBack()`。
+
+```ts
+// Android：用返回键关闭底部面板
+await app.pressBack();
+```
+
+### `openUrl(url, options?)` {#openurl}
+
+打开一个深层链接：iOS 上在 App 内打开，Android 上用 `am start`，web 上通过地址栏。App 在后台时（`app.device.sendToBackground()`），像其他 App 那样从 App 外打开该链接；iOS 上会回答系统的「在 … 中打开？」确认。App 回到前台并空闲后 resolve。
+
+```ts
+await app.openUrl('myapp://todos/42');
+await app.expectText('detail-title', 'Buy milk');
+```
+
+## 其他输入 {#other-inputs}
+
+持有值的控件——开关、滑块、选择器、日期选择器——用 `setValue` 和 `adjustSlider` 设置，`accessibilityAction` 则执行屏幕阅读器的操作：见 [值控件](./api-value-controls)。
+
+## `js` 模式下 {#js-mode}
+
+当操作调用回调而不是触摸屏幕时：
+
+- 点击某个点会按下该处最上层的元素；
+- 点击没有 `onPress` 的开关时，通过 `onValueChange` 切换它；
+- `pressKey` 调用 `onSubmitEditing` / `onKeyPress`；
+- `scrollToEdge` 直接设置滚动偏移；
+- `from` 被忽略；
+- `drag` 不受支持，因为它需要真实的触摸。

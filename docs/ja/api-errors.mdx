@@ -1,0 +1,99 @@
+---
+title: "エラー"
+description: "失敗した呼び出しが投げるQuiescoError、その読み方、各エラーコードの意味。"
+---
+
+呼び出しが失敗すると、`QuiescoError`を投げます。メッセージは何が起きたかと対処法を示し、`errorName`と`data`は同じことをコードで読める形で示します。
+
+## `QuiescoError` {#quiescoerror}
+
+| プロパティ | 意味 |
+|---|---|
+| `errorName` | エラーコード。例：`'ELEMENT_NOT_FOUND'`（[全コード](#error-codes)） |
+| `message` | 何が起きたかと、その対処法 |
+| `data` | コードに応じた構造化された詳細（例：アサーションの`data.expected`と`data.actual`） |
+| `code` | アプリから来たエラーの場合はプロトコルの数値コード、それ以外は`undefined` |
+
+スタックは呼び出したコード（テストや[driverクラス](./driver-pattern)）から始まり、Quiesco自身とWebSocketライブラリのフレームは含みません。
+
+テスト中にアプリが`console.error`を出していた場合、メッセージの最後に直近の1件が付き、`data.appLogErrors`にすべてが入ります。失敗したテストには`app-errors.txt`としても添付されます。これが原因であることがよくあります。
+
+ほとんどのテストでは、これらのエラーをキャッチすることはありません。テストはそのメッセージで失敗します。意図的に失敗を確認したいときや、詳細を読みたいときは：
+
+```ts
+import { QuiescoError } from '@quiesco/core';
+import { expect } from 'vitest';
+
+// 読み取り専用ユーザーには「保存」ボタンがあってはならない
+const error = await app.tap('save', { timeoutMs: 2_000 }).catch((e: unknown) => e);
+expect(error).toBeInstanceOf(QuiescoError);
+expect((error as QuiescoError).errorName).toBe('ELEMENT_NOT_FOUND');
+```
+
+```ts
+try {
+  await app.expectText('total', '$42.00');
+} catch (e) {
+  if (e instanceof QuiescoError && e.errorName === 'ASSERTION_FAILED') {
+    console.log('expected', e.data['expected'], 'but got', e.data['actual']);
+  }
+  throw e;
+}
+```
+
+何かが画面にないことを確認するには、エラーをキャッチするより[`expectNotVisible`](./api-assertions#expectnotvisible)などのアサーションを使ってください。
+
+## エラーコード {#error-codes}
+
+### 要素の検索とアサーション {#finding-and-assertions}
+
+| エラー | 意味 |
+|---|---|
+| `ELEMENT_NOT_FOUND` | タイムアウトまでに、表示されている要素が1つもマッチしなかった（存在しない、または存在するが隠れている）。どちらかはメッセージが示します（[要素の検索](./api#finding-elements)） |
+| `MULTIPLE_MATCHES` | アクションのマッチャーが複数の要素にマッチした。`data.matches`に列挙されます |
+| `ELEMENT_OBSCURED` | 実際のタッチが別のものに当たる。`data.obscuredBy`がそれを示します（iOSではネイティブのヒットチェーンも）（[トラブルシューティング](./troubleshooting#element-obscured)） |
+| `ASSERTION_FAILED` | タイムアウトまでにアサーションが成り立たなかった。`data.expected`、`data.actual`と、見つかった要素 |
+
+### 同期 {#sync-errors}
+
+| エラー | 意味 |
+|---|---|
+| `SYNC_TIMEOUT` | アプリが時間内にアイドルにならなかった。メッセージにビジーなトラッカーがすべて列挙されます（[詳細](./sync#when-the-app-never-becomes-idle)） |
+
+### アクションとデバイス {#action-errors}
+
+| エラー | 意味 |
+|---|---|
+| `ACTION_NOT_SUPPORTED` | ここでは使えない。例：iOSでの`pressBack`、ネイティブモジュールなしでの`native`モード（ヒント付き） |
+| `APP_NOT_RUNNING` | テストがアプリを終了させた（`app.device`）。先に[再起動](./api-device#relaunch)する必要があります |
+| `APP_IN_BACKGROUND` | テストがアプリをバックグラウンドに送った（`app.device`）。先に前面に戻す必要があります |
+| `DIALOG_OPEN` | Web：ページがJavaScriptダイアログを表示している（`data.message`）。先に`app.device.system.tap({ text: 'OK' })`または`{ text: 'Cancel' }`で応答してください（[JavaScriptダイアログ](./api-system#web-dialogs)） |
+| `DEVICE_ERROR` | デバイス用ツール（adb、simctl、Playwright）が失敗した |
+
+### バックドア {#backdoor-errors}
+
+| エラー | 意味 |
+|---|---|
+| `BACKDOOR_NOT_REGISTERED` | その名前のバックドアがない。メッセージに登録済みの名前が列挙されます（[バックドア](./api-in-app#backdoor)） |
+| `BACKDOOR_FAILED` | バックドアが例外を投げた。そのメッセージとスタックは`data`にあります |
+| `NOT_SERIALIZABLE` | 引数か結果がJSONではない。`data.path`は問題のある値のパスです |
+
+### アプリ {#app-errors}
+
+| エラー | 意味 |
+|---|---|
+| `APP_ERROR` | アプリ内のキャッチされないエラーで現在のステップが失敗した（既知のエラーを無視するには[`appErrors`](./config#apperrors)を参照。[トラブルシューティング](./troubleshooting#app-error)） |
+| `APP_CRASHED` | アプリのプロセスが終了した（iOS / Android）。メッセージにはデバイスが記録したクラッシュの原因が入ります。Androidはlogcatの`FATAL EXCEPTION`（ネイティブなら`Fatal signal`）、iOSはクラッシュレポートの例外の種類とクラッシュしたスレッドの先頭のフレームで、レポートのパスも示します。証跡には`crash.txt`、iOSではレポート自体も入ります。次のテストはすぐにアプリを起動し直します |
+| `RESET_FAILED` | テスト前のリセットが失敗した。`data.step`がどの手順かを示します：`storage:<name>`、`onReset#<n>`、`navigation`、`remount`、`expectVisible`（[リセット](./api-in-app#reset)） |
+| `AGENT_ERROR` | アプリがQuiescoのコードを持たないエラーを返した、または[WebView](./api-webview)内のスクリプトが失敗した |
+
+### 接続とセットアップ {#connection-errors}
+
+| エラー | 意味 |
+|---|---|
+| `CONNECT_TIMEOUT` | 起動後にアプリが接続しなかった。メッセージにチェックリストがあります（[トラブルシューティング](./troubleshooting#app-does-not-connect)） |
+| `AGENT_TIMEOUT` | アプリが応答しなくなった。たいていはJSスレッドがブロックされています（[トラブルシューティング](./troubleshooting#agent-timeout)） |
+| `AGENT_DISCONNECTED` | アプリとの接続が切れた |
+| `PROTOCOL_MISMATCH` | アプリ内のエージェントとテストホストのバージョンが異なる（[トラブルシューティング](./troubleshooting#quiesco-versions)） |
+| `SESSION_MISMATCH` | 別の実行のアプリが接続してきた |
+| `CONFIG_ERROR` | 設定が不正、またはプラットフォームが指定されていない |

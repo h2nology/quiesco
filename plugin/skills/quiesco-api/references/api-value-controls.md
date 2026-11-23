@@ -1,0 +1,192 @@
+<!-- Generated from docs/api-value-controls.mdx by scripts/build-plugin-refs.mjs — do not edit. -->
+
+# Value controls
+
+Set switches, sliders, pickers, segmented controls and date pickers, drag a slider, and perform a screen reader's actions.
+Controls that hold a value — a switch, a slider, a picker, a segmented control, a date picker — are set
+with one call, `setValue`, whatever library draws them. `adjustSlider` drags a slider's thumb like a
+finger, and `accessibilityAction` does what a screen reader does. Like every action, they wait for the app
+to be idle before and after ([every call waits](./api.md#every-call-waits)) and take the
+[call options](./api.md#call-options).
+
+## Setting a value {#setting-a-value}
+
+### `setValue(target, value, options?)` {#setvalue}
+
+Sets the control at `target` to `value`: a number, a boolean, a string or a `Date`. It uses real input
+where the control has it (a tap on a switch, iOS wheels turned by a finger, a browser `<select>`), and the
+component's callbacks otherwise.
+
+```ts
+// a switch
+await app.setValue('notifications-switch', true);
+
+// a slider: the exact value
+await app.setValue('volume-slider', 0.75);
+
+// a picker: an item's value, or its label
+await app.setValue('priority-picker', 'high');
+await app.setValue('priority-picker', 'High priority');
+
+// a segmented control: a segment's value, or its index
+await app.setValue('filter-tabs', 'Done');
+await app.setValue('filter-tabs', 2);
+
+// a date picker
+await app.setValue('due-date-picker', '2031-12-24');
+await app.setValue('due-date-picker', new Date(2031, 11, 24));
+```
+
+#### Which controls it knows {#supported-controls}
+
+`setValue` looks at the props of the component around the target: the element itself and a few levels up.
+If there is none, it takes the single control inside the element — for example a `View` that carries the
+testID around a component that drops it.
+
+| Control | Recognized by | `value` |
+|---|---|---|
+| `@react-native-community/slider` | `onValueChange` / `onSlidingComplete` with a numeric `value` or `minimumValue` / `maximumValue` | a number within the range and on a `step` |
+| `Switch`, `expo-checkbox` | a boolean `value` and `onValueChange` | `true` / `false` |
+| `@react-native-picker/picker` | `onValueChange` and `selectedValue` | an item's value (also as a string), or its label |
+| `@react-native-segmented-control/segmented-control` | a `values` array and `onChange` / `onValueChange` | a segment's value, or its index |
+| `@react-native-community/datetimepicker` | a `Date` `value` and `onChange` / `onValueChange` | a `Date`, or a local string `"2031-12-24"` / `"20:15"` / `"2031-12-24T20:15"`; only the picker's part changes ([date and time pickers](#date-and-time-pickers)) |
+| `@expo/ui/community/datetime-picker` (`DateTimePicker`) | the same as `@react-native-community/datetimepicker` | the same ([`@expo/ui`'s picker](#expo-ui-date-picker)) |
+| DOM `<select>`, `<input type="date" / "time" / "datetime-local" / "month" / "week" / "range" / "number">`, checkbox | the element itself (web) | an option's value or label; a `Date` (written in local time) or the input's own string |
+
+- Setting the value the control already has sends no event.
+- A disabled control is left alone, as it would be for a user.
+- Anything else fails with `ACTION_NOT_SUPPORTED`. The message names the callbacks that were found and
+  what was searched: the components going up from the target (with the props that decide a control's
+  kind), and the control-shaped components inside it with why each was not taken (more than 8 levels
+  above its element, or one of several controls). From that, move the testID, wrap the control, or use a
+  [backdoor](./api-queries.md#backdoor).
+
+#### How the value gets in {#how-the-value-gets-in}
+
+| | `native` (iOS / Android) | web (real input) | `js` |
+|---|---|---|---|
+| Switch / checkbox | a real tap when the value must change | a click | `onChange` + `onValueChange` |
+| Segmented control | a real tap on the segment | a click on the segment | `onChange` (native event) + `onValueChange` |
+| Picker | iOS: the wheel is turned by a finger (slow drags that rest before lifting, read back and corrected); Android: callbacks (the dropdown / dialog is a separate window) | `<select>`: `selectOption` | `onValueChange(value, index)` |
+| Date picker | iOS wheels (`display="spinner"`): every column is turned by a finger — which unit a column turns is found by turning it one row, so any locale and order works; compact / inline style and Android (a system dialog): callbacks | date inputs: `fill` | `onValueChange` / `onChange` with `{ type: 'set', nativeEvent: { timestamp, utcOffset } }` |
+| Slider | callbacks (exact value; use [`adjustSlider`](#adjustslider) for a real drag) | callbacks | `onSlidingStart`, `onValueChange`, `onSlidingComplete` |
+
+Android's `DateTimePicker` renders no view: it opens a system dialog. So once the app shows it,
+`setValue({ id })` finds the component itself by its testID (or `{ type: 'DateTimePicker' }` by its
+name). The app closes the dialog when it handles the change, as it would for the user's choice. Only the
+`id`, `type` and `index` [matchers](./api-matchers.md) reach such components.
+
+```ts
+// Android: the app opens the date dialog; set it through the component
+await app.tap('pick-due-date');
+await app.setValue({ id: 'due-date-picker' }, '2031-12-24');
+```
+
+## Date and time pickers {#date-and-time-pickers}
+
+Like the native dialogs, `setValue` changes only the part of the picker's `value` that its `mode` shows,
+in the picker's time zone (`timeZoneOffsetInMinutes`, else the device's):
+
+| `mode` | What changes | Takes |
+|---|---|---|
+| `date` (default) | the day; the hours and minutes stay, seconds become 0 | a `Date` or `"2031-12-24"` |
+| `time` | the hours and minutes; the day stays | a `Date` or `"20:15"` (`"20:15:30"` with seconds) |
+| `datetime` | a `Date`: all of it; a string: what it gives | a `Date`, `"2031-12-24T20:15"`, `"2031-12-24"` or `"20:15"` |
+| `countdown` | all of it | a `Date` |
+
+So picking a date and then a time on Android's two dialogs keeps the date:
+
+```ts
+await app.setValue('due-date-picker', '2031-12-24');
+
+// no need to invent a day: the date stays
+await app.setValue('due-time-picker', '20:15');
+```
+
+- `minimumDate` / `maximumDate` are checked against the result.
+- The strings are local time on the device, so they do not depend on the host's time zone. A `Date` is
+  converted to the device's time zone.
+
+### Reading a picker's value {#reading-a-pickers-value}
+
+A picker's value ([`expectValue`](./api-assertions.md#expectvalue), the `value` of a
+[query](./api-queries.md)) is what it shows, in local time on the device: `"2031-12-24"` (`date`), `"20:15"`
+(`time`), `"2031-12-24T20:15"` (`datetime`, `countdown`), with `:ss` when the seconds are not 0.
+`expectValue` takes that string, or a `Date` that matches when those parts agree.
+
+```ts
+await app.setValue('due-time-picker', '20:15');
+await app.expectValue('due-time-picker', '20:15');
+```
+
+Android's dialogs are gone once the app handled the change: check what the app shows instead.
+
+### `@expo/ui`'s DateTimePicker {#expo-ui-date-picker}
+
+`@expo/ui/community/datetime-picker` (SwiftUI on iOS, Jetpack Compose on Android) takes the same values.
+Put the `testID` on the `DateTimePicker` itself:
+
+```tsx
+// in the app
+<Host matchContents>
+  <DateTimePicker testID="due-date-picker" value={due} onValueChange={setDue} />
+</Host>
+```
+
+```ts
+// in the test
+await app.setValue('due-date-picker', '2031-12-24');
+```
+
+- **iOS, and Android with `presentation="inline"`:** the view that gets the `testID` reports no size to
+  React Native, although the picker is drawn. Quiesco checks visibility on its nearest ancestor that has a
+  size (the `Host`, or its parent when the `Host` is 0 wide under `alignItems: 'center'`).
+- **Android dialogs (the default `presentation`):** the `testID` is not passed on to any view. Quiesco
+  finds the `DateTimePicker` by its own `testID` prop, as it does for
+  `@react-native-community/datetimepicker` on Android.
+
+`setValue` calls the picker's `onValueChange` / `onChange` in every mode; it does not scroll the wheels. On
+the web the component renders nothing.
+
+## Sliders {#sliders}
+
+### `adjustSlider(target, position, options?)` {#adjustslider}
+
+Drags the slider's thumb to `position`, from `0` (the minimum) to `1` (the maximum), with a real finger or
+mouse. Use it when the test should exercise the drag itself; `setValue` sets an exact value instead.
+
+```ts
+// drag the thumb to the middle
+await app.adjustSlider('volume-slider', 0.5);
+```
+
+- **`native` mode:** the thumb follows the finger less the touch slop, so Quiesco reads the value back and
+  drags again (always one way, with a run-up) until the slider is within one step (1% of a continuous
+  slider's range) of the position.
+- **Web:** a mouse drag of the thumb.
+- **`js` mode:** the value at that position, through the callbacks.
+
+## Accessibility actions {#accessibility-actions}
+
+### `accessibilityAction(target, name, options?)` {#accessibilityaction}
+
+Performs the accessibility action `name`, as a screen reader does. It acts on the target or the nearest
+ancestor that declares `accessibilityActions`; the target does not have to be on screen.
+
+```ts
+// a stepper declaring accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+await app.accessibilityAction('quantity-stepper', 'increment');
+await app.expectText('quantity', '2');
+
+// a custom action, as in VoiceOver's Actions rotor
+await app.accessibilityAction({ id: 'todo-row', index: 0 }, 'archive');
+```
+
+`name` must be one the element declares; otherwise the error lists the declared ones. How the action is
+performed:
+
+| Platform | How |
+|---|---|
+| iOS | `increment` / `decrement` through `accessibilityIncrement` / `accessibilityDecrement`; `magicTap` / `escape` through their perform methods; every other name through the view's custom actions (VoiceOver's Actions rotor) |
+| Android | `performAccessibilityAction` with the id React Native gave the action |
+| Web and `js` mode | `onAccessibilityAction({ nativeEvent: { actionName } })` (`accessibilityActions` do not reach the DOM) |

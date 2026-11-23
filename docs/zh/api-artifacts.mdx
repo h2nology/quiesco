@@ -1,0 +1,59 @@
+---
+title: "产物"
+description: "每次运行为每个测试留下的内容：失败证据、保存的截图、视频、设备日志以及每次调用的时间线。"
+---
+
+对每个测试，Quiesco 都会写入一些帮助你了解发生了什么的文件，并把它们附加到测试运行器的报告中。它们位于
+
+```
+artifacts/<date-time>-<platform>/<nnn>-<test name>/
+```
+
+在 [并行运行](./parallel) 中，每个 worker 写入 `artifacts/<date-time>-<platform>-wN/`。
+
+## 写入的内容 {#what-is-written}
+
+| 产物 | 何时生成 | 内容 |
+|---|---|---|
+| 失败证据 | 测试失败时 | `failure.png`：用红框标出失败调用所涉及元素的屏幕截图（断言的元素、被遮挡的目标、多个匹配）。`elements.json`：当前路由，以及所有带 testID、标签或自身文本的元素，附带是否可见以及不可见的原因。`element-tree.json`。`idle-state.json`：当时有什么在忙碌 |
+| 保存的截图 | [`screenshot(…, { name })`](./api-screenshots) | `<name>.png` |
+| `video` | 按策略 | iOS：`simctl io recordVideo`（MP4）。Android：`screenrecord`（MP4，每 3 分钟一个新片段）。Web：Playwright 的录屏（WebM）。以文件路径的形式附加 |
+| `logs` | 按策略 | `device.log`。iOS：App 进程的统一日志（`log stream`，info 及以上级别）。Android：App uid 的 logcat。Web：页面控制台和未捕获的错误。最后 300 行内联附加 |
+| `timeline` | 按策略 | 对 App 的每次调用及其耗时、其中等待空闲所占的时间，失败调用及其错误，以及列在 `scrollTo` 下面的每一步（被测试运行器的超时提前结束的调用也会保留，标为「still running when the scenario ended」）。`timeline.html`（内联附加）和 `timeline.trace.json`（Chrome trace：在 `chrome://tracing` 或 ui.perfetto.dev 中打开） |
+
+崩溃之后，证据里还有 `crash.txt`，iOS 上还有崩溃报告；App 输出过 `console.error` 时，还有 `app-errors.txt`（[错误](./api-errors#quiescoerror)）。
+
+## 选择要记录的内容 {#policies}
+
+```ts
+// quiesco.config.ts
+export default defineConfig({
+  artifacts: {
+    dir: 'artifacts',
+    video: 'failing',
+    logs: 'failing',
+    timeline: 'failing',
+  },
+});
+```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `dir` | `'artifacts'` | 运行结果写入的位置，相对于工作目录。使用其他目录时，也要把它传给 [`withQuiesco`](./api-in-app#withquiesco) |
+| `video` | `'none'` | 录制会给每个测试带来少量开销；请在 CI 中开启 |
+| `logs` | `'failing'` | |
+| `timeline` | `'failing'` | |
+
+`video`、`logs` 和 `timeline` 各自接受一个策略：
+
+- `none`：不记录；
+- `failing`：每个测试都记录，只在测试失败时保留；
+- `all`：每个测试都记录并保留。
+
+`QUIESCO_ARTIFACTS=all`（或 `failing`、`none`）会为单次运行同时设置这三项：
+
+```sh
+QUIESCO_ARTIFACTS=all npx quiesco test --platform android
+```
+
+所有选项见 [配置](./config#artifacts) 页面。没有适配器的运行器通过会话获得同样的产物：[其他测试运行器](./api-custom-runners#session)。

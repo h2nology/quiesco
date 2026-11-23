@@ -1,0 +1,223 @@
+---
+title: "In-app API"
+description: "What the app itself sets up for tests with @quiesco/agent: the root component, the Metro wrapper, backdoors, reset hooks, extra storage, launch arguments and the worker index."
+---
+
+Most of Quiesco runs in the test, but a small part runs inside the app: the **agent** (`@quiesco/agent`). It
+finds elements, tracks when the app is idle and resets it between tests. Through it the app can also give
+tests shortcuts: backdoors for setup, hooks that clear its state, and the arguments it was launched with.
+The samples on this page are app code, not test code.
+
+## Setup {#setup}
+
+### `QuiescoRoot` {#quiescoroot}
+
+The app imports the agent on the **first line** of its entry file and wraps its root in `<QuiescoRoot>`.
+`npx quiesco init` sets both up. Element queries only see what is inside `<QuiescoRoot>`, and a soft reset
+remounts everything under it.
+
+```tsx
+// app/_layout.tsx: the agent's import comes first
+import { QuiescoRoot } from '@quiesco/agent';
+import { Stack } from 'expo-router';
+
+export default function RootLayout() {
+  return (
+    <QuiescoRoot>
+      <Stack />
+    </QuiescoRoot>
+  );
+}
+```
+
+### `withQuiesco(config, options?)` {#withquiesco}
+
+Wraps the Metro config (from `@quiesco/agent/metro`). In builds without `EXPO_PUBLIC_QUIESCO=1` it
+replaces the agent with a no-op stub, so this page's code can stay in the app: production bundles get
+none of it.
+
+```js
+// metro.config.js
+const { getDefaultConfig } = require('expo/metro-config');
+const { withQuiesco } = require('@quiesco/agent/metro');
+
+module.exports = withQuiesco(getDefaultConfig(__dirname));
+
+// with another artifacts directory, and native module calls tracked
+module.exports = withQuiesco(getDefaultConfig(__dirname), {
+  artifactsDir: 'e2e-artifacts',
+  nativeModules: true,
+});
+```
+
+It also keeps Metro from watching the artifacts directory. Metro sends the app an HMR update for every
+watched file that changes, and the dev client's "Refreshing..." window would cover the app while another
+worker taps ([parallel runs](./parallel)). `.expo/devices.json` is excluded too: Expo's dev server rewrites
+it every time a dev client app starts.
+
+| Option | Default | Meaning |
+|---|---|---|
+| `artifactsDir` | `'artifacts'` | Relative to the project root. Must match [`artifacts.dir`](./config#artifacts) when you change it; `false`: none |
+| `nativeModules` | whether `EXPO_PUBLIC_QUIESCO_NATIVE_MODULES` is `1` | Build the app with native modules wrapped, which turns the `native-module` tracker on ([native module calls](./sync#native-module-calls)) |
+
+### Keeping test code out of production {#e2e-module}
+
+Register backdoors and hooks in a module that only e2e builds import, so the test code is not even in
+production bundles:
+
+```ts
+// app/_layout.tsx
+if (process.env.EXPO_PUBLIC_QUIESCO === '1') require('../src/e2e');
+```
+
+Every registration below returns a function that removes it.
+
+## Backdoors {#backdoors}
+
+### `quiesco.backdoor(name, fn)` {#backdoor}
+
+Registers a test-only function the test can call with [`app.backdoor(name, ...args)`](./api-queries#backdoor),
+to set up state without going through the UI. `fn` may be async. Its arguments and result must be JSON.
+Registering the same name again replaces it.
+
+```ts
+// src/e2e.ts
+import { quiesco } from '@quiesco/agent';
+
+quiesco.backdoor('loginAs', async (email: string) => {
+  await authStore.setSession(await testApi.createSession(email));
+});
+
+quiesco.backdoor('seedTodos', (titles: string[]) => {
+  store.setTodos(titles.map((title, i) => ({ id: String(i), title })));
+});
+```
+
+In the test:
+
+```ts
+await app.backdoor('loginAs', 'ann@example.com');
+await app.backdoor('seedTodos', ['Buy milk', 'Call Bob']);
+```
+
+### Typed backdoors {#typed-backdoors}
+
+Declare the backdoors once, in a file both the app and the tests compile, and both sides are checked
+against it: `quiesco.backdoor(name, fn)` only takes declared names with a matching function (async or not),
+and `app.backdoor(name, ...args)` checks the name, the arguments and the result (`null` for a backdoor that
+returns nothing). Without a declaration, any name works and the arguments only need to be JSON-compatible.
+
+```ts
+// src/backdoors.ts: compiled by the app and by the tests
+declare module '@quiesco/agent' {
+  interface Backdoors {
+    'students.set': (list: Student[]) => void;
+    'students.get': (id: string) => Student | null;
+  }
+}
+```
+
+```ts
+// in a test: the name, the arguments and the result are checked
+const student = await app.backdoor('students.get', 's-1'); // Student | null
+```
+
+A name that is only known at run time (e.g. from a feature file's text) is narrowed with
+`name as keyof Backdoors`:
+
+```ts
+import type { Backdoors } from '@quiesco/core';
+
+await app.backdoor(name as keyof Backdoors);
+```
+
+When the tests' tsconfig does not include the file, bring it in with a type-only import:
+
+```ts
+import type {} from '../../src/backdoors';
+```
+
+A plain `import '../../src/backdoors'` fails when cucumber-js runs the steps: Node needs the file extension,
+and the file holds only types.
+
+## Reset {#reset}
+
+Before each test the app gets a **soft reset**: its storage is cleared, the `onReset` hooks run, the
+navigation goes back to the start, and everything under `<QuiescoRoot>` is remounted. A test tagged
+[`@hard-reset`](./api-tags) relaunches the app instead.
+
+### `quiesco.onReset(hook)` {#onreset}
+
+Runs `hook` during every soft reset, after storage is cleared and before the app is remounted. Use it for
+state that lives in memory, outside React: caches, stores, a mock backend.
+
+```ts
+quiesco.onReset(async () => {
+  queryClient.clear();
+  await api.replaceTodos([]);
+});
+```
+
+### `quiesco.registerStorage({ name, clear })` {#registerstorage}
+
+Adds a store for the soft reset to clear, next to the built-in ones: AsyncStorage's default store on iOS /
+Android; `localStorage`, `sessionStorage` and IndexedDB on the web. `clear` may be async.
+
+```ts
+// storage: the app's react-native-mmkv instance
+quiesco.registerStorage({ name: 'mmkv', clear: () => storage.clearAll() });
+```
+
+A store that fails to clear fails the reset with `RESET_FAILED` at step `storage:<name>`.
+
+### Navigation on soft reset {#navigation-on-soft-reset}
+
+With Expo Router, the soft reset also puts the navigation state back to the one the app started in (after
+the `onReset` hooks, before the remount). A test that ends on a pushed screen, in a tab or in a nested
+stack no longer hands that screen to the next one. There is nothing to set up.
+
+The reset then checks that the app is on the route the first reset of the run ended on. When it is not
+(the app navigated away on mount, from state the reset did not clear), the reset fails with `RESET_FAILED`
+naming both routes. Clear that state in `onReset`, or tag the test `@hard-reset`. For apps without Expo
+Router, [`reset.expectVisible`](./config#reset) in the config does the same check with an element.
+
+## Launch and worker {#launch-and-worker}
+
+### `quiesco.launchArgs()` {#launchargs}
+
+Returns the arguments of this launch: the config's `launchArgs` merged with
+[`app.device.relaunch({ args })`](./api-device#relaunch), with their JSON types. It is synchronous, so the
+app can read it at startup. It returns `{}` when there are none, in production, and in builds without
+`@quiesco/native` on iOS / Android.
+
+```ts
+// src/config.ts
+const { user, apiUrl } = quiesco.launchArgs() as { user?: string; apiUrl?: string };
+
+export const API_URL = apiUrl ?? 'https://api.example.com';
+```
+
+In the test:
+
+```ts
+await app.device.relaunch({ args: { user: 'ann', apiUrl: 'http://localhost:3001' } });
+```
+
+### `quiesco.workerIndex()` {#workerindex}
+
+The index of the [parallel test worker](./parallel) driving this app: `0` when tests run serially, `null`
+until the test host has connected (it connects before the first test command) and in production. Use it
+to talk to that worker's own resources, such as a mock backend per worker.
+
+```ts
+// src/e2e.ts: worker N uses the mock backend on port 3001 + N
+setApiBase(() => {
+  const url = new URL('http://localhost:3001');
+  url.port = String(Number(url.port) + (quiesco.workerIndex() ?? 0));
+  return url.origin;
+});
+```
+
+It is not known yet while the app starts. For what the app needs at startup (an API URL), pass launch
+arguments instead: the config can be a function of the worker index,
+`({ workerIndex }) => ({ launchArgs: { … } })` ([a config per worker](./config#config-per-worker)).

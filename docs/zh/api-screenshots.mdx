@@ -1,0 +1,71 @@
+---
+title: "截图"
+description: "对屏幕、单个元素或拼接而成的整个滚动页面截取 PNG，并附加到报告。"
+---
+
+`app.device.screenshot()` 以 `Buffer` 返回一张 PNG：屏幕、单个元素，或滚动并拼接而成的滚动视图全部内容。指定 `name` 时，它还会和测试的 [产物](./api-artifacts) 一起保存，并附加到报告。
+
+## 截取截图 {#taking-a-screenshot}
+
+### `screenshot(target?, options?)` {#screenshot}
+
+没有目标时，截取当前显示的屏幕；在 web 上是浏览器视口。
+
+```ts
+const png = await app.device.screenshot();
+
+// 同时保存为 artifacts/<run>/<test>/home.png，并附加到报告
+await app.device.screenshot(undefined, { name: 'home' });
+```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `name` | | 同时以此名称把 PNG 保存到测试的产物目录，并附加到报告 |
+| `full` | `false` | 目标为元素时：元素的全部内容，滚动并拼接（[单个元素](#an-element)） |
+
+### 单个元素 {#an-element}
+
+`screenshot(target)` 从屏幕中裁出一个元素：即它在屏幕上的部分。`{ full: true }` 截取它的全部内容——包含全部内容的滚动视图、部分被滚出屏幕的元素连同其余部分——滚动并拼接而成。
+
+```ts
+// 头像在屏幕上的样子
+await app.device.screenshot('avatar', { name: 'avatar' });
+
+// 完整的条款文本，滚动并拼接
+await app.device.screenshot('terms', { full: true, name: 'terms' });
+```
+
+### 整个页面 {#full-page}
+
+`screenshot({ fullPage: true })` 截取屏幕上主滚动视图（最大的那个）的全部内容。`{ fullPage: target }` 截取与 `target` 匹配的滚动视图的全部内容。
+
+```ts
+// 主滚动视图的全部内容
+await app.device.screenshot({ fullPage: true }, { name: 'todos' });
+
+// 指定滚动视图的全部内容
+await app.device.screenshot({ fullPage: 'todo-list' });
+```
+
+整页截图在所有平台上都一样：
+
+1. Quiesco 以编程方式把滚动视图滚动到顶部（与 [`scrollToEdge`](./api-actions#scrolltoedge) 在 `js` 模式下的做法相同）。
+2. 每一屏截一张图，然后拼接：滚动视图上方的部分（状态栏、header）取自第一张，之后每一张取新露出的那一条，滚动视图下方的部分（tab bar）取自最后一张。因此固定的页头和页脚只出现一次。
+3. 滚动时会渲染更多行的虚拟化列表会被一直跟随到末尾。
+4. 在此期间滚动指示器会被隐藏（native），完成后滚动位置会被恢复。
+
+滚动过程中会变化的内容（吸顶的分组标题、动画）显示的是每一屏截图时的样子。
+
+### WebView 中的元素 {#webview-element}
+
+WebView 内页面的元素有自己的 `screenshot()`：先把它滚入视图，再截取它位于 WebView 可见区域内的部分。见 [WebView](./api-webview#screenshot)。
+
+```ts
+const chart = await app.webview('help').element({ css: '#chart' }).screenshot();
+```
+
+<Note>
+在 web 上，浏览器对话框（`alert`、`confirm`）打开期间，截图会以 `DIALOG_OPEN` 失败：在对话框被应答之前，页面不会绘制。见 [系统 UI](./api-system)。
+</Note>
+
+用于干净截图的状态栏覆盖（时钟 9:41、电量满格）见 [App 与设备](./api-device#setstatusbar)。

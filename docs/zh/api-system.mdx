@@ -1,0 +1,295 @@
+---
+title: "系统 UI"
+description: "生物识别、摇晃设备、通知、钥匙串、权限弹窗以及 App 之外的其他系统 UI，还有 web 页面的 JavaScript 对话框。"
+---
+
+测试需要的有些东西并不属于 App：Face ID 提示、推送通知、请求权限的弹窗。这些方法位于 `app.device` 上，用于操控设备或系统自己的 UI。
+
+它们在 iOS 模拟器和 Android 模拟器上可用（Android 上由模拟器的控制台模拟传感器，因此真机不支持）。在 web 上它们会以 `ACTION_NOT_SUPPORTED` 失败（请给此类测试加上 `@native` 标签，见 [测试标签](./api-tags)），只有 `system.tap`、`system.expectVisible` 和 `system.expectNotVisible` 例外，用于应答页面的 [JavaScript 对话框](#web-dialogs)。
+
+## 生物识别 {#biometrics}
+
+一个典型的 Face ID / 指纹登录测试：
+
+```ts
+// 设置好 Face ID / Touch ID / 指纹
+await app.device.biometrics.enroll();
+
+// App 调用 LocalAuthentication.authenticateAsync()
+await app.tap('login-with-face-id');
+
+// 匹配的面容 / 指纹：App 的认证成功
+await app.device.biometrics.match();
+await app.expectVisible('home-screen');
+```
+
+### `biometrics.enroll(enrolled?)` {#biometrics-enroll}
+
+录入面容或指纹，或用 `enroll(false)` 移除。`enrolled` 默认为 `true`。在 Android 上，Quiesco 会设置锁屏 PIN（指纹需要），并走完“设置”中的录入流程；之后 App 会被切回前台。录入会在下一个测试之前撤销。
+
+```ts
+// 没有生物识别的设备：App 应改为提供密码登录
+await app.device.biometrics.enroll(false);
+await app.tap('login');
+await app.expectVisible('password-input');
+```
+
+### `biometrics.match()` {#biometrics-match}
+
+向 App 正在显示的认证提供匹配的面容或指纹，使认证成功。
+
+```ts
+await app.tap('unlock');
+await app.device.biometrics.match();
+await app.expectVisible('vault-contents');
+```
+
+### `biometrics.fail()` {#biometrics-fail}
+
+提供未知的面容或指纹。与真机一样，之后系统会保留重试提示：在提示被应答之前（再次匹配，或用 [`system.tap`](#system-tap) 取消），App 得不到结果。连续多次失败会让传感器锁定一段时间（Android 模拟器上从约 0.5 s 到 30 s）。
+
+```ts
+await app.tap('unlock');
+await app.device.biometrics.fail();
+
+// 系统提示仍在：取消它
+await app.device.system.tap({ text: 'Cancel' });
+await app.expectText('unlock-error', 'Authentication cancelled');
+```
+
+## 设备 {#device}
+
+### `shake()` {#shake}
+
+摇晃设备（iOS：Simulator 的 *Device > Shake*；Android 模拟器：加速度计推送），然后等待 App 空闲。
+
+```ts
+// App 在摇晃时打开反馈表单
+await app.device.shake();
+await app.expectVisible('feedback-form');
+```
+
+### `clearKeychain()` {#clearkeychain}
+
+iOS：重置模拟器的钥匙串（上面所有 App 的）。Android 没有钥匙串，会以 `ACTION_NOT_SUPPORTED` 失败：请使用 [`relaunch({ clearData: true })`](./api-device#relaunch)，它会删除 App 数据，包括 Keystore 中的密钥。
+
+```ts
+// 之前的测试中由 expo-secure-store 保存的 token 不见了
+await app.device.clearKeychain();
+await app.device.relaunch();
+await app.expectVisible('sign-in-screen');
+```
+
+## 通知 {#notifications}
+
+### `sendNotification({ title, body?, data? })` {#sendnotification}
+
+发送一条通知。App 在后台时也可用。
+
+- **iOS**：模拟一次远程推送（`simctl push`），payload 中 `data` 与 `aps` 并列。App 在前台时，App 的推送库会收到它。系统只在 App 被允许显示通知时才显示它，而模拟器上无法预先授予该权限：请让 App 去请求，再用 [`allowPermission()`](#system-allowpermission) 应答。
+- **Android**：模拟器没有推送服务，因此通知以 App 的身份发出（需要 `notifications` 权限）。点击它会以 `data` 作为 intent extras 打开 App；推送库的回调不会触发。
+
+```ts
+await app.device.sendNotification({
+  title: 'New message',
+  body: 'Ann: are we still on for lunch?',
+  data: { chatId: '42' },
+});
+```
+
+| 字段 | 含义 |
+|---|---|
+| `title` | 通知的标题。必填，不能为空 |
+| `body` | 通知的正文 |
+| `data` | 自定义数据；每个值都必须是字符串 |
+
+### `openNotification(title, options?)` {#opennotification}
+
+像用户打开通知一样，点击标题为 `title` 的通知：iOS 上点击横幅，横幅消失后在通知中心中点击；Android 上在通知栏中点击。App 回到前台并空闲后 resolve。
+
+```ts
+await app.device.sendToBackground();
+await app.device.sendNotification({ title: 'New message', data: { chatId: '42' } });
+
+// 点击它：App 打开到该聊天
+await app.device.openNotification('New message');
+await app.expectVisible('chat-42');
+```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `10000` | 等待通知发出的时长 |
+
+细节：
+
+- 它会等待通知发出，因此 App 预约在几秒后发出的通知也能找到。iOS 上 system UI runner 的启动时间不计入 `timeoutMs`。
+- App 回到前台才算点中。iOS 上没回到前台就重新找；同一 App 的通知叠在一起时点最新的那条。点过之后还可以再用最多 3 s 重新点。
+- iOS 上同一 App 以前的通知会留在通知中心（重启、重装后也在），并和新通知分在一组：第一次点击只展开分组，iOS 27 上第二次点击会露出「打开」按钮再点它。模拟器较慢时请调大 `timeoutMs`。
+
+## 系统 UI {#system-ui}
+
+`app.device.system` 查找并点击 App 的 React 视图之外的 UI：权限弹窗、生物识别提示、网页的 JavaScript 对话框（[包括哪些](#what-system-ui-includes)）。元素通过 **query** 查找：
+
+| 字段 | 匹配 |
+|---|---|
+| `text` | 精确文本（弯引号、弯撇号与直引号视为相同），或一个 RegExp |
+| `id` | Android：resource-id，完整的或 `:id/` 之后的部分 |
+
+指定 `text`、`id` 或两者。每个调用最多等待 `timeoutMs`（10 s）让 UI 出现（或消失）。iOS 的系统 UI 是滑入的：间隔 250 ms 的两次读取位置一致后才使用该元素（`tap`、`expectVisible`、`type` 和权限弹窗都一样）。
+
+### `system.tap(query, options?)` {#system-tap}
+
+点击 App 之外的系统 UI，然后等待 App 空闲。
+
+```ts
+// App 显示一个原生的操作表
+await app.tap('share');
+await app.device.system.tap({ text: 'Cancel' });
+
+// Android：按 resource-id 指定按钮
+await app.device.system.tap({ id: 'android:id/button1' });
+
+// 任何以 "Allow" 开头的文本
+await app.device.system.tap({ text: /^Allow/ });
+```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `10000` | 等待它出现的时长 |
+
+### `system.expectVisible(query, options?)` {#system-expectvisible}
+
+等待此类系统 UI 出现在屏幕上。失败时为 `ELEMENT_NOT_FOUND`，并列出看到的文本。
+
+```ts
+await app.tap('enable-location');
+await app.device.system.expectVisible({ text: /location/i });
+```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `10000` | 等待时长 |
+
+### `system.expectNotVisible(query, options?)` {#system-expectnotvisible}
+
+等待屏幕上不再有此类系统 UI。失败时为 `ASSERTION_FAILED`，并指出仍在屏幕上的文本。
+
+```ts
+await app.device.system.tap({ text: 'OK' });
+await app.device.system.expectNotVisible({ text: 'Delete all?' });
+```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `10000` | 等待时长 |
+
+### `system.type(query, text, options?)` {#system-type}
+
+点击与 `query` 匹配的输入框，用设备的输入方式输入 `text`，然后等待 App 空闲。标签和输入框文本相同时，使用输入框（例如输入框旁边的 “Email” 标签）。iOS 上文本经由键盘输入，因此任何文字都可以。Android 上可打印的 ASCII 作为按键事件发送（`input text`）；其他文字经由 `@quiesco/native` 的剪贴板粘贴。
+
+```ts
+// 认证会话中的登录页面（expo-web-browser 的 openAuthSessionAsync）
+await app.tap('sign-in-with-sso');
+await app.device.system.type({ text: 'Email' }, 'ann@example.com');
+await app.device.system.type({ text: 'Password' }, 'secret');
+await app.device.system.tap({ text: 'Sign in' });
+```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `10000` | 等待输入框出现的时长 |
+
+### `system.tapAt({ x, y })` {#system-tapat}
+
+在屏幕上的一个点（从左上角算起的 pt / dp）做一次系统级的触摸，不管那里是什么。例如点击 iOS 分享面板的上方可以关掉它。在 iOS 上会先等屏幕上的系统 UI 不再移动（最多 2 s）。之后等待 App 空闲。
+
+```ts
+await app.tap('share');
+
+// 点击分享面板的上方来关掉它
+await app.device.system.tapAt({ x: 200, y: 100 });
+```
+
+## 权限弹窗 {#permission-dialogs}
+
+App 请求权限，系统显示弹窗；测试像用户一样应答它。如果想在测试开始时就已授予权限，请改用 `permissions` 配置或 [`setPermission`](./api-device#setpermission)（[各平台情况](./platforms#permissions)）。
+
+### `system.allowPermission(options?)` {#system-allowpermission}
+
+无论设备语言是什么，都能点击弹窗的允许按钮。Android 上根据按钮的 id 查找，也包括“仅在使用该 App 时允许”；iOS 上按 iOS 的按钮布局根据位置查找。App 回到前台并空闲后 resolve。
+
+```ts
+// App 请求一项权限
+await app.tap('enable-notifications');
+
+// 系统弹窗的允许按钮
+await app.device.system.allowPermission();
+await app.expectText('notifications-status', 'On');
+```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `10000` | 等待弹窗的时长 |
+
+### `system.denyPermission(options?)` {#system-denypermission}
+
+用同样的方式点击弹窗的拒绝按钮（Android 上也包括“不再询问”）。App 回到前台并空闲后 resolve。
+
+```ts
+await app.tap('enable-location');
+await app.device.system.denyPermission();
+await app.expectVisible('location-denied-banner');
+```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `timeoutMs` | `10000` | 等待弹窗的时长 |
+
+**请在弹出权限弹窗的测试里应答它。** 弹窗的生命周期比 App 更长：某个测试遗留的弹窗会在下一个测试之前被关闭（取消，否则第一个按钮），权限弹窗除外。无论怎么回答都会留下结果（通知被拒绝后只有重装 App 才能恢复），所以下一个测试会以指明该弹窗的 `RESET_FAILED` 失败。要再次请求某项权限，请先重置它：
+
+```ts
+await app.device.setPermission('notifications', 'reset');
+```
+
+当权限弹窗（另一个 activity）位于前台时，Android 会暂停 App 的 JS 定时器。Quiesco 的空闲等待会察觉到 App 进入了后台并返回，因此打开弹窗的那次点击能够完成。
+
+## 系统 UI 包括什么 {#what-system-ui-includes}
+
+除了系统自己的 UI（iOS 的 SpringBoard、Android 的其他 package），`system.*` 也能看到不是 React 的 UI：
+
+- **Android**：App 自己打开的对话框窗口，例如 `DateTimePickerAndroid` 的日期对话框。React Native 的 `Modal` 也是这种窗口。
+
+  ```ts
+  await app.tap('pick-date');
+  await app.device.system.tap({ text: '25' });
+
+  // 确定，与语言无关
+  await app.device.system.tap({ id: 'android:id/button1' });
+  ```
+
+- **iOS**：App 的 UIKit 视图（内嵌 `DateTimePicker` 的日期、键盘的按键、分享面板），以及位于前台的认证会话网页（`expo-web-browser` 的 `openAuthSessionAsync`，SafariViewService）或 Safari：用 [`system.type`](#system-type) 输入，用 [`system.tap`](#system-tap) 点击。App 的 React 视图也在这棵树里；点击它们同样是真实触摸。分享面板可以用 [`system.tapAt`](#system-tapat) 点击它的上方来关掉。同一会话中第二次显示的 React Native `Modal` 可能不在 XCUITest 返回的树里；它的视图用 `app.*` 可以操作。
+
+在 Android 模拟器上，`openAuthSessionAsync` 需要支持 Custom Tabs 的浏览器（带 Google Play 的镜像）；AOSP 镜像里没有。
+
+在 iOS 上，系统 UI 属于 SpringBoard。Quiesco 会在第一次需要时构建一个小型的 XCUITest runner（每个 Xcode 版本一次，缓存在 `~/Library/Caches/quiesco/ios-runner`，约 10 s），并在模拟器上启动它（2–4 s，每个会话一次）。
+
+## Web：JavaScript 对话框 {#web-dialogs}
+
+在 web 上，`alert`、`confirm` 和 `prompt` 会一直保持打开，直到测试像用户那样应答它们：它们也属于系统 UI。对话框的消息是一个 id 为 `dialog.message` 的节点。其按钮为 `OK`（id 为 `dialog.accept`），对于 `confirm` / `prompt` 还有 `Cancel`（`dialog.dismiss`）。被接受的 `prompt` 会得到其默认值。
+
+```ts
+// 页面调用 confirm('Delete all?')
+await app.tap('clear-all');
+
+await app.device.system.expectVisible({ text: 'Delete all?' });
+
+// confirm() 返回 false；然后等待空闲
+await app.device.system.tap({ text: 'Cancel' });
+```
+
+对话框打开期间，页面不运行任何脚本、也不接受任何输入。因此：
+
+- 打开它的操作会在对话框出现后立即返回，不等待空闲；
+- 对 App 的其他任何调用都会立即以 `DIALOG_OPEN` 失败并指出该对话框：请先应答它。截图也会失败，因为页面不会绘制；
+- 测试结束时仍然打开的对话框会在下一个测试之前被关闭，并给出警告；
+- `beforeunload` 提示总是会被接受：离开或重新加载页面永远不会被拦住。

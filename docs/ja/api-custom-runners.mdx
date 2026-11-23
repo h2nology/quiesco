@@ -1,0 +1,208 @@
+---
+title: "その他のテストランナー"
+description: "VitestとJestのアダプターがセッションをどう動かすか、そしてLifecycleやセッションを使って他の任意のランナーからQuiescoを操作する方法。"
+---
+
+QuiescoにはCucumber、Vitest、Jest用のアダプターがあります（[テストランナー](./runners)）。このページでは、VitestとJestのアダプターが何をしているかと、他の任意のランナー（Mocha、単純なスクリプト）から`@quiesco/core`を直接使う方法を説明します。
+
+## VitestとJest {#vitest-and-jest}
+
+`@quiesco/vitest`と`@quiesco/jest`は、Cucumber用のアダプターと同じように動作します。サンプルは[Vitest](./vitest)、[Jest](./jest)、[examples/todo-app/e2e](https://github.com/h2nology/quiesco/tree/main/examples/todo-app/e2e)にあります。
+
+| | Vitest（`@quiesco/vitest`） | Jest（`@quiesco/jest`） |
+|---|---|---|
+| セットアップ | `@quiesco/vitest/config`の`plugins: [quiescoPlugin()]`、`test: { ...quiesco() }` | `preset: '@quiesco/jest'`、`maxWorkers`、`testTimeout` |
+| Driver | `test('…', async ({ app, session }) => …)` | グローバルの`quiesco.app` / `quiesco.session` |
+| セッション | ワーカーごとに1つ：ワーカーフィクスチャー | ワーカープロセスごとに1つ：テスト環境が保持し、Jestがワーカーを終了するときに閉じます（in bandの場合はプリセットの`globalTeardown`で） |
+| プラットフォームタグ | `describe` / テストのタイトルと`{ tags }`（`quiesco()`が宣言） | `describe` / テストのタイトル |
+| 各テストの前 | 別のプラットフォーム向けのタグがあればスキップ、なければリセット | 同じ（Jestの`test_start` / `test_started`イベント） |
+| 失敗の後 | 証跡を成果物ディレクトリに書き出し、そのファイルを失敗メッセージに列挙 | 同じ |
+| 並列実行 | `quiesco({ workers: N })`：各ワーカーがそれぞれ専用のデバイスで実行（[並列実行](./parallel)） | `maxWorkers: N`、同じ |
+
+詳細：
+
+- Gherkinと同じく、プラットフォームタグの付いた最も内側の階層が判定に使われます。`describe('… @native')`の中で`@android`タグの付いたテストは、Androidでだけ実行されます（[テストタグ](./api-tags)）。
+- セッションの開始に失敗すると、テストごとに開始し直すのではなく、残りのテストを直ちに失敗させます。
+- Jestでは、設定に独自の`globalTeardown`があるとプリセットのものを置き換えるので、そこから`@quiesco/jest/teardown`を呼び出してください（サンプルアプリを参照）。
+- Vitestの実行の最初のテストはセッションの開始も待ち、デバイスの起動には数分かかることがあります。そのため`quiesco()`は`testTimeout`を300秒に設定しています。
+
+## Lifecycle {#lifecycle}
+
+その他のランナーは`@quiesco/core`を直接使います。`Lifecycle`は1回の実行を4つの呼び出しに対応付けます。上記のアダプターは、これを薄くラップしたものです。
+
+```ts
+import { Lifecycle, titleTags } from '@quiesco/core';
+
+// 設定はquiesco.config.*から、プラットフォームはQUIESCO_PLATFORMから
+const lifecycle = new Lifecycle();
+
+// 1回だけ：サーバー、デバイス、インストール、起動、接続
+await lifecycle.beforeAll();
+
+// テストごと
+const name = 'logs in @native';
+const tags = [titleTags(name)];
+let failed = false;
+try {
+  if ((await lifecycle.before(tags, name)) !== 'skipped') {
+    // Driver：他のページの`app`と同じオブジェクト
+    const app = lifecycle.current.driver;
+    await app.tap('login-button');
+  }
+} catch (e) {
+  failed = true;
+  throw e;
+} finally {
+  // 証跡 + ポリシーに沿った成果物
+  const { attachments, files } = await lifecycle.after({ tags: tags.flat(), failed });
+}
+
+// 最後に1回
+await lifecycle.afterAll();
+```
+
+### `new Lifecycle(options?)` {#new-lifecycle}
+
+| オプション | デフォルト | 意味 |
+|---|---|---|
+| `config` | `quiesco.config.*`から読み込む（`QUIESCO_CONFIG`で別のファイルを指定） | 使用する設定 |
+| `platform` | `QUIESCO_PLATFORM` | `'ios'`、`'android'`、`'web'` |
+| `worker` | `{ index: 0, count: 1 }` | このライフサイクルが動く並列ワーカー。設定の関数がこれを受け取り、セッションは専用のデバイス、ポート、成果物ディレクトリを使います |
+| `logger` | コンソール | 繰り返し失敗のヒントの出力先 |
+| `env` | `process.env` | `QUIESCO_CONFIG`と`QUIESCO_PLATFORM`を読む環境 |
+| `createSession` | `createSession` | セッションのファクトリー。テストや独自のセットアップ用 |
+
+### `beforeAll()` {#beforeall}
+
+設定を読み込み、サーバーとデバイスを起動し、アプリをインストールして起動し、エージェントが接続するまで待ちます。
+
+```ts
+await lifecycle.beforeAll();
+```
+
+### `before(tags, name?)` {#before}
+
+各テストの前に呼びます。別のプラットフォームやブラウザー向けのタグが付いたテストには`'skipped'`を返します（同じ失敗が続いて実行が打ち切られた後も同様です。[`bailOnRepeatedFailure`](./config#top-level)）。それ以外では、テストの成果物の記録を始め、アプリをリセットします。最も内側のプラットフォームタグが判定に使われるよう、タグは階層ごとにまとめ、外側（スイート / feature）から順に渡してください。
+
+```ts
+// describe('settings @native')の中のテスト
+const result = await lifecycle.before([['@native'], titleTags('back closes it @android')], 'back closes it');
+if (result === 'skipped') return;
+```
+
+### `current` {#current}
+
+実行中のセッションです。`lifecycle.current.driver`がDriverです。`beforeAll`が完了していなければ例外を投げます。
+
+```ts
+const app = lifecycle.current.driver;
+await app.expectVisible('home-screen');
+```
+
+### `after({ tags, failed, error? })` {#after}
+
+各テストの後に呼びます。失敗時には証跡を集め、成果物のポリシーに従ってvideo、logs、timelineも残します。`{ attachments, files }`を返します。添付を受け付けるレポートを持つランナー向けの添付と、パスを表示するランナー向けの書き出したファイルです。同じ失敗の繰り返しを見分けられるよう、`error`（Errorまたはランナーのメッセージ）を渡してください。成功したテストでも、最後のステップの後にアプリがエラーを報告していれば失敗になります（`after`が例外を投げます）。
+
+```ts
+const { attachments, files } = await lifecycle.after({ tags: ['@native'], failed: true, error });
+if (files.length > 0) console.log(`evidence:\n  ${files.join('\n  ')}`);
+```
+
+### `afterAll()` {#afterall}
+
+接続、アプリ、デバイス（設定に従って）を閉じます。
+
+```ts
+await lifecycle.afterAll();
+```
+
+### `titleTags(title)` {#titletags}
+
+テストやスイートのタイトルに書かれたタグを返します。
+
+```ts
+titleTags('adds a todo @ios @smoke'); // ['@ios', '@smoke']
+```
+
+## セッション {#session}
+
+`Lifecycle`の下にあるのがセッションそのもので、すべてを自分で制御できます。その場合、タグとスキップの扱いは自分で行います。
+
+```ts
+import { createSession, loadConfig, resolvePlatform } from '@quiesco/core';
+
+const { config } = await loadConfig();
+const session = await createSession({ config, platform: resolvePlatform() });
+
+// テストごと
+await session.startScenario({ name: 'logs in' });
+await session.beforeScenario({ tags: ['@native'], name: 'logs in' });
+let failed = false;
+try {
+  await session.driver.tap('login-button');
+} catch (e) {
+  failed = true;
+  throw e;
+} finally {
+  const { attachments, files } = await session.afterScenario({ failed });
+}
+
+await session.dispose();
+```
+
+### `createSession({ config, platform, worker?, logger? })` {#createsession}
+
+サーバーを起動し、デバイスを起動し、アプリをインストールして起動し、エージェントが接続するまで待ちます。`worker`（`{ index, count }`。デフォルトは唯一のワーカー）を指定すると、セッションは専用のデバイス、サーバーのポート（`server.port + index`）、成果物ディレクトリを使います。
+
+```ts
+const session = await createSession({ config, platform: 'android', worker: { index: 1, count: 2 } });
+```
+
+### `startScenario({ name })` {#startscenario}
+
+テストの成果物（timeline、video）の記録を、テスト名のディレクトリで始めます。リセットも動画に含まれるよう、`beforeScenario`の前に呼んでください。
+
+```ts
+await session.startScenario({ name: 'adds a todo' });
+```
+
+### `beforeScenario({ tags?, name? })` {#beforescenario}
+
+前のテストの[実行時の同期](./api-runtime-sync)と[デバイス](./api-device)の変更を元に戻し、バックグラウンドのアプリを前面に戻すか終了したアプリを起動してから、アプリをソフトリセットします。`@hard-reset`（または`reset.default: 'hard'`）の場合は、アプリを終了して再起動します。アプリがクラッシュしていたり応答しなくなっていたりすれば、起動し直します。
+
+```ts
+await session.beforeScenario({ tags: ['@hard-reset'], name: 'first launch' });
+```
+
+### `afterScenario({ failed })` {#afterscenario}
+
+テストを終えます。失敗時には枠付きのスクリーンショット、要素ツリー、アイドル状態に加え、[成果物のポリシー](./api-artifacts)に沿ってvideo、logs、timelineを残します。`{ attachments, files }`を返します。
+
+```ts
+const { files } = await session.afterScenario({ failed: true });
+```
+
+### `collectEvidence()` {#collectevidence}
+
+成果物を書き出さずに、失敗時の証跡だけを返します：`screenshot`、`tree`、`elements`、`idle`と、集められなかったものについての`errors`（クラッシュの後はスクリーンショットと`crash`のみ）。
+
+```ts
+const evidence = await session.collectEvidence();
+if (evidence.screenshot) await fs.writeFile('failure.png', evidence.screenshot);
+```
+
+### `dispose()` {#dispose}
+
+最後に呼びます。最後のテストのデバイスへの変更を元に戻し、アプリを閉じます。[`devices.*.shutdown`](./config#devices)を指定しない限り、デバイスは動き続けます。
+
+```ts
+await session.dispose();
+```
+
+## 実行 {#running}
+
+1つのセッションが1台のデバイスを操作します。[並列実行](./parallel)では、各ワーカーが`worker`の番号とともに専用のセッションを持ちます。`quiesco test --runner cucumber|jest|vitest`は`QUIESCO_PLATFORM`を設定してランナーを起動します。他のランナーでは、`QUIESCO_PLATFORM`を設定し（またはプラットフォームを`resolvePlatform`に渡し）、ランナーを自分で起動してください。
+
+```sh
+QUIESCO_PLATFORM=ios npx mocha e2e/**/*.test.ts
+```

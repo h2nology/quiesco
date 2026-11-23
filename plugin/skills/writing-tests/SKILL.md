@@ -96,4 +96,5 @@ go into `describe` / test titles (`test('… @ios', …)`). Jest uses the global
 - **`references/driver-pattern.md`** — the complete driver pattern: business driver, World, steps,
   per-platform branching, type-stripping rules, an API driver for the same features.
 - **`references/steps.md`** — `@quiesco/steps` generic steps (zh / ja / en) and their exact wording.
-- **`${CLAUDE_PLUGIN_ROOT}/skills/quiesco-api/references/api.md`** — matchers, assertions, backdoors.
+- **`${CLAUDE_PLUGIN_ROOT}/skills/quiesco-api/references/api-matchers.md`**, **`api-assertions.md`**,
+  **`api-in-app.md`** — matchers, assertions, backdoors.

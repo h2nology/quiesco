@@ -1,0 +1,189 @@
+---
+title: "App 内 API"
+description: "App 自身用 @quiesco/agent 为测试做的准备：根组件、Metro 包装、后门、重置 hook、额外的存储、启动参数和 worker 序号。"
+---
+
+Quiesco 的大部分运行在测试里，但有一小部分运行在 App 内：即 **agent**（`@quiesco/agent`）。它负责查找元素、跟踪 App 何时空闲，并在测试之间重置 App。App 还可以通过它为测试提供捷径：用于准备工作的后门、清空自身状态的 hook，以及 App 启动时收到的参数。本页的示例是 App 代码，而不是测试代码。
+
+## 设置 {#setup}
+
+### `QuiescoRoot` {#quiescoroot}
+
+App 在入口文件的**第一行**导入 agent，并用 `<QuiescoRoot>` 包裹其根组件。`npx quiesco init` 会把两者都配置好。元素查询只能看到 `<QuiescoRoot>` 内部的内容，软重置会重新挂载它下面的一切。
+
+```tsx
+// app/_layout.tsx：agent 的 import 放在最前面
+import { QuiescoRoot } from '@quiesco/agent';
+import { Stack } from 'expo-router';
+
+export default function RootLayout() {
+  return (
+    <QuiescoRoot>
+      <Stack />
+    </QuiescoRoot>
+  );
+}
+```
+
+### `withQuiesco(config, options?)` {#withquiesco}
+
+包装 Metro 配置（来自 `@quiesco/agent/metro`）。在没有 `EXPO_PUBLIC_QUIESCO=1` 的构建中，它会把 agent 替换为一个空实现的桩，因此本页的代码可以一直留在 App 中：生产包里不会包含任何这些代码。
+
+```js
+// metro.config.js
+const { getDefaultConfig } = require('expo/metro-config');
+const { withQuiesco } = require('@quiesco/agent/metro');
+
+module.exports = withQuiesco(getDefaultConfig(__dirname));
+
+// 使用其他产物目录，并跟踪原生模块调用
+module.exports = withQuiesco(getDefaultConfig(__dirname), {
+  artifactsDir: 'e2e-artifacts',
+  nativeModules: true,
+});
+```
+
+它还会让 Metro 不监听产物目录。每当被监听的文件发生变化，Metro 都会向 App 发送一次 HMR 更新，dev client 的 “Refreshing...” 窗口会在另一个 worker 点击时遮住 App（[并行运行](./parallel)）。`.expo/devices.json` 也会被排除：每次有 dev client App 启动，Expo 的开发服务器都会重写它。
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `artifactsDir` | `'artifacts'` | 相对于项目根目录。修改 [`artifacts.dir`](./config#artifacts) 时必须与之一致；`false`：不排除任何目录 |
+| `nativeModules` | `EXPO_PUBLIC_QUIESCO_NATIVE_MODULES` 是否为 `1` | 构建时包装原生模块，从而开启 `native-module` 跟踪器（[原生模块调用](./sync#native-module-calls)） |
+
+### 不让测试代码进入生产环境 {#e2e-module}
+
+在只会被 e2e 构建导入的模块中注册后门和 hook，这样测试代码根本不会进入生产包：
+
+```ts
+// app/_layout.tsx
+if (process.env.EXPO_PUBLIC_QUIESCO === '1') require('../src/e2e');
+```
+
+下面的每次注册都会返回一个用于移除该注册的函数。
+
+## 后门 {#backdoors}
+
+### `quiesco.backdoor(name, fn)` {#backdoor}
+
+注册一个仅用于测试的函数，测试可以用 [`app.backdoor(name, ...args)`](./api-queries#backdoor) 调用它，从而无需经过 UI 就能准备好状态。`fn` 可以是 async。其参数和结果必须是 JSON。用同一名称再次注册会替换原有的注册。
+
+```ts
+// src/e2e.ts
+import { quiesco } from '@quiesco/agent';
+
+quiesco.backdoor('loginAs', async (email: string) => {
+  await authStore.setSession(await testApi.createSession(email));
+});
+
+quiesco.backdoor('seedTodos', (titles: string[]) => {
+  store.setTodos(titles.map((title, i) => ({ id: String(i), title })));
+});
+```
+
+在测试中：
+
+```ts
+await app.backdoor('loginAs', 'ann@example.com');
+await app.backdoor('seedTodos', ['Buy milk', 'Call Bob']);
+```
+
+### 类型化后门 {#typed-backdoors}
+
+在一个 App 和测试都会编译的文件里声明一次后门，两边都会按它检查：`quiesco.backdoor(name, fn)` 只接受声明过的名称以及与之匹配的函数（async 也可以），`app.backdoor(name, ...args)` 会检查名称、参数和结果（不返回值的后门为 `null`）。没有声明时，任何名称都可以用，参数只要能转成 JSON 即可。
+
+```ts
+// src/backdoors.ts：App 和测试都会编译
+declare module '@quiesco/agent' {
+  interface Backdoors {
+    'students.set': (list: Student[]) => void;
+    'students.get': (id: string) => Student | null;
+  }
+}
+```
+
+```ts
+// 在测试中：名称、参数和结果都会被检查
+const student = await app.backdoor('students.get', 's-1'); // Student | null
+```
+
+只有运行时才知道的名称（例如取自 feature 文件的文本）用 `name as keyof Backdoors` 收窄：
+
+```ts
+import type { Backdoors } from '@quiesco/core';
+
+await app.backdoor(name as keyof Backdoors);
+```
+
+测试的 tsconfig 不包含该文件时，用仅类型的 import 引入：
+
+```ts
+import type {} from '../../src/backdoors';
+```
+
+普通的 `import '../../src/backdoors'` 在 cucumber-js 运行步骤时会失败：Node 需要文件扩展名，而该文件里只有类型。
+
+## 重置 {#reset}
+
+在每个测试之前，App 会进行一次**软重置**：清空其存储，运行 `onReset` hook，把导航恢复到起点，并重新挂载 `<QuiescoRoot>` 下的一切。带有 [`@hard-reset`](./api-tags) 标签的测试则会重新启动 App。
+
+### `quiesco.onReset(hook)` {#onreset}
+
+在每次软重置时运行 `hook`：存储清空之后、App 重新挂载之前。用于 React 之外、存在于内存中的状态：缓存、store、mock 后端。
+
+```ts
+quiesco.onReset(async () => {
+  queryClient.clear();
+  await api.replaceTodos([]);
+});
+```
+
+### `quiesco.registerStorage({ name, clear })` {#registerstorage}
+
+在内置存储之外，添加一个软重置时要清空的存储。内置存储为：iOS / Android 上 AsyncStorage 的默认存储；web 上的 `localStorage`、`sessionStorage` 和 IndexedDB。`clear` 可以是 async。
+
+```ts
+// storage：App 的 react-native-mmkv 实例
+quiesco.registerStorage({ name: 'mmkv', clear: () => storage.clearAll() });
+```
+
+清空失败的存储会让重置以 `RESET_FAILED` 失败，失败步骤为 `storage:<name>`。
+
+### 软重置时的导航 {#navigation-on-soft-reset}
+
+使用 Expo Router 时，软重置还会把导航状态恢复为 App 启动时的状态（在 `onReset` hook 之后、重新挂载之前）。某个测试停在推入的页面、某个标签页或嵌套的栈里结束，下一个测试也不会从那里开始。无需任何设置。
+
+之后，重置会检查 App 是否在本次运行第一次重置后所在的路由上。如果不在（App 在挂载时根据重置没有清掉的状态跳到了别的页面），重置会以 `RESET_FAILED` 失败，并给出两个路由。请在 `onReset` 中清掉那份状态，或给测试加上 `@hard-reset` 标签。不使用 Expo Router 的 App，可以用配置中的 [`reset.expectVisible`](./config#reset) 以元素做同样的检查。
+
+## 启动与 worker {#launch-and-worker}
+
+### `quiesco.launchArgs()` {#launchargs}
+
+返回本次启动的参数：配置中的 `launchArgs` 与 [`app.device.relaunch({ args })`](./api-device#relaunch) 合并后的结果，保留其 JSON 类型。它是同步调用，因此 App 可以在启动时读取。没有参数时、在生产环境中，以及 iOS / Android 上未包含 `@quiesco/native` 的构建中，返回 `{}`。
+
+```ts
+// src/config.ts
+const { user, apiUrl } = quiesco.launchArgs() as { user?: string; apiUrl?: string };
+
+export const API_URL = apiUrl ?? 'https://api.example.com';
+```
+
+在测试中：
+
+```ts
+await app.device.relaunch({ args: { user: 'ann', apiUrl: 'http://localhost:3001' } });
+```
+
+### `quiesco.workerIndex()` {#workerindex}
+
+驱动此 App 的 [并行测试 worker](./parallel) 的序号：测试串行运行时为 `0`；在测试 host 连接上之前（它会在第一条测试命令之前连接）以及在生产环境中为 `null`。用它来访问该 worker 自己的资源，例如每个 worker 一个的 mock 后端。
+
+```ts
+// src/e2e.ts：worker N 使用端口 3001 + N 上的 mock 后端
+setApiBase(() => {
+  const url = new URL('http://localhost:3001');
+  url.port = String(Number(url.port) + (quiesco.workerIndex() ?? 0));
+  return url.origin;
+});
+```
+
+App 启动期间还不知道这个值。对于 App 在启动时就需要的东西（API 的 URL），请改用启动参数传入：配置可以是 worker 序号的函数，`({ workerIndex }) => ({ launchArgs: { … } })`（[每个 worker 一份配置](./config#config-per-worker)）。
