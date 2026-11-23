@@ -1,9 +1,17 @@
 ---
-title: "快速开始（Web）"
-description: "从一个新建的 Expo App 到在 Chromium 中通过的测试，大约 10 分钟。"
+title: "快速开始"
+description: "从一个新建的 Expo App 到在 Web、iOS 和 Android 上通过的测试。"
 ---
 
-前提条件：Node.js 24+，一个基于 SDK 55 或更高版本的 Expo App （`npx create-expo-app@latest`）。
+前提条件：Node.js 24+，一个基于 SDK 55 或更高版本的 Expo App（`npx create-expo-app@latest`）。另外，每个要测试的平台还需要：
+
+| 平台 | 所需环境 |
+|---|---|
+| Web | 无需其他准备：最后一步会由 Playwright 下载 Chromium |
+| iOS | 一台装有 Xcode 和 iOS 模拟器的 Mac |
+| Android | Android SDK（Android Studio）和一个模拟器（AVD） |
+
+前四步对所有平台都一样，最后一步在你选择的平台上运行测试。
 
 <Steps>
   <Step title="初始化项目">
@@ -35,6 +43,8 @@ description: "从一个新建的 Expo App 到在 Chromium 中通过的测试，�
     </CodeGroup>
 
     `init` 会询问使用哪个测试运行器：直接按回车选 Vitest（推荐），也可以选 Jest 或 Cucumber（[测试运行器](./runners)）。`--runner vitest|jest|cucumber` 可以跳过询问直接指定。下面的步骤以 Vitest 为例，换成其他运行器只是文件名不同。
+
+    `init` 会配置 iOS、Android，以及在 App 带有 `react-native-web` 时配置 Web；用 `--platforms web,ios` 可以只配置其中一部分。它会在 `package.json` 中为每个平台添加一个 `e2e:*` 脚本。
   </Step>
   <Step title="包裹根布局">
     用 `<QuiescoRoot>` 包裹根布局（默认模板中是 `src/app/_layout.tsx`）：
@@ -81,37 +91,149 @@ description: "从一个新建的 Expo App 到在 Chromium 中通过的测试，�
     ```
   </Step>
   <Step title="运行">
-    <CodeGroup>
-    ```sh pnpm
-    pnpm exec playwright install chromium
+    选择平台。三个平台用的是同一个测试文件。
 
-    # 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
-    pnpm e2e:web
-    ```
-    ```sh npm
-    npx playwright install chromium
+    <Tabs>
+      <Tab title="Web">
+        <CodeGroup>
+        ```sh pnpm
+        pnpm exec playwright install chromium
 
-    # 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
-    npm run e2e:web
-    ```
-    ```sh bun
-    bunx playwright install chromium
+        # 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
+        pnpm e2e:web
+        ```
+        ```sh npm
+        npx playwright install chromium
 
-    # 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
-    bun run e2e:web
-    ```
-    ```sh yarn
-    yarn playwright install chromium
+        # 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
+        npm run e2e:web
+        ```
+        ```sh bun
+        bunx playwright install chromium
 
-    # 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
-    yarn e2e:web
-    ```
-    </CodeGroup>
+        # 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
+        bun run e2e:web
+        ```
+        ```sh yarn
+        yarn playwright install chromium
 
-    该模板在服务端渲染（`web.output: "server"`）；对于这种导出，Quiesco 会自行运行 `npx expo serve`。静态导出则直接托管。
+        # 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
+        yarn e2e:web
+        ```
+        </CodeGroup>
+
+        该模板在服务端渲染（`web.output: "server"`）；对于这种导出，Quiesco 会自行运行 `npx expo serve`。静态导出和单页应用导出则直接托管。
+      </Tab>
+      <Tab title="iOS">
+        先启动一个模拟器（`open -a Simulator`，或 `xcrun simctl boot "iPhone 17"`）：Quiesco 会使用已启动的那个。
+
+        <CodeGroup>
+        ```sh pnpm
+        # 只需一次：e2e 构建所基于的 dev client
+        pnpm exec expo install expo-dev-client
+
+        # quiesco build ios：以 EXPO_PUBLIC_QUIESCO=1 执行 prebuild，然后面向模拟器执行 xcodebuild
+        pnpm e2e:build:ios
+
+        # quiesco test --platform ios
+        pnpm e2e:ios
+        ```
+        ```sh npm
+        # 只需一次：e2e 构建所基于的 dev client
+        npx expo install expo-dev-client
+
+        # quiesco build ios：以 EXPO_PUBLIC_QUIESCO=1 执行 prebuild，然后面向模拟器执行 xcodebuild
+        npm run e2e:build:ios
+
+        # quiesco test --platform ios
+        npm run e2e:ios
+        ```
+        ```sh bun
+        # 只需一次：e2e 构建所基于的 dev client
+        bunx expo install expo-dev-client
+
+        # quiesco build ios：以 EXPO_PUBLIC_QUIESCO=1 执行 prebuild，然后面向模拟器执行 xcodebuild
+        bun run e2e:build:ios
+
+        # quiesco test --platform ios
+        bun run e2e:ios
+        ```
+        ```sh yarn
+        # 只需一次：e2e 构建所基于的 dev client
+        yarn expo install expo-dev-client
+
+        # quiesco build ios：以 EXPO_PUBLIC_QUIESCO=1 执行 prebuild，然后面向模拟器执行 xcodebuild
+        yarn e2e:build:ios
+
+        # quiesco test --platform ios
+        yarn e2e:ios
+        ```
+        </CodeGroup>
+
+        第一次构建需要几分钟；之后只要 App 配置和依赖没有变化，就会跳过构建。如果想让 Quiesco 自己启动模拟器，在 `quiesco.config.mts` 的 `devices.ios` 中指定它（`{ device: 'iPhone 17' }`）。
+      </Tab>
+      <Tab title="Android">
+        先启动一个模拟器（Android Studio 的 Device Manager，或 `emulator -avd <name>`）：Quiesco 会使用正在运行的那个。
+
+        <CodeGroup>
+        ```sh pnpm
+        # 只需一次：e2e 构建所基于的 dev client
+        pnpm exec expo install expo-dev-client
+
+        # quiesco build android：以 EXPO_PUBLIC_QUIESCO=1 执行 prebuild，然后执行 gradlew assembleDebug
+        pnpm e2e:build:android
+
+        # quiesco test --platform android
+        pnpm e2e:android
+        ```
+        ```sh npm
+        # 只需一次：e2e 构建所基于的 dev client
+        npx expo install expo-dev-client
+
+        # quiesco build android：以 EXPO_PUBLIC_QUIESCO=1 执行 prebuild，然后执行 gradlew assembleDebug
+        npm run e2e:build:android
+
+        # quiesco test --platform android
+        npm run e2e:android
+        ```
+        ```sh bun
+        # 只需一次：e2e 构建所基于的 dev client
+        bunx expo install expo-dev-client
+
+        # quiesco build android：以 EXPO_PUBLIC_QUIESCO=1 执行 prebuild，然后执行 gradlew assembleDebug
+        bun run e2e:build:android
+
+        # quiesco test --platform android
+        bun run e2e:android
+        ```
+        ```sh yarn
+        # 只需一次：e2e 构建所基于的 dev client
+        yarn expo install expo-dev-client
+
+        # quiesco build android：以 EXPO_PUBLIC_QUIESCO=1 执行 prebuild，然后执行 gradlew assembleDebug
+        yarn e2e:build:android
+
+        # quiesco test --platform android
+        yarn e2e:android
+        ```
+        </CodeGroup>
+
+        第一次构建需要几分钟；之后只要 App 配置和依赖没有变化，就会跳过构建。如果想让 Quiesco 自己启动模拟器，在 `quiesco.config.mts` 的 `devices.android` 中指定 AVD 名称（`emulator -list-avds` 会列出所有 AVD）。
+      </Tab>
+    </Tabs>
   </Step>
 </Steps>
 
 `npx quiesco doctor` 会检查配置，并说明如何补齐缺失的部分。`npx quiesco tree` 会打印运行中 App 的元素树，便于查找 test id。
 
-下一步：[iOS 和 Android](./native)、[测试运行器](./runners)，以及 [API 参考](./api)。
+## iOS 和 Android 上的 e2e 构建 {#the-e2e-build-on-ios-and-android}
+
+原生平台的运行需要 App 的 e2e 构建：以 `EXPO_PUBLIC_QUIESCO=1` 构建，因此其中包含 agent 和 `@quiesco/native`（真实的触摸和文本输入）。不带这个变量的构建就是普通的生产构建，不含任何 Quiesco 代码。
+
+`quiesco build` 以 `EXPO_PUBLIC_QUIESCO=1` 运行 `expo prebuild` 和原生构建（面向模拟器的 `xcodebuild`、`gradlew assembleDebug`），并把 App 写到 `quiesco.config.mts` 中 `binaryPath` 指定的位置（生成的配置里已填好常用路径）。如果自上次构建以来 App 配置和依赖都没有变化，会跳过 Debug 构建；加 `--force` 则总是构建。当 dev client 需要 Metro 而 `devClient.metroUrl` 上没有响应时，`quiesco test` 会以 `EXPO_PUBLIC_QUIESCO=1` 启动 Metro，并在运行结束时停止它；你自己启动的 Metro 会直接使用（[配置](./config) 中的 `devServer`）。
+
+在 `devices` 中设置 Android Emulator / iOS Simulator（见 [配置](./config)）。在 CI 中，带 `EXPO_PUBLIC_QUIESCO=1` 的 EAS 构建配置（build profile）会产出同样的 e2e 构建；完整且经过测试的三平台配置见 [示例 App](./example-app)。
+
+各平台之间的差异（输入、权限、系统弹窗）见 [平台差异](./platforms)。
+
+下一步：在 [教程](./tutorial) 中编写真正的测试，然后阅读 [测试运行器](./runners) 和 [API 参考](./api)。

@@ -1,0 +1,45 @@
+{
+  "name": "quiesco-todo-tutorial",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "web": "expo start --web",
+    "e2e:start": "EXPO_PUBLIC_QUIESCO=1 expo start",
+    "e2e:web": "EXPO_PUBLIC_QUIESCO=1 expo export --platform web && quiesco test --platform web",
+    "e2e:build:android": "quiesco build android",
+    "e2e:android": "quiesco test --platform android",
+    "e2e:build:ios": "quiesco build ios",
+    "e2e:ios": "quiesco test --platform ios",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~58.0.17",
+    "@quiesco/agent": "0.13.3",
+    "@quiesco/native": "0.13.3",
+    "expo": "~58.0.23",
+    "expo-constants": "~58.0.15",
+    "expo-dev-client": "~58.0.18",
+    "expo-linking": "~58.0.16",
+    "expo-router": "~58.0.30",
+    "expo-status-bar": "~58.0.4",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.1",
+    "react-native-safe-area-context": "~5.11.1",
+    "react-native-screens": "~4.30.1",
+    "react-native-web": "^0.21.4"
+  },
+  "devDependencies": {
+    "@quiesco/core": "0.13.3",
+    "@quiesco/expo-plugin": "0.13.3",
+    "@quiesco/vitest": "0.13.3",
+    "@quiesco/web": "0.13.3",
+    "@types/react": "~19.3.0",
+    "playwright": "1.65.0",
+    "quiesco": "0.13.3",
+    "typescript": "~6.0.3",
+    "vitest": "5.1.0"
+  }
+}

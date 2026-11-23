@@ -11,7 +11,8 @@
  * The conversion: frontmatter becomes a "# title" heading and a description line; <Note> / <Warning>
  * become block quotes; <Steps> / <Step title> become numbered "### Step" headings; <ResponseField> becomes a
  * list item with its type and default (nested in <Expandable>); <Card> becomes a list item linking to its
- * page; a link to another page
+ * page; <Tab title> becomes a bold "Title:" line over its content; a <Frame> image becomes a list item with
+ * its caption and alt text; a link to another page
  * points at that page's reference when the plugin ships it, at the documentation site otherwise. Code
  * blocks are copied as they are.
  */
@@ -27,8 +28,8 @@ const SITE = 'https://shift-14cc7601.mintlify.site';
 /** skill -> the pages its references/ holds */
 const PAGES = {
   'quiesco-api': ['api', 'config', 'sync', 'platforms', 'parallel', 'runners', 'vitest', 'jest', 'cucumber'],
-  'writing-tests': ['steps', 'driver-pattern'],
-  setup: ['quickstart', 'native', 'cli'],
+  'writing-tests': ['tutorial', 'steps', 'driver-pattern'],
+  setup: ['quickstart', 'cli'],
   debug: ['troubleshooting'],
 };
 
@@ -65,6 +66,11 @@ export function convert(source, page, skill) {
   let skip = false;
   let step = 0;
   let stepIndent = 0;
+  /** Indent of the open <Tab>'s content (after the step's indent is removed). */
+  let tabIndent = 0;
+  /** The open <Frame>'s caption. */
+  /** @type {string | null} */
+  let frame = null;
   /** An open <Card>: its link and the text collected so far. */
   /** @type {{ title: string, href: string, text: string[] } | null} */
   let card = null;
@@ -75,6 +81,8 @@ export function convert(source, page, skill) {
     let line = raw;
     if (stepIndent && line.startsWith(' '.repeat(stepIndent))) line = line.slice(stepIndent);
     else if (stepIndent) line = line.replace(/^\s+/, '');
+    if (tabIndent && line.startsWith(' '.repeat(tabIndent))) line = line.slice(tabIndent);
+    else if (tabIndent) line = line.replace(/^\s+/, '');
     const trimmed = line.trim();
 
     if (trimmed === '<CodeGroup>' || trimmed === '</CodeGroup>') {
@@ -122,6 +130,31 @@ export function convert(source, page, skill) {
     if (trimmed === '</Step>') {
       stepIndent = 0;
       out.push('');
+      continue;
+    }
+
+    if (trimmed === '<Tabs>' || trimmed === '</Tabs>') continue;
+    const t = /^(\s*)<Tab title="(.*)">$/.exec(line);
+    if (t) {
+      tabIndent = t[1].length + 2;
+      out.push(`**${t[2]}:**`, '');
+      continue;
+    }
+    if (trimmed === '</Tab>') {
+      tabIndent = 0;
+      out.push('');
+      continue;
+    }
+    if (/^<\/?Columns\b.*>$/.test(trimmed)) continue;
+    const fr = /^<Frame caption="(.*)">$/.exec(trimmed);
+    if (fr) {
+      frame = fr[1];
+      continue;
+    }
+    if (frame !== null) {
+      const img = /^<img .*alt="(.*?)".*\/>$/.exec(trimmed);
+      if (img) out.push(`- ${frame}: ${img[1]}`);
+      if (trimmed === '</Frame>') frame = null;
       continue;
     }
 

@@ -58,7 +58,7 @@ Rules:
   with step definitions). Chinese and Japanese paragraphs are not wrapped mid-sentence (a line break
   shows as a space). Terms: the glossary in `.planning/2026-11-14-release/findings.md` ("R.D.3").
 - **README:** the README's introduction and quick start also appear on the site (`index.mdx`,
-  `quickstart.mdx`, `native.mdx`, `runners.mdx`); change both.
+  `quickstart.mdx`, `runners.mdx`); change both.
 
 Check before pushing:
 

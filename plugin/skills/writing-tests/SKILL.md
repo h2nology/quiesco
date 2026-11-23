@@ -91,6 +91,8 @@ go into `describe` / test titles (`test('… @ios', …)`). Jest uses the global
 
 ## Additional resources
 
+- **`references/tutorial.md`** — a worked example: a three-screen todo app and its Vitest tests (test ids,
+  flows across screens, typed backdoors, `onReset`, reading a failure).
 - **`references/driver-pattern.md`** — the complete driver pattern: business driver, World, steps,
   per-platform branching, type-stripping rules, an API driver for the same features.
 - **`references/steps.md`** — `@quiesco/steps` generic steps (zh / ja / en) and their exact wording.

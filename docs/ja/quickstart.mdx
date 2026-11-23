@@ -1,9 +1,17 @@
 ---
-title: "クイックスタート（Web）"
-description: "新しいExpoアプリから、Chromiumでテストが通るまでを約10分で。"
+title: "クイックスタート"
+description: "新しいExpoアプリから、Web、iOS、Androidでテストが通るまで。"
 ---
 
-必要なもの：Node.js 24+、SDK 55以降のExpoアプリ（`npx create-expo-app@latest`）。
+必要なもの：Node.js 24+、SDK 55以降のExpoアプリ（`npx create-expo-app@latest`）。テストしたいプラットフォームごとに、次のものも必要です。
+
+| プラットフォーム | 必要なもの |
+|---|---|
+| Web | 追加は不要です。Chromiumは最後のステップでPlaywrightがダウンロードします |
+| iOS | XcodeとiOSシミュレーターが入ったMac |
+| Android | Android SDK（Android Studio）とエミュレーター（AVD） |
+
+最初の4ステップはどのプラットフォームでも同じです。最後のステップで、選んだプラットフォームでテストを実行します。
 
 <Steps>
   <Step title="プロジェクトをセットアップする">
@@ -35,6 +43,8 @@ description: "新しいExpoアプリから、Chromiumでテストが通るまで
     </CodeGroup>
 
     `init`はどのテストランナーを使うかを尋ねます。Enterを押すとVitest（推奨）になり、JestかCucumberも選べます（[テストランナー](./runners)）。`--runner vitest|jest|cucumber`を付けると、質問なしで選べます。以下の手順はVitestを前提にしています。ほかのランナーでもファイル名が違うだけです。
+
+    `init`はiOSとAndroid、そしてアプリに`react-native-web`があればWebもセットアップします。`--platforms web,ios`で対象を絞れます。`package.json`には、プラットフォームごとに`e2e:*`スクリプトを追加します。
   </Step>
   <Step title="ルートレイアウトをラップする">
     ルートレイアウトを`<QuiescoRoot>`でラップします（デフォルトテンプレートでは`src/app/_layout.tsx`）。
@@ -81,37 +91,149 @@ description: "新しいExpoアプリから、Chromiumでテストが通るまで
     ```
   </Step>
   <Step title="実行する">
-    <CodeGroup>
-    ```sh pnpm
-    pnpm exec playwright install chromium
+    プラットフォームを選んでください。テストファイルは3つとも同じです。
 
-    # EXPO_PUBLIC_QUIESCO=1でWebビルドをエクスポートしてから quiesco test --platform web
-    pnpm e2e:web
-    ```
-    ```sh npm
-    npx playwright install chromium
+    <Tabs>
+      <Tab title="Web">
+        <CodeGroup>
+        ```sh pnpm
+        pnpm exec playwright install chromium
 
-    # EXPO_PUBLIC_QUIESCO=1でWebビルドをエクスポートしてから quiesco test --platform web
-    npm run e2e:web
-    ```
-    ```sh bun
-    bunx playwright install chromium
+        # EXPO_PUBLIC_QUIESCO=1でWebビルドをエクスポートしてから quiesco test --platform web
+        pnpm e2e:web
+        ```
+        ```sh npm
+        npx playwright install chromium
 
-    # EXPO_PUBLIC_QUIESCO=1でWebビルドをエクスポートしてから quiesco test --platform web
-    bun run e2e:web
-    ```
-    ```sh yarn
-    yarn playwright install chromium
+        # EXPO_PUBLIC_QUIESCO=1でWebビルドをエクスポートしてから quiesco test --platform web
+        npm run e2e:web
+        ```
+        ```sh bun
+        bunx playwright install chromium
 
-    # EXPO_PUBLIC_QUIESCO=1でWebビルドをエクスポートしてから quiesco test --platform web
-    yarn e2e:web
-    ```
-    </CodeGroup>
+        # EXPO_PUBLIC_QUIESCO=1でWebビルドをエクスポートしてから quiesco test --platform web
+        bun run e2e:web
+        ```
+        ```sh yarn
+        yarn playwright install chromium
 
-    テンプレートはサーバー側でレンダリングします（`web.output: "server"`）。このエクスポートに対しては、Quiescoが`npx expo serve`を自動で実行します。静的エクスポートはそのまま配信されます。
+        # EXPO_PUBLIC_QUIESCO=1でWebビルドをエクスポートしてから quiesco test --platform web
+        yarn e2e:web
+        ```
+        </CodeGroup>
+
+        テンプレートはサーバー側でレンダリングします（`web.output: "server"`）。このエクスポートに対しては、Quiescoが`npx expo serve`を自動で実行します。静的エクスポートとシングルページのエクスポートはそのまま配信されます。
+      </Tab>
+      <Tab title="iOS">
+        先にシミュレーターを起動しておきます（`open -a Simulator`、または`xcrun simctl boot "iPhone 17"`）。Quiescoは起動済みのシミュレーターを使います。
+
+        <CodeGroup>
+        ```sh pnpm
+        # 初回のみ：e2eビルドのもとになるdev client
+        pnpm exec expo install expo-dev-client
+
+        # quiesco build ios：EXPO_PUBLIC_QUIESCO=1でprebuildしてから、シミュレーター向けにxcodebuild
+        pnpm e2e:build:ios
+
+        # quiesco test --platform ios
+        pnpm e2e:ios
+        ```
+        ```sh npm
+        # 初回のみ：e2eビルドのもとになるdev client
+        npx expo install expo-dev-client
+
+        # quiesco build ios：EXPO_PUBLIC_QUIESCO=1でprebuildしてから、シミュレーター向けにxcodebuild
+        npm run e2e:build:ios
+
+        # quiesco test --platform ios
+        npm run e2e:ios
+        ```
+        ```sh bun
+        # 初回のみ：e2eビルドのもとになるdev client
+        bunx expo install expo-dev-client
+
+        # quiesco build ios：EXPO_PUBLIC_QUIESCO=1でprebuildしてから、シミュレーター向けにxcodebuild
+        bun run e2e:build:ios
+
+        # quiesco test --platform ios
+        bun run e2e:ios
+        ```
+        ```sh yarn
+        # 初回のみ：e2eビルドのもとになるdev client
+        yarn expo install expo-dev-client
+
+        # quiesco build ios：EXPO_PUBLIC_QUIESCO=1でprebuildしてから、シミュレーター向けにxcodebuild
+        yarn e2e:build:ios
+
+        # quiesco test --platform ios
+        yarn e2e:ios
+        ```
+        </CodeGroup>
+
+        初回のビルドには数分かかります。2回目以降は、アプリの設定と依存関係が変わらないかぎりビルドを省略します。シミュレーターの起動もQuiescoに任せるには、`quiesco.config.mts`の`devices.ios`でシミュレーターを指定します（`{ device: 'iPhone 17' }`）。
+      </Tab>
+      <Tab title="Android">
+        先にエミュレーターを起動しておきます（Android StudioのDevice Manager、または`emulator -avd <name>`）。Quiescoは実行中のエミュレーターを使います。
+
+        <CodeGroup>
+        ```sh pnpm
+        # 初回のみ：e2eビルドのもとになるdev client
+        pnpm exec expo install expo-dev-client
+
+        # quiesco build android：EXPO_PUBLIC_QUIESCO=1でprebuildしてから gradlew assembleDebug
+        pnpm e2e:build:android
+
+        # quiesco test --platform android
+        pnpm e2e:android
+        ```
+        ```sh npm
+        # 初回のみ：e2eビルドのもとになるdev client
+        npx expo install expo-dev-client
+
+        # quiesco build android：EXPO_PUBLIC_QUIESCO=1でprebuildしてから gradlew assembleDebug
+        npm run e2e:build:android
+
+        # quiesco test --platform android
+        npm run e2e:android
+        ```
+        ```sh bun
+        # 初回のみ：e2eビルドのもとになるdev client
+        bunx expo install expo-dev-client
+
+        # quiesco build android：EXPO_PUBLIC_QUIESCO=1でprebuildしてから gradlew assembleDebug
+        bun run e2e:build:android
+
+        # quiesco test --platform android
+        bun run e2e:android
+        ```
+        ```sh yarn
+        # 初回のみ：e2eビルドのもとになるdev client
+        yarn expo install expo-dev-client
+
+        # quiesco build android：EXPO_PUBLIC_QUIESCO=1でprebuildしてから gradlew assembleDebug
+        yarn e2e:build:android
+
+        # quiesco test --platform android
+        yarn e2e:android
+        ```
+        </CodeGroup>
+
+        初回のビルドには数分かかります。2回目以降は、アプリの設定と依存関係が変わらないかぎりビルドを省略します。エミュレーターの起動もQuiescoに任せるには、`quiesco.config.mts`の`devices.android`でAVDを指定します（AVDの一覧は`emulator -list-avds`で確認できます）。
+      </Tab>
+    </Tabs>
   </Step>
 </Steps>
 
 `npx quiesco doctor`はセットアップを確認し、足りないものの直し方を示します。`npx quiesco tree`は実行中のアプリの要素ツリーを出力するので、テストIDを探すのに使えます。
 
-次は：[iOSとAndroid](./native)、[テストランナー](./runners)、そして[APIリファレンス](./api)。
+## iOSとAndroidのe2eビルド {#the-e2e-build-on-ios-and-android}
+
+ネイティブでの実行には、アプリのe2eビルドが必要です。`EXPO_PUBLIC_QUIESCO=1`付きでビルドしたもので、エージェントと`@quiesco/native`（実際のタッチとテキスト入力）を含みます。これを付けずにビルドすると通常の本番ビルドになり、Quiescoのコードは含まれません。
+
+`quiesco build`は`EXPO_PUBLIC_QUIESCO=1`付きの`expo prebuild`とネイティブビルド（シミュレーター向けの`xcodebuild`、`gradlew assembleDebug`）を実行し、`quiesco.config.mts`の`binaryPath`の場所にアプリを書き出します（生成された設定には一般的なパスが入っています）。前回からアプリの設定と依存関係が変わっていなければDebugビルドは省略します。`--force`を付けると必ずビルドします。`quiesco test`はそのアプリをインストールし、dev clientがMetroを必要とし`devClient.metroUrl`で何も応答しないとき、`EXPO_PUBLIC_QUIESCO=1`付きでMetroを起動して、実行の終わりに停止します。自分で起動したMetroはそのまま使います（[設定](./config)の`devServer`）。
+
+`devices`でエミュレーター / シミュレーターを指定します（[設定](./config)を参照）。CIでは、`EXPO_PUBLIC_QUIESCO=1`を付けたEASビルドプロファイルで同じe2eビルドを作れます。3つのプラットフォームすべてで動作確認済みの完全なセットアップは[サンプルアプリ](./example-app)を参照してください。
+
+プラットフォーム間で異なる点（入力、権限、システムダイアログ）は[プラットフォームの違い](./platforms)にまとめています。
+
+次は：[チュートリアル](./tutorial)で実際のテストを書き、続いて[テストランナー](./runners)と[APIリファレンス](./api)を読んでください。

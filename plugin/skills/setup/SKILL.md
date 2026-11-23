@@ -106,8 +106,8 @@ native builds.
 
 ## Additional resources
 
-- **`references/quickstart.md`** — the web quick start, step by step.
-- **`references/native.md`** — iOS and Android: dev client, builds, devices.
+- **`references/quickstart.md`** — the quick start, step by step: web, iOS and Android (dev client,
+  builds, devices).
 - **`references/cli.md`** — every CLI command and option (`init`, `build`, `test`, `ui`, `list`,
   `devices`, `doctor`, `tree`).
 - **`${CLAUDE_PLUGIN_ROOT}/skills/quiesco-api/references/api.md`** — the configuration table.

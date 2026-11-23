@@ -114,6 +114,10 @@ starts Metro for the dev client when it is not running, and stops it afterwards.
 EAS build profile with `EXPO_PUBLIC_QUIESCO=1` produces the same e2e build; see
 [examples/todo-app](examples/todo-app/README.md) for a complete, tested setup on all three platforms.
 
+To learn writing tests on a small app, follow the [tutorial](https://shift-14cc7601.mintlify.site/tutorial):
+[examples/todo-tutorial](examples/todo-tutorial) is a three-screen todo app with its Vitest tests, which
+run on the web, iOS and Android.
+
 ## Test runners
 
 `@quiesco/vitest`, `@quiesco/jest` and `@quiesco/cucumber` all work the same way: one session (device and

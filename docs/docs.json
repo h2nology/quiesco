@@ -30,6 +30,11 @@
       "github": "https://github.com/h2nology/quiesco"
     }
   },
+  "redirects": [
+    { "source": "/native", "destination": "/quickstart#the-e2e-build-on-ios-and-android" },
+    { "source": "/zh/native", "destination": "/zh/quickstart#the-e2e-build-on-ios-and-android" },
+    { "source": "/ja/native", "destination": "/ja/quickstart#the-e2e-build-on-ios-and-android" }
+  ],
   "navigation": {
     "languages": [
       {
@@ -40,7 +45,7 @@
             "pages": [
               "index",
               "quickstart",
-              "native",
+              "tutorial",
               {
                 "group": "Test runners",
                 "pages": [
@@ -83,7 +88,7 @@
             "pages": [
               "zh/index",
               "zh/quickstart",
-              "zh/native",
+              "zh/tutorial",
               {
                 "group": "测试运行器",
                 "pages": [
@@ -126,7 +131,7 @@
             "pages": [
               "ja/index",
               "ja/quickstart",
-              "ja/native",
+              "ja/tutorial",
               {
                 "group": "テストランナー",
                 "pages": [

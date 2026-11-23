@@ -1,9 +1,19 @@
 <!-- Generated from docs/quickstart.mdx by scripts/build-plugin-refs.mjs — do not edit. -->
 
-# Quick start (web)
+# Quick start
 
-From a new Expo app to a passing test in Chromium, in about 10 minutes.
-Requirements: Node.js 24+, an Expo app on SDK 55 or later (`npx create-expo-app@latest`).
+From a new Expo app to a passing test on the web, iOS and Android.
+Requirements: Node.js 24+, an Expo app on SDK 55 or later (`npx create-expo-app@latest`). For each platform
+you want to test:
+
+| Platform | What you need |
+|---|---|
+| Web | Nothing else: Playwright downloads Chromium in the last step |
+| iOS | A Mac with Xcode and an iOS simulator |
+| Android | The Android SDK (Android Studio) and an emulator (AVD) |
+
+The first four steps are the same for every platform; the last one runs the tests on the platform you
+choose.
 
 ### Step 1: Set up the project
 
@@ -17,6 +27,9 @@ npx quiesco init
 `init` asks which test runner to use: press Enter for Vitest (recommended), or choose Jest or Cucumber
 ([test runners](../../quiesco-api/references/runners.md)). `--runner vitest|jest|cucumber` chooses without the question. The steps
 below use Vitest; with the others only the file names differ.
+
+`init` sets up iOS, Android and, when the app has `react-native-web`, the web; `--platforms web,ios`
+limits it. It adds an `e2e:*` script for each platform to `package.json`.
 
 ### Step 2: Wrap the root layout
 
@@ -72,6 +85,10 @@ sync: { ignoreElements: ['logo-glow'] },
 
 ### Step 5: Run it
 
+Pick the platform. The test file is the same for all three.
+
+**Web:**
+
 ```sh
 npx playwright install chromium
 
@@ -80,9 +97,71 @@ npm run e2e:web
 ```
 
 The template renders on the server (`web.output: "server"`); Quiesco runs `npx expo serve` for that
-export by itself. Static exports are served directly.
+export by itself. Static and single-page exports are served directly.
+
+**iOS:**
+
+Boot a simulator first (`open -a Simulator`, or `xcrun simctl boot "iPhone 17"`): Quiesco uses the
+booted one.
+
+```sh
+# once: the dev client the e2e build is made of
+npx expo install expo-dev-client
+
+# quiesco build ios: prebuild with EXPO_PUBLIC_QUIESCO=1, then xcodebuild for the simulator
+npm run e2e:build:ios
+
+# quiesco test --platform ios
+npm run e2e:ios
+```
+
+The first build takes a few minutes; later ones are skipped while the app config and the
+dependencies stay the same. To have Quiesco boot a simulator itself, name it in `devices.ios` in
+`quiesco.config.mts` (`{ device: 'iPhone 17' }`).
+
+**Android:**
+
+Start an emulator first (Android Studio's Device Manager, or `emulator -avd <name>`): Quiesco uses
+the running one.
+
+```sh
+# once: the dev client the e2e build is made of
+npx expo install expo-dev-client
+
+# quiesco build android: prebuild with EXPO_PUBLIC_QUIESCO=1, then gradlew assembleDebug
+npm run e2e:build:android
+
+# quiesco test --platform android
+npm run e2e:android
+```
+
+The first build takes a few minutes; later ones are skipped while the app config and the
+dependencies stay the same. To have Quiesco boot an emulator itself, name the AVD in
+`devices.android` in `quiesco.config.mts` (`emulator -list-avds` lists them).
 
 `npx quiesco doctor` checks the setup and says how to fix what is missing.
 `npx quiesco tree` prints the element tree of the running app to find test ids.
 
-Next: [iOS and Android](./native.md), [test runners](../../quiesco-api/references/runners.md), and the [API reference](../../quiesco-api/references/api.md).
+## The e2e build on iOS and Android {#the-e2e-build-on-ios-and-android}
+
+Native runs need an e2e build of the app: one made with `EXPO_PUBLIC_QUIESCO=1`, so it contains the agent
+and `@quiesco/native` (real touches and text input). A build without it is a normal production build with
+no Quiesco code in it.
+
+`quiesco build` runs `expo prebuild` with `EXPO_PUBLIC_QUIESCO=1` and the native build (`xcodebuild` for the
+simulator, `gradlew assembleDebug`), and writes the app where `binaryPath` in `quiesco.config.mts` says (the
+generated config has the usual paths). It skips a Debug build when the app config and the dependencies did
+not change since the last one; `--force` builds anyway. `quiesco test` installs that app, starts Metro with
+`EXPO_PUBLIC_QUIESCO=1` when the dev client needs it and nothing answers at `devClient.metroUrl`, and stops it
+when the run ends; a Metro you started yourself is used as it is (`devServer` in the
+[configuration](../../quiesco-api/references/config.md)).
+
+Set the emulator / simulator in `devices` (see [configuration](../../quiesco-api/references/config.md)). For CI, an
+EAS build profile with `EXPO_PUBLIC_QUIESCO=1` produces the same e2e build; see the
+[example app](https://shift-14cc7601.mintlify.site/example-app) for a complete, tested setup on all three platforms.
+
+What differs between the platforms (input, permissions, system dialogs) is in
+[platform differences](../../quiesco-api/references/platforms.md).
+
+Next: write real tests in the [tutorial](../../writing-tests/references/tutorial.md), then see [test runners](../../quiesco-api/references/runners.md) and the
+[API reference](../../quiesco-api/references/api.md).
