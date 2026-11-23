@@ -226,14 +226,4 @@ description: "新しいExpoアプリから、Web、iOS、Androidでテストが�
 
 `npx quiesco doctor`はセットアップを確認し、足りないものの直し方を示します。`npx quiesco tree`は実行中のアプリの要素ツリーを出力するので、テストIDを探すのに使えます。
 
-## iOSとAndroidのe2eビルド {#the-e2e-build-on-ios-and-android}
-
-ネイティブでの実行には、アプリのe2eビルドが必要です。`EXPO_PUBLIC_QUIESCO=1`付きでビルドしたもので、エージェントと`@quiesco/native`（実際のタッチとテキスト入力）を含みます。これを付けずにビルドすると通常の本番ビルドになり、Quiescoのコードは含まれません。
-
-`quiesco build`は`EXPO_PUBLIC_QUIESCO=1`付きの`expo prebuild`とネイティブビルド（シミュレーター向けの`xcodebuild`、`gradlew assembleDebug`）を実行し、`quiesco.config.mts`の`binaryPath`の場所にアプリを書き出します（生成された設定には一般的なパスが入っています）。前回からアプリの設定と依存関係が変わっていなければDebugビルドは省略します。`--force`を付けると必ずビルドします。`quiesco test`はそのアプリをインストールし、dev clientがMetroを必要とし`devClient.metroUrl`で何も応答しないとき、`EXPO_PUBLIC_QUIESCO=1`付きでMetroを起動して、実行の終わりに停止します。自分で起動したMetroはそのまま使います（[設定](./config)の`devServer`）。
-
-`devices`でエミュレーター / シミュレーターを指定します（[設定](./config)を参照）。CIでは、`EXPO_PUBLIC_QUIESCO=1`を付けたEASビルドプロファイルで同じe2eビルドを作れます。3つのプラットフォームすべてで動作確認済みの完全なセットアップは[サンプルアプリ](./example-app)を参照してください。
-
-プラットフォーム間で異なる点（入力、権限、システムダイアログ）は[プラットフォームの違い](./platforms)にまとめています。
-
 次は：[チュートリアル](./tutorial)で実際のテストを書き、続いて[テストランナー](./runners)と[APIリファレンス](./api)を読んでください。

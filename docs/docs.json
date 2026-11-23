@@ -31,9 +31,9 @@
     }
   },
   "redirects": [
-    { "source": "/native", "destination": "/quickstart#the-e2e-build-on-ios-and-android" },
-    { "source": "/zh/native", "destination": "/zh/quickstart#the-e2e-build-on-ios-and-android" },
-    { "source": "/ja/native", "destination": "/ja/quickstart#the-e2e-build-on-ios-and-android" }
+    { "source": "/native", "destination": "/quickstart" },
+    { "source": "/zh/native", "destination": "/zh/quickstart" },
+    { "source": "/ja/native", "destination": "/ja/quickstart" }
   ],
   "navigation": {
     "languages": [

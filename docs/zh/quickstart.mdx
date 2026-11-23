@@ -226,14 +226,4 @@ description: "从一个新建的 Expo App 到在 Web、iOS 和 Android 上通过
 
 `npx quiesco doctor` 会检查配置，并说明如何补齐缺失的部分。`npx quiesco tree` 会打印运行中 App 的元素树，便于查找 test id。
 
-## iOS 和 Android 上的 e2e 构建 {#the-e2e-build-on-ios-and-android}
-
-原生平台的运行需要 App 的 e2e 构建：以 `EXPO_PUBLIC_QUIESCO=1` 构建，因此其中包含 agent 和 `@quiesco/native`（真实的触摸和文本输入）。不带这个变量的构建就是普通的生产构建，不含任何 Quiesco 代码。
-
-`quiesco build` 以 `EXPO_PUBLIC_QUIESCO=1` 运行 `expo prebuild` 和原生构建（面向模拟器的 `xcodebuild`、`gradlew assembleDebug`），并把 App 写到 `quiesco.config.mts` 中 `binaryPath` 指定的位置（生成的配置里已填好常用路径）。如果自上次构建以来 App 配置和依赖都没有变化，会跳过 Debug 构建；加 `--force` 则总是构建。当 dev client 需要 Metro 而 `devClient.metroUrl` 上没有响应时，`quiesco test` 会以 `EXPO_PUBLIC_QUIESCO=1` 启动 Metro，并在运行结束时停止它；你自己启动的 Metro 会直接使用（[配置](./config) 中的 `devServer`）。
-
-在 `devices` 中设置 Android Emulator / iOS Simulator（见 [配置](./config)）。在 CI 中，带 `EXPO_PUBLIC_QUIESCO=1` 的 EAS 构建配置（build profile）会产出同样的 e2e 构建；完整且经过测试的三平台配置见 [示例 App](./example-app)。
-
-各平台之间的差异（输入、权限、系统弹窗）见 [平台差异](./platforms)。
-
 下一步：在 [教程](./tutorial) 中编写真正的测试，然后阅读 [测试运行器](./runners) 和 [API 参考](./api)。
