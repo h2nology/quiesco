@@ -1,33 +1,38 @@
 ---
 title: "Driver pattern"
-description: "Business-language steps on top of this.app, so features survive UI changes."
+sidebarTitle: "Overview"
+description: "A driver class in business language between the tests and the app, so tests survive UI changes."
 ---
 
-Feature files should state what the user wants, not which buttons they press. Steps in business language
-call a **driver** of your own, and only the driver knows about test ids and taps. When the UI changes,
-the driver changes; the features and steps do not.
+Tests should say what the user wants, not which buttons they press. Put the taps and the test ids in a
+**driver** of your own, a class with methods in business language (`addTodo('Buy milk')`). The tests
+call only the driver. When the UI changes, the driver changes; the tests do not.
 
-```gherkin
-Scenario: A new todo appears at the top of the list
-  Given the user "a@example.com" is logged in
-  When they add a todo "Buy milk"
-  Then the first todo is "Buy milk"
+```
+test / step  →  TodoDriver (addTodo, todoTitles, …)  →  app (tap, type, query, …)
 ```
 
-## A business driver on top of `this.app` {#a-business-driver-on-top-of-thisapp}
+The driver works the same with every runner; only how a test gets one differs. The examples use the
+[tutorial](./tutorial)'s todo app.
+
+## The driver {#the-driver}
+
+An interface with what the tests need, and a class that does it through the UI:
 
 ```ts
-// features/support/todo-driver.ts
+// e2e/todo-driver.ts
 import type { Driver } from '@quiesco/core';
 
-/** What the todo features need, in the language of the business. */
+import type { SeedTodo } from '../src/backdoors';
+
+/** What the todo tests need, in the language of the business. */
 export interface TodoDriver {
-  loginAs(email: string): Promise<void>;
-  addTodo(title: string): Promise<void>;
+  seed(todos: SeedTodo[]): Promise<void>;
+  addTodo(title: string, notes?: string): Promise<void>;
   todoTitles(): Promise<string[]>;
 }
 
-/** Through the UI, with Quiesco. */
+/** Through the UI, with Quiesco. Only this class knows the test ids. */
 export class UiTodoDriver implements TodoDriver {
   private readonly app: Driver;
 
@@ -35,72 +40,34 @@ export class UiTodoDriver implements TodoDriver {
     this.app = app;
   }
 
-  async loginAs(email: string) {
+  async seed(todos: SeedTodo[]) {
     // setup without the UI
-    await this.app.backdoor('loginAs', email);
+    await this.app.backdoor('seedTodos', todos);
   }
 
-  async addTodo(title: string) {
+  async addTodo(title: string, notes?: string) {
     await this.app.tap('add-todo');
-    await this.app.type('todo-title', title);
-    await this.app.tap({ role: 'button', text: 'Save' });
+    await this.app.type('title-input', title);
+    if (notes !== undefined) await this.app.type('notes-input', notes);
+    await this.app.tap('save-todo');
+    await this.app.expectVisible('todo-list-screen');
   }
 
   async todoTitles() {
-    return (await this.app.query('todo-item')).map((e) => e.text);
+    return (await this.app.query('todo-title')).map((e) => e.text);
   }
 }
 ```
 
-Give the World a driver and register it instead of the default World:
-
-```ts
-// features/support/world.ts
-import { QuiescoWorld, registerQuiesco } from '@quiesco/cucumber';
-
-import { UiTodoDriver } from './todo-driver.ts';
-
-export class TodoWorld extends QuiescoWorld {
-  get todos() {
-    return new UiTodoDriver(this.app);
-  }
-}
-
-// instead of import '@quiesco/cucumber/register'
-registerQuiesco({ world: TodoWorld });
-```
-
-Steps then read like the feature:
-
-```ts
-// features/step_definitions/todos.steps.ts
-import { Given, Then, When } from '@cucumber/cucumber';
-import assert from 'node:assert/strict';
-
-import type { TodoWorld } from '../support/world.ts';
-
-Given('the user {string} is logged in', async function (this: TodoWorld, email: string) {
-  await this.todos.loginAs(email);
-});
-
-When('they add a todo {string}', async function (this: TodoWorld, title: string) {
-  await this.todos.addTodo(title);
-});
-
-Then('the first todo is {string}', async function (this: TodoWorld, title: string) {
-  assert.equal((await this.todos.todoTitles())[0], title);
-});
-```
-
-Prefer Quiesco's assertions where they fit (`this.app.expectText('todo-item', …)`): they retry until the
-app shows the expected state. A plain `assert` on a query result checks once — fine after an action,
-because the action already waited for the app to be idle.
+- `app` is the [Driver](./api#driver-thisapp) the runner gives each test.
+- Prefer Quiesco's assertions inside the driver (`expectVisible`, `expectText`): they retry until the app
+  shows the expected state. A plain assertion on a query result checks once, which is fine after an
+  action, because the action already waited for the app to be idle.
 
 ## Per-platform steps {#per-platform-steps}
 
-A scenario for one platform only gets a tag (`@ios`, `@android`, `@web`). When a shared step is done
-differently per platform, for example a date picker that is inline on iOS and two system dialogs on
-Android, the driver branches on `this.app.platform` (`'ios' | 'android' | 'web'`):
+When one step is done differently per platform, for example a date picker that is inline on iOS and two
+system dialogs on Android, the driver branches on `this.app.platform` (`'ios' | 'android' | 'web'`):
 
 ```ts
 async setDueDate(date: Date) {
@@ -115,62 +82,49 @@ async setDueDate(date: Date) {
 }
 ```
 
-In a step, `this.platform` is the same. `quiesco test` passes the platform to the runner as the
-`QUIESCO_PLATFORM` environment variable; read it through these properties rather than directly.
+A test for one platform only gets a tag instead (`@ios`, `@android`, `@web`; see [tags](./api-tags)).
 
-## Step files are not compiled {#type-stripping}
+## The same tests against the API {#ports-adapters-the-same-features-against-the-api}
 
-cucumber-js loads step and support files with Node's type stripping: Node removes the types and runs the
-rest as JavaScript, without `tsc`. Two rules follow, which the examples on this page keep:
-
-- **Relative imports name the `.ts` file:** `import { UiTodoDriver } from './todo-driver.ts'`.
-  `npx quiesco init` adds `"allowImportingTsExtensions": true` to `tsconfig.json`, so `tsc` accepts
-  them.
-- **No TypeScript syntax that generates code:** parameter properties
-  (`constructor(private app: Driver)`), `enum` and `namespace` fail with
-  `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`. Declare the field and assign it in the constructor; use a union
-  of string literals or an object `as const` instead of an `enum`.
-
-`npx cucumber-js --dry-run` loads every step file without starting the app, so it finds both kinds of
-mistakes in seconds.
-
-## Ports & adapters: the same features against the API {#ports-adapters-the-same-features-against-the-api}
-
-Because the steps only see `TodoDriver`, a second implementation can run the same features without any
-UI — against the backend API, in seconds, for example on every commit:
+Because the tests only see `TodoDriver`, a second implementation can run them without any UI, against
+the app's backend API, in seconds:
 
 ```ts
 export class ApiTodoDriver implements TodoDriver {
   private readonly baseUrl: string;
-  private token = '';
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
   }
 
-  async loginAs(email: string) {
-    const res = await fetch(`${this.baseUrl}/login`, { method: 'POST', body: JSON.stringify({ email }) });
-    this.token = ((await res.json()) as { token: string }).token;
+  async seed(todos: SeedTodo[]) {
+    await fetch(`${this.baseUrl}/todos`, { method: 'PUT', body: JSON.stringify(todos) });
   }
 
-  async addTodo(title: string) {
-    await fetch(`${this.baseUrl}/todos`, { method: 'POST', headers: { authorization: this.token }, body: JSON.stringify({ title }) });
+  async addTodo(title: string, notes?: string) {
+    await fetch(`${this.baseUrl}/todos`, { method: 'POST', body: JSON.stringify({ title, notes }) });
   }
 
   async todoTitles() {
-    const res = await fetch(`${this.baseUrl}/todos`, { headers: { authorization: this.token } });
+    const res = await fetch(`${this.baseUrl}/todos`);
     return ((await res.json()) as { title: string }[]).map((t) => t.title);
   }
 }
 ```
 
-Select the driver with an environment variable or a cucumber profile. The API run does not need
-Quiesco at all: give it its own World (a plain cucumber `World` with an `ApiTodoDriver`) and leave out
-the Quiesco registration in that profile.
+Pick the driver with an environment variable. With Cucumber, the API run can leave Quiesco out entirely
+([API run](./driver-pattern-cucumber#api-run)).
 
-## Generic steps {#generic-steps}
+## Pick a runner {#pick-a-runner}
 
-`@quiesco/steps` offers ready-made steps such as `点击 "add-todo"` / `"add-todo" をタップする` /
-`I tap "add-todo"`. They are operation scripts — useful to explore an app or sketch a prototype, but they
-tie features to the UI. Move to business-language steps as soon as the features describe real
-requirements. See [packages/steps](./steps).
+<CardGroup cols={3}>
+  <Card title="Vitest" icon="flask" href="./driver-pattern-vitest">
+    The driver as a test fixture.
+  </Card>
+  <Card title="Jest" icon="flask" href="./driver-pattern-jest">
+    The driver in JavaScript, made in `beforeEach`.
+  </Card>
+  <Card title="Cucumber" icon="flask" href="./driver-pattern-cucumber">
+    The driver on the World, steps in business language.
+  </Card>
+</CardGroup>

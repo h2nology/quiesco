@@ -34,7 +34,7 @@ ExpoプロジェクトにQuiescoをセットアップします。各手順で何
    |---|---|
    | Vitest | `vitest.config.mts`、`e2e/app.test.ts` |
    | Jest | `jest.config.cjs`、`e2e/app.test.js` |
-   | Cucumber | `cucumber.mjs`、`features/support/quiesco.ts`、ステップ付きの`features/app.feature`。さらに`tsconfig.json`に`"allowImportingTsExtensions": true`（stepファイル同士は`.ts`付きでimportします。[stepファイルはコンパイルされない](./driver-pattern#type-stripping)を参照） |
+   | Cucumber | `cucumber.mjs`、`features/support/quiesco.ts`、ステップ付きの`features/app.feature`。さらに`tsconfig.json`に`"allowImportingTsExtensions": true`（stepファイル同士は`.ts`付きでimportします。[stepファイルはコンパイルされない](./driver-pattern-cucumber#type-stripping)を参照） |
 
    プロジェクトにすでにVitestやJestの設定（ユニットテスト用）がある場合、それには手を付けません。Quiescoの設定はその隣に`vitest.e2e.config.mts` / `jest.e2e.config.cjs`として置き、`e2e:*`スクリプトはその名前を`--config`で渡します。
 

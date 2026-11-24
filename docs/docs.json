@@ -65,7 +65,16 @@
             "group": "Get started",
             "pages": [
               "index",
-              "quickstart"
+              "quickstart",
+              {
+                "group": "Test runners",
+                "pages": [
+                  "runners",
+                  "vitest",
+                  "jest",
+                  "cucumber"
+                ]
+              }
             ]
           },
           {
@@ -105,17 +114,16 @@
             "group": "Guides",
             "pages": [
               "sync",
+              "steps",
               {
-                "group": "Test runners",
+                "group": "Driver pattern",
                 "pages": [
-                  "runners",
-                  "vitest",
-                  "jest",
-                  "cucumber",
-                  "steps"
+                  "driver-pattern",
+                  "driver-pattern-vitest",
+                  "driver-pattern-jest",
+                  "driver-pattern-cucumber"
                 ]
               },
-              "driver-pattern",
               "parallel",
               "platforms",
               "ui",
@@ -131,7 +139,16 @@
             "group": "入门",
             "pages": [
               "zh/index",
-              "zh/quickstart"
+              "zh/quickstart",
+              {
+                "group": "测试运行器",
+                "pages": [
+                  "zh/runners",
+                  "zh/vitest",
+                  "zh/jest",
+                  "zh/cucumber"
+                ]
+              }
             ]
           },
           {
@@ -171,17 +188,16 @@
             "group": "指南",
             "pages": [
               "zh/sync",
+              "zh/steps",
               {
-                "group": "测试运行器",
+                "group": "Driver 模式",
                 "pages": [
-                  "zh/runners",
-                  "zh/vitest",
-                  "zh/jest",
-                  "zh/cucumber",
-                  "zh/steps"
+                  "zh/driver-pattern",
+                  "zh/driver-pattern-vitest",
+                  "zh/driver-pattern-jest",
+                  "zh/driver-pattern-cucumber"
                 ]
               },
-              "zh/driver-pattern",
               "zh/parallel",
               "zh/platforms",
               "zh/ui",
@@ -197,7 +213,16 @@
             "group": "はじめに",
             "pages": [
               "ja/index",
-              "ja/quickstart"
+              "ja/quickstart",
+              {
+                "group": "テストランナー",
+                "pages": [
+                  "ja/runners",
+                  "ja/vitest",
+                  "ja/jest",
+                  "ja/cucumber"
+                ]
+              }
             ]
           },
           {
@@ -237,17 +262,16 @@
             "group": "ガイド",
             "pages": [
               "ja/sync",
+              "ja/steps",
               {
-                "group": "テストランナー",
+                "group": "Driverパターン",
                 "pages": [
-                  "ja/runners",
-                  "ja/vitest",
-                  "ja/jest",
-                  "ja/cucumber",
-                  "ja/steps"
+                  "ja/driver-pattern",
+                  "ja/driver-pattern-vitest",
+                  "ja/driver-pattern-jest",
+                  "ja/driver-pattern-cucumber"
                 ]
               },
-              "ja/driver-pattern",
               "ja/parallel",
               "ja/platforms",
               "ja/ui",

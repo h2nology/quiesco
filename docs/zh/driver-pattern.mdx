@@ -1,31 +1,35 @@
 ---
 title: "Driver 模式"
-description: "在 this.app 之上用业务语言编写步骤，让 feature 文件经得起 UI 变化。"
+sidebarTitle: "概览"
+description: "在测试和 App 之间放一个用业务语言写的 driver 类，让测试经得起 UI 变化。"
 ---
 
-feature 文件应该陈述用户想要什么，而不是用户按了哪些按钮。用业务语言写的步骤调用你自己的 **driver**，只有 driver 知道 test id 和点击操作。UI 变化时，只需修改 driver；feature 文件和步骤都不用动。
+测试应该写用户想做什么，而不是按了哪些按钮。把点击和 test id 放进自己写的 **driver**：一个用业务语言命名方法的类（`addTodo('Buy milk')`）。测试只调用 driver。UI 变了，只改 driver，测试不用动。
 
-```gherkin
-Scenario: A new todo appears at the top of the list
-  Given the user "a@example.com" is logged in
-  When they add a todo "Buy milk"
-  Then the first todo is "Buy milk"
+```
+test / step  →  TodoDriver (addTodo, todoTitles, …)  →  app (tap, type, query, …)
 ```
 
-## 基于 `this.app` 的业务 driver {#a-business-driver-on-top-of-thisapp}
+driver 在每种运行器里都一样，不同的只是测试怎么拿到它。示例使用[教程](./tutorial)中的待办 App。
+
+## Driver {#the-driver}
+
+一个接口描述测试需要什么，一个类通过 UI 来实现：
 
 ```ts
-// features/support/todo-driver.ts
+// e2e/todo-driver.ts
 import type { Driver } from '@quiesco/core';
 
-/** todo 相关 feature 所需的操作，用业务语言表达。*/
+import type { SeedTodo } from '../src/backdoors';
+
+/** 待办测试需要的操作，用业务语言表达。 */
 export interface TodoDriver {
-  loginAs(email: string): Promise<void>;
-  addTodo(title: string): Promise<void>;
+  seed(todos: SeedTodo[]): Promise<void>;
+  addTodo(title: string, notes?: string): Promise<void>;
   todoTitles(): Promise<string[]>;
 }
 
-/** 通过 UI，借助 Quiesco 实现。*/
+/** 通过 UI、用 Quiesco 实现。只有这个类知道 test id。 */
 export class UiTodoDriver implements TodoDriver {
   private readonly app: Driver;
 
@@ -33,68 +37,31 @@ export class UiTodoDriver implements TodoDriver {
     this.app = app;
   }
 
-  async loginAs(email: string) {
-    // 不经过 UI 准备状态
-    await this.app.backdoor('loginAs', email);
+  async seed(todos: SeedTodo[]) {
+    // 不经过 UI 准备数据
+    await this.app.backdoor('seedTodos', todos);
   }
 
-  async addTodo(title: string) {
+  async addTodo(title: string, notes?: string) {
     await this.app.tap('add-todo');
-    await this.app.type('todo-title', title);
-    await this.app.tap({ role: 'button', text: 'Save' });
+    await this.app.type('title-input', title);
+    if (notes !== undefined) await this.app.type('notes-input', notes);
+    await this.app.tap('save-todo');
+    await this.app.expectVisible('todo-list-screen');
   }
 
   async todoTitles() {
-    return (await this.app.query('todo-item')).map((e) => e.text);
+    return (await this.app.query('todo-title')).map((e) => e.text);
   }
 }
 ```
 
-给 World 加上 driver，并用它替代默认的 World 进行注册：
-
-```ts
-// features/support/world.ts
-import { QuiescoWorld, registerQuiesco } from '@quiesco/cucumber';
-
-import { UiTodoDriver } from './todo-driver.ts';
-
-export class TodoWorld extends QuiescoWorld {
-  get todos() {
-    return new UiTodoDriver(this.app);
-  }
-}
-
-// 替代 import '@quiesco/cucumber/register'
-registerQuiesco({ world: TodoWorld });
-```
-
-这样步骤读起来就和 feature 一样：
-
-```ts
-// features/step_definitions/todos.steps.ts
-import { Given, Then, When } from '@cucumber/cucumber';
-import assert from 'node:assert/strict';
-
-import type { TodoWorld } from '../support/world.ts';
-
-Given('the user {string} is logged in', async function (this: TodoWorld, email: string) {
-  await this.todos.loginAs(email);
-});
-
-When('they add a todo {string}', async function (this: TodoWorld, title: string) {
-  await this.todos.addTodo(title);
-});
-
-Then('the first todo is {string}', async function (this: TodoWorld, title: string) {
-  assert.equal((await this.todos.todoTitles())[0], title);
-});
-```
-
-在合适的地方优先使用 Quiesco 的断言（`this.app.expectText('todo-item', …)`）：它们会重试，直到 App 显示出预期的状态。对查询结果直接用 `assert` 只检查一次——在操作之后这样做没有问题，因为操作已经等到 App 空闲了。
+- `app` 是运行器交给每个测试的 [Driver](./api#driver-thisapp)。
+- driver 里优先用 Quiesco 的断言（`expectVisible`、`expectText`）：它们会重试，直到 App 显示出期望的状态。对查询结果做普通断言只检查一次；在操作之后这样做没问题，因为操作已经等 App 空闲了。
 
 ## 按平台区分的步骤 {#per-platform-steps}
 
-只针对一个平台的场景用标签标注（`@ios`、`@android`、`@web`）。当一个共用步骤在不同平台上的做法不同时，例如日期选择器在 iOS 上是内嵌的、在 Android 上是两个系统对话框，driver 根据 `this.app.platform`（`'ios' | 'android' | 'web'`）分支：
+同一个步骤在不同平台上做法不同时，例如日期选择器在 iOS 上是内嵌的，在 Android 上是两个系统对话框，driver 按 `this.app.platform`（`'ios' | 'android' | 'web'`）分支：
 
 ```ts
 async setDueDate(date: Date) {
@@ -109,48 +76,47 @@ async setDueDate(date: Date) {
 }
 ```
 
-在步骤中，`this.platform` 与之相同。`quiesco test` 通过环境变量 `QUIESCO_PLATFORM` 把平台传给 runner；请通过这些属性读取，而不是直接读环境变量。
+只针对一个平台的测试则加标签（`@ios`、`@android`、`@web`；见[标签](./api-tags)）。
 
-## step 文件不会被编译 {#type-stripping}
+## 用同一批测试测 API {#ports-adapters-the-same-features-against-the-api}
 
-cucumber-js 用 Node 的 type stripping 加载 step 和 support 文件：Node 去掉类型，把剩下的部分当作 JavaScript 运行，不经过 `tsc`。由此有两条规则，本页的示例都遵守：
-
-- **相对导入要写出 `.ts` 文件名：** `import { UiTodoDriver } from './todo-driver.ts'`。`npx quiesco init` 会在 `tsconfig.json` 中加上 `"allowImportingTsExtensions": true`，让 `tsc` 接受这种写法。
-- **不能用会生成代码的 TypeScript 语法：** 参数属性（`constructor(private app: Driver)`）、`enum` 和 `namespace` 会报 `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`。改为声明字段并在构造函数中赋值；用字符串字面量的联合类型或 `as const` 对象代替 `enum`。
-
-`npx cucumber-js --dry-run` 不启动 App 就会加载所有 step 文件，几秒钟内就能发现这两类错误。
-
-## 端口与适配器：用同样的 feature 测试 API {#ports-adapters-the-same-features-against-the-api}
-
-由于步骤只看到 `TodoDriver`，第二种实现可以完全不经过 UI，直接针对后端 API 运行同样的 feature——只需几秒，例如可以在每次提交时运行：
+测试只看得到 `TodoDriver`，所以换一个实现，就能不经过 UI、直接对 App 的后端 API 运行这些测试，几秒就跑完：
 
 ```ts
 export class ApiTodoDriver implements TodoDriver {
   private readonly baseUrl: string;
-  private token = '';
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
   }
 
-  async loginAs(email: string) {
-    const res = await fetch(`${this.baseUrl}/login`, { method: 'POST', body: JSON.stringify({ email }) });
-    this.token = ((await res.json()) as { token: string }).token;
+  async seed(todos: SeedTodo[]) {
+    await fetch(`${this.baseUrl}/todos`, { method: 'PUT', body: JSON.stringify(todos) });
   }
 
-  async addTodo(title: string) {
-    await fetch(`${this.baseUrl}/todos`, { method: 'POST', headers: { authorization: this.token }, body: JSON.stringify({ title }) });
+  async addTodo(title: string, notes?: string) {
+    await fetch(`${this.baseUrl}/todos`, { method: 'POST', body: JSON.stringify({ title, notes }) });
   }
 
   async todoTitles() {
-    const res = await fetch(`${this.baseUrl}/todos`, { headers: { authorization: this.token } });
+    const res = await fetch(`${this.baseUrl}/todos`);
     return ((await res.json()) as { title: string }[]).map((t) => t.title);
   }
 }
 ```
 
-用环境变量或 cucumber profile 选择 driver。API 运行完全不需要 Quiesco：给它单独的 World（一个带 `ApiTodoDriver` 的普通 cucumber `World`），并在该 profile 中去掉 Quiesco 的注册。
+用环境变量选择 driver。使用 Cucumber 时，API 运行可以完全不用 Quiesco（[API 运行](./driver-pattern-cucumber#api-run)）。
 
-## 通用步骤 {#generic-steps}
+## 选择测试运行器 {#pick-a-runner}
 
-`@quiesco/steps` 提供现成的步骤，例如 `点击 "add-todo"` / `"add-todo" をタップする` / `I tap "add-todo"`。它们是操作脚本——适合探索 App 或勾勒原型，但会把 feature 文件绑定到 UI 上。一旦 feature 文件开始描述真实需求，就应改用业务语言的步骤。见 [packages/steps](./steps)。
+<CardGroup cols={3}>
+  <Card title="Vitest" icon="flask" href="./driver-pattern-vitest">
+    把 driver 作为测试 fixture。
+  </Card>
+  <Card title="Jest" icon="flask" href="./driver-pattern-jest">
+    用 JavaScript 写 driver，在 `beforeEach` 里创建。
+  </Card>
+  <Card title="Cucumber" icon="flask" href="./driver-pattern-cucumber">
+    把 driver 放在 World 上，用业务语言写步骤。
+  </Card>
+</CardGroup>

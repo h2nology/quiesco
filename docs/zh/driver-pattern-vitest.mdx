@@ -1,0 +1,48 @@
+---
+title: "在 Vitest 中使用 Driver 模式"
+sidebarTitle: "Vitest"
+description: "把业务 driver 作为 fixture 交给 Vitest 测试。"
+---
+
+在 Vitest 中，[driver](./driver-pattern#the-driver) 成为一个 fixture：测试请求 `todos`，而不是 `app`。
+
+## Fixture {#fixture}
+
+`@quiesco/vitest` 的 `test` 是带有 `app` fixture 的 Vitest `test`。用 driver 扩展它：
+
+```ts
+// e2e/fixtures.ts
+import { test as base } from '@quiesco/vitest';
+
+import { type TodoDriver, UiTodoDriver } from './todo-driver';
+
+export { expect } from '@quiesco/vitest';
+
+export const test = base.extend<{ todos: TodoDriver }>({
+  todos: async ({ app }, use) => {
+    await use(new UiTodoDriver(app));
+  },
+});
+```
+
+`todos` 用到了 `app`，所以请求 `todos` 的测试和请求 `app` 的测试一样，运行前都会重置 App。
+
+## 测试 {#tests}
+
+从 fixtures 文件导入 `test` 和 `expect`，而不是从 `@quiesco/vitest`：
+
+```ts
+// e2e/todos.test.ts
+import { expect, test } from './fixtures';
+
+test('a new todo appears at the top of the list', async ({ todos }) => {
+  await todos.seed([{ title: 'Call the dentist' }]);
+  await todos.addTodo('Buy milk');
+
+  expect(await todos.todoTitles()).toEqual(['Buy milk', 'Call the dentist']);
+});
+```
+
+测试里没有 test id，也没有点击。需要 driver 没覆盖的操作时，测试仍可以在 `todos` 之外再请求 `app`。
+
+关于 Vitest 的更多内容见 [Vitest](./vitest)。

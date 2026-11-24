@@ -11,7 +11,7 @@
  * The conversion: frontmatter becomes a "# title" heading and a description line; <Note> / <Warning>
  * become block quotes; <Steps> / <Step title> become numbered "### Step" headings; <ResponseField> becomes a
  * list item with its type and default (nested in <Expandable>); <Card> becomes a list item linking to its
- * page; <Tab title> becomes a bold "Title:" line over its content; a <Frame> image becomes a list item with
+ * page; <Tab title> and <Accordion title> become a bold "Title:" line over their content; a <Frame> image becomes a list item with
  * its caption and alt text; a link to another page
  * points at that page's reference when the plugin ships it, at the documentation site otherwise. Code
  * blocks are copied as they are.
@@ -46,7 +46,7 @@ const PAGES = {
     'api-artifacts',
     'api-custom-runners',
     'config', 'sync', 'platforms', 'parallel', 'runners', 'vitest', 'jest', 'cucumber'],
-  'writing-tests': ['tutorial', 'tutorial-vitest', 'tutorial-jest', 'tutorial-cucumber', 'steps', 'driver-pattern'],
+  'writing-tests': ['tutorial', 'tutorial-vitest', 'tutorial-jest', 'tutorial-cucumber', 'steps', 'driver-pattern', 'driver-pattern-vitest', 'driver-pattern-jest', 'driver-pattern-cucumber'],
   setup: ['quickstart', 'cli'],
   debug: ['troubleshooting'],
 };
@@ -155,14 +155,14 @@ export function convert(source, page, skill) {
       continue;
     }
 
-    if (trimmed === '<Tabs>' || trimmed === '</Tabs>') continue;
-    const t = /^(\s*)<Tab title="(.*)">$/.exec(line);
+    if (/^<\/?(Tabs|AccordionGroup)>$/.test(trimmed)) continue;
+    const t = /^(\s*)<(?:Tab|Accordion) title="(.*)">$/.exec(line);
     if (t) {
       tabIndent = t[1].length + 2;
       out.push(`**${t[2]}:**`, '');
       continue;
     }
-    if (trimmed === '</Tab>') {
+    if (trimmed === '</Tab>' || trimmed === '</Accordion>') {
       tabIndent = 0;
       out.push('');
       continue;

@@ -318,4 +318,4 @@ failure's evidence on the page — install `@quiesco/ui` and start `npx quiesco 
 - [Synchronization](../../quiesco-api/references/sync.md): what idle means, and what to do with an animation that never stops.
 - [API reference](../../quiesco-api/references/api.md): every action and assertion, and the matchers (`within`, `has`, regular
   expressions).
-- [Driver pattern](./driver-pattern.md): keep test ids out of the tests once a suite grows.
+- [Driver pattern](./driver-pattern-vitest.md): keep test ids out of the tests once a suite grows.

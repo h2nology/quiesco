@@ -1,0 +1,50 @@
+<!-- Generated from docs/driver-pattern-vitest.mdx by scripts/build-plugin-refs.mjs — do not edit. -->
+
+# Driver pattern with Vitest
+
+Give Vitest tests a business driver as a fixture.
+With Vitest, the [driver](./driver-pattern.md#the-driver) becomes a fixture: tests ask for `todos`
+instead of `app`.
+
+## A fixture {#fixture}
+
+`test` from `@quiesco/vitest` is a Vitest `test` with the `app` fixture. Extend it with the driver:
+
+```ts
+// e2e/fixtures.ts
+import { test as base } from '@quiesco/vitest';
+
+import { type TodoDriver, UiTodoDriver } from './todo-driver';
+
+export { expect } from '@quiesco/vitest';
+
+export const test = base.extend<{ todos: TodoDriver }>({
+  todos: async ({ app }, use) => {
+    await use(new UiTodoDriver(app));
+  },
+});
+```
+
+`todos` uses `app`, so a test that asks for `todos` gets the reset before it, like one that asks for
+`app`.
+
+## Tests {#tests}
+
+Import `test` and `expect` from the fixtures file instead of `@quiesco/vitest`:
+
+```ts
+// e2e/todos.test.ts
+import { expect, test } from './fixtures';
+
+test('a new todo appears at the top of the list', async ({ todos }) => {
+  await todos.seed([{ title: 'Call the dentist' }]);
+  await todos.addTodo('Buy milk');
+
+  expect(await todos.todoTitles()).toEqual(['Buy milk', 'Call the dentist']);
+});
+```
+
+The test has no test ids and no taps. A test that needs something the driver does not cover can still
+ask for `app` next to `todos`.
+
+More on Vitest in [Vitest](../../quiesco-api/references/vitest.md).

@@ -1,0 +1,85 @@
+---
+title: "在 Cucumber 中使用 Driver 模式"
+sidebarTitle: "Cucumber"
+description: "在 World 的 driver 之上用业务语言写步骤，让 feature 文件经得起 UI 变化。"
+---
+
+在 Cucumber 中，[driver](./driver-pattern#the-driver) 放在 World 上，由步骤调用。这样 feature 文件写的是用户想做什么，而不是按了哪些按钮：
+
+```gherkin
+Feature: Todos
+
+  Scenario: A new todo appears at the top of the list
+    Given the todo "Call the dentist"
+    When I add a todo "Buy milk"
+    Then the todos are "Buy milk", "Call the dentist"
+```
+
+## World 上的 driver {#world}
+
+把 driver 放在 `features/support/todo-driver.ts`，代码与[概览](./driver-pattern#the-driver)中的相同，只改一处：导入要写出 `.ts` 文件名（`'../../src/backdoors.ts'`；见[下文](#type-stripping)）。
+
+给 World 加一个返回 driver 的 getter，并用这个 World 代替默认的 World 注册：
+
+```ts
+// features/support/world.ts
+import { QuiescoWorld, registerQuiesco } from '@quiesco/cucumber';
+
+import { type TodoDriver, UiTodoDriver } from './todo-driver.ts';
+
+export class TodoWorld extends QuiescoWorld {
+  get todos(): TodoDriver {
+    return new UiTodoDriver(this.app);
+  }
+}
+
+// 代替 import '@quiesco/cucumber/register'
+registerQuiesco({ world: TodoWorld });
+```
+
+`registerQuiesco()` 替代 `features/support/quiesco.ts` 中的 `import '@quiesco/cucumber/register'`，两者不要同时保留（[`registerQuiesco()`](./cucumber#register-quiesco)）。
+
+## 步骤 {#steps}
+
+这样步骤读起来就和 feature 一样：
+
+```ts
+// features/step_definitions/todos.steps.ts
+import { Given, Then, When } from '@cucumber/cucumber';
+import assert from 'node:assert/strict';
+
+import type { TodoWorld } from '../support/world.ts';
+
+Given('the todo {string}', async function (this: TodoWorld, title: string) {
+  await this.todos.seed([{ title }]);
+});
+
+When('I add a todo {string}', async function (this: TodoWorld, title: string) {
+  await this.todos.addTodo(title);
+});
+
+Then('the todos are {string}, {string}', async function (this: TodoWorld, first: string, second: string) {
+  assert.deepEqual(await this.todos.todoTitles(), [first, second]);
+});
+```
+
+在步骤中，`this.platform` 与 `this.app.platform` 相同（[按平台区分的步骤](./driver-pattern#per-platform-steps)）。
+
+## 步骤文件不会被编译 {#type-stripping}
+
+cucumber-js 用 Node 的类型剥离加载步骤文件和 support 文件：Node 去掉类型后，把剩下的部分当作 JavaScript 运行，不经过 `tsc`。由此有两条规则：
+
+- **相对导入要写出 `.ts` 文件名：**`import { UiTodoDriver } from './todo-driver.ts'`。`npx quiesco init` 会在 `tsconfig.json` 中加上 `"allowImportingTsExtensions": true`，让 `tsc` 接受这种写法。
+- **不能用会生成代码的 TypeScript 语法：**参数属性（`constructor(private app: Driver)`）、`enum` 和 `namespace` 会报 `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`。改为声明字段并在构造函数中赋值；用字符串字面量的联合类型或 `as const` 对象代替 `enum`。
+
+`npx cucumber-js --dry-run` 会加载所有步骤文件而不启动 App，几秒内就能发现这两类错误。
+
+## 用同一批 feature 测 API {#api-run}
+
+有了 [`ApiTodoDriver`](./driver-pattern#ports-adapters-the-same-features-against-the-api)，同一批 feature 可以不启动 App 运行。用环境变量或 cucumber profile 选择 driver。API 运行完全不需要 Quiesco：给它单独的 World（带 `ApiTodoDriver` 的普通 cucumber `World`），并在那个 profile 中去掉 Quiesco 的注册。
+
+## 通用步骤 {#generic-steps}
+
+`@quiesco/steps` 提供现成的步骤，例如 `点击 "add-todo"` / `"add-todo" をタップする` / `I tap "add-todo"`。它们是操作脚本，适合探索 App 或做原型，但会把 feature 绑死在 UI 上。一旦 feature 描述的是真正的需求，就换成业务语言的步骤。见[通用步骤](./steps)。
+
+关于 Cucumber 的更多内容见 [Cucumber](./cucumber)。

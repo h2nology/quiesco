@@ -39,7 +39,7 @@ First it asks which test runner to use: Vitest (preselected), Jest or Cucumber (
    |---|---|
    | Vitest | `vitest.config.mts`, `e2e/app.test.ts` |
    | Jest | `jest.config.cjs`, `e2e/app.test.js` |
-   | Cucumber | `cucumber.mjs`, `features/support/quiesco.ts`, `features/app.feature` with its step; and `"allowImportingTsExtensions": true` in `tsconfig.json` (step files import each other with `.ts`, see [step files are not compiled](../../writing-tests/references/driver-pattern.md#type-stripping)) |
+   | Cucumber | `cucumber.mjs`, `features/support/quiesco.ts`, `features/app.feature` with its step; and `"allowImportingTsExtensions": true` in `tsconfig.json` (step files import each other with `.ts`, see [step files are not compiled](../../writing-tests/references/driver-pattern-cucumber.md#type-stripping)) |
 
    When the project already has a Vitest or Jest config (its unit tests'), that one stays as it is: Quiesco's
    goes next to it as `vitest.e2e.config.mts` / `jest.e2e.config.cjs`, and the `e2e:*` scripts pass

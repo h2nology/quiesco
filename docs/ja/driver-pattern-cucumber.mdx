@@ -1,0 +1,85 @@
+---
+title: "CucumberでのDriverパターン"
+sidebarTitle: "Cucumber"
+description: "Worldのdriverの上にビジネスの言葉でステップを書き、UIが変わってもfeatureが壊れないようにします。"
+---
+
+Cucumberでは、[driver](./driver-pattern#the-driver)をWorldに置き、ステップから呼びます。これでfeatureには、どのボタンを押すかではなく、ユーザーが何をしたいかを書けます。
+
+```gherkin
+Feature: Todos
+
+  Scenario: A new todo appears at the top of the list
+    Given the todo "Call the dentist"
+    When I add a todo "Buy milk"
+    Then the todos are "Buy milk", "Call the dentist"
+```
+
+## Worldのdriver {#world}
+
+driverは`features/support/todo-driver.ts`に置きます。コードは[概要](./driver-pattern#the-driver)と同じで、変えるのは1か所だけです。インポートで`.ts`のファイル名まで書きます（`'../../src/backdoors.ts'`。[後述](#type-stripping)）。
+
+Worldにdriverを返すgetterを加え、デフォルトのWorldの代わりにそのWorldを登録します。
+
+```ts
+// features/support/world.ts
+import { QuiescoWorld, registerQuiesco } from '@quiesco/cucumber';
+
+import { type TodoDriver, UiTodoDriver } from './todo-driver.ts';
+
+export class TodoWorld extends QuiescoWorld {
+  get todos(): TodoDriver {
+    return new UiTodoDriver(this.app);
+  }
+}
+
+// import '@quiesco/cucumber/register' の代わり
+registerQuiesco({ world: TodoWorld });
+```
+
+`registerQuiesco()`は、`features/support/quiesco.ts`の`import '@quiesco/cucumber/register'`を置き換えます。両方を残さないでください（[`registerQuiesco()`](./cucumber#register-quiesco)）。
+
+## ステップ {#steps}
+
+これでステップがfeatureと同じように読めます。
+
+```ts
+// features/step_definitions/todos.steps.ts
+import { Given, Then, When } from '@cucumber/cucumber';
+import assert from 'node:assert/strict';
+
+import type { TodoWorld } from '../support/world.ts';
+
+Given('the todo {string}', async function (this: TodoWorld, title: string) {
+  await this.todos.seed([{ title }]);
+});
+
+When('I add a todo {string}', async function (this: TodoWorld, title: string) {
+  await this.todos.addTodo(title);
+});
+
+Then('the todos are {string}, {string}', async function (this: TodoWorld, first: string, second: string) {
+  assert.deepEqual(await this.todos.todoTitles(), [first, second]);
+});
+```
+
+ステップの中では、`this.platform`は`this.app.platform`と同じです（[プラットフォームごとに異なるステップ](./driver-pattern#per-platform-steps)）。
+
+## stepファイルはコンパイルされない {#type-stripping}
+
+cucumber-jsは、stepファイルとsupportファイルをNodeの型ストリッピングで読み込みます。Nodeは型を取り除き、残りを`tsc`を通さずにJavaScriptとして実行します。ここから2つのルールが生まれます。
+
+- **相対インポートでは`.ts`のファイル名まで書く：**`import { UiTodoDriver } from './todo-driver.ts'`。`npx quiesco init`が`tsconfig.json`に`"allowImportingTsExtensions": true`を加えるので、`tsc`もこの書き方を受け付けます。
+- **コードを生成するTypeScriptの構文は使わない：**パラメータープロパティ（`constructor(private app: Driver)`）、`enum`、`namespace`は`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`で失敗します。フィールドを宣言してコンストラクターで代入し、`enum`の代わりに文字列リテラルのユニオンか`as const`のオブジェクトを使ってください。
+
+`npx cucumber-js --dry-run`はアプリを起動せずにすべてのstepファイルを読み込むので、この2種類の間違いを数秒で見つけられます。
+
+## 同じfeatureをAPIに対して実行する {#api-run}
+
+[`ApiTodoDriver`](./driver-pattern#ports-adapters-the-same-features-against-the-api)があれば、同じfeatureをアプリなしで実行できます。driverは環境変数かcucumberのprofileで選びます。APIでの実行にQuiescoはまったく要りません。専用のWorld（`ApiTodoDriver`を持つ普通のcucumberの`World`）を用意し、そのprofileではQuiescoの登録を外します。
+
+## 汎用ステップ {#generic-steps}
+
+`@quiesco/steps`には、`点击 "add-todo"` / `"add-todo" をタップする` / `I tap "add-todo"`のような既製のステップがあります。これらは操作手順で、アプリの調査やプロトタイプには便利ですが、featureをUIに縛ります。featureが実際の要件を表すようになったら、すぐにビジネスの言葉のステップに移ってください。[汎用ステップ](./steps)を参照してください。
+
+Cucumberについて詳しくは[Cucumber](./cucumber)を参照してください。
