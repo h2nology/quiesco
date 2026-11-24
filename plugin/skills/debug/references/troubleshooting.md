@@ -117,7 +117,7 @@ fail the step; a failure later in the scenario names it ([LogBox covers the app]
   that device), or boot one.
 - **The camera is not granted:** the simulator cannot pre-grant it (see
   [permissions](../../quiesco-api/references/platforms.md#permissions)); avoid the system dialog in tests, or accept it in a step.
-  Notifications can be pre-granted (config `permissions`).
+  Notifications can be pre-granted (config `permissions`, before the app starts).
 
 ## Android {#android}
 

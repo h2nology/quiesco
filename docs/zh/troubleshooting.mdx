@@ -65,7 +65,7 @@ App 中未捕获的错误会让当前步骤失败——这通常是真正的 bug
 
 - **登录表单之后 "Save Password?" 盖住了 App：** 保持 `devices.ios.disablePasswordAutoFill` 开启（默认）。
 - **`simctl` 找不到模拟器：** 设置 `devices.ios.device`（当多个运行时都有该设备时还要设置 `os`），或者先启动一台。
-- **相机权限没有授予：** 模拟器无法预先授予相机权限（见[权限](./platforms#permissions)）；在测试中避开系统弹窗，或在某个步骤中接受它。通知可以预先授予（配置的 `permissions`）。
+- **相机权限没有授予：** 模拟器无法预先授予相机权限（见[权限](./platforms#permissions)）；在测试中避开系统弹窗，或在某个步骤中接受它。通知可以预先授予（配置的 `permissions`，在 App 启动前）。
 
 ## Android {#android}
 

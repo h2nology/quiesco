@@ -41,7 +41,7 @@ description: "iOS、Android、Webの比較：入力、権限、システムダ�
 | `setFontScale()` | `simctl ui content_size`。最も近いDynamic Typeのサイズ（0.823 … 3.571）に、実行中のまま反映 | `settings put system font_scale`の後、アプリを再起動する（データは保持） | `ACTION_NOT_SUPPORTED` |
 | `setLocale()` | `-AppleLanguages` / `-AppleLocale`付きで再起動（`CFBundleLocalizations`が必要） | アプリ別の言語設定、`cmd locale set-app-locales`（Android 13以降）の後、アプリを再起動する | そのロケールで新しいブラウザコンテキスト（データは保持） |
 | `setLocation()` | `simctl location set`（リセット：`clear`） | `adb emu geo fix`（エミュレーターのみ） | `context.setGeolocation` |
-| `setPermission()` | `simctl privacy grant / revoke / reset`。アプリは動いたまま。通知はSpringBoardの設定に書き、SpringBoardを再起動する → アプリを再起動する（設定が変わるときだけ）。カメラは不可で、その`'reset'`はアプリを再インストールする | `pm grant / revoke`（+ `clear-permission-flags`）。revokeやresetでアプリが終了する → 再起動する | `grantPermissions` / `clearPermissions`。WebKitでは位置情報の権限が変わるとアプリを再起動する（データは保持） |
+| `setPermission()` | `simctl privacy grant / revoke / reset`（カメラ / 通知は不可。これらの`'reset'`はアプリを再インストールする）。アプリは動いたまま | `pm grant / revoke`（+ `clear-permission-flags`）。revokeやresetでアプリが終了する → 再起動する | `grantPermissions` / `clearPermissions`。WebKitでは位置情報の権限が変わるとアプリを再起動する（データは保持） |
 | `setNetwork('offline')` | エージェントがアプリの新しい接続を失敗させる。デバイスの切り替えはない（NetInfoはオンラインのまま） | エージェント、加えて`svc wifi / data disable`（NetInfoも検知する。`adb reverse`は動き続ける） | エージェント、加えてページのリクエストの中断と、`navigator.onLine`および`offline` / `online`イベント（Chromium：CDPの`Network.overrideNetworkState`、`connection`の`change`も発生。Firefox、WebKit：ページ内で設定） |
 | `clipboard.set()` / `get()` | アプリ内の`UIPasteboard`（`@quiesco/native` ≥ Phase 6.6）。ない場合の`get`は`simctl pbpaste` | アプリ内の`ClipboardManager`（同じ。ない場合は`ACTION_NOT_SUPPORTED`） | `navigator.clipboard`（ページにクリップボードの権限を付与）。WebKitではQuiescoが保持するテキストのクリップボード |
 | `setStatusBar()` | `simctl status_bar override`（リセット：`clear`） | SystemUIのデモモード（`sysui_demo_allowed`、通知アイコンは非表示。リセット：`exit`） | ステータスバーがないので何もしない |
@@ -67,13 +67,14 @@ description: "iOS、Android、Webの比較：入力、権限、システムダ�
 | `camera` | —（simctlのサービスがない） | `CAMERA` | `camera` |
 | `microphone` | `microphone` | `RECORD_AUDIO` | `microphone` |
 | `location` | `location` | `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | `geolocation` |
-| `notifications` | SpringBoardの通知設定（simctlのサービスはない） | `POST_NOTIFICATIONS` | `notifications` |
+| `notifications` | アプリの起動前にSpringBoardの通知設定へ（simctlのサービスはない） | `POST_NOTIFICATIONS` | `notifications` |
 | `contacts` | `contacts` | `READ_CONTACTS` | — |
 | `photos` | `photos` | `READ_MEDIA_IMAGES` | — |
 | `calendar` | `calendar` | `READ_CALENDAR`, `WRITE_CALENDAR` | — |
 
 - Androidは、アプリがマニフェストで宣言した権限（`app.json`の`expo.android.permissions`）しか付与しません。それ以外は警告として報告されます。
-- iOSの通知：`simctl privacy`には通知のサービスがありません。Quiescoはシミュレーターの通知設定（`Library/BulletinBoard/VersionedSectionInfo.plist`）にアプリの項目を書き込み（Detoxのapplesimutilsと同じ方法）、読み込ませるためにSpringBoardを再起動します（1秒未満）。このとき動いているアプリも終了します。設定がすでに同じなら何も書かず再起動もしないので、事前許可で再起動するのはアプリを（再）インストールした後だけです。
+- iOSの通知：`simctl privacy`には通知のサービスがありません。Quiescoはシミュレーターの通知設定（`Library/BulletinBoard/VersionedSectionInfo.plist`）にアプリの項目を書き込み（Detoxのapplesimutilsと同じ方法）、読み込ませるためにSpringBoardを再起動します。これはアプリの起動前（セッション開始時と、`relaunch({ reinstall | clearData })`の後）だけで、設定がまだ「許可」でないときに限ります。再インストールせずに使い続けるシミュレーターでは時間がかからず、それ以外では10秒ほどかかります。再起動の後は、SpringBoardとPosterBoardが落ち着くまで待ちます。PosterBoardの準備中にSpringBoardをもう一度再起動すると、シミュレーター上のPosterBoardのデータが壊れることがありました（以後、起動のたびにクラッシュします。[issue #113](https://github.com/h2nology/quiesco/issues/113)）。アプリの実行中の`setPermission('notifications', …)`には対応しません。`'reset'`はアプリを再インストールします。
+- 事前許可に失敗したときは、アプリの通知の許可ダイアログを見つけたときにQuiescoが「許可」で応答し、そのことをログに出します。事前許可より弱い動作です（アプリが要求するまでは「未決定」に見えます）。
 - iOSでは、アプリが権限を要求するためには、`Info.plist`（`expo.ios.infoPlist`）に使用目的の説明（`NSLocationWhenInUseUsageDescription`など）が必要です。
 
 ## iOS {#ios}

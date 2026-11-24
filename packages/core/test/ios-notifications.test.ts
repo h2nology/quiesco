@@ -8,6 +8,7 @@ import { PlistReal, PlistUid, parseBplist, plistDict, writeBplist } from '../src
 import type { PlistDict, PlistValue } from '../src/devices/bplist';
 import type { Exec } from '../src/devices/exec';
 import { IosProvider } from '../src/devices/ios';
+import type { IosProviderOptions } from '../src/devices/ios';
 import { IOS_NOTIFICATION_SETTINGS_FILE, notificationAuthorization, withNotificationAuthorization } from '../src/devices/ios-notifications';
 
 const BUNDLE = 'com.example.todo';
@@ -121,6 +122,7 @@ describe('IosProvider: the notification permission (issue #113)', () => {
   let file: string;
   let calls: string[];
   let springBoard: number;
+  let posterBoard: number;
   let xml: Buffer | null;
 
   beforeEach(() => {
@@ -128,6 +130,7 @@ describe('IosProvider: the notification permission (issue #113)', () => {
     file = path.join(data, IOS_NOTIFICATION_SETTINGS_FILE);
     calls = [];
     springBoard = 100;
+    posterBoard = 200;
     xml = null;
   });
   afterEach(() => fs.rmSync(data, { recursive: true, force: true }));
@@ -139,23 +142,32 @@ describe('IosProvider: the notification permission (issue #113)', () => {
     if (line.includes('list devices available --json')) {
       return out(JSON.stringify({ devices: { 'com.apple.CoreSimulator.SimRuntime.iOS-27-0': [{ udid: 'SIM', name: 'iPhone 17', state: 'Booted', dataPath: data }] } }));
     }
-    if (line.endsWith('launchctl list')) return out(`PID\tStatus\tLabel\n${springBoard}\t-9\tcom.apple.SpringBoard\n42\t0\tcom.apple.backboardd\n`);
-    if (line.endsWith('launchctl stop com.apple.SpringBoard')) springBoard++;
+    if (line.endsWith('launchctl list')) return out(`PID\tStatus\tLabel\n${springBoard}\t-9\tcom.apple.SpringBoard\n${posterBoard}\t0\tcom.apple.PosterBoard\n42\t0\tcom.apple.backboardd\n`);
+    if (line.endsWith('launchctl stop com.apple.SpringBoard')) {
+      springBoard++;
+      // A new SpringBoard ends PosterBoard a moment later; launchd starts it again.
+      setTimeout(() => posterBoard++, 30);
+    }
     if (cmd === 'plutil' && args[0] === '-convert' && xml !== null) return out(xml);
     return out('');
   };
 
-  async function booted() {
-    const p = new IosProvider({ app: { bundleId: BUNDLE }, device: { disablePasswordAutoFill: false }, exec });
+  async function booted(opts: Partial<IosProviderOptions> = {}) {
+    const warnings: string[] = [];
+    const logger = { debug() {}, info() {}, warn: (m: string) => void warnings.push(m), error() {} };
+    const p = new IosProvider({ app: { bundleId: BUNDLE }, device: { disablePasswordAutoFill: false }, exec, logger, springBoardSettleMs: 100, ...opts });
     await p.boot();
     calls.length = 0;
-    return p;
+    return { p, warnings };
   }
   const restarts = () => calls.filter((c) => c.endsWith('launchctl stop com.apple.SpringBoard')).length;
 
-  it('grantPermissions writes an allowed entry and restarts SpringBoard, once', async () => {
-    const p = await booted();
+  it('grantPermissions writes an allowed entry and restarts SpringBoard once, waiting until PosterBoard settled', async () => {
+    const { p } = await booted();
+    const started = Date.now();
     await p.grantPermissions(['notifications']);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(100);
+    expect(posterBoard).toBe(201);
     expect(notificationAuthorization(fs.readFileSync(file), BUNDLE)).toBe('allowed');
     expect(calls).toContain('xcrun simctl spawn SIM launchctl stop com.apple.SpringBoard');
     expect(restarts()).toBe(1);
@@ -164,26 +176,89 @@ describe('IosProvider: the notification permission (issue #113)', () => {
     expect(restarts()).toBe(1);
   });
 
-  it('setPermission / resetPermission relaunch the app only when the setting changed', async () => {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, settingsFile({ [BUNDLE]: section(BUNDLE, { authorizationStatus: 2 }) }));
-    const p = await booted();
-    await expect(p.setPermission('notifications', true)).resolves.toEqual({ relaunch: false });
-    expect(restarts()).toBe(0);
-    await expect(p.setPermission('notifications', false)).resolves.toEqual({ relaunch: true });
-    expect(notificationAuthorization(fs.readFileSync(file), BUNDLE)).toBe('denied');
-    await expect(p.resetPermission('notifications')).resolves.toEqual({ relaunch: true });
-    expect(settingsIn(fs.readFileSync(file), BUNDLE)).toBeUndefined();
-    await expect(p.resetPermission('notifications')).resolves.toEqual({ relaunch: false });
-    expect(restarts()).toBe(2);
+  it('stops the system UI runner before restarting SpringBoard', async () => {
+    const stopped: string[] = [];
+    const runner = { running: true, screen: async () => ({ alerts: [], others: [] }), tap: async () => {}, openNotificationCenter: async () => {}, stop: async () => void stopped.push(String(restarts())) };
+    const { p } = await booted({ systemRunner: runner });
+    await p.prepareSystemUi();
+    await p.grantPermissions(['notifications']);
+    expect(stopped).toEqual(['0']);
   });
 
   it('reads the XML file SpringBoard writes through plutil', async () => {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict/></plist>\n');
     xml = settingsFile({ [BUNDLE]: section(BUNDLE, { authorizationStatus: 2 }) });
-    const p = await booted();
-    await expect(p.setPermission('notifications', true)).resolves.toEqual({ relaunch: false });
+    const { p } = await booted();
+    await p.grantPermissions(['notifications']);
     expect(calls).toEqual([`plutil -convert binary1 -o - ${file}`]);
+  });
+
+  it('does not change notifications while the app runs; reset reinstalls the app', async () => {
+    const { p } = await booted();
+    await expect(p.setPermission('notifications', true)).rejects.toMatchObject({ errorName: 'ACTION_NOT_SUPPORTED', data: { hint: expect.stringContaining("config permissions: ['notifications']") } });
+    await expect(p.resetPermission('notifications')).resolves.toEqual({ relaunch: true, reinstall: true });
+    expect(restarts()).toBe(0);
+  });
+
+  describe('when the pre-grant fails', () => {
+    const prompt = {
+      label: '“Todo” Would Like to Send You Notifications',
+      id: '',
+      frame: [41, 334, 320, 234],
+      texts: [],
+      buttons: [
+        { label: 'Don’t Allow', id: '', frame: [57, 504, 140, 48] },
+        { label: 'Allow', id: '', frame: [205, 504, 140, 48] },
+      ],
+    };
+    const camera = { ...prompt, label: '“Todo” Would Like to Access the Camera' };
+
+    async function failing(alerts: (typeof prompt)[]) {
+      const taps: string[] = [];
+      const runner = {
+        running: true,
+        screen: async () => ({ alerts: [...alerts], others: [] }),
+        tap: async (x: number, y: number) => {
+          taps.push(`${x},${y}`);
+          alerts.shift();
+        },
+        openNotificationCenter: async () => {},
+        stop: async () => {},
+      };
+      // No data directory: nothing can be written.
+      const x = fakeExec();
+      const warnings: string[] = [];
+      const logger = { debug() {}, info() {}, warn: (m: string) => void warnings.push(m), error() {} };
+      const p = new IosProvider({ app: { bundleId: BUNDLE }, device: { disablePasswordAutoFill: false }, exec: x, logger, systemRunner: runner });
+      await p.boot();
+      return { p, taps, warnings };
+    }
+    const fakeExec = (): Exec => async (_cmd, args) => ({
+      stdout: Buffer.from(args.includes('--json') ? JSON.stringify({ devices: { 'com.apple.CoreSimulator.SimRuntime.iOS-27-0': [{ udid: 'SIM', name: 'iPhone 17', state: 'Booted' }] } }) : ''),
+      stderr: '',
+    });
+
+    it('answers the notifications prompt with "Allow" and says so', async () => {
+      const { p, taps, warnings } = await failing([prompt]);
+      await p.grantPermissions(['notifications']);
+      expect(warnings).toEqual([expect.stringMatching(/cannot pre-grant notifications on iOS .*answers the app's notifications prompt/)]);
+      await expect(p.dismissSystemAlerts()).resolves.toEqual([prompt.label]);
+      expect(taps).toEqual(['275,528']);
+      expect(warnings.at(-1)).toMatch(/answered the notifications prompt .* with "Allow": config permissions has notifications, but they could not be pre-granted/);
+    });
+
+    it('leaves other permission prompts to the test', async () => {
+      const { p, taps } = await failing([camera]);
+      await p.grantPermissions(['notifications']);
+      await expect(p.dismissSystemAlerts()).resolves.toEqual([]);
+      expect(taps).toEqual([]);
+    });
+
+    it('answers nothing when notifications were not asked for', async () => {
+      const { p, taps } = await failing([prompt]);
+      await expect(p.dismissSystemAlerts()).resolves.toEqual([]);
+      expect(taps).toEqual([]);
+    });
   });
 });

@@ -200,8 +200,7 @@ await app.device.setPermission('camera', 'reset');
 
 - **在 Android 上撤销权限**会杀掉 App。Quiesco 会在 resolve 之前重新启动它（保留数据），因此 App 会回到首屏。
 - **`'reset'`** 表示未决定状态，与全新安装后相同：App 下一次请求时会再次显示系统弹窗。Android：撤销并清除“不再询问”；iOS：`simctl privacy reset`；web：由浏览器询问。
-- **在 iOS 上，通知权限**在 SpringBoard 的设置中修改，SpringBoard 会重启并结束 App：设置有变化时，Quiesco 会在 resolve 之前重新启动 App（保留数据）。
-- **在 iOS 上，相机权限**只能通过重新安装 App 来重置（`'grant'` / `'revoke'` 以 `ACTION_NOT_SUPPORTED` 失败）。Quiesco 会重新安装并启动 App，**删除其数据**（需要 `binaryPath`；会有警告提示）。
+- **在 iOS 上，通知和相机权限**只能通过重新安装 App 来重置。Quiesco 会重新安装并启动 App，**删除其数据**（需要 `binaryPath`；会有警告提示）。
 
 应答系统的权限弹窗本身见 [系统 UI](./api-system#system-allowpermission)。
 

@@ -41,7 +41,7 @@ description: "iOS、Android 和 Web 并列对比：输入、权限、系统弹�
 | `setFontScale()` | `simctl ui content_size`，取最接近的 Dynamic Type 尺寸（0.823 … 3.571），实时生效 | `settings put system font_scale`，然后重新启动 App（保留数据） | `ACTION_NOT_SUPPORTED` |
 | `setLocale()` | 用 `-AppleLanguages` / `-AppleLocale` 重新启动（需要 `CFBundleLocalizations`） | 按 App 设置语言，`cmd locale set-app-locales`（Android 13+），然后重新启动 App | 使用该 locale 的新浏览器上下文（保留数据） |
 | `setLocation()` | `simctl location set`（重置：`clear`） | `adb emu geo fix`（仅限模拟器） | `context.setGeolocation` |
-| `setPermission()` | `simctl privacy grant / revoke / reset`；App 保持运行。通知：写入 SpringBoard 的设置并重启 SpringBoard → 重新启动 App（仅在设置变化时）。不支持相机，它的 `'reset'` 会重新安装 App | `pm grant / revoke`（+ `clear-permission-flags`）；revoke 或 reset 会杀掉 App → 重新启动 | `grantPermissions` / `clearPermissions`；WebKit：定位权限变化时重新启动 App（数据保留） |
+| `setPermission()` | `simctl privacy grant / revoke / reset`（不支持相机 / 通知；它们的 `'reset'` 会重新安装 App）；App 保持运行 | `pm grant / revoke`（+ `clear-permission-flags`）；revoke 或 reset 会杀掉 App → 重新启动 | `grantPermissions` / `clearPermissions`；WebKit：定位权限变化时重新启动 App（数据保留） |
 | `setNetwork('offline')` | 由 agent 让 App 的新连接失败；不切换设备网络（NetInfo 仍为在线） | agent，外加 `svc wifi / data disable`（NetInfo 能感知；`adb reverse` 仍可用） | agent，外加中止页面请求，以及 `navigator.onLine` 和 `offline` / `online` 事件（Chromium：CDP `Network.overrideNetworkState`，另有 `connection` `change`；Firefox、WebKit：在页面里设置） |
 | `clipboard.set()` / `get()` | App 内的 `UIPasteboard`（`@quiesco/native` ≥ Phase 6.6）；没有它时 `get` 用 `simctl pbpaste` | App 内的 `ClipboardManager`（同左；没有它则 `ACTION_NOT_SUPPORTED`） | `navigator.clipboard`（为页面授予剪贴板权限）；WebKit：由 Quiesco 保存的文本剪贴板 |
 | `setStatusBar()` | `simctl status_bar override`（重置：`clear`） | SystemUI 演示模式（`sysui_demo_allowed`，隐藏通知图标；重置：`exit`） | 没有状态栏：无需操作 |
@@ -67,13 +67,14 @@ description: "iOS、Android 和 Web 并列对比：输入、权限、系统弹�
 | `camera` | —（simctl 无此服务） | `CAMERA` | `camera` |
 | `microphone` | `microphone` | `RECORD_AUDIO` | `microphone` |
 | `location` | `location` | `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | `geolocation` |
-| `notifications` | SpringBoard 的通知设置（simctl 无此服务） | `POST_NOTIFICATIONS` | `notifications` |
+| `notifications` | App 启动前写入 SpringBoard 的通知设置（simctl 无此服务） | `POST_NOTIFICATIONS` | `notifications` |
 | `contacts` | `contacts` | `READ_CONTACTS` | — |
 | `photos` | `photos` | `READ_MEDIA_IMAGES` | — |
 | `calendar` | `calendar` | `READ_CALENDAR`, `WRITE_CALENDAR` | — |
 
 - Android 只授予 App 在 manifest 中声明的权限（`app.json` 中的 `expo.android.permissions`）；其他权限会以警告形式报告。
-- iOS 的通知：`simctl privacy` 没有通知服务。Quiesco 把 App 的条目写入模拟器的通知设置（`Library/BulletinBoard/VersionedSectionInfo.plist`，与 Detox 的 applesimutils 相同），再重启 SpringBoard 让它读取（不到 1 秒），这也会结束正在运行的 App。设置已经一致时不写入也不重启，所以只有 App（重新）安装之后，预先授予才会重启一次。
+- iOS 的通知：`simctl privacy` 没有通知服务。Quiesco 把 App 的条目写入模拟器的通知设置（`Library/BulletinBoard/VersionedSectionInfo.plist`，与 Detox 的 applesimutils 相同），再重启 SpringBoard 让它读取。这只在 App 启动前进行（session 开始时，以及 `relaunch({ reinstall | clearData })` 之后），并且只在设置还不是“允许”时进行：不重装 App 而继续使用的模拟器没有额外耗时，其他情况大约 10 秒。重启后 Quiesco 会等 SpringBoard 和 PosterBoard 稳定下来：在 PosterBoard 还在初始化时再次重启 SpringBoard，曾经损坏过模拟器上 PosterBoard 的数据（之后它每次启动都会崩溃；[issue #113](https://github.com/h2nology/quiesco/issues/113)）。App 运行中不支持 `setPermission('notifications', …)`；`'reset'` 会重新安装 App。
+- 预先授予失败时，Quiesco 遇到 App 的通知权限弹窗会用“允许”应答，并在日志中说明。这比预先授予弱：在 App 请求之前，它看到的是“未决定”。
 - iOS 仍然需要在 `Info.plist`（`expo.ios.infoPlist`）中提供使用说明（`NSLocationWhenInUseUsageDescription` …），否则 App 根本无法请求该权限。
 
 ## iOS {#ios}

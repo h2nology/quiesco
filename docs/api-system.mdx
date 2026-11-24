@@ -100,8 +100,8 @@ Delivers a notification. It also works while the app is in the background.
 
 - **iOS**: a simulated remote push (`simctl push`), with `data` next to `aps` in the payload. The app's push
   library receives it while the app is in front. The system shows it only when the app may show
-  notifications: grant them before the app starts (config [`permissions`](./config)) or with
-  [`setPermission('notifications', 'grant')`](./api-device), or let the app ask and answer with
+  notifications: grant them before the app starts (config [`permissions`](./config)), or let the app ask
+  and answer with
   [`allowPermission()`](#system-allowpermission).
 - **Android**: an emulator has no push service, so the notification is posted as the app (it needs the
   `notifications` permission). Tapping it opens the app with `data` as intent extras; the push library's
@@ -284,9 +284,8 @@ await app.expectVisible('location-denied-banner');
 
 **Answer a permission dialog in the test that brings it up.** Alerts outlive the app: one a test leaves
 open is dismissed before the next (cancel, else its first button), except a permission dialog. Either
-answer to it sticks (on iOS a denied notification permission stays until the app is reinstalled or the
-permission is reset), so the next test fails with `RESET_FAILED` naming it. To ask for a permission again,
-reset it first:
+answer to it sticks (a denied notification permission only goes away with a reinstall), so the next test
+fails with `RESET_FAILED` naming it. To ask for a permission again, reset it first:
 
 ```ts
 await app.device.setPermission('notifications', 'reset');
