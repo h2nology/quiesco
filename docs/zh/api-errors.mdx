@@ -21,20 +21,20 @@ description: "调用失败时抛出的 QuiescoError、如何解读它，以及�
 大多数测试从不捕获这些错误：测试会带着该消息失败。如果要有意检查某个失败，或读取它的详情：
 
 ```ts
-import { QuiescoError } from '@quiesco/core';
+import { ErrorName, QuiescoError } from '@quiesco/core';
 import { expect } from 'vitest';
 
 // 只读用户不应该看到 "Save" 按钮
 const error = await app.tap('save', { timeoutMs: 2_000 }).catch((e: unknown) => e);
 expect(error).toBeInstanceOf(QuiescoError);
-expect((error as QuiescoError).errorName).toBe('ELEMENT_NOT_FOUND');
+expect((error as QuiescoError).errorName).toBe(ErrorName.ELEMENT_NOT_FOUND);
 ```
 
 ```ts
 try {
   await app.expectText('total', '$42.00');
 } catch (e) {
-  if (e instanceof QuiescoError && e.errorName === 'ASSERTION_FAILED') {
+  if (e instanceof QuiescoError && e.errorName === ErrorName.ASSERTION_FAILED) {
     console.log('expected', e.data['expected'], 'but got', e.data['actual']);
   }
   throw e;

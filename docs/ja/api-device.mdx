@@ -11,6 +11,12 @@ description: "アプリの再起動、停止、バックグラウンド化と、
 
 ### `relaunch(options?)` {#relaunch}
 
+```ts
+relaunch(options?: RelaunchOptions): Promise<void>
+```
+
+型： [`RelaunchOptions`](./api-types#relaunchoptions)
+
 アプリを終了して再び起動します。常に新しいプロセスです。`clearData`や`reinstall`を指定しない限り、アプリのデータは残ります。アプリが接続した時点で解決します。
 
 ```ts
@@ -21,7 +27,7 @@ await app.device.relaunch({ args: { user: 'ann', retries: 3 }, url: 'myapp://tod
 await app.device.relaunch({ clearData: true });
 
 // 新規インストール。カメラは許可済み
-await app.device.relaunch({ reinstall: true, permissions: ['camera'] });
+await app.device.relaunch({ reinstall: true, permissions: [Permission.camera] });
 ```
 
 | オプション | 意味 |
@@ -36,6 +42,10 @@ await app.device.relaunch({ reinstall: true, permissions: ['camera'] });
 
 ### `terminate()` {#terminate}
 
+```ts
+terminate(): Promise<void>
+```
+
 アプリを停止します。次の`relaunch()`までは、要素に対する呼び出しはすべて待たずに直ちに`APP_NOT_RUNNING`で失敗します。
 
 ```ts
@@ -45,6 +55,10 @@ await app.expectVisible('home-screen');
 ```
 
 ### `sendToBackground()` {#sendtobackground}
+
+```ts
+sendToBackground(): Promise<void>
+```
 
 ホームボタンと同じくホーム画面へ移動します。プロセスは動き続けます。`bringToForeground()`までは、要素に対する呼び出しは`APP_IN_BACKGROUND`で失敗します。Webでは使えません（`ACTION_NOT_SUPPORTED`）。
 
@@ -56,6 +70,10 @@ await app.openUrl('myapp://todos/42');
 ```
 
 ### `bringToForeground()` {#bringtoforeground}
+
+```ts
+bringToForeground(): Promise<void>
+```
 
 バックグラウンドのアプリを前面に戻し（再起動ではなく同じプロセス）、アクティブかつアイドルになるまで待ちます。Webでは使えません（`ACTION_NOT_SUPPORTED`）。
 
@@ -69,6 +87,10 @@ await app.expectVisible('pin-screen');
 
 ### `install()` {#install}
 
+```ts
+install(): Promise<void>
+```
+
 設定の`binaryPath`からアプリのバイナリをインストールします（[アプリ](./config#apps)）。実行中のアプリは停止されるので、`relaunch()`で起動してください。
 
 ```ts
@@ -77,6 +99,10 @@ await app.device.relaunch();
 ```
 
 ### `uninstall()` {#uninstall}
+
+```ts
+uninstall(): Promise<void>
+```
 
 デバイスからアプリを削除します。Webにはアンインストールするものがないので（`ACTION_NOT_SUPPORTED`）、代わりに`relaunch({ clearData: true })`を使ってください。
 
@@ -92,10 +118,14 @@ await app.device.relaunch();
 
 ```ts
 await app.device.sendToBackground();
-expect(app.device.appState).toBe('background');
+expect(app.device.appState).toBe(AppRunState.background);
 ```
 
 ### `openUrl(url)` {#openurl}
+
+```ts
+openUrl(url: string): Promise<void>
+```
 
 [`app.openUrl`](./api-actions#openurl)と同じで、ディープリンクを開きます。
 
@@ -104,6 +134,10 @@ await app.device.openUrl('myapp://settings');
 ```
 
 ### `pressBack()` {#pressback}
+
+```ts
+pressBack(): Promise<void>
+```
 
 [`app.pressBack`](./api-actions#pressback)と同じで、Androidの戻るボタン、Webではブラウザーの「戻る」です。
 
@@ -115,6 +149,10 @@ await app.device.pressBack();
 
 ### `reversePort(port)` {#reverseport}
 
+```ts
+reversePort(port: number): Promise<void>
+```
+
 ホストのポートを、Androidデバイスから`localhost:port`として到達できるようにします（`adb reverse`）。iOSシミュレーターとWebはホストのネットワークを共有しているので、何もしません。
 
 ```ts
@@ -123,6 +161,10 @@ await app.device.reversePort(3001);
 ```
 
 ### `unreversePort(port)` {#unreverseport}
+
+```ts
+unreversePort(port: number): Promise<void>
+```
 
 `reversePort`で設定した転送を解除します。iOSシミュレーターとWebでは何もしません。
 
@@ -134,23 +176,39 @@ await app.device.unreversePort(3001);
 
 ### `setOrientation(orientation)` {#setorientation}
 
+```ts
+setOrientation(orientation: Orientation): Promise<void>
+```
+
+型： [`Orientation`](./api-constants#list)
+
 アプリを`'portrait'`または`'landscape'`に回転させ、アプリのウィンドウが新しい形になってアプリがアイドルになった時点で解決します。アプリが画面の向きを固定していてはいけません（app.jsonの`"orientation": "default"`）。
 
 ```ts
-await app.device.setOrientation('landscape');
+await app.device.setOrientation(Orientation.landscape);
 await app.expectVisible('side-by-side-layout');
 ```
 
 ### `setAppearance(scheme)` {#setappearance}
 
+```ts
+setAppearance(scheme: ColorScheme): Promise<void>
+```
+
+型： [`ColorScheme`](./api-constants#list)
+
 システムのカラースキームを`'light'`または`'dark'`に切り替え、アプリが新しい値を報告することを確認します。アプリがシステムの設定に従っている必要があります（app.jsonの`"userInterfaceStyle": "automatic"`）。
 
 ```ts
-await app.device.setAppearance('dark');
+await app.device.setAppearance(ColorScheme.dark);
 await app.device.screenshot(undefined, { name: 'home-dark' });
 ```
 
 ### `setFontScale(scale)` {#setfontscale}
+
+```ts
+setFontScale(scale: number): Promise<number>
+```
 
 システムの文字サイズを`0.5`から`4`の範囲で設定し、適用されたスケールで解決します。iOSは最も近いDynamic Typeのサイズを使い、その場で適用します。Androidはアプリを再起動します（データは保持）。Webでは使えません。
 
@@ -162,6 +220,10 @@ await app.expectVisible('todo-title', { ratio: 1 });
 ```
 
 ### `setLocale(locale)` {#setlocale}
+
+```ts
+setLocale(locale: string | null): Promise<void>
+```
 
 アプリの言語と地域を、`'ja-JP'`のようなBCP 47タグで設定します。`null`でデバイスのデフォルトに戻ります。その設定でアプリを再起動します（データは保持）。
 
@@ -177,6 +239,10 @@ await app.device.setLocale(null);
 
 ### `setLocation(latitude, longitude)` {#setlocation}
 
+```ts
+setLocation(latitude: number, longitude: number): Promise<void>
+```
+
 擬似的なGPS位置を設定します。Androidではエミュレーターのみです。
 
 ```ts
@@ -187,15 +253,21 @@ await app.tap('nearby-stores');
 
 ### `setPermission(name, state)` {#setpermission}
 
+```ts
+setPermission(name: Permission, state: PermissionState): Promise<void>
+```
+
+型： [`Permission`](./api-constants#list) · [`PermissionState`](./api-constants#list)
+
 アプリの実行中に権限を変更します。`state`は`'grant'`、`'revoke'`、`'reset'`のいずれかで、名前は[権限](./platforms#permissions)のもの（`camera`、`microphone`、`location`、`notifications`、`contacts`、`photos`、`calendar`）です。
 
 ```ts
-await app.device.setPermission('location', 'revoke');
+await app.device.setPermission(Permission.location, PermissionState.revoke);
 await app.tap('nearby-stores');
 await app.expectVisible('location-denied-banner');
 
 // もう一度確認させる：アプリが次に要求するとシステムダイアログが表示される
-await app.device.setPermission('camera', 'reset');
+await app.device.setPermission(Permission.camera, PermissionState.reset);
 ```
 
 - **Androidでの取り消し**はアプリを強制終了します。Quiescoは解決する前にアプリを再起動する（データは保持）ため、アプリは最初の画面に戻ります。
@@ -206,14 +278,20 @@ await app.device.setPermission('camera', 'reset');
 
 ### `setNetwork(state)` {#setnetwork}
 
+```ts
+setNetwork(state: NetworkState): Promise<void>
+```
+
+型： [`NetworkState`](./api-constants#list)
+
 `'offline'`：アプリが新たに開く`fetch` / `XMLHttpRequest` / `WebSocket`接続は、ネットワークがないときと同じように失敗します。Quiesco自身の接続は動き続け、既に開いている接続も開いたままです。`'online'`で元に戻ります。
 
 ```ts
-await app.device.setNetwork('offline');
+await app.device.setNetwork(NetworkState.offline);
 await app.tap('sync-now');
 await app.expectVisible({ text: 'You are offline' });
 
-await app.device.setNetwork('online');
+await app.device.setNetwork(NetworkState.online);
 ```
 
 - AndroidではWi-Fiとモバイルデータもオフにし、Webでは`navigator.onLine === false`を報告するので、これらではNetInfoも検知します。
@@ -223,6 +301,10 @@ await app.device.setNetwork('online');
 アプリのリクエストをアイドルの判定に数えないようにするには、[実行時の同期](./api-runtime-sync)を参照してください（Detoxの`setURLBlacklist`は、ここでは`app.sync.ignoreUrls.add()`です）。
 
 ### `clipboard.set(text)` {#clipboard-set}
+
+```ts
+clipboard.set(text: string): Promise<void>
+```
 
 デバイスのクリップボードに、アプリの中でプレーンテキストを書き込みます。アプリが貼り付ける内容です。次のテストの前にクリアされます。
 
@@ -236,6 +318,10 @@ iOSとAndroidでは`@quiesco/native`（≥ Phase 6.6）が必要です。
 
 ### `clipboard.get()` {#clipboard-get}
 
+```ts
+clipboard.get(): Promise<string>
+```
+
 デバイスのクリップボードを読み取ります。アプリがコピーした内容です。
 
 ```ts
@@ -246,6 +332,12 @@ expect(await app.device.clipboard.get()).toMatch(/^https:\/\/example\.com\/invit
 iOSとAndroidでは`@quiesco/native`（≥ Phase 6.6）が必要です。iOSの読み取りは`simctl pbpaste`にフォールバックします。
 
 ### `setStatusBar(options)` {#setstatusbar}
+
+```ts
+setStatusBar(options: StatusBarOptions): Promise<void>
+```
+
+型： [`StatusBarOptions`](./api-types#statusbaroptions)
 
 きれいなスクリーンショットのために、ステータスバー（時刻、バッテリー、電波）を上書きします。Webにはステータスバーがないので、何もしません。
 
@@ -264,6 +356,10 @@ await app.device.screenshot(undefined, { name: 'store-listing' });
 | `dataNetwork` | `'wifi'`、`'3g'`、`'4g'`、`'lte'`、`'5g'`、またはモバイル通信の表示を隠す`'hide'` |
 
 ### `resetStatusBar()` {#resetstatusbar}
+
+```ts
+resetStatusBar(): Promise<void>
+```
 
 実際のステータスバーに戻します。
 

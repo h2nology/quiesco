@@ -24,7 +24,7 @@ import { fullName, tagLevelsOf } from './tags.js';
 import type { TaskLike } from './tags.js';
 
 export { quiesco, quiescoPlugin } from './config.js';
-export type { QuiescoVitestOptions } from './config.js';
+export type { QuiescoTestConfig, QuiescoVitestOptions, QuiescoVitestPlugin } from './config.js';
 export { fullName, tagLevelsOf } from './tags.js';
 // The fixed strings a test writes (tags, directions, permissions …), as constants.
 export { ActionMode, AppRunState, AppStateName, ColorScheme, Direction, Edge, ErrorName, KeyName, NetworkState, Orientation, Permission, PermissionState, Platform, SemanticType, Speed, Tag, WebBrowser } from '@quiesco/core';

@@ -1,13 +1,13 @@
 export { PROTOCOL_VERSION } from '@quiesco/protocol';
 export * from './constants.js';
-export type { Backdoors, ElementSummary, JsonCompatible, JsonValue, Rect, TrackerState, TreeNode } from '@quiesco/protocol';
+export type { Backdoors, ElementSummary, JsonCompatible, JsonValue, Point, Rect, TimedPoint, TrackerName, TrackerState, TreeNode } from '@quiesco/protocol';
 
 export { defineConfig, loadConfig, resolveConfig, resolvePlatform, serverPort, toAgentConfig, ignoredAppErrors, DEFAULT_CONNECT_TIMEOUT_MS, DEFAULT_IGNORED_APP_ERRORS } from './config.js';
 export type { AndroidAppConfig, AndroidDeviceConfig, ConfigContext, QuiescoConfigInput, IosAppConfig, IosDeviceConfig, QuiescoConfig, WebAppConfig, WebDeviceConfig, WebViewport } from './config.js';
 export { Driver } from './driver.js';
 export { ElementExpectation } from './expect.js';
 export type { VisibleOptions } from './expect.js';
-export type { ActionOptions, CallOptions, TypeOptions } from './driver.js';
+export type { ActionOptions, CallOptions, DragOptions, LongPressAtOptions, LongPressOptions, MultiTouchOptions, PinchOptions, RotateOptions, ScrollOptions, ScrollToIndexOptions, SwipeOptions, TapOptions, TypeOptions, WaitForIdleOptions } from './driver.js';
 export { QuiescoError } from './errors.js';
 export { HostErrorName } from './errors.js';
 export { consoleLogger, silentLogger } from './logger.js';
@@ -29,7 +29,7 @@ export type { DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, No
 export type { CrashReport } from './devices/crash.js';
 export type { SystemQuery, SystemWaitOptions } from './system-ui.js';
 export { DeviceApi } from './device.js';
-export type { RelaunchOptions } from './device.js';
+export type { OpenNotificationOptions, RelaunchOptions, ScreenshotOptions, ScreenshotTarget } from './device.js';
 export { SyncApi } from './sync-api.js';
 export type { LaunchArgs } from './launch-args.js';
 export { encodeLaunchArgs } from './launch-args.js';

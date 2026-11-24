@@ -46,6 +46,12 @@ Then('the home screen is visible', async function (this: QuiescoWorld) {
 
 ## `registerQuiesco()` {#register-quiesco}
 
+```ts
+registerQuiesco(options?: RegisterOptions): Lifecycle
+```
+
+类型： [`RegisterOptions`](./api-types#registeroptions) · [`Lifecycle`](./api-custom-runners#new-lifecycle)
+
 `import '@quiesco/cucumber/register'` 会用默认值注册所有内容。要修改默认值，改为在 support 文件中调用 `registerQuiesco()`（两者不要同时使用）：
 
 ```ts

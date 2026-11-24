@@ -23,7 +23,6 @@ import type {
   Platform,
   Point,
   ResultOf,
-  Speed,
   TextMatch,
   TimedPoint,
   TrackerState,
@@ -37,7 +36,7 @@ import { silentLogger } from './logger.js';
 import type { MatcherInput, TextQuery } from './matcher.js';
 import { toMatcher, toTextMatch } from './matcher.js';
 import type { DeviceProvider } from './devices/provider.js';
-import type { ActionOptions, CallOptions, TypeOptions } from './options.js';
+import type { ActionOptions, CallOptions, DragOptions, LongPressAtOptions, LongPressOptions, MultiTouchOptions, PinchOptions, RotateOptions, ScrollOptions, ScrollToIndexOptions, SwipeOptions, TapOptions, TypeOptions, WaitForIdleOptions } from './options.js';
 import type { VisibleOptions } from './expect.js';
 import { ElementExpectation, checkRatio } from './expect.js';
 import type { AgentConnection } from './server/ws-server.js';
@@ -48,7 +47,7 @@ import { WebView } from './webview.js';
 import { cropToRect } from './screenshots.js';
 import type { WebViewHost } from './webview.js';
 
-export type { ActionOptions, CallOptions, TypeOptions } from './options.js';
+export type { ActionOptions, CallOptions, DragOptions, LongPressAtOptions, LongPressOptions, MultiTouchOptions, PinchOptions, RotateOptions, ScrollOptions, ScrollToIndexOptions, SwipeOptions, TapOptions, TypeOptions, WaitForIdleOptions } from './options.js';
 
 export interface DriverOptions {
   provider: DeviceProvider;
@@ -137,12 +136,12 @@ export class Driver {
   // ---- actions (§6.3) ----
 
   /** Tap the element; `point` taps that spot in the element's own coordinates (default: center). */
-  tap(target: MatcherInput, opts: ActionOptions & { point?: Point } = {}): Promise<ElementSummary | undefined> {
+  tap(target: MatcherInput, opts: TapOptions = {}): Promise<ElementSummary | undefined> {
     const spec: Extract<ActionSpec, { type: 'tap' }> = { type: 'tap', matcher: toMatcher(target) };
     if (opts.point !== undefined) spec.point = checkPoint(opts.point, 'point');
     return this.action(spec, opts);
   }
-  longPress(target: MatcherInput, opts: ActionOptions & { durationMs?: number; point?: Point } = {}): Promise<ElementSummary | undefined> {
+  longPress(target: MatcherInput, opts: LongPressOptions = {}): Promise<ElementSummary | undefined> {
     const spec: Extract<ActionSpec, { type: 'longPress' }> = { type: 'longPress', matcher: toMatcher(target) };
     if (opts.durationMs !== undefined) spec.durationMs = opts.durationMs;
     if (opts.point !== undefined) spec.point = checkPoint(opts.point, 'point');
@@ -184,7 +183,7 @@ export class Driver {
     return this.action({ type: 'pressKey', matcher: toMatcher(target), key }, opts);
   }
   /** `down` reveals content below. `distance` in logical units; `from`: start point, normalized 0–1 in the element. */
-  scroll(target: MatcherInput, direction: Direction, opts: ActionOptions & { distance?: number; from?: Point } = {}): Promise<ElementSummary | undefined> {
+  scroll(target: MatcherInput, direction: Direction, opts: ScrollOptions = {}): Promise<ElementSummary | undefined> {
     const spec: Extract<ActionSpec, { type: 'scroll' }> = { type: 'scroll', matcher: toMatcher(target), direction };
     if (opts.distance !== undefined) spec.distance = opts.distance;
     if (opts.from !== undefined) spec.from = checkNormalized(opts.from, 'from');
@@ -203,14 +202,14 @@ export class Driver {
    * Bring row `index` of a FlatList / FlashList into view, on every platform, also without
    * getItemLayout. `viewPosition`: 0 = top, 0.5 = middle, 1 = bottom.
    */
-  scrollToIndex(list: MatcherInput, index: number, opts: ActionOptions & { viewPosition?: number } = {}): Promise<ElementSummary | undefined> {
+  scrollToIndex(list: MatcherInput, index: number, opts: ScrollToIndexOptions = {}): Promise<ElementSummary | undefined> {
     if (!Number.isInteger(index) || index < 0) throw new RangeError(`index must be a non-negative integer, got ${index}`);
     const spec: Extract<ActionSpec, { type: 'scrollToIndex' }> = { type: 'scrollToIndex', matcher: toMatcher(list), index };
     if (opts.viewPosition !== undefined) spec.viewPosition = checkUnit(opts.viewPosition, 'viewPosition');
     return this.action(spec, opts);
   }
   /** A finger swipe (`up` moves the finger up). `distance` in logical units; `from`: normalized start point. */
-  swipe(target: MatcherInput, direction: Direction, opts: ActionOptions & { speed?: Speed; distance?: number; from?: Point } = {}): Promise<ElementSummary | undefined> {
+  swipe(target: MatcherInput, direction: Direction, opts: SwipeOptions = {}): Promise<ElementSummary | undefined> {
     const spec: Extract<ActionSpec, { type: 'swipe' }> = { type: 'swipe', matcher: toMatcher(target), direction };
     if (opts.speed !== undefined) spec.speed = opts.speed;
     if (opts.distance !== undefined) spec.distance = opts.distance;
@@ -221,7 +220,7 @@ export class Driver {
    * Press and hold the element (`holdMs`, default 800: enough for long-press-activated drags), move to
    * the center of `to` (an element) or to `{ point }` (window coordinates), release.
    */
-  drag(target: MatcherInput, to: MatcherInput | { point: Point }, opts: ActionOptions & { holdMs?: number; speed?: Speed } = {}): Promise<ElementSummary | undefined> {
+  drag(target: MatcherInput, to: MatcherInput | { point: Point }, opts: DragOptions = {}): Promise<ElementSummary | undefined> {
     const dest = typeof to === 'object' && 'point' in to ? { point: checkPoint(to.point, 'point') } : { matcher: toMatcher(to) };
     const spec: Extract<ActionSpec, { type: 'drag' }> = { type: 'drag', matcher: toMatcher(target), to: dest };
     if (opts.holdMs !== undefined) spec.holdMs = opts.holdMs;
@@ -232,7 +231,7 @@ export class Driver {
   async tapAt(point: Point, opts?: ActionOptions): Promise<void> {
     await this.action({ type: 'tapAt', point: checkPoint(point, 'point') }, opts);
   }
-  async longPressAt(point: Point, opts: ActionOptions & { durationMs?: number } = {}): Promise<void> {
+  async longPressAt(point: Point, opts: LongPressAtOptions = {}): Promise<void> {
     const spec: Extract<ActionSpec, { type: 'longPressAt' }> = { type: 'longPressAt', point: checkPoint(point, 'point') };
     if (opts.durationMs !== undefined) spec.durationMs = opts.durationMs;
     await this.action(spec, opts);
@@ -311,7 +310,7 @@ export class Driver {
    * changed by `scale`, on a line at `angle` radians (0 = horizontal). A scale that does not fit in one
    * pinch is done in several, as a user would. Needs real touches (native mode; on the web a touch viewport).
    */
-  pinch(target: MatcherInput, scale: number, opts: ActionOptions & { angle?: number; speed?: Speed } = {}): Promise<ElementSummary | undefined> {
+  pinch(target: MatcherInput, scale: number, opts: PinchOptions = {}): Promise<ElementSummary | undefined> {
     if (!(Number.isFinite(scale) && scale > 0)) throw new RangeError(`scale must be a positive number, got ${scale}`);
     const spec: Extract<ActionSpec, { type: 'pinch' }> = { type: 'pinch', matcher: toMatcher(target), scale };
     if (opts.angle !== undefined) spec.angle = checkFinite(opts.angle, 'angle');
@@ -319,7 +318,7 @@ export class Driver {
     return this.action(spec, opts);
   }
   /** Two fingers turn `radians` around the element's center (positive: clockwise on screen). */
-  rotate(target: MatcherInput, radians: number, opts: ActionOptions & { speed?: Speed } = {}): Promise<ElementSummary | undefined> {
+  rotate(target: MatcherInput, radians: number, opts: RotateOptions = {}): Promise<ElementSummary | undefined> {
     const spec: Extract<ActionSpec, { type: 'rotate' }> = { type: 'rotate', matcher: toMatcher(target), radians: checkFinite(radians, 'radians') };
     if (opts.speed !== undefined) spec.speed = opts.speed;
     return this.action(spec, opts);
@@ -329,7 +328,7 @@ export class Driver {
    * start, non-decreasing); a finger is down from its first point to its last. Coordinates are the
    * element's own when `within` is given (it must be visible), else window coordinates.
    */
-  async multiTouch(fingers: TimedPoint[][], opts: ActionOptions & { within?: MatcherInput } = {}): Promise<void> {
+  async multiTouch(fingers: TimedPoint[][], opts: MultiTouchOptions = {}): Promise<void> {
     if (!Array.isArray(fingers) || fingers.length === 0 || fingers.length > 10) throw new RangeError('fingers must hold 1 to 10 paths');
     fingers.forEach((path, i) => {
       if (!Array.isArray(path) || path.length === 0) throw new RangeError(`finger ${i} has no points`);
@@ -463,7 +462,7 @@ export class Driver {
     return (await this.call('getTree', {})).root;
   }
 
-  async waitForIdle(opts: { timeoutMs?: number } = {}): Promise<number> {
+  async waitForIdle(opts: WaitForIdleOptions = {}): Promise<number> {
     const params = opts.timeoutMs === undefined ? {} : { timeoutMs: opts.timeoutMs };
     return (await this.call('waitForIdle', params, opts.timeoutMs)).waitedMs;
   }

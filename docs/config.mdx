@@ -8,7 +8,7 @@ Quiesco reads its settings from `quiesco.config.ts` in the directory you run it 
 `QUIESCO_CONFIG` to its path.
 
 ```ts
-import { defineConfig } from '@quiesco/core';
+import { Permission, defineConfig } from '@quiesco/core';
 
 export default defineConfig({
   apps: {
@@ -21,7 +21,7 @@ export default defineConfig({
     android: { avd: 'Pixel_9_API_37' },
     web: { viewport: { width: 390, height: 844, hasTouch: true, isMobile: true } },
   },
-  permissions: ['location'],
+  permissions: [Permission.location],
   sync: { ignoreUrls: [/\/analytics\//] },
 });
 ```

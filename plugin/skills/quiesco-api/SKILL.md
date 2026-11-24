@@ -102,7 +102,7 @@ plugin's Quiesco version.
   `api-runtime-sync.md`, `api-device.md` (lifecycle and device state), `api-system.md` (system UI,
   biometrics, notifications), `api-screenshots.md`, `api-webview.md`, `api-in-app.md` (`@quiesco/agent`,
   typed backdoors), `api-tags.md`, `api-constants.md` (tags, directions, permissions, error names … as
-  constants), `api-errors.md`, `api-artifacts.md`, `api-custom-runners.md`.
+  constants), `api-types.md` (the types the signatures name), `api-errors.md`, `api-artifacts.md`, `api-custom-runners.md`.
 - **`references/sync.md`** — trackers and what to do for each kind of `SYNC_TIMEOUT`.
 - **`references/platforms.md`** — iOS / Android / web differences, permissions, keyboards, system dialogs.
 - **`references/parallel.md`** — `--workers N`, one device per worker, isolation rules.

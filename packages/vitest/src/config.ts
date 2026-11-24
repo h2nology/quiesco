@@ -68,3 +68,8 @@ export function quiescoPlugin() {
     },
   };
 }
+
+/** What `quiesco()` returns: Vitest `test` options, spread into your config's `test`. */
+export type QuiescoTestConfig = ReturnType<typeof quiesco>;
+/** What `quiescoPlugin()` returns: a Vite plugin. */
+export type QuiescoVitestPlugin = ReturnType<typeof quiescoPlugin>;

@@ -81,9 +81,11 @@ export default async function teardown() {
 Jest 的测试没有选项参数，所以平台标签写在测试或 `describe` 的标题里：
 
 ```js
-describe('settings @native', () => {
+const { Tag } = quiesco;
+
+describe(`settings ${Tag.native}`, () => {
   // 只在 Android 上运行：最内层的标签生效
-  test('the back button closes it @android', async () => {
+  test(`the back button closes it ${Tag.android}`, async () => {
     await quiesco.app.device.pressBack();
   });
 });

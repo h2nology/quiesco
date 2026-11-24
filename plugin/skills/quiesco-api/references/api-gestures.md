@@ -21,6 +21,16 @@ Coordinates are logical units: points on iOS, dp on Android, CSS pixels on the w
 
 ### `pinch(target, scale, options?)` {#pinch}
 
+```ts
+pinch(
+  target: MatcherInput,
+  scale: number,
+  options?: PinchOptions,
+): Promise<ElementSummary | undefined>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`PinchOptions`](./api-types.md#pinchoptions) · [`ElementSummary`](./api-types.md#elementsummary)
+
 Two fingers on the element move apart (`scale` > 1, zoom in) or together (`scale` < 1, zoom out) until
 their distance has changed by `scale`.
 
@@ -29,7 +39,7 @@ their distance has changed by `scale`.
 await app.pinch('map', 2);
 
 // zoom out, fingers on a vertical line
-await app.pinch('photo', 0.5, { angle: Math.PI / 2, speed: 'slow' });
+await app.pinch('photo', 0.5, { angle: Math.PI / 2, speed: Speed.slow });
 ```
 
 | Option | Default | Meaning |
@@ -46,6 +56,16 @@ stay in the window.
 
 ### `rotate(target, radians, options?)` {#rotate}
 
+```ts
+rotate(
+  target: MatcherInput,
+  radians: number,
+  options?: RotateOptions,
+): Promise<ElementSummary | undefined>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`RotateOptions`](./api-types.md#rotateoptions) · [`ElementSummary`](./api-types.md#elementsummary)
+
 Two fingers turn `radians` around the element's center; positive is clockwise on screen.
 
 ```ts
@@ -53,7 +73,7 @@ Two fingers turn `radians` around the element's center; positive is clockwise on
 await app.rotate('photo', Math.PI / 2);
 
 // and back, slowly
-await app.rotate('photo', -Math.PI / 2, { speed: 'slow' });
+await app.rotate('photo', -Math.PI / 2, { speed: Speed.slow });
 ```
 
 | Option | Default | Meaning |
@@ -82,6 +102,15 @@ units and radians. `0` moves the fingers exactly by `scale` / `radians`.
 ## Any touch paths {#any-touch-paths}
 
 ### `multiTouch(fingers, options?)` {#multitouch}
+
+```ts
+multiTouch(
+  fingers: TimedPoint[][],
+  options?: MultiTouchOptions,
+): Promise<void>
+```
+
+Types: [`TimedPoint`](./api-types.md#timedpoint) · [`MultiTouchOptions`](./api-types.md#multitouchoptions)
 
 Moves any fingers along timed paths. `fingers[i]` is finger `i`'s list of `{ x, y, t }` points, `t` in
 milliseconds from the start; a finger is down from its first point to its last.

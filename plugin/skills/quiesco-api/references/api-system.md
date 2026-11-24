@@ -29,6 +29,10 @@ await app.expectVisible('home-screen');
 
 ### `biometrics.enroll(enrolled?)` {#biometrics-enroll}
 
+```ts
+biometrics.enroll(enrolled?: boolean): Promise<void>
+```
+
 Enrolls a face or fingerprint, or removes it with `enroll(false)`. `enrolled` defaults to `true`. On
 Android, Quiesco sets a screen-lock PIN (fingerprints need one) and goes through Settings' enrollment
 screens; the app is brought back to the front afterwards. The enrollment is undone before the next test.
@@ -42,6 +46,10 @@ await app.expectVisible('password-input');
 
 ### `biometrics.match()` {#biometrics-match}
 
+```ts
+biometrics.match(): Promise<void>
+```
+
 Presents a matching face or finger to the authentication the app is showing, so it succeeds.
 
 ```ts
@@ -51,6 +59,10 @@ await app.expectVisible('vault-contents');
 ```
 
 ### `biometrics.fail()` {#biometrics-fail}
+
+```ts
+biometrics.fail(): Promise<void>
+```
 
 Presents an unknown face or finger. As on a real device, the system keeps its retry prompt up afterwards:
 the app gets no result until the prompt is answered (match again, or cancel it with
@@ -70,6 +82,10 @@ await app.expectText('unlock-error', 'Authentication cancelled');
 
 ### `shake()` {#shake}
 
+```ts
+shake(): Promise<void>
+```
+
 Shakes the device (iOS: the Simulator's *Device > Shake*; Android emulator: pushes on the accelerometer),
 then waits for the app to be idle.
 
@@ -80,6 +96,10 @@ await app.expectVisible('feedback-form');
 ```
 
 ### `clearKeychain()` {#clearkeychain}
+
+```ts
+clearKeychain(): Promise<void>
+```
 
 iOS: resets the simulator's keychain, for every app on it. Android has no keychain and fails with
 `ACTION_NOT_SUPPORTED`: use [`relaunch({ clearData: true })`](./api-device.md#relaunch), which deletes the
@@ -95,6 +115,12 @@ await app.expectVisible('sign-in-screen');
 ## Notifications {#notifications}
 
 ### `sendNotification({ title, body?, data? })` {#sendnotification}
+
+```ts
+sendNotification(notification: NotificationSpec): Promise<void>
+```
+
+Types: [`NotificationSpec`](./api-types.md#notificationspec)
 
 Delivers a notification. It also works while the app is in the background.
 
@@ -122,6 +148,15 @@ await app.device.sendNotification({
 | `data` | Custom data; every value must be a string |
 
 ### `openNotification(title, options?)` {#opennotification}
+
+```ts
+openNotification(
+  title: string,
+  options?: OpenNotificationOptions,
+): Promise<void>
+```
+
+Types: [`OpenNotificationOptions`](./api-types.md#opennotificationoptions)
 
 Taps the notification titled `title`, as a user opening it: on iOS its banner, or in Notification Center
 once the banner is gone; on Android in the notification shade. Resolves when the app is in front and idle.
@@ -166,6 +201,15 @@ On iOS system UI slides in: an element is used once two reads 250 ms apart agree
 
 ### `system.tap(query, options?)` {#system-tap}
 
+```ts
+system.tap(
+  query: SystemQuery,
+  options?: SystemWaitOptions,
+): Promise<void>
+```
+
+Types: [`SystemQuery`](./api-types.md#systemquery) · [`SystemWaitOptions`](./api-types.md#systemwaitoptions)
+
 Taps system UI outside the app, then waits for the app to be idle.
 
 ```ts
@@ -186,6 +230,15 @@ await app.device.system.tap({ text: /^Allow/ });
 
 ### `system.expectVisible(query, options?)` {#system-expectvisible}
 
+```ts
+system.expectVisible(
+  query: SystemQuery,
+  options?: SystemWaitOptions,
+): Promise<void>
+```
+
+Types: [`SystemQuery`](./api-types.md#systemquery) · [`SystemWaitOptions`](./api-types.md#systemwaitoptions)
+
 Waits until such system UI is on screen. Fails with `ELEMENT_NOT_FOUND`, listing the texts it saw.
 
 ```ts
@@ -199,6 +252,15 @@ await app.device.system.expectVisible({ text: /location/i });
 
 ### `system.expectNotVisible(query, options?)` {#system-expectnotvisible}
 
+```ts
+system.expectNotVisible(
+  query: SystemQuery,
+  options?: SystemWaitOptions,
+): Promise<void>
+```
+
+Types: [`SystemQuery`](./api-types.md#systemquery) · [`SystemWaitOptions`](./api-types.md#systemwaitoptions)
+
 Waits until no such system UI is on screen. Fails with `ASSERTION_FAILED`, naming the text still there.
 
 ```ts
@@ -211,6 +273,16 @@ await app.device.system.expectNotVisible({ text: 'Delete all?' });
 | `timeoutMs` | `10000` | How long to wait |
 
 ### `system.type(query, text, options?)` {#system-type}
+
+```ts
+system.type(
+  query: SystemQuery,
+  text: string,
+  options?: SystemWaitOptions,
+): Promise<void>
+```
+
+Types: [`SystemQuery`](./api-types.md#systemquery) · [`SystemWaitOptions`](./api-types.md#systemwaitoptions)
 
 Taps the field matching `query` and types `text` into it with the device's input; then waits for the app
 to be idle. When a label and a field have the same text, the field is used (a label "Email" next to its
@@ -231,6 +303,12 @@ await app.device.system.tap({ text: 'Sign in' });
 
 ### `system.tapAt({ x, y })` {#system-tapat}
 
+```ts
+system.tapAt(point: Point): Promise<void>
+```
+
+Types: [`Point`](./api-types.md#point)
+
 A system-level touch at a point of the screen (points / dp from the top-left corner), over whatever is
 there. For example, tapping above iOS's share sheet closes it. On iOS it first waits (up to 2 s) until the
 system UI on screen stops moving. Then it waits for the app to be idle.
@@ -249,6 +327,12 @@ To start a test with a permission already granted, use the `permissions` config 
 [`setPermission`](./api-device.md#setpermission) instead ([per platform](./platforms.md#permissions)).
 
 ### `system.allowPermission(options?)` {#system-allowpermission}
+
+```ts
+system.allowPermission(options?: SystemWaitOptions): Promise<void>
+```
+
+Types: [`SystemWaitOptions`](./api-types.md#systemwaitoptions)
 
 Taps the dialog's allow button, whatever the device language. On Android it finds the button by its id,
 including "while using the app"; on iOS by its position, as iOS lays the buttons out. Resolves when the
@@ -269,6 +353,12 @@ await app.expectText('notifications-status', 'On');
 
 ### `system.denyPermission(options?)` {#system-denypermission}
 
+```ts
+system.denyPermission(options?: SystemWaitOptions): Promise<void>
+```
+
+Types: [`SystemWaitOptions`](./api-types.md#systemwaitoptions)
+
 Taps the dialog's deny button, the same way (on Android also "don't ask again"). Resolves when the app is
 in front and idle.
 
@@ -288,7 +378,7 @@ answer to it sticks (a denied notification permission only goes away with a rein
 fails with `RESET_FAILED` naming it. To ask for a permission again, reset it first:
 
 ```ts
-await app.device.setPermission('notifications', 'reset');
+await app.device.setPermission(Permission.notifications, PermissionState.reset);
 ```
 
 While a permission dialog (another activity) is in front, Android pauses the app's JS timers. Quiesco's

@@ -61,7 +61,7 @@ await app.tap({ role: 'button', text: 'Save' });
 
 ```ts
 // セマンティックな型：どのプラットフォームでも動作する
-await app.tap({ type: 'switch' });
+await app.tap({ type: SemanticType.switch });
 
 // アプリのコンポーネント
 await app.expectCount({ type: 'TodoCard' }, 2);
@@ -73,9 +73,9 @@ await app.expectCount({ type: 'TodoCard' }, 2);
 
 ```ts
 // 「Buy milk」を含む行
-await app.swipe({ id: 'todo-row', has: { text: 'Buy milk' } }, 'left');
+await app.swipe({ id: 'todo-row', has: { text: 'Buy milk' } }, Direction.left);
 
-await app.tap({ type: 'button', has: { text: 'Buy milk' } });
+await app.tap({ type: SemanticType.button, has: { text: 'Buy milk' } });
 ```
 
 ### `not` {#not}
@@ -84,7 +84,7 @@ await app.tap({ type: 'button', has: { text: 'Buy milk' } });
 
 ```ts
 // Cancel以外の唯一のボタン
-await app.tap({ type: 'button', not: { id: 'cancel' } });
+await app.tap({ type: SemanticType.button, not: { id: 'cancel' } });
 ```
 
 ### `within` {#within}
@@ -127,8 +127,8 @@ await app.expectText({ id: 'todo-title', index: 0 }, 'Buy milk');
 
 ```ts
 // 設定画面のWi-Fiスイッチ
-await app.tap({ type: 'switch', label: 'Wi-Fi' });
-await app.expectChecked({ type: 'switch', label: 'Wi-Fi' });
+await app.tap({ type: SemanticType.switch, label: 'Wi-Fi' });
+await app.expectChecked({ type: SemanticType.switch, label: 'Wi-Fi' });
 ```
 
 複数のホストで構成されたウィジェットは1つとして数えます。たとえば、react-native-webの`Switch`は`<input role="switch">`を囲む`<div>`です。`{ type: 'switch' }`は外側の要素にマッチし、その要素が入力欄のチェック状態、値、フォーカス、無効状態、ラベルも報告します。

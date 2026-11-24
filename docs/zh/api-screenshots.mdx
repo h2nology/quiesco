@@ -9,6 +9,15 @@ description: "对屏幕、单个元素或拼接而成的整个滚动页面截取
 
 ### `screenshot(target?, options?)` {#screenshot}
 
+```ts
+screenshot(
+  target?: ScreenshotTarget,
+  options?: ScreenshotOptions,
+): Promise<Buffer>
+```
+
+类型： [`ScreenshotTarget`](./api-types#screenshottarget) · [`ScreenshotOptions`](./api-types#screenshotoptions)
+
 没有目标时，截取当前显示的屏幕；在 web 上是浏览器视口。
 
 ```ts

@@ -27,6 +27,12 @@ export default function RootLayout() {
 
 ### `withQuiesco(config, options?)` {#withquiesco}
 
+```ts
+withQuiesco<T>(config: T, options?: WithQuiescoOptions): T
+```
+
+型： [`WithQuiescoOptions`](./api-types#withquiescooptions)
+
 Metroの設定をラップします（`@quiesco/agent/metro`から）。`EXPO_PUBLIC_QUIESCO=1`なしのビルドでは、エージェントを何もしないスタブに置き換えます。そのため、このページのコードはアプリに残しておけます。本番のバンドルには一切入りません。
 
 ```js
@@ -64,6 +70,12 @@ if (process.env.EXPO_PUBLIC_QUIESCO === '1') require('../src/e2e');
 ## バックドア {#backdoors}
 
 ### `quiesco.backdoor(name, fn)` {#backdoor}
+
+```ts
+quiesco.backdoor(name: string, fn: Backdoor): () => void
+```
+
+型： [`Backdoor`](./api-types#backdoor)
 
 テスト専用の関数を登録します。テストは[`app.backdoor(name, ...args)`](./api-queries#backdoor)でそれを呼び出し、UIを通さずに状態をセットアップできます。`fn`はasyncでもかまいません。引数と結果はJSONでなければなりません。同じ名前で再び登録すると置き換えます。
 
@@ -128,6 +140,10 @@ import type {} from '../../src/backdoors';
 
 ### `quiesco.onReset(hook)` {#onreset}
 
+```ts
+quiesco.onReset(hook: () => void | Promise<void>): () => void
+```
+
 ソフトリセットのたびに、ストレージのクリア後、アプリの再マウント前に`hook`を実行します。キャッシュ、ストア、モックバックエンドなど、Reactの外のメモリ上にある状態に使います。
 
 ```ts
@@ -138,6 +154,12 @@ quiesco.onReset(async () => {
 ```
 
 ### `quiesco.registerStorage({ name, clear })` {#registerstorage}
+
+```ts
+quiesco.registerStorage(adapter: StorageAdapter): () => void
+```
+
+型： [`StorageAdapter`](./api-types#storageadapter)
 
 組み込みのストレージ（iOS / AndroidではAsyncStorageのデフォルトストア、Webでは`localStorage`、`sessionStorage`、IndexedDB）に加えて、ソフトリセット時にクリアするストレージを追加します。`clear`はasyncでもかまいません。
 
@@ -158,6 +180,12 @@ Expo Routerを使うアプリでは、ソフトリセットはナビゲーショ
 
 ### `quiesco.launchArgs()` {#launchargs}
 
+```ts
+quiesco.launchArgs(): Record<string, JsonValue>
+```
+
+型： [`JsonValue`](./api-types#jsonvalue)
+
 今回の起動の起動引数（設定の`launchArgs`と[`app.device.relaunch({ args })`](./api-device#relaunch)をマージしたもの）を、JSONの型のまま返します。同期的なので、アプリは起動時に読めます。引数がないとき、本番環境、iOS / Androidで`@quiesco/native`を含まないビルドでは`{}`を返します。
 
 ```ts
@@ -174,6 +202,10 @@ await app.device.relaunch({ args: { user: 'ann', apiUrl: 'http://localhost:3001'
 ```
 
 ### `quiesco.workerIndex()` {#workerindex}
+
+```ts
+quiesco.workerIndex(): number | null
+```
 
 このアプリを操作している[並列実行のワーカー](./parallel)の番号です。直列実行では`0`、テストホストが接続するまで（最初のテストコマンドの前に接続します）と本番環境では`null`です。ワーカーごとのモックバックエンドなど、そのワーカー専用のリソースと通信するのに使います。
 

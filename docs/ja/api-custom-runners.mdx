@@ -31,7 +31,7 @@ QuiescoにはCucumber、Vitest、Jest用のアダプターがあります（[テ
 その他のランナーは`@quiesco/core`を直接使います。`Lifecycle`は1回の実行を4つの呼び出しに対応付けます。上記のアダプターは、これを薄くラップしたものです。
 
 ```ts
-import { Lifecycle, titleTags } from '@quiesco/core';
+import { Lifecycle, Tag, titleTags } from '@quiesco/core';
 
 // 設定はquiesco.config.*から、プラットフォームはQUIESCO_PLATFORMから
 const lifecycle = new Lifecycle();
@@ -40,7 +40,7 @@ const lifecycle = new Lifecycle();
 await lifecycle.beforeAll();
 
 // テストごと
-const name = 'logs in @native';
+const name = `logs in ${Tag.native}`;
 const tags = [titleTags(name)];
 let failed = false;
 try {
@@ -63,6 +63,12 @@ await lifecycle.afterAll();
 
 ### `new Lifecycle(options?)` {#new-lifecycle}
 
+```ts
+new Lifecycle(options?: LifecycleOptions)
+```
+
+型： [`LifecycleOptions`](./api-types#lifecycleoptions)
+
 | オプション | デフォルト | 意味 |
 |---|---|---|
 | `config` | `quiesco.config.*`から読み込む（`QUIESCO_CONFIG`で別のファイルを指定） | 使用する設定 |
@@ -74,6 +80,10 @@ await lifecycle.afterAll();
 
 ### `beforeAll()` {#beforeall}
 
+```ts
+beforeAll(): Promise<void>
+```
+
 設定を読み込み、サーバーとデバイスを起動し、アプリをインストールして起動し、エージェントが接続するまで待ちます。
 
 ```ts
@@ -82,11 +92,20 @@ await lifecycle.beforeAll();
 
 ### `before(tags, name?)` {#before}
 
+```ts
+before(
+  tags: ScenarioTags,
+  name?: string,
+): Promise<'skipped' | undefined>
+```
+
+型： [`ScenarioTags`](./api-types#scenariotags)
+
 各テストの前に呼びます。別のプラットフォームやブラウザー向けのタグが付いたテストには`'skipped'`を返します（同じ失敗が続いて実行が打ち切られた後も同様です。[`bailOnRepeatedFailure`](./config#top-level)）。それ以外では、テストの成果物の記録を始め、アプリをリセットします。最も内側のプラットフォームタグが判定に使われるよう、タグは階層ごとにまとめ、外側（スイート / feature）から順に渡してください。
 
 ```ts
-// describe('settings @native')の中のテスト
-const result = await lifecycle.before([['@native'], titleTags('back closes it @android')], 'back closes it');
+// describe(`settings ${Tag.native}`)の中のテスト
+const result = await lifecycle.before([[Tag.native], titleTags(`back closes it ${Tag.android}`)], 'back closes it');
 if (result === 'skipped') return;
 ```
 
@@ -101,14 +120,24 @@ await app.expectVisible('home-screen');
 
 ### `after({ tags, failed, error? })` {#after}
 
+```ts
+after(result: ScenarioResult): Promise<AfterResult>
+```
+
+型： [`ScenarioResult`](./api-types#scenarioresult) · [`AfterResult`](./api-types#afterresult)
+
 各テストの後に呼びます。失敗時には証跡を集め、成果物のポリシーに従ってvideo、logs、timelineも残します。`{ attachments, files }`を返します。添付を受け付けるレポートを持つランナー向けの添付と、パスを表示するランナー向けの書き出したファイルです。同じ失敗の繰り返しを見分けられるよう、`error`（Errorまたはランナーのメッセージ）を渡してください。成功したテストでも、最後のステップの後にアプリがエラーを報告していれば失敗になります（`after`が例外を投げます）。
 
 ```ts
-const { attachments, files } = await lifecycle.after({ tags: ['@native'], failed: true, error });
+const { attachments, files } = await lifecycle.after({ tags: [Tag.native], failed: true, error });
 if (files.length > 0) console.log(`evidence:\n  ${files.join('\n  ')}`);
 ```
 
 ### `afterAll()` {#afterall}
+
+```ts
+afterAll(): Promise<void>
+```
 
 接続、アプリ、デバイス（設定に従って）を閉じます。
 
@@ -118,10 +147,14 @@ await lifecycle.afterAll();
 
 ### `titleTags(title)` {#titletags}
 
+```ts
+titleTags(title: string): string[]
+```
+
 テストやスイートのタイトルに書かれたタグを返します。
 
 ```ts
-titleTags('adds a todo @ios @smoke'); // ['@ios', '@smoke']
+titleTags(`adds a todo ${Tag.ios} @smoke`); // ['@ios', '@smoke']
 ```
 
 ## セッション {#session}
@@ -136,7 +169,7 @@ const session = await createSession({ config, platform: resolvePlatform() });
 
 // テストごと
 await session.startScenario({ name: 'logs in' });
-await session.beforeScenario({ tags: ['@native'], name: 'logs in' });
+await session.beforeScenario({ tags: [Tag.native], name: 'logs in' });
 let failed = false;
 try {
   await session.driver.tap('login-button');
@@ -152,13 +185,25 @@ await session.dispose();
 
 ### `createSession({ config, platform, worker?, logger? })` {#createsession}
 
+```ts
+createSession(options: SessionOptions): Promise<Session>
+```
+
+型： [`SessionOptions`](./api-types#sessionoptions) · [`Session`](./api-custom-runners#createsession)
+
 サーバーを起動し、デバイスを起動し、アプリをインストールして起動し、エージェントが接続するまで待ちます。`worker`（`{ index, count }`。デフォルトは唯一のワーカー）を指定すると、セッションは専用のデバイス、サーバーのポート（`server.port + index`）、成果物ディレクトリを使います。
 
 ```ts
-const session = await createSession({ config, platform: 'android', worker: { index: 1, count: 2 } });
+const session = await createSession({ config, platform: Platform.android, worker: { index: 1, count: 2 } });
 ```
 
 ### `startScenario({ name })` {#startscenario}
+
+```ts
+startScenario(info?: ScenarioInfo): Promise<void>
+```
+
+型： [`ScenarioInfo`](./api-types#scenarioinfo)
 
 テストの成果物（timeline、video）の記録を、テスト名のディレクトリで始めます。リセットも動画に含まれるよう、`beforeScenario`の前に呼んでください。
 
@@ -168,13 +213,25 @@ await session.startScenario({ name: 'adds a todo' });
 
 ### `beforeScenario({ tags?, name? })` {#beforescenario}
 
+```ts
+beforeScenario(info?: ScenarioInfo): Promise<void>
+```
+
+型： [`ScenarioInfo`](./api-types#scenarioinfo)
+
 前のテストの[実行時の同期](./api-runtime-sync)と[デバイス](./api-device)の変更を元に戻し、バックグラウンドのアプリを前面に戻すか終了したアプリを起動してから、アプリをソフトリセットします。`@hard-reset`（または`reset.default: 'hard'`）の場合は、アプリを終了して再起動します。アプリがクラッシュしていたり応答しなくなっていたりすれば、起動し直します。
 
 ```ts
-await session.beforeScenario({ tags: ['@hard-reset'], name: 'first launch' });
+await session.beforeScenario({ tags: [Tag.hardReset], name: 'first launch' });
 ```
 
 ### `afterScenario({ failed })` {#afterscenario}
+
+```ts
+afterScenario(result: { failed: boolean }): Promise<ScenarioArtifacts>
+```
+
+型： [`ScenarioArtifacts`](./api-types#scenarioartifacts)
 
 テストを終えます。失敗時には枠付きのスクリーンショット、要素ツリー、アイドル状態に加え、[成果物のポリシー](./api-artifacts)に沿ってvideo、logs、timelineを残します。`{ attachments, files }`を返します。
 
@@ -184,6 +241,12 @@ const { files } = await session.afterScenario({ failed: true });
 
 ### `collectEvidence()` {#collectevidence}
 
+```ts
+collectEvidence(): Promise<Evidence>
+```
+
+型： [`Evidence`](./api-types#evidence)
+
 成果物を書き出さずに、失敗時の証跡だけを返します：`screenshot`、`tree`、`elements`、`idle`と、集められなかったものについての`errors`（クラッシュの後はスクリーンショットと`crash`のみ）。
 
 ```ts
@@ -192,6 +255,10 @@ if (evidence.screenshot) await fs.writeFile('failure.png', evidence.screenshot);
 ```
 
 ### `dispose()` {#dispose}
+
+```ts
+dispose(): Promise<void>
+```
 
 最後に呼びます。最後のテストのデバイスへの変更を元に戻し、アプリを閉じます。[`devices.*.shutdown`](./config#devices)を指定しない限り、デバイスは動き続けます。
 

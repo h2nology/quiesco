@@ -17,6 +17,15 @@ await app.expectText({ id: 'todo-title', index: 0 }, 'Buy milk');
 
 ### `expectVisible(target, options?)` {#expectvisible}
 
+```ts
+expectVisible(
+  target: MatcherInput,
+  options?: VisibleOptions,
+): Promise<ElementSummary[]>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`VisibleOptions`](./api-types#visibleoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 至少有一个匹配元素 [可见](./api-matchers#visibility) 时成立。
 
 ```ts
@@ -34,6 +43,15 @@ await app.expectVisible('promo-banner', { ratio: 0.75 });
 
 ### `expectNotVisible(target, options?)` {#expectnotvisible}
 
+```ts
+expectNotVisible(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 没有可见的匹配元素时成立：元素不存在，或被隐藏。
 
 ```ts
@@ -47,6 +65,15 @@ await app.expectNotVisible('confirm-dialog');
 | `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 ### `expectExists(target, options?)` {#expectexists}
+
+```ts
+expectExists(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
 
 有匹配元素在元素树中时成立，无论是否可见。
 
@@ -62,10 +89,19 @@ await app.expectExists({ id: 'todo-row', index: 49 });
 
 ### `expectNotExists(target, options?)` {#expectnotexists}
 
+```ts
+expectNotExists(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 元素树中没有匹配元素时成立。
 
 ```ts
-await app.swipe({ id: 'todo-row', has: { text: 'Buy milk' } }, 'left');
+await app.swipe({ id: 'todo-row', has: { text: 'Buy milk' } }, Direction.left);
 await app.tap('delete');
 await app.expectNotExists({ text: 'Buy milk' });
 ```
@@ -77,11 +113,21 @@ await app.expectNotExists({ text: 'Buy milk' });
 
 ### `expectCount(target, n, options?)` {#expectcount}
 
+```ts
+expectCount(
+  target: MatcherInput,
+  n: number,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 恰好有 `n` 个元素匹配时成立。
 
 ```ts
 await app.type('new-todo', 'Walk the dog');
-await app.pressKey('new-todo', 'enter');
+await app.pressKey('new-todo', KeyName.enter);
 await app.expectCount({ id: 'todo-row' }, 3);
 ```
 
@@ -93,6 +139,16 @@ await app.expectCount({ id: 'todo-row' }, 3);
 ## 内容 {#content}
 
 ### `expectText(target, text, options?)` {#expecttext}
+
+```ts
+expectText(
+  target: MatcherInput,
+  text: TextQuery,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`TextQuery`](./api-types#textquery) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
 
 恰好一个元素匹配，且其文本等于 `text`（`text` 为正则表达式时则与之匹配）时成立。
 
@@ -108,6 +164,16 @@ await app.expectText('items-left', /^\d+ items? left$/);
 | `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 ### `expectValue(target, value, options?)` {#expectvalue}
+
+```ts
+expectValue(
+  target: MatcherInput,
+  value: JsonValue | RegExp | Date,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`JsonValue`](./api-types#jsonvalue) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
 
 恰好一个元素匹配，且其值等于 `value`（`value` 为正则表达式时则与之匹配）时成立。值是输入框的文本、开关的状态、滑块或选择器的值，或 `accessibilityValue`。
 
@@ -129,6 +195,16 @@ await app.expectValue('due-date', new Date(2031, 11, 24));
 
 ### `expectLabel(target, text, options?)` {#expectlabel}
 
+```ts
+expectLabel(
+  target: MatcherInput,
+  text: TextQuery,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`TextQuery`](./api-types#textquery) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 恰好一个元素匹配，且其无障碍标签等于 `text`（`text` 为正则表达式时则与之匹配）时成立。
 
 ```ts
@@ -143,6 +219,17 @@ await app.expectLabel('cart-button', /^Cart, \d+ items$/);
 | `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 ### `expectProp(target, prop, value, options?)` {#expectprop}
+
+```ts
+expectProp(
+  target: MatcherInput,
+  prop: string,
+  value: JsonValue,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`JsonValue`](./api-types#jsonvalue) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
 
 恰好一个元素匹配，且其 prop `prop` 的 JSON 值等于此值时成立。先查 host 元素的 props，再查其组件的（例如 `disabled`、`value`）。
 
@@ -161,6 +248,15 @@ await app.expectProp('save', 'disabled', false);
 
 ### `expectEnabled(target, options?)` {#expectenabled}
 
+```ts
+expectEnabled(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 恰好一个元素匹配，且它已启用时成立。
 
 ```ts
@@ -175,6 +271,15 @@ await app.expectEnabled('sign-in');
 | `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 ### `expectDisabled(target, options?)` {#expectdisabled}
+
+```ts
+expectDisabled(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
 
 恰好一个元素匹配，且它已禁用时成立。
 
@@ -192,11 +297,20 @@ await app.expectDisabled('sign-in');
 
 ### `expectChecked(target, options?)` {#expectchecked}
 
+```ts
+expectChecked(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 恰好一个元素匹配，且它已选中时成立：开关、复选框或单选框，或任何带有 `accessibilityState.checked` 的元素。
 
 ```ts
-await app.tap({ type: 'switch', label: 'Notifications' });
-await app.expectChecked({ type: 'switch', label: 'Notifications' });
+await app.tap({ type: SemanticType.switch, label: 'Notifications' });
+await app.expectChecked({ type: SemanticType.switch, label: 'Notifications' });
 ```
 
 | 选项 | 默认值 | 含义 |
@@ -206,10 +320,19 @@ await app.expectChecked({ type: 'switch', label: 'Notifications' });
 
 ### `expectNotChecked(target, options?)` {#expectnotchecked}
 
+```ts
+expectNotChecked(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 恰好一个元素匹配，且它未选中时成立。
 
 ```ts
-await app.expectNotChecked({ type: 'checkbox', label: 'Remember me' });
+await app.expectNotChecked({ type: SemanticType.checkbox, label: 'Remember me' });
 ```
 
 | 选项 | 默认值 | 含义 |
@@ -220,6 +343,15 @@ await app.expectNotChecked({ type: 'checkbox', label: 'Remember me' });
 没有选中状态的元素，`expectChecked` 和 `expectNotChecked` 都不成立。
 
 ### `expectFocused(target, options?)` {#expectfocused}
+
+```ts
+expectFocused(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
 
 恰好一个元素匹配，且它拥有输入焦点时成立。
 
@@ -235,10 +367,19 @@ await app.expectFocused('new-todo');
 
 ### `expectNotFocused(target, options?)` {#expectnotfocused}
 
+```ts
+expectNotFocused(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 恰好一个元素匹配，且它没有输入焦点时成立。
 
 ```ts
-await app.pressKey('new-todo', 'enter');
+await app.pressKey('new-todo', KeyName.enter);
 await app.dismissKeyboard();
 await app.expectNotFocused('new-todo');
 ```
@@ -252,11 +393,17 @@ await app.expectNotFocused('new-todo');
 
 ### `expect(target)` {#expect}
 
+```ts
+expect(target: MatcherInput): ElementExpectation
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`ElementExpectation`](./api-assertions#expect)
+
 同样的断言也有类似 Detox 和 Jest 的链式写法。两种写法做的事情相同：等待空闲，并不断重试直到断言成立。每个方法都接受 [调用选项](./api#call-options) 作为最后一个参数，`.not` 对其取反。
 
 ```ts
 await app.expect('save').toBeEnabled();
-await app.expect({ type: 'switch', label: 'Wi-Fi' }).not.toBeChecked();
+await app.expect({ type: SemanticType.switch, label: 'Wi-Fi' }).not.toBeChecked();
 
 // Detox：toBeVisible(75)
 await app.expect('promo-banner').toBeVisible({ ratio: 0.75 });

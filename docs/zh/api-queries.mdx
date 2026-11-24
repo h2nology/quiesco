@@ -9,6 +9,15 @@ description: "读取元素和元素树、等待空闲、查看是什么让 App �
 
 ### `query(target, options?)` {#query}
 
+```ts
+query(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 立即返回所有匹配元素的 [摘要](#element-summary)：它和所有调用一样会等待 App 空闲，但不会等待匹配出现。没有匹配时返回 `[]`。
 
 ```ts
@@ -26,6 +35,15 @@ if ((await app.query('onboarding-tip')).length > 0) await app.tap('dismiss-tip')
 
 ### `attributes(target, options?)` {#attributes}
 
+```ts
+attributes(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 等待元素出现后，返回唯一匹配元素的 [摘要](#element-summary)（相当于 Detox 的 `getAttributes`）。匹配到多个元素时以 `MULTIPLE_MATCHES` 失败。
 
 ```ts
@@ -42,6 +60,12 @@ console.log(row.rect); // { x, y, width, height }
 | `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 ### `getTree()` {#gettree}
+
+```ts
+getTree(): Promise<TreeNode | null>
+```
+
+类型： [`TreeNode`](./api-types#treenode)
 
 以 JSON 返回元素树，带语义类型：每个节点包含 `type`、`testID`、`text`、`role`、`semanticType`、取整后的 `rect` 及其 `children`。失败的测试也会附上这棵树（[产物](./api-artifacts)）。
 
@@ -77,6 +101,12 @@ console.log(JSON.stringify(tree, null, 2));
 
 ### `waitForIdle(options?)` {#waitforidle}
 
+```ts
+waitForIdle(options?: WaitForIdleOptions): Promise<number>
+```
+
+类型： [`WaitForIdleOptions`](./api-types#waitforidleoptions)
+
 等待直到 App 空闲，resolve 的值为所用时间（毫秒）。每个调用本来就会这样做；在 driver 之外的操作（例如读取 App 的后端）之前使用它。
 
 ```ts
@@ -90,6 +120,12 @@ console.log(`sync took ${ms} ms`);
 | `timeoutMs` | `sync.timeoutMs`（10 s） | 最多等待多久 |
 
 ### `getIdleState()` {#getidlestate}
+
+```ts
+getIdleState(): Promise<TrackerState[]>
+```
+
+类型： [`TrackerState`](./api-types#trackerstate)
 
 返回此刻每个 [跟踪器](./sync#trackers) 的状态：是什么让 App 处于忙碌。
 
@@ -106,6 +142,12 @@ for (const t of await app.getIdleState()) {
 
 ### `backdoor(name, ...args)` {#backdoor}
 
+```ts
+backdoor<T = JsonValue>(name: string, ...args: JsonValue[]): Promise<T>
+```
+
+类型： [`JsonValue`](./api-types#jsonvalue)
+
 调用 App 用 `quiesco.backdoor` 注册的后门（[App 内 API](./api-in-app)），并以其结果 resolve。参数和结果均为 JSON；TypeScript 的 interface 也可以。不是 JSON 的参数会以 `NOT_SERIALIZABLE` 失败。
 
 ```ts
@@ -118,6 +160,10 @@ const todos = await app.backdoor<Todo[]>('todos.list');
 声明了 `Backdoors` 后，名称、参数和结果都会经过类型检查（[类型化后门](./api-in-app#typed-backdoors)）。
 
 ### `reset()` {#reset}
+
+```ts
+reset(): Promise<number>
+```
 
 软重置：清空 App 的存储，运行其 `onReset` hook，重新挂载 App 并等待空闲。resolve 的值为所用时间（毫秒）。Quiesco 在每个测试之前都会执行它，所以测试只在需要中途从头开始时才调用它。
 
@@ -135,7 +181,7 @@ await app.expectVisible('login-screen');
 被测平台：`'ios'`、`'android'` 或 `'web'`。它是属性，不是方法。在 Cucumber 的 `QuiescoWorld` 中也可以用 `this.platform`，以及 `session.platform`（[按平台区分的步骤](./driver-pattern#per-platform-steps)）。
 
 ```ts
-if (app.platform === 'android') {
+if (app.platform === Platform.android) {
   // 用返回键关闭底部面板
   await app.pressBack();
 } else {

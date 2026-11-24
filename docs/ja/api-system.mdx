@@ -25,6 +25,10 @@ await app.expectVisible('home-screen');
 
 ### `biometrics.enroll(enrolled?)` {#biometrics-enroll}
 
+```ts
+biometrics.enroll(enrolled?: boolean): Promise<void>
+```
+
 顔や指紋を登録します。`enroll(false)`で削除します。`enrolled`のデフォルトは`true`です。Androidでは、Quiescoが画面ロックのPINを設定し（指紋に必須）、設定アプリの登録画面を進めたうえで、アプリを前面に戻します。登録は次のテストの前に元に戻されます。
 
 ```ts
@@ -36,6 +40,10 @@ await app.expectVisible('password-input');
 
 ### `biometrics.match()` {#biometrics-match}
 
+```ts
+biometrics.match(): Promise<void>
+```
+
 アプリが表示している認証に一致する顔や指を提示し、認証を成功させます。
 
 ```ts
@@ -45,6 +53,10 @@ await app.expectVisible('vault-contents');
 ```
 
 ### `biometrics.fail()` {#biometrics-fail}
+
+```ts
+biometrics.fail(): Promise<void>
+```
 
 未登録の顔や指を提示します。実機と同じく、その後もシステムは再試行のプロンプトを表示し続け、プロンプトに応答する（もう一度一致させる、または[`system.tap`](#system-tap)でキャンセルする）までアプリには結果が返りません。続けて何度か失敗すると、センサーがしばらくロックされます（Androidエミュレーターでは約0.5秒から最大30秒）。
 
@@ -61,6 +73,10 @@ await app.expectText('unlock-error', 'Authentication cancelled');
 
 ### `shake()` {#shake}
 
+```ts
+shake(): Promise<void>
+```
+
 デバイスを振り（iOS：シミュレーターの*Device > Shake*。Androidエミュレーター：加速度センサーへの入力）、その後アプリがアイドルになるのを待ちます。
 
 ```ts
@@ -70,6 +86,10 @@ await app.expectVisible('feedback-form');
 ```
 
 ### `clearKeychain()` {#clearkeychain}
+
+```ts
+clearKeychain(): Promise<void>
+```
 
 iOS：シミュレーターのキーチェーンを、全アプリ分リセットします。Androidにはキーチェーンがないため`ACTION_NOT_SUPPORTED`で失敗します。[`relaunch({ clearData: true })`](./api-device#relaunch)を使ってください。Keystoreの鍵も含めてアプリのデータが削除されます。
 
@@ -83,6 +103,12 @@ await app.expectVisible('sign-in-screen');
 ## 通知 {#notifications}
 
 ### `sendNotification({ title, body?, data? })` {#sendnotification}
+
+```ts
+sendNotification(notification: NotificationSpec): Promise<void>
+```
+
+型： [`NotificationSpec`](./api-types#notificationspec)
 
 通知を届けます。アプリがバックグラウンドにあっても動作します。
 
@@ -104,6 +130,15 @@ await app.device.sendNotification({
 | `data` | カスタムデータ。値はすべて文字列でなければなりません |
 
 ### `openNotification(title, options?)` {#opennotification}
+
+```ts
+openNotification(
+  title: string,
+  options?: OpenNotificationOptions,
+): Promise<void>
+```
+
+型： [`OpenNotificationOptions`](./api-types#opennotificationoptions)
 
 タイトルが`title`の通知を、ユーザーが開くのと同じようにタップします。iOSではバナー、バナーが消えていれば通知センターで、Androidでは通知シェードでタップします。アプリが前面に来てアイドルになった時点で解決します。
 
@@ -139,6 +174,15 @@ await app.expectVisible('chat-42');
 
 ### `system.tap(query, options?)` {#system-tap}
 
+```ts
+system.tap(
+  query: SystemQuery,
+  options?: SystemWaitOptions,
+): Promise<void>
+```
+
+型： [`SystemQuery`](./api-types#systemquery) · [`SystemWaitOptions`](./api-types#systemwaitoptions)
+
 アプリ外のシステムUIをタップし、その後アプリがアイドルになるのを待ちます。
 
 ```ts
@@ -159,6 +203,15 @@ await app.device.system.tap({ text: /^Allow/ });
 
 ### `system.expectVisible(query, options?)` {#system-expectvisible}
 
+```ts
+system.expectVisible(
+  query: SystemQuery,
+  options?: SystemWaitOptions,
+): Promise<void>
+```
+
+型： [`SystemQuery`](./api-types#systemquery) · [`SystemWaitOptions`](./api-types#systemwaitoptions)
+
 そのシステムUIが画面に表示されるまで待ちます。失敗すると`ELEMENT_NOT_FOUND`になり、見つかったテキストが列挙されます。
 
 ```ts
@@ -172,6 +225,15 @@ await app.device.system.expectVisible({ text: /location/i });
 
 ### `system.expectNotVisible(query, options?)` {#system-expectnotvisible}
 
+```ts
+system.expectNotVisible(
+  query: SystemQuery,
+  options?: SystemWaitOptions,
+): Promise<void>
+```
+
+型： [`SystemQuery`](./api-types#systemquery) · [`SystemWaitOptions`](./api-types#systemwaitoptions)
+
 そのシステムUIが画面に表示されなくなるまで待ちます。失敗すると`ASSERTION_FAILED`になり、残っているテキストが示されます。
 
 ```ts
@@ -184,6 +246,16 @@ await app.device.system.expectNotVisible({ text: 'Delete all?' });
 | `timeoutMs` | `10000` | 待つ時間 |
 
 ### `system.type(query, text, options?)` {#system-type}
+
+```ts
+system.type(
+  query: SystemQuery,
+  text: string,
+  options?: SystemWaitOptions,
+): Promise<void>
+```
+
+型： [`SystemQuery`](./api-types#systemquery) · [`SystemWaitOptions`](./api-types#systemwaitoptions)
 
 `query`に一致する入力欄をタップし、デバイスの入力で`text`を入力します。その後アプリがアイドルになるのを待ちます。ラベルと入力欄が同じテキストを持つ場合は、入力欄を使います（入力欄の隣の「Email」というラベルなど）。iOSではキーボード経由で入力するので、どんなテキストでも入力できます。Androidでは、印字可能なASCIIはキーイベント（`input text`）として送り、それ以外のテキストは`@quiesco/native`のクリップボード経由で貼り付けます。
 
@@ -201,6 +273,12 @@ await app.device.system.tap({ text: 'Sign in' });
 
 ### `system.tapAt({ x, y })` {#system-tapat}
 
+```ts
+system.tapAt(point: Point): Promise<void>
+```
+
+型： [`Point`](./api-types#point)
+
 画面上の点（左上隅からのpt / dp）に、システムレベルのタッチをします。そこにあるものに関係なく届きます。たとえばiOSの共有シートの上側をタップすると、シートが閉じます。iOSでは、画面上のシステムUIが動かなくなるまで（最大2秒）待ってからタッチします。その後アプリがアイドルになるのを待ちます。
 
 ```ts
@@ -215,6 +293,12 @@ await app.device.system.tapAt({ x: 200, y: 100 });
 アプリが権限を要求するとシステムがダイアログを表示し、テストはユーザーと同じようにそれに応答します。権限を付与した状態でテストを始めるには、代わりに`permissions`設定か[`setPermission`](./api-device#setpermission)を使ってください（[プラットフォームごと](./platforms#permissions)）。
 
 ### `system.allowPermission(options?)` {#system-allowpermission}
+
+```ts
+system.allowPermission(options?: SystemWaitOptions): Promise<void>
+```
+
+型： [`SystemWaitOptions`](./api-types#systemwaitoptions)
 
 デバイスの言語に関係なく、ダイアログの許可ボタンをタップします。AndroidではボタンのIDで判別し、「アプリの使用中のみ」にも対応します。iOSでは、iOSのボタンの配置に従い位置で判別します。アプリが前面に来てアイドルになった時点で解決します。
 
@@ -233,6 +317,12 @@ await app.expectText('notifications-status', 'On');
 
 ### `system.denyPermission(options?)` {#system-denypermission}
 
+```ts
+system.denyPermission(options?: SystemWaitOptions): Promise<void>
+```
+
+型： [`SystemWaitOptions`](./api-types#systemwaitoptions)
+
 同じ方法で、ダイアログの拒否ボタンをタップします（Androidでは「今後表示しない」にも対応）。アプリが前面に来てアイドルになった時点で解決します。
 
 ```ts
@@ -248,7 +338,7 @@ await app.expectVisible('location-denied-banner');
 **権限ダイアログには、それを表示させたテストの中で応答してください。** アラートはアプリより長く残ります。テストが開いたまま残したアラートは、次のテストの前に閉じられます（キャンセル、なければ最初のボタン）。ただし権限ダイアログは例外です。どちらを答えても結果が残る（通知の拒否は再インストールしないと消えない）ため、次のテストがそのダイアログを示す`RESET_FAILED`で失敗します。権限を再び要求させるには、先にリセットします。
 
 ```ts
-await app.device.setPermission('notifications', 'reset');
+await app.device.setPermission(Permission.notifications, PermissionState.reset);
 ```
 
 権限ダイアログ（別のアクティビティ）が前面にある間、AndroidはアプリのJSタイマーを一時停止します。Quiescoのアイドル待機はアプリがバックグラウンドに移ったことを検知して戻るので、ダイアログを開いたタップは完了します。

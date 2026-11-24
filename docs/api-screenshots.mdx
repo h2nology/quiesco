@@ -11,6 +11,15 @@ scroll view, scrolled and stitched. With a `name` it is also saved with the test
 
 ### `screenshot(target?, options?)` {#screenshot}
 
+```ts
+screenshot(
+  target?: ScreenshotTarget,
+  options?: ScreenshotOptions,
+): Promise<Buffer>
+```
+
+Types: [`ScreenshotTarget`](./api-types#screenshottarget) · [`ScreenshotOptions`](./api-types#screenshotoptions)
+
 Without a target, the screen as shown; on the web, the browser viewport.
 
 ```ts

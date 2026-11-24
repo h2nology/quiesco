@@ -82,7 +82,7 @@ function structure(text) {
     if (line.trimStart().startsWith('```')) {
       if (block) code.push(block);
       block = block ? null : [];
-    } else if (block) block.push(line.replace(/(\/\/|#|\/\*).*$/, '').trimEnd());
+    } else if (block) block.push(line);
     else prose.push(line);
   }
   const p = prose.join('\n');
@@ -92,8 +92,23 @@ function structure(text) {
     links: all(/\]\(([^)]+)\)/g).sort(),
     components: all(/<(\/?[A-Z][A-Za-z]*)/g).sort(),
     'inline code': all(/`([^`\n]+)`/g).sort(),
-    'code blocks': code.map((b) => b.join('\n')),
+    'code blocks': code.map(withoutComments),
   };
+}
+
+/**
+ * A code block without its comments (which a translation may translate, or wrap differently): block comments
+ * (also spanning lines), then `//` and `#` to the end of the line; lines left blank are dropped.
+ * @param {string[]} lines
+ */
+function withoutComments(lines) {
+  return lines
+    .join('\n')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .map((l) => l.replace(/(\/\/|#|\/\*).*$/, '').trimEnd())
+    .filter((l) => l.trim() !== '')
+    .join('\n');
 }
 
 /** @param {string[]} a @param {string[]} b */

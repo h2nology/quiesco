@@ -33,7 +33,12 @@ When('I add a todo', async function (this: QuiescoWorld) {
 ```
 </CodeGroup>
 
-このセクションの例では、Vitestの形の`app`を使います。Jestでは`quiesco.app`、Cucumberのステップでは`this.app`と書いてください。
+このセクションの例では、Vitestの形の`app`を使います。Jestでは`quiesco.app`、Cucumberのステップでは`this.app`と書いてください。例の中の決まった文字列には[定数](./api-constants)（`Direction.left`、
+`Tag.native` …）を使っています。定数はランナーのパッケージ（`@quiesco/vitest`、`@quiesco/cucumber`）からインポートします。Jestではグローバルにもあります（`quiesco.Direction`）。
+
+各メソッドの見出しの下に、シグネチャと、そこに出てくる[型](./api-types)へのリンクがあります（`MatcherInput`、
+`TapOptions`、`ElementSummary` …）。これらの型は `@quiesco/core` からエクスポートされているので、自分で書くヘルパー関数でもそのまま使えます：
+`import type { MatcherInput, TapOptions } from '@quiesco/core'`。
 
 ## すべての呼び出しはアプリを待つ {#every-call-waits}
 
@@ -67,7 +72,7 @@ await app.expectVisible('report', { timeoutMs: 30_000 });
 await app.tap('stop-animation', { sync: false });
 
 // 画面をタッチする代わりにonPressを呼ぶ
-await app.tap('hidden-debug-button', { mode: 'js' });
+await app.tap('hidden-debug-button', { mode: ActionMode.js });
 ```
 
 ## 要素を見つける {#finding-elements}
@@ -126,6 +131,9 @@ await app.expectText({ id: 'todo-title', index: 0 }, 'Buy milk');
   </Card>
   <Card title="定数" icon="font" href="./api-constants">
     タグ、方向、権限、エラー名 … を手書きの文字列ではなく定数で書く。
+  </Card>
+  <Card title="型" icon="code" href="./api-types">
+    シグネチャに出てくるすべての型：オプション、戻り値、マッチャー。
   </Card>
   <Card title="エラー" icon="triangle-exclamation" href="./api-errors">
     呼び出しが失敗するときのすべてのエラーと、その意味。

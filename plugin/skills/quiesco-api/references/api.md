@@ -41,7 +41,13 @@ When('I add a todo', async function (this: QuiescoWorld) {
 ```
 
 The examples in this section use the Vitest form, `app`. With Jest write `quiesco.app`, in Cucumber steps
-`this.app`.
+`this.app`. The fixed strings in the examples are [constants](./api-constants.md) (`Direction.left`,
+`Tag.native` …), imported from the runner's package (`@quiesco/vitest`, `@quiesco/cucumber`); with Jest
+they are on the global as well (`quiesco.Direction`).
+
+Under each method's heading is its signature, and links to the [types](./api-types.md) it names (`MatcherInput`,
+`TapOptions`, `ElementSummary` …). They are exported by `@quiesco/core`, for helpers of your own:
+`import type { MatcherInput, TapOptions } from '@quiesco/core'`.
 
 ## Every call waits for the app {#every-call-waits}
 
@@ -77,7 +83,7 @@ await app.expectVisible('report', { timeoutMs: 30_000 });
 await app.tap('stop-animation', { sync: false });
 
 // call onPress instead of touching the screen
-await app.tap('hidden-debug-button', { mode: 'js' });
+await app.tap('hidden-debug-button', { mode: ActionMode.js });
 ```
 
 ## Finding elements {#finding-elements}
@@ -114,6 +120,7 @@ dismissed first.
 - [In-app API](./api-in-app.md): What the app registers: backdoors, reset hooks, storage, launch arguments.
 - [Test tags](./api-tags.md): Run a test only on some platforms or browsers, or after a full restart.
 - [Constants](./api-constants.md): Tags, directions, permissions, error names … as constants instead of hand-written strings.
+- [Types](./api-types.md): Every type the signatures name: options, results, matchers.
 - [Errors](./api-errors.md): Every error a call can fail with, and what it means.
 - [Artifacts](./api-artifacts.md): Screenshots, element trees, videos, logs and timelines of a run.
 - [Other test runners](./api-custom-runners.md): Vitest and Jest adapters in detail, and driving Quiesco from any runner.

@@ -4,7 +4,7 @@
  * Platform differences live in the DeviceProviders; this class only orders the steps and keeps track of
  * whether the app is running, so element calls fail fast instead of waiting for a reconnect.
  */
-import type { DeviceInfo, Matcher, Orientation, Rect, ScrollViewInfo } from '@quiesco/protocol';
+import type { DeviceInfo, Matcher, Orientation, Point, Rect, ScrollViewInfo } from '@quiesco/protocol';
 
 import type { Permission, PermissionState } from './devices/permissions.js';
 import type { ColorScheme, DeviceProvider, InAppControls, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions, SystemNode } from './devices/provider.js';
@@ -22,6 +22,23 @@ import type { SystemQuery, SystemWaitOptions } from './system-ui.js';
 /** What the test did to the app last. Element calls need `running`. */
 export const AppRunState = { running: 'running', background: 'background', terminated: 'terminated' } as const;
 export type AppRunState = (typeof AppRunState)[keyof typeof AppRunState];
+
+/** What `app.device.screenshot` captures: an element, or with `fullPage` the whole content of a scroll view (`true`: the screen's). */
+export type ScreenshotTarget = MatcherInput | { fullPage: true | MatcherInput };
+
+/** `app.device.screenshot()` options. */
+export interface ScreenshotOptions {
+  /** With an element: all of the element, scrolled and stitched (default false). */
+  full?: boolean;
+  /** Also save the PNG to the scenario's artifacts under this name. */
+  name?: string;
+}
+
+/** `app.device.openNotification()` options. */
+export interface OpenNotificationOptions {
+  /** How long to wait for the notification to be posted (default 10000 ms). */
+  timeoutMs?: number;
+}
 
 /** For `app.device.setNetwork`. */
 export const NetworkState = { offline: 'offline', online: 'online' } as const;
@@ -166,7 +183,7 @@ export class DeviceApi {
      * A system-level touch at a screen point (points / dp, from the top-left corner), over whatever is
      * there (issue #51): e.g. outside iOS's share sheet, which closes it. Waits for the app afterwards.
      */
-    tapAt: async (point: { x: number; y: number }): Promise<void> => {
+    tapAt: async (point: Point): Promise<void> => {
       if (typeof point !== 'object' || point === null || !Number.isFinite(point.x) || !Number.isFinite(point.y)) throw new TypeError('system.tapAt({ x, y }) needs numbers');
       const p = this.host.provider;
       if (p.tapSystemPoint === undefined) throw notSupported('system.tapAt', p.platform, SYSTEM_UI_HINT[p.platform]);
@@ -306,7 +323,7 @@ export class DeviceApi {
    *   bars appear once; the scroll position is restored.
    * `name`: also saved in the scenario's artifacts directory and attached to the report.
    */
-  async screenshot(target?: MatcherInput | { fullPage: true | MatcherInput }, opts: { full?: boolean; name?: string } = {}): Promise<Buffer> {
+  async screenshot(target?: ScreenshotTarget, opts: ScreenshotOptions = {}): Promise<Buffer> {
     let png: Buffer;
     if (target === undefined) {
       png = await this.host.provider.screenshot();
@@ -474,7 +491,7 @@ export class DeviceApi {
    * background; resolves when the app is in front and idle. Waits up to `timeoutMs` (default 10 s) for the
    * notification to be posted.
    */
-  async openNotification(title: string, opts: { timeoutMs?: number } = {}): Promise<void> {
+  async openNotification(title: string, opts: OpenNotificationOptions = {}): Promise<void> {
     if (typeof title !== 'string' || title === '') throw new TypeError('openNotification(title) needs a non-empty title');
     const timeoutMs = opts.timeoutMs ?? SYSTEM_WAIT_MS;
     if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new TypeError('openNotification: timeoutMs must be a positive number');

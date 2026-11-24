@@ -50,6 +50,12 @@ Then('the home screen is visible', async function (this: QuiescoWorld) {
 
 ## `registerQuiesco()` {#register-quiesco}
 
+```ts
+registerQuiesco(options?: RegisterOptions): Lifecycle
+```
+
+Types: [`RegisterOptions`](./api-types.md#registeroptions) · [`Lifecycle`](./api-custom-runners.md#new-lifecycle)
+
 `import '@quiesco/cucumber/register'` registers everything with the defaults. To change them, call
 `registerQuiesco()` in the support file instead (not both):
 

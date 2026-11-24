@@ -21,6 +21,12 @@ reconnects. To skip waiting for a single call only, `{ sync: false }` still work
 
 ### `disableTracker(name)` {#disabletracker}
 
+```ts
+disableTracker(name: TrackerName): Promise<void>
+```
+
+Types: [`TrackerName`](./api-types.md#trackername)
+
 Stops waiting for one [tracker](./sync.md#trackers): one source of busyness.
 
 ```ts
@@ -35,6 +41,12 @@ Another name throws a `RangeError`.
 
 ### `enableTracker(name)` {#enabletracker}
 
+```ts
+enableTracker(name: TrackerName): Promise<void>
+```
+
+Types: [`TrackerName`](./api-types.md#trackername)
+
 Waits for a tracker again, also one the config turns off.
 
 ```ts
@@ -46,6 +58,10 @@ await app.sync.enableTracker('timer');
 
 ### `disable()` {#disable}
 
+```ts
+disable(): Promise<void>
+```
+
 Stops waiting for the app altogether: every tracker is off until `enable()` (Detox
 `disableSynchronization`).
 
@@ -56,6 +72,10 @@ await app.expectVisible('splash');
 ```
 
 ### `enable()` {#enable}
+
+```ts
+enable(): Promise<void>
+```
 
 Waits for the app again: the trackers are as configured, with the changes made by `disableTracker` and
 `enableTracker` still in effect.
@@ -69,6 +89,11 @@ await app.sync.enable();
 ## Ignore lists {#ignore-lists}
 
 ### `ignoreUrls.add(pattern)` / `ignoreUrls.remove(pattern)` {#ignoreurls}
+
+```ts
+ignoreUrls.add(pattern: string | RegExp): Promise<void>
+ignoreUrls.remove(pattern: string | RegExp): Promise<void>
+```
 
 Adds a URL to, or removes it from, the requests the `network` tracker ignores, on top of the config's
 `sync.ignoreUrls` ([configuration](./config.md#sync)). `pattern` is a string or a regular expression.
@@ -85,6 +110,13 @@ await app.sync.ignoreUrls.add('/chat/poll');
 
 ### `ignoreElements.add(target)` / `ignoreElements.remove(target)` {#ignoreelements}
 
+```ts
+ignoreElements.add(target: MatcherInput): Promise<void>
+ignoreElements.remove(target: MatcherInput): Promise<void>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput)
+
 Adds an element to, or removes it from, the elements the `frame-stable` tracker leaves out, on top of the
 config's `sync.ignoreElements` ([configuration](./config.md#sync)). `target` is a
 [matcher](./api-matchers.md).
@@ -94,7 +126,7 @@ config's `sync.ignoreElements` ([configuration](./config.md#sync)). `target` is 
 await app.sync.ignoreElements.add('poll-count');
 
 // a spinner in the header that keeps rotating
-await app.sync.ignoreElements.add({ type: 'progress', within: 'header' });
+await app.sync.ignoreElements.add({ type: SemanticType.progress, within: 'header' });
 ```
 
 `remove` also takes out a matcher that comes from the config, for the rest of the test.

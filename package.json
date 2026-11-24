@@ -12,13 +12,14 @@
     "lint": "eslint .",
     "test": "vitest run",
     "depcruise": "depcruise packages --config .dependency-cruiser.cjs",
-    "check": "pnpm build && pnpm lint && pnpm depcruise && pnpm test && pnpm typecheck:examples",
+    "check": "pnpm build && pnpm lint && node scripts/build-api-types.mjs --check && pnpm depcruise && pnpm test && pnpm typecheck:examples",
     "typecheck:examples": "pnpm --filter @quiesco/example-todo-app exec tsc --noEmit",
     "check:prod-strip": "node scripts/check-prod-strip.mjs",
     "clean": "node scripts/clean.mjs",
     "release:check": "pnpm clean && pnpm check && node scripts/check-release.mjs",
-    "docs:check": "node scripts/check-docs.mjs && node scripts/build-plugin-refs.mjs --check",
-    "plugin:refs": "node scripts/build-plugin-refs.mjs"
+    "docs:check": "node scripts/check-docs.mjs && node scripts/build-api-types.mjs --check && node scripts/build-plugin-refs.mjs --check",
+    "plugin:refs": "node scripts/build-plugin-refs.mjs",
+    "docs:types": "node scripts/build-api-types.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

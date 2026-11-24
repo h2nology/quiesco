@@ -33,7 +33,12 @@ When('I add a todo', async function (this: QuiescoWorld) {
 ```
 </CodeGroup>
 
-本节的示例使用 Vitest 的写法 `app`。在 Jest 中写作 `quiesco.app`，在 Cucumber 步骤中写作 `this.app`。
+本节的示例使用 Vitest 的写法 `app`。在 Jest 中写作 `quiesco.app`，在 Cucumber 步骤中写作 `this.app`。示例中的固定字符串使用[常量](./api-constants)（`Direction.left`、
+`Tag.native` …），从所用 runner 的包导入（`@quiesco/vitest`、`@quiesco/cucumber`）；使用 Jest 时它们也在全局对象上（`quiesco.Direction`）。
+
+每个方法的标题下面是它的签名，以及签名中出现的[类型](./api-types)的链接（`MatcherInput`、
+`TapOptions`、`ElementSummary` …）。这些类型都由 `@quiesco/core` 导出，自己写辅助函数时可以直接引用：
+`import type { MatcherInput, TapOptions } from '@quiesco/core'`。
 
 ## 每个调用都会等待 App {#every-call-waits}
 
@@ -67,7 +72,7 @@ await app.expectVisible('report', { timeoutMs: 30_000 });
 await app.tap('stop-animation', { sync: false });
 
 // 调用 onPress，而不是触摸屏幕
-await app.tap('hidden-debug-button', { mode: 'js' });
+await app.tap('hidden-debug-button', { mode: ActionMode.js });
 ```
 
 ## 查找元素 {#finding-elements}
@@ -126,6 +131,9 @@ await app.expectText({ id: 'todo-title', index: 0 }, 'Buy milk');
   </Card>
   <Card title="常量" icon="font" href="./api-constants">
     用常量代替手写字符串：标签、方向、权限、错误名 …
+  </Card>
+  <Card title="类型" icon="code" href="./api-types">
+    签名中出现的每个类型：选项、返回值、匹配器。
   </Card>
   <Card title="错误" icon="triangle-exclamation" href="./api-errors">
     调用可能失败的每一种错误及其含义。

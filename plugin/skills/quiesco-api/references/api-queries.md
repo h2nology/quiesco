@@ -11,6 +11,15 @@ through the app's backdoors, and resetting it.
 
 ### `query(target, options?)` {#query}
 
+```ts
+query(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`CallOptions`](./api-types.md#calloptions) · [`ElementSummary`](./api-types.md#elementsummary)
+
 Returns the [summaries](#element-summary) of all matching elements, at once: it waits for the app to be
 idle like every call, but not for a match to appear. No match gives `[]`.
 
@@ -29,6 +38,15 @@ if ((await app.query('onboarding-tip')).length > 0) await app.tap('dismiss-tip')
 
 ### `attributes(target, options?)` {#attributes}
 
+```ts
+attributes(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`CallOptions`](./api-types.md#calloptions) · [`ElementSummary`](./api-types.md#elementsummary)
+
 Returns the [summary](#element-summary) of the single matching element, after waiting for it to exist
 (Detox `getAttributes`). Fails with `MULTIPLE_MATCHES` when several elements match.
 
@@ -46,6 +64,12 @@ console.log(row.rect); // { x, y, width, height }
 | `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
 
 ### `getTree()` {#gettree}
+
+```ts
+getTree(): Promise<TreeNode | null>
+```
+
+Types: [`TreeNode`](./api-types.md#treenode)
 
 Returns the element tree as JSON, with semantic types: each node has `type`, `testID`, `text`, `role`,
 `semanticType`, a rounded `rect` and its `children`. The tree is also attached to failed tests
@@ -86,6 +110,12 @@ those spaces.
 
 ### `waitForIdle(options?)` {#waitforidle}
 
+```ts
+waitForIdle(options?: WaitForIdleOptions): Promise<number>
+```
+
+Types: [`WaitForIdleOptions`](./api-types.md#waitforidleoptions)
+
 Waits until the app is idle and resolves with the time it took, in milliseconds. Every call already does
 this; use it before work outside the driver, such as reading the app's backend.
 
@@ -100,6 +130,12 @@ console.log(`sync took ${ms} ms`);
 | `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait |
 
 ### `getIdleState()` {#getidlestate}
+
+```ts
+getIdleState(): Promise<TrackerState[]>
+```
+
+Types: [`TrackerState`](./api-types.md#trackerstate)
 
 Returns every [tracker's](./sync.md#trackers) state right now: what keeps the app busy.
 
@@ -116,6 +152,12 @@ Each entry has the tracker's `name`, whether it is `idle`, and `busy`, the reaso
 
 ### `backdoor(name, ...args)` {#backdoor}
 
+```ts
+backdoor<T = JsonValue>(name: string, ...args: JsonValue[]): Promise<T>
+```
+
+Types: [`JsonValue`](./api-types.md#jsonvalue)
+
 Calls a backdoor that the app registered with `quiesco.backdoor` ([in-app API](./api-in-app.md)), and resolves
 with its result. The arguments and the result are JSON; TypeScript interfaces are fine. An argument that is
 not JSON fails with `NOT_SERIALIZABLE`.
@@ -131,6 +173,10 @@ With a `Backdoors` declaration, the name, the arguments and the result are type-
 ([typed backdoors](./api-in-app.md#typed-backdoors)).
 
 ### `reset()` {#reset}
+
+```ts
+reset(): Promise<number>
+```
 
 A soft reset: clears the app's storage, runs its `onReset` hooks, remounts it and waits for idle. Resolves
 with how long it took, in milliseconds. Quiesco does this before every test, so a test only calls it to
@@ -152,7 +198,7 @@ The platform under test: `'ios'`, `'android'` or `'web'`. A property, not a meth
 ([per-platform steps](../../writing-tests/references/driver-pattern.md#per-platform-steps)).
 
 ```ts
-if (app.platform === 'android') {
+if (app.platform === Platform.android) {
   // close the bottom sheet with the back button
   await app.pressBack();
 } else {

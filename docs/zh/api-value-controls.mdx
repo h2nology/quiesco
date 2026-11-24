@@ -9,6 +9,16 @@ description: "设置开关、滑块、选择器、分段控件和日期选择器
 
 ### `setValue(target, value, options?)` {#setvalue}
 
+```ts
+setValue(
+  target: MatcherInput,
+  value: number | boolean | string | Date,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 把 `target` 处的控件设置为 `value`：一个数字、布尔值、字符串或 `Date`。控件支持真实输入时就用真实输入（点击开关、用手指转动 iOS 滚轮、浏览器的 `<select>`），否则调用组件的回调。
 
 ```ts
@@ -132,6 +142,16 @@ await app.setValue('due-date-picker', '2031-12-24');
 
 ### `adjustSlider(target, position, options?)` {#adjustslider}
 
+```ts
+adjustSlider(
+  target: MatcherInput,
+  position: number,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 用真实的手指或鼠标将滑块的滑柄拖到 `position`，从 `0`（最小值）到 `1`（最大值）。当测试需要检验拖动本身时使用它；`setValue` 则设置精确值。
 
 ```ts
@@ -152,6 +172,16 @@ await app.adjustSlider('volume-slider', 0.5);
 ## 无障碍操作 {#accessibility-actions}
 
 ### `accessibilityAction(target, name, options?)` {#accessibilityaction}
+
+```ts
+accessibilityAction(
+  target: MatcherInput,
+  name: string,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
 
 像屏幕阅读器一样执行无障碍操作 `name`。它作用于目标，或最近的声明了 `accessibilityActions` 的祖先；目标不必在屏幕上。
 

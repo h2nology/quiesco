@@ -65,7 +65,7 @@ export class UiTodoDriver implements TodoDriver {
 
 ```ts
 async setDueDate(date: Date) {
-  if (this.app.platform === 'android') {
+  if (this.app.platform === Platform.android) {
     await this.app.tap('pick-date');
     await this.app.setValue('due-date-picker', date);
     await this.app.tap('pick-time');

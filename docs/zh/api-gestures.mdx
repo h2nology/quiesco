@@ -16,6 +16,16 @@ description: "捏合、旋转，以及任意数量的手指沿定时路径移动
 
 ### `pinch(target, scale, options?)` {#pinch}
 
+```ts
+pinch(
+  target: MatcherInput,
+  scale: number,
+  options?: PinchOptions,
+): Promise<ElementSummary | undefined>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`PinchOptions`](./api-types#pinchoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 两根手指在元素上张开（`scale` > 1，放大）或捏合（`scale` < 1，缩小），直到两指距离变为原来的 `scale` 倍。
 
 ```ts
@@ -23,7 +33,7 @@ description: "捏合、旋转，以及任意数量的手指沿定时路径移动
 await app.pinch('map', 2);
 
 // 缩小，两指位于一条竖直线上
-await app.pinch('photo', 0.5, { angle: Math.PI / 2, speed: 'slow' });
+await app.pinch('photo', 0.5, { angle: Math.PI / 2, speed: Speed.slow });
 ```
 
 | 选项 | 默认值 | 含义 |
@@ -38,6 +48,16 @@ await app.pinch('photo', 0.5, { angle: Math.PI / 2, speed: 'slow' });
 
 ### `rotate(target, radians, options?)` {#rotate}
 
+```ts
+rotate(
+  target: MatcherInput,
+  radians: number,
+  options?: RotateOptions,
+): Promise<ElementSummary | undefined>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`RotateOptions`](./api-types#rotateoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 两根手指绕元素中心转动 `radians` 弧度；正值为屏幕上的顺时针方向。
 
 ```ts
@@ -45,7 +65,7 @@ await app.pinch('photo', 0.5, { angle: Math.PI / 2, speed: 'slow' });
 await app.rotate('photo', Math.PI / 2);
 
 // 再慢慢转回来
-await app.rotate('photo', -Math.PI / 2, { speed: 'slow' });
+await app.rotate('photo', -Math.PI / 2, { speed: Speed.slow });
 ```
 
 | 选项 | 默认值 | 含义 |
@@ -70,6 +90,15 @@ await app.rotate('photo', -Math.PI / 2, { speed: 'slow' });
 ## 任意触摸路径 {#any-touch-paths}
 
 ### `multiTouch(fingers, options?)` {#multitouch}
+
+```ts
+multiTouch(
+  fingers: TimedPoint[][],
+  options?: MultiTouchOptions,
+): Promise<void>
+```
+
+类型： [`TimedPoint`](./api-types#timedpoint) · [`MultiTouchOptions`](./api-types#multitouchoptions)
 
 让任意数量的手指沿定时路径移动。`fingers[i]` 是第 `i` 根手指的 `{ x, y, t }` 点列，`t` 为从开始算起的毫秒数；手指从第一个点按下，到最后一个点抬起。
 
