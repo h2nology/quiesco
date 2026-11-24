@@ -115,8 +115,10 @@ EAS build profile with `EXPO_PUBLIC_QUIESCO=1` produces the same e2e build; see
 [examples/todo-app](examples/todo-app/README.md) for a complete, tested setup on all three platforms.
 
 To learn writing tests on a small app, follow the [tutorial](https://shift-14cc7601.mintlify.site/tutorial):
-[examples/todo-tutorial](examples/todo-tutorial) is a three-screen todo app with its Vitest tests, which
-run on the web, iOS and Android.
+a three-screen todo app with its tests, which run on the web, iOS and Android, once per test runner:
+[examples/todo-tutorial-vitest](examples/todo-tutorial-vitest),
+[examples/todo-tutorial-jest](examples/todo-tutorial-jest) and
+[examples/todo-tutorial-cucumber](examples/todo-tutorial-cucumber).
 
 ## Test runners
 

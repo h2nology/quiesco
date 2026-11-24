@@ -1,9 +1,11 @@
 packages:
   - packages/*
   - examples/*
-  # A standalone project (npm, published packages) that people copy out of the repository: not a
-  # workspace member, so it never replaces the workspace's own @quiesco packages.
-  - '!examples/todo-tutorial'
+  # Standalone projects (npm, published packages) that people copy out of the repository: not
+  # workspace members, so they never replace the workspace's own @quiesco packages.
+  - '!examples/todo-tutorial-vitest'
+  - '!examples/todo-tutorial-jest'
+  - '!examples/todo-tutorial-cucumber'
 
 # Never auto-install react / react-native peers: the app provides them (a nested copy breaks hooks).
 autoInstallPeers: false

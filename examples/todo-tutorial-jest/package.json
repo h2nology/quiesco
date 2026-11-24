@@ -1,5 +1,5 @@
 {
-  "name": "quiesco-todo-tutorial",
+  "name": "quiesco-todo-tutorial-jest",
   "version": "1.0.0",
   "private": true,
   "main": "index.ts",
@@ -36,12 +36,12 @@
   "devDependencies": {
     "@quiesco/core": "0.13.3",
     "@quiesco/expo-plugin": "0.13.3",
-    "@quiesco/vitest": "0.13.3",
+    "@quiesco/jest": "0.13.3",
     "@quiesco/web": "0.13.3",
     "@types/react": "~19.3.0",
+    "jest": "^30.5.2",
     "playwright": "1.65.0",
     "quiesco": "0.13.3",
-    "typescript": "~6.0.3",
-    "vitest": "5.1.0"
+    "typescript": "~6.0.3"
   }
 }

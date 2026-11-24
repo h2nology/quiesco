@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Quiesco Todo Tutorial",
+    "slug": "quiesco-todo-tutorial",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "quiescotutorial",
+    "ios": {
+      "bundleIdentifier": "dev.quiesco.tutorial"
+    },
+    "android": {
+      "package": "dev.quiesco.tutorial",
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-dev-client",
+      "@quiesco/expo-plugin",
+      "expo-font"
+    ]
+  }
+}
