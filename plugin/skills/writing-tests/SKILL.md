@@ -40,9 +40,11 @@ Driver. For exact API signatures, consult the `quiesco-api` skill and its refere
 ## Step definitions and drivers
 
 Use the driver pattern once a feature has more than a couple of steps, or when one exists already:
-steps call a driver in business terms; only the driver knows testIDs and taps. Full example with
-`TodoDriver`, `UiTodoDriver`, a custom World and `registerQuiesco({ world })`:
-`references/driver-pattern.md`.
+steps call a driver in business terms; only the driver knows testIDs and taps. The driver itself
+(`TodoDriver`, `UiTodoDriver`): `references/driver-pattern.md`. Wiring it into the runner:
+`references/driver-pattern-cucumber.md` (a custom World and `registerQuiesco({ world })`),
+`references/driver-pattern-vitest.md` (a fixture), `references/driver-pattern-jest.md` (JavaScript,
+`beforeEach`).
 
 ```ts
 When('they add a todo {string}', async function (this: TodoWorld, title: string) {
@@ -91,10 +93,14 @@ go into `describe` / test titles (`test('… @ios', …)`). Jest uses the global
 
 ## Additional resources
 
-- **`references/tutorial.md`** — a worked example: a three-screen todo app and its Vitest tests (test ids,
-  flows across screens, typed backdoors, `onReset`, reading a failure).
-- **`references/driver-pattern.md`** — the complete driver pattern: business driver, World, steps,
-  per-platform branching, type-stripping rules, an API driver for the same features.
+- **`references/tutorial.md`** — a worked example: a three-screen todo app and how to get it. Its tests,
+  step by step (test ids, flows across screens, typed backdoors, `onReset`, reading a failure), are in
+  **`references/tutorial-vitest.md`**, **`references/tutorial-jest.md`** and
+  **`references/tutorial-cucumber.md`**: read the one for the project's runner.
+- **`references/driver-pattern.md`** — the driver pattern: business driver, per-platform branching, an
+  API driver for the same tests. **`references/driver-pattern-vitest.md`**, **`driver-pattern-jest.md`**
+  and **`driver-pattern-cucumber.md`** wire it into each runner (the Cucumber one also has the
+  type-stripping rules).
 - **`references/steps.md`** — `@quiesco/steps` generic steps (zh / ja / en) and their exact wording.
 - **`${CLAUDE_PLUGIN_ROOT}/skills/quiesco-api/references/api-matchers.md`**, **`api-assertions.md`**,
   **`api-in-app.md`** — matchers, assertions, backdoors.

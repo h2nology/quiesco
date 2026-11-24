@@ -1,30 +1,145 @@
 ---
 title: "同步"
-description: "空闲意味着什么，背后有哪些跟踪器，以及 App 始终无法空闲时该怎么办。"
+description: "为什么测试不需要 sleep：什么叫空闲，什么会让 App 忙碌，以及 App 一直不空闲时该怎么办。"
 ---
 
-Quiesco 会在每次查询和断言之前、每次操作之后，等待 App 进入**空闲**状态，因此步骤里无需 sleep 或轮询。“空闲”由 App 内部若干相互独立的跟踪器判定；当所有跟踪器连续两次（间隔一个宏任务）都处于空闲时，App 即为空闲（这样，一个在同一个 tick 内触发并发起请求的定时器就不会被漏掉）。
+Quiesco 在每次调用之前和之后，都会等 App **空闲**。测试从不需要 `sleep` 或
+`waitFor`：
+
+```ts
+// 等待请求、页面跳转和下一屏的渲染
+await app.tap('save-todo');
+
+// 在稳定下来的页面上执行
+await app.expectVisible('todo-list-screen');
+```
+
+## 工作原理 {#how-it-works}
+
+<Steps>
+  <Step title="先等待，再操作">
+    调用之前，Quiesco 等 App 空闲，然后点击、输入或读取页面。
+  </Step>
+  <Step title="App 做出反应">
+    这次调用会在 App 里引发各种工作：请求、计时器、渲染、动画。
+  </Step>
+  <Step title="再次等待">
+    Quiesco 等所有[跟踪器](#trackers)都空闲，并且相隔一个宏任务连续确认两次，这样在同一个 tick 里启动请求的计时器也不会漏掉。然后调用才返回。
+  </Step>
+</Steps>
+
+如果过了 `sync.timeoutMs`（10 秒）还在等待，调用会以 `SYNC_TIMEOUT` 失败（见[下文](#when-the-app-never-becomes-idle)）。
 
 ## 跟踪器 {#trackers}
 
-| 跟踪器 | 何时忙碌 | 说明 |
+App 里的 agent 用下面这些跟踪器判断“空闲”。没有任何一个跟踪器忙碌时，App 就是空闲的。
+
+| 跟踪器 | 忙碌的条件 |
+|---|---|
+| `network` | 有 `fetch` 或 `XMLHttpRequest` 正在进行，或者 `WebSocket` / `EventSource` 正在连接 |
+| `timer` | 有不超过 1.5 秒的 `setTimeout` 等待执行 |
+| `react` | React 还有渲染或 effect 没执行完 |
+| `idle-callback` | 有 `requestIdleCallback` 等待执行 |
+| `native`（仅 iOS） | 页面切换或键盘正在动画中 |
+| `frame-stable` | 最近 2 帧内画面有变化：UI 线程上的动画 |
+| `native-module`（需开启） | 有原生模块调用尚未结束，最多算 2 秒（[详情](#native-module-calls)） |
+
+关闭某个跟踪器：
+
+```ts
+sync: { trackers: { 'frame-stable': false } }
+```
+
+<AccordionGroup>
+  <Accordion title="network">
+    - `fetch` 在响应到达之前都算忙碌。紧接着读取响应体（`json()`、`text()`……）时，会一直忙到响应体读完。
+    - `expo/fetch` 同样会被跟踪。基于 XHR 实现的 `fetch`（React Native）只算一次。
+    - `WebSocket` / `EventSource` 只在打开、失败或关闭之前算忙碌。已打开的连接从不算，agent 自己的连接也不算。
+    - `sync.ignoreUrls` 可以排除长轮询、SSE 和统计请求。
+  </Accordion>
+  <Accordion title="timer">
+    - 只有不超过 `sync.timerThresholdMs`（1.5 秒）的计时器才算：30 秒的会话超时不会阻塞。
+    - `setInterval` 只有在 `sync.countIntervals: true` 时才算。
+  </Accordion>
+  <Accordion title="react">
+    - 这个跟踪器通过 React DevTools hook 读取 React 自己的记录：待处理的 lane、已安排的回调，以及 React 调度器里的任务。App 本身不需要任何改动。
+    - agent 必须在 React Native 的渲染器加载之前装好这个 hook。`metro.config.js` 里的 `withQuiesco()` 会处理好这一点。
+  </Accordion>
+  <Accordion title="native (iOS)">
+    - 由 `@quiesco/native` 报告：JavaScript 看不到的 UIKit 工作，例如导航和模态页面的切换。
+    - 键盘从 UIKit 的 `keyboardWill…` 通知开始，到对应的 `keyboardDid…` 为止算忙碌，最长为动画时长加 0.5 秒。iOS 有时会晚几秒才发出 `keyboardDidShow`，这时设备日志里会有 `[Quiesco] keyboard: no Did notification …`。
+  </Accordion>
+  <Accordion title="frame-stable">
+    - 逐帧比较元素树（类型、testID、文本、取整后的位置和尺寸）。最近 `sync.stableFrames`（2）帧内有变化就算忙碌。
+    - 用来兜底在 UI 线程上运行的动画（Reanimated、native driver 的 `Animated`），其他跟踪器看不到这些动画。
+    - 只在调用等待期间采样。
+  </Accordion>
+</AccordionGroup>
+
+## 调用为什么慢，或者为什么返回得太早？ {#timeline}
+
+`timeline.html` 里每次调用的条目都会显示它等待空闲的过程：
+
+- **调用很慢**：每个跟踪器的等待最后卡在什么上，例如 `network: GET https://api.example.com/items (240ms)`。
+- **调用返回得太早**：最后几次检查，例如 `+272ms busy: native-module | +276ms idle | +277ms idle (confirmed)`，以及这期间开始或结束的原生模块调用。时间是设备时钟，方便和设备日志对照。
+
+以 `SYNC_TIMEOUT` 失败的调用也有这份记录，`scrollTo` 的每一步也有。
+
+## App 一直不空闲时 {#when-the-app-never-becomes-idle}
+
+调用会以 `SYNC_TIMEOUT` 失败，并列出忙碌的跟踪器：
+
+```
+App did not become idle within the 10000ms timeout. Busy:
+  - network: GET https://api.example.com/todos (10012ms)
+  - timer: setTimeout(poll, 1000ms), fires in 420ms
+  - frame-stable: element tree changing: stable for 1/2 frames (580 frames sampled in 9960ms)
+    last change: first difference at node 12: Text "Loading 41%" … → Text "Loading 42%" …
+```
+
+按忙碌的跟踪器查表：
+
+| 忙碌 | 常见原因 | 解决办法 |
 |---|---|---|
-| `network` | 有 `fetch` / `XMLHttpRequest` 正在进行、正在读取响应体，或 `WebSocket` / `EventSource` 正在连接 | `fetch` 在响应到达之前计入；紧接着开始的响应体读取（`json()`、`text()`……）会让它保持忙碌，直到响应体读完，之后再次读取会重新计入。直接导入的 `expo/fetch` 也会被跟踪（在 e2e 构建中，`withQuiesco()` 会替换为一个带跟踪的再导出）。`WebSocket` / `EventSource` 只在打开、失败或关闭之前计入；已打开的连接从不计入（agent 自己的连接也不计入）。`sync.ignoreUrls` 可排除长轮询、SSE、统计分析请求。基于 XHR 实现的 `fetch`（React Native）只计一次。|
-| `timer` | 有延迟 ≤ `sync.timerThresholdMs`（1.5 s）的 `setTimeout` 尚未触发 | 更长的定时器（会话过期、每 30 s 一次的轮询）不会阻塞。`setInterval` 仅在 `sync.countIntervals: true` 时计入。|
-| `react` | React 有未提交的工作：某个 root 有待处理的 lane 或已调度的回调，或 React 调度器中有待处理的任务（渲染工作、passive effect） | 通过 DevTools hook 读取 React 自身的记录—— App 无需任何改动。|
-| `idle-callback` | 有尚未执行的 `requestIdleCallback`（以及仍提供 `InteractionManager` 的 React Native 版本中的相应任务） | |
-| `native`（iOS） | 正在进行 view controller 转场（导航、模态展示），或键盘正在移动 / 刚被使用过 | 由 `@quiesco/native` 上报；覆盖 JavaScript 看不到的 UIKit 工作。「键盘正在移动」从 UIKit 的 `keyboardWill…` 通知开始，到对应的 `keyboardDid…` 结束，最长为动画时长加 0.5 秒：iOS 有时在键盘早已就位后才晚几秒发出 `keyboardDidShow`（此时设备日志里会有 `[Quiesco] keyboard: no Did notification …`）。|
-| `frame-stable` | 元素树（每个元素的类型、testID、文本，以及取整后的位置和尺寸）在最近 `sync.stableFrames`（2）帧内发生了变化 | 用于兜底 UI 线程上的动画（Reanimated、native driver 的 `Animated`）。只在有调用等待时采样。|
+| `network` | 一直不结束的请求：长轮询、卡住的后端 | 把 URL 加到 `sync.ignoreUrls`，或者修好后端 / mock |
+| `timer` | 不断重新设置的短计时器：轮询、反复重新安排自己的 toast | 该步骤用 `{ sync: false }`，或 `this.app.sync.disableTracker('timer')`，或在 e2e 构建里停掉这个循环 |
+| `frame-stable` | 无限循环的动画：spinner、骨架屏闪光、装饰性的光晕 | 给该元素加 testID，并列入 `sync.ignoreElements` |
+| `react` | 渲染死循环：effect 里没有条件保护的状态更新 | 这是真正的 bug：修掉它 |
 
-| `native-module`（构建包装原生模块时开启） | 原生模块方法（TurboModule / NativeModules、Expo 模块）返回的 Promise 尚未完成，或者传入了回调但还没有调用任何一个（AsyncStorage 的 `multiSet`），最长 `sync.nativeCallThresholdMs`（2 秒） | 见[原生模块调用](#native-module-calls)。 |
+<AccordionGroup>
+  <Accordion title="读懂报告">
+    - 在超时前不久（一秒以内）还忙碌、但超时那一刻空闲的跟踪器也会列出：`frame-stable (idle at the timeout, busy 12ms before it): …`。“计时器 → 渲染 → 几帧安静”这样的循环有一部分时间是空闲的，超时可能正好落在那里。
+    - `frame-stable` 会指出第一个发生变化的元素，`recent changes` 列出最近的几次变化。某个元素反复来回变化时，报告会点出它。
+    - 如果等待了很久但 `frames sampled` 很少，说明 UI 线程被饿住了（模拟器负载过高），而不是在播放动画。
+    - 超时后 `idle-state.json` 里的 `frame-stable` 显示为空闲，因为它只在调用等待期间采样。它的 `lastWait` 保留了等待结束时报告的内容。
+  </Accordion>
+  <Accordion title="一直稳定不下来的列表">
+    没有 `getItemLayout`、而且行高略有不同的 `FlatList` / `VirtualizedList`，在滚动后可能会不停地添加和移除渲染窗口边缘的那一项：报告里会看到某个元素每次都被添加又移除。调大 `timeoutMs` 没有用；`getItemLayout` 或固定行高通常能解决。
+  </Accordion>
+  <Accordion title="其他解决办法">
+    - **timer**：把 `sync.timerThresholdMs` 调到低于循环的间隔也行，但这会影响整个 App 里所有这么短的计时器。
+    - **frame-stable**：如果在动的元素不是装饰，就给该步骤加 `{ sync: false }`，之后再断言需要的内容，或者在 e2e 构建里关掉这个动画。
+    - **network**：在 mock 服务器里加一个 `MOCK_STALL` 这样的开关，就能故意重现卡住的后端。
+  </Accordion>
+</AccordionGroup>
 
-用 `sync: { trackers: { 'frame-stable': false } }` 关闭某个跟踪器。
+<Note>
+  `AGENT_TIMEOUT` 是另一回事：agent 完全没有响应，通常是因为长时间的同步任务堵住了 JS 线程。
+</Note>
 
-每个调用在 timeline 里都会写明它的空闲等待最后在等什么，按跟踪器列出（`native-module: RNCDatePicker.open() 1990ms`、`network: GET https://api.example.com/items (240ms)`）。动作比预期慢时先看这里。它还会写出这个调用最后一次等待是怎么结束的：结束时刻（设备时钟，方便和设备日志对照）、最后几次检查以及每次哪些跟踪器忙（`+272ms busy: native-module | +276ms idle | +277ms idle (confirmed)`），以及等待期间开始或完成的原生模块调用（`RNCAsyncStorage.multiSet() +251ms→+266ms`）。动作返回得太早时看这里。以 `SYNC_TIMEOUT` 失败的调用也有这份记录，`scrollTo` 的每一步也有。
+## 对单次调用跳过同步 {#skipping-sync-for-one-call}
 
-### 原生模块调用 {#native-module-calls}
+```ts
+// 之前和之后都不等待
+await this.app.tap('start-spinner', { sync: false });
 
-没有 `native-module` 跟踪器时，未完成的原生模块调用不会让 App 处于忙碌状态。处理函数在两个被跟踪的步骤之间 await 一个原生调用时，中间这段会被判为空闲：
+// 在它转动时断言
+await this.app.expectVisible('spinner', { sync: false });
+```
+
+## 原生模块调用 {#native-module-calls}
+
+默认情况下，尚未完成的原生模块调用（AsyncStorage、选择器……）不会让 App 处于忙碌状态。所以操作可能返回得太早：
 
 ```ts
 // fetch：会被跟踪
@@ -37,67 +152,60 @@ await AsyncStorage.setItem(TOKEN_KEY, token);
 router.replace('/');
 ```
 
-`tap('login-submit')` 可能在 `setItem` 完成之前、也就是跳转和下一屏的请求开始之前就返回。要么等下一步需要的东西（`await app.expectVisible('item-row-1')`），要么构建时包装原生模块：在 `metro.config.js` 里给 `withQuiesco()` 传 `nativeModules: true`
-（或者启动 Metro 时设置 `EXPO_PUBLIC_QUIESCO_NATIVE_MODULES=1`），然后重启 Metro。
+`tap('login-submit')` 可能在 `setItem` 完成之前、下一屏开始之前就返回。两种解决办法：
+
+- 等待下一步需要的东西：`await app.expectVisible('item-row-1')`。
+- 或者跟踪原生模块调用：在 e2e 构建里包装它们，然后重启 Metro。
 
 ```js
 module.exports = withQuiesco(getDefaultConfig(__dirname), { nativeModules: true });
 ```
 
-这样构建的 App 里 `native-module` 跟踪器默认开启，不需要别的设置。它的设置项：
+启动 Metro 时设置 `EXPO_PUBLIC_QUIESCO_NATIVE_MODULES=1` 效果相同。这样 `native-module` 跟踪器就会开启。它的设置项：
 
 ```ts
 sync: {
-  // 未完成的调用最多算忙这么久
+  // 未完成的调用最多算这么久
   nativeCallThresholdMs: 2000,
 
   // "Module.method"；字符串按子串匹配
   ignoreNativeCalls: ['ExpoLocation.watch'],
 
-  // 在包装原生模块的构建里关闭
+  // 在包装了原生模块的构建里关闭它
   // trackers: { 'native-module': false },
 }
 ```
 
-不包装时 agent 就不碰原生模块，跟踪器什么都不算（此时写 `trackers: { 'native-module': true }` 会让 App 输出警告，`quiesco doctor` 也会警告）。在包装原生模块的构建里关闭跟踪器时，调用仍会被记录：动作返回时还未完成的调用会写在它的 timeline 条目里，失败场景的 `idle-state.json` 也会列出最近的这类动作（`nativeCallsNotCounted`），提示可能是这种竞态。包装会把模块的方法换成 JS 函数。Gesture Handler、Reanimated 和 Worklets 会在 UI 线程的 worklet 里调用自己模块的方法，这需要原生函数，所以这些模块永远不包装。
+<AccordionGroup>
+  <Accordion title="永远不算的调用">
+    有些调用在等用户操作，测试回应之前会一直处于未完成状态。它们从不算忙碌：
 
-这个跟踪器会包装 agent 加载之后 App 从 React Native 的 `TurboModuleRegistry` 和 Expo（`requireNativeModule`）取得的模块。React Native 启动时自己取得的模块不跟踪。有些原生调用要等用户操作（权限请求、认证面板、选择器），在测试回应之前一直未完成。下面这些默认就不算忙：Expo 模块和 `PermissionsAndroid` 的权限请求（`*.request…Permission(s)(Async)`）、日期 / 时间选择对话框（`RNCDatePicker.open`、`RNCTimePicker.open`）、`ExpoLocalAuthentication.authenticateAsync`、分享面板（`ShareModule.share`、`ExpoSharing.shareAsync`）、`ExpoWebBrowser.openBrowserAsync` / `openAuthSessionAsync`、图片和文件选择器，以及提示框和操作菜单（`AlertManager.alertWithArgs`、`DialogManagerAndroid.showAlert`、`ActionSheetManager.show…ActionSheetWithOptions`）。原生驱动的动画（`NativeAnimatedModule`）在动画结束时才回调，也从不算忙。事件订阅（`addListener(eventName, listener)` 以及其他 `add…Listener` / `remove…Listener(s)` 方法）不会等它的 listener，listener 只在事件到来时才被调用：这类调用只在返回 Promise 时才算忙，与 `defaultIgnoreNativeCalls` 无关。`ignoreNativeCalls` 在此基础上追加；`defaultIgnoreNativeCalls: false` 让它们也算忙。其他调用超过 `nativeCallThresholdMs` 就不再算忙，所以打开这类界面的步骤最多多等这么久：timeline 会写出该调用（`native-module: Module.method() 1990ms`），把它加进 `ignoreNativeCalls` 即可。
+    - 权限请求：Expo 模块和 `PermissionsAndroid`（`*.request…Permission(s)(Async)`）
+    - 日期 / 时间选择器：`RNCDatePicker.open`、`RNCTimePicker.open`
+    - `ExpoLocalAuthentication.authenticateAsync`
+    - 分享面板：`ShareModule.share`、`ExpoSharing.shareAsync`
+    - `ExpoWebBrowser.openBrowserAsync` / `openAuthSessionAsync`
+    - 图片和文档选择器
+    - 弹窗和操作表：`AlertManager.alertWithArgs`、`DialogManagerAndroid.showAlert`、`ActionSheetManager.show…ActionSheetWithOptions`
+    - native driver 动画（`NativeAnimatedModule`）
 
-React 跟踪器的工作原理，以及为什么 agent 必须在 React Native 的渲染器之前加载，见[docs/spikes/02-react-idle.md](https://github.com/h2nology/quiesco/blob/main/docs/spikes/02-react-idle.md)。`metro.config.js` 中的 `withQuiesco()` 会处理好加载顺序（React Native 0.88 会在 App 的入口文件之前加载渲染器）。
+    `ignoreNativeCalls` 会追加到这个列表；`defaultIgnoreNativeCalls: false` 会让这些调用也计入。其他调用超过 `nativeCallThresholdMs` 后就不再算。timeline 会写出调用名（`native-module: Module.method() 1990ms`），可以把它加到 `ignoreNativeCalls`。
 
-## App 始终无法空闲时 {#when-the-app-never-becomes-idle}
-
-等待时间超过 `sync.timeoutMs`（10 s）的调用会以 `SYNC_TIMEOUT` 失败，并列出忙碌的内容：
-
-```
-App did not become idle within the 10000ms timeout. Busy:
-  - network: GET https://api.example.com/todos (10012ms)
-  - timer: setTimeout(poll, 1000ms), fires in 420ms
-  - frame-stable: element tree changing: stable for 1/2 frames (580 frames sampled in 9960ms)
-    last change: first difference at node 12: Text "Loading 41%" … → Text "Loading 42%" …
-```
-
-超时那一刻空闲、但在超时前不久（1 秒以内）还忙的跟踪器也会列出来，并附上它当时在忙什么：`frame-stable (idle at the timeout, busy 12ms before it): …`。“定时器 → 渲染 → 几帧平静”这样的循环有一部分时间是空闲的，超时可能正好落在那里。
-
-处理方式取决于跟踪器：
-
-- **network**——一个永不结束的请求（长轮询、卡住的后端）：把它加入 `sync.ignoreUrls`，或修复后端 / mock。可以在 mock 服务器中加入类似 `MOCK_STALL` 的开关，有意复现这种情况。
-- **timer**——一个被反复重新设置的短定时器（用 `setTimeout` 实现的轮询循环、会重新调度自身的 toast）。对该步骤跳过同步（`{ sync: false }`），只在该场景中关闭 timer tracker（`this.app.sync.disableTracker('timer')`），或在 e2e 构建中停止该循环。只有延迟不超过 `sync.timerThresholdMs` 的定时器才会计入，所以把阈值调低到循环间隔以下也能解决，但整个 App 里所有这么短的定时器都会因此不再计入。
-- **frame-stable**——有东西一直在动：无限循环的动画（spinner、shimmer、跑马灯、缓慢的装饰性光晕）或计数器。报告会指出第一个发生变化的元素。如果该元素只是装饰，给它一个 testID 并列入 `sync.ignoreElements`——它及其子树会被排除在这项检查之外，其余部分照常检查。否则用 `{ sync: false }` 调用该步骤，之后再断言需要的内容，或在 e2e 构建中禁用该动画。如果相对于等待时间，`frames sampled` 非常少，说明 UI 线程被饿死了（模拟器过载），而不是在播放动画。`recent changes` 列出最近几次变化（距等待开始的时间、节点数、第一个不同的节点）。如果同一个元素一直在来回变化（即使元素树的其他部分也在变），报告会指出是哪个元素。如果每次都是添加又删除一个元素，通常是列表造成的：没有 `getItemLayout`、行高又略有差异的 `FlatList` / `VirtualizedList`，在滚动后可能会在渲染窗口边缘反复添加和删除同一项。加大 `timeoutMs` 没有用；加上 `getItemLayout` 或固定行高通常就能停止。这是真实发生的活动，所以 Quiesco 仍然把它算作忙碌。frame-stable 只在调用等待时采样，所以超时后 `idle-state.json` 里它显示为空闲；它的 `lastWait` 保留了等待结束时报告的内容；即使元素树在等待期间变化过、只是超时那一刻恰好稳定，也会保留。
-- **react**——渲染循环（effect 中没有加条件判断的状态更新）永远无法稳定：这是一个真实的 bug。
-
-`AGENT_TIMEOUT` 则不同：agent 完全没有响应，通常是因为 JS 线程被一个长时间的同步任务阻塞。
-
-## 对单次调用跳过同步 {#skipping-sync-for-one-call}
-
-```ts
-// 前后都不等待
-await this.app.tap('start-spinner', { sync: false });
-
-// 在它转动时断言
-await this.app.expectVisible('spinner', { sync: false });
-```
+    事件订阅（`addListener(eventName, listener)`、`add…Listener` / `remove…Listener(s)`）只有返回 Promise 时才算，与 `defaultIgnoreNativeCalls` 无关。
+  </Accordion>
+  <Accordion title="不会被包装的模块">
+    - React Native 启动期间、agent 加载之前取得的模块：React Native 自己的模块。只有之后从 `TurboModuleRegistry` 和 Expo 的 `requireNativeModule` 取得的模块才会被包装。
+    - Gesture Handler、Reanimated 和 Worklets：它们在 UI 线程的 worklet 里调用自己的模块，需要原生函数。
+  </Accordion>
+  <Accordion title="没有包装，或关闭了跟踪器时">
+    - 没有 `nativeModules: true` 时，这个跟踪器什么都不算：这时设置 `trackers: { 'native-module': true }` 会输出警告，`quiesco doctor` 也会警告。
+    - 包装了但关闭了跟踪器时，调用仍会被记录：在调用未完成时就返回的操作会在 timeline 条目里列出它，失败测试的 `idle-state.json` 也会列出（`nativeCallsNotCounted`）。
+  </Accordion>
+</AccordionGroup>
 
 ## 平台说明 {#platform-notes}
 
-三个平台运行的是同一套跟踪器。在 web 上，整页加载后 agent 会重新连接，host 端会透明地等待它；使用Expo Router 的静态输出时，hydration 完成后即认为 App 已就绪。`native` 跟踪器只存在于 iOS。见[平台差异](./platforms)。
+- 三个平台运行相同的跟踪器；`native` 只存在于 iOS。
+- Web：整页重新加载后 agent 会重新连接，Quiesco 会等它。使用 Expo Router 的静态输出时，hydration 完成后 App 即就绪。
+
+更多内容见[平台差异](./platforms)。

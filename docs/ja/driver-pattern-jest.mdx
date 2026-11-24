@@ -1,0 +1,68 @@
+---
+title: "JestでのDriverパターン"
+sidebarTitle: "Jest"
+description: "Jestのテストに、素のJavaScriptで書いたビジネスのdriverを使います。"
+---
+
+Jestのテストファイルは素のJavaScript（`transform: {}`）なので、[driver](./driver-pattern#the-driver)もJavaScriptで書きます。各テストはグローバルの`quiesco.app`からdriverを作ります。
+
+## JavaScriptで書いたdriver {#driver}
+
+```js
+// e2e/todo-driver.js
+/** UI経由で、Quiescoを使って実装する。テストIDを知っているのはこのクラスだけ。 */
+class UiTodoDriver {
+  /** @param {import('@quiesco/core').Driver} app */
+  constructor(app) {
+    this.app = app;
+  }
+
+  async seed(todos) {
+    // UIを通さずにデータを用意する
+    await this.app.backdoor('seedTodos', todos);
+  }
+
+  async addTodo(title, notes) {
+    await this.app.tap('add-todo');
+    await this.app.type('title-input', title);
+    if (notes !== undefined) await this.app.type('notes-input', notes);
+    await this.app.tap('save-todo');
+    await this.app.expectVisible('todo-list-screen');
+  }
+
+  async todoTitles() {
+    return (await this.app.query('todo-title')).map((e) => e.text);
+  }
+}
+
+module.exports = { UiTodoDriver };
+```
+
+このファイルは`.test.js`で終わらないので、Jestの`testMatch`はテストとして実行しません。
+
+<Warning>
+  Quiesco 0.13.4以前では、Jestでの`quiesco.app.backdoor()`がオブジェクトの引数をすべて「JSONではない」として拒否します（[#115](https://github.com/h2nology/quiesco/issues/115)）。修正がリリースされるまで`seed()`は失敗します。
+</Warning>
+
+## テスト {#tests}
+
+```js
+// e2e/todos.test.js
+const { UiTodoDriver } = require('./todo-driver');
+
+let todos;
+beforeEach(() => {
+  todos = new UiTodoDriver(quiesco.app);
+});
+
+test('a new todo appears at the top of the list', async () => {
+  await todos.addTodo('Call the dentist');
+  await todos.addTodo('Buy milk');
+
+  expect(await todos.todoTitles()).toEqual(['Buy milk', 'Call the dentist']);
+});
+```
+
+テストにテストIDもタップもありません。driverにない操作には、引き続き`quiesco.app`を使えます。
+
+Jestについて詳しくは[Jest](./jest)を参照してください。

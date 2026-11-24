@@ -1,0 +1,48 @@
+---
+title: "VitestでのDriverパターン"
+sidebarTitle: "Vitest"
+description: "Vitestのテストに、ビジネスのdriverをフィクスチャーとして渡します。"
+---
+
+Vitestでは、[driver](./driver-pattern#the-driver)をフィクスチャーにします。テストは`app`の代わりに`todos`を受け取ります。
+
+## フィクスチャー {#fixture}
+
+`@quiesco/vitest`の`test`は、`app`フィクスチャー付きのVitestの`test`です。これをdriverで拡張します。
+
+```ts
+// e2e/fixtures.ts
+import { test as base } from '@quiesco/vitest';
+
+import { type TodoDriver, UiTodoDriver } from './todo-driver';
+
+export { expect } from '@quiesco/vitest';
+
+export const test = base.extend<{ todos: TodoDriver }>({
+  todos: async ({ app }, use) => {
+    await use(new UiTodoDriver(app));
+  },
+});
+```
+
+`todos`は`app`を使うので、`todos`を受け取るテストも、`app`を受け取るテストと同じく実行前にリセットされます。
+
+## テスト {#tests}
+
+`test`と`expect`は、`@quiesco/vitest`ではなくフィクスチャーのファイルからインポートします。
+
+```ts
+// e2e/todos.test.ts
+import { expect, test } from './fixtures';
+
+test('a new todo appears at the top of the list', async ({ todos }) => {
+  await todos.seed([{ title: 'Call the dentist' }]);
+  await todos.addTodo('Buy milk');
+
+  expect(await todos.todoTitles()).toEqual(['Buy milk', 'Call the dentist']);
+});
+```
+
+テストにテストIDもタップもありません。driverにない操作が必要なテストは、`todos`と一緒に`app`も受け取れます。
+
+Vitestについて詳しくは[Vitest](./vitest)を参照してください。

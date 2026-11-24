@@ -1,72 +1,93 @@
 ---
 title: "同期"
-description: "アイドルとは何か、それを判定するトラッカー、そしてアプリがいつまでもアイドルにならないときの対処。"
+description: "テストにsleepが要らない理由：アイドルとは何か、何がアプリをビジーにするか、アプリがアイドルにならないときの対処。"
 ---
 
-Quiescoは、すべてのクエリとアサーションの前、そしてすべてのアクションの後に、アプリが**アイドル**になるのを待ちます。そのため、ステップでsleepやポーリングをする必要はありません。「アイドル」はアプリ内で独立した複数のトラッカーが判定します。すべてのトラッカーが、マクロタスク1つ分を空けて2回続けてアイドルだったとき、アプリはアイドルとみなされます（タイマーが発火して同じtickでリクエストを開始しても、すり抜けることはありません）。
+Quiescoは、すべての呼び出しの前後でアプリが**アイドル**になるのを待ちます。テストに`sleep`や
+`waitFor`は要りません。
+
+```ts
+// リクエスト、画面遷移、次の画面の描画を待つ
+await app.tap('save-todo');
+
+// 落ち着いた画面に対して実行される
+await app.expectVisible('todo-list-screen');
+```
+
+## しくみ {#how-it-works}
+
+<Steps>
+  <Step title="待ってから操作する">
+    呼び出しの前に、Quiescoはアプリがアイドルになるのを待ちます。それからタップ、入力、画面の読み取りをします。
+  </Step>
+  <Step title="アプリが反応する">
+    呼び出しによって、アプリの中でリクエスト、タイマー、描画、アニメーションが始まります。
+  </Step>
+  <Step title="もう一度待つ">
+    すべての[トラッカー](#trackers)がアイドルになるまで待ちます。1マクロタスク空けて2回続けて確認するので、同じtickでリクエストを始めるタイマーも見逃しません。それから呼び出しが戻ります。
+  </Step>
+</Steps>
+
+`sync.timeoutMs`（10秒）を過ぎても待っている呼び出しは`SYNC_TIMEOUT`で失敗します（[後述](#when-the-app-never-becomes-idle)）。
 
 ## トラッカー {#trackers}
 
-| トラッカー | ビジーになる条件 | 補足 |
-|---|---|---|
-| `network` | `fetch` / `XMLHttpRequest`が実行中、レスポンスボディを読み込み中、または`WebSocket` / `EventSource`が接続中 | `fetch`はレスポンスが届くまでカウントされます。その直後に開始したボディの読み込み（`json()`、`text()`など）はボディが揃うまでビジーを維持し、後から読み込むと再びカウントされます。直接importした`expo/fetch`も追跡されます（e2eビルドでは`withQuiesco()`が追跡用の再エクスポートに差し替えます）。`WebSocket` / `EventSource`は、開くか、失敗するか、閉じるまでの間だけカウントされます。開いたままの接続はカウントされません（エージェント自身の接続も同様です）。`sync.ignoreUrls`でロングポーリング、SSE、アナリティクスを除外できます。XHR上に実装された`fetch`（React Native）は1回だけカウントされます。 |
-| `timer` | 遅延が`sync.timerThresholdMs`（1.5秒）以下の`setTimeout`が保留中 | それより長いタイマー（セッションの有効期限、30秒ごとのポーリング）はブロックしません。`setInterval`は`sync.countIntervals: true`のときだけカウントされます。 |
-| `react` | Reactに未コミットの作業がある：保留中のレーンやスケジュール済みのコールバックを持つルート、またはReactのスケジューラーに保留中のタスク（レンダリング作業、パッシブエフェクト） | DevToolsフック経由でReact自身の管理情報を読み取ります。アプリ側の変更は不要です。 |
-| `idle-callback` | `requestIdleCallback`が保留中（`InteractionManager`がまだあるReact Nativeのバージョンでは、その作業も） | |
-| `native`（iOS） | ビューコントローラーの遷移（ナビゲーション、モーダル表示）が実行中、またはキーボードが動いている / 使われた直後 | `@quiesco/native`が報告します。JavaScriptからは見えないUIKitの処理をカバーします。「キーボードが動いている」はUIKitの`keyboardWill…`通知から対応する`keyboardDid…`までで、長くてもアニメーション時間に0.5秒を足した時間です。iOSはキーボードがすでに表示されているのに`keyboardDidShow`を数秒遅れて送ることがあります（そのときデバイスログに`[Quiesco] keyboard: no Did notification …`が出ます）。 |
-| `frame-stable` | 要素ツリー（すべての要素の型、testID、テキスト、丸めた位置とサイズ）が直近の`sync.stableFrames`（2）フレームの間に変化した | UIスレッド上のアニメーション（Reanimated、native driverの`Animated`）のためのフォールバックです。呼び出しが待機している間だけサンプリングされます。 |
+アプリ内のエージェントは、次のトラッカーで「アイドル」を判定します。どのトラッカーもビジーでなければ、アプリはアイドルです。
 
-| `native-module`（ネイティブモジュールをラップするビルドではオン） | ネイティブモジュールのメソッド（TurboModule / NativeModules、Expoモジュール）が返したPromiseが未解決、またはコールバックを渡されてまだどれも呼んでいない（AsyncStorageの`multiSet`）。最長`sync.nativeCallThresholdMs`（2秒） | [ネイティブモジュールの呼び出し](#native-module-calls)を参照してください。 |
+| トラッカー | ビジーになる条件 |
+|---|---|
+| `network` | `fetch`や`XMLHttpRequest`が進行中、または`WebSocket` / `EventSource`が接続中 |
+| `timer` | 1.5秒以下の`setTimeout`が待機中 |
+| `react` | Reactにまだ実行していない描画やeffectがある |
+| `idle-callback` | `requestIdleCallback`が待機中 |
+| `native`（iOSのみ） | 画面遷移やキーボードのアニメーション中 |
+| `frame-stable` | 直近2フレームで画面が変化した：UIスレッド上のアニメーション |
+| `native-module`（要オプトイン） | ネイティブモジュールの呼び出しが終わっていない。最大2秒（[詳細](#native-module-calls)） |
 
-トラッカーをオフにするには`sync: { trackers: { 'frame-stable': false } }`とします。
-
-タイムラインの各呼び出しには、アイドル待ちが最後に何を待っていたかがトラッカーごとに書かれます（`native-module: RNCDatePicker.open() 1990ms`、`network: GET https://api.example.com/items (240ms)`）。操作が想定より遅いときは、まずここを見てください。その呼び出しの最後のアイドル待ちがどう終わったかも書かれます。終わった時刻（デバイスの時計なので、デバイスのログと突き合わせられます）、最後の数回のチェックとそれぞれでビジーだったトラッカー（`+272ms busy: native-module | +276ms idle | +277ms idle (confirmed)`）、待ちの間に始まった・完了したネイティブモジュールの呼び出し（`RNCAsyncStorage.multiSet() +251ms→+266ms`）です。操作が早く戻りすぎたときは、ここを見てください。`SYNC_TIMEOUT`で失敗した呼び出しにも、`scrollTo`の各ステップにも、この記録が付きます。
-
-### ネイティブモジュールの呼び出し {#native-module-calls}
-
-`native-module`トラッカーがないと、ネイティブモジュールの呼び出しが未完了でもアプリはビジーになりません。追跡される2つの処理のあいだでネイティブ呼び出しをawaitするハンドラーは、そのあいだアイドルに見えます。
+トラッカーを無効にするには：
 
 ```ts
-// fetch：追跡される
-await api.login(email, password);
-
-// ネイティブモジュールのPromise：既定では追跡されない
-await AsyncStorage.setItem(TOKEN_KEY, token);
-
-// 次の画面がマウントされ、effectでfetchする
-router.replace('/');
+sync: { trackers: { 'frame-stable': false } }
 ```
 
-`tap('login-submit')`は、`setItem`の完了前、つまり画面遷移と次の画面のリクエストが始まる前に戻ることがあります。次のステップが必要とするものを待つ（`await app.expectVisible('item-row-1')`）か、ネイティブモジュールをラップしてビルドしてください。`metro.config.js`の`withQuiesco()`に`nativeModules: true`を渡し（またはMetroを`EXPO_PUBLIC_QUIESCO_NATIVE_MODULES=1`付きで起動し）、Metroを再起動します。
+<AccordionGroup>
+  <Accordion title="network">
+    - `fetch`はレスポンスが届くまでビジーです。続けてボディを読む（`json()`、`text()`など）と、ボディを読み終えるまでビジーが続きます。
+    - `expo/fetch`も追跡されます。XHRの上に作られた`fetch`（React Native）は1回だけ数えます。
+    - `WebSocket` / `EventSource`は、開くか、失敗するか、閉じるまでだけビジーです。開いている接続は数えません。エージェント自身の接続も数えません。
+    - `sync.ignoreUrls`で、ロングポーリング、SSE、アナリティクスを除外できます。
+  </Accordion>
+  <Accordion title="timer">
+    - `sync.timerThresholdMs`（1.5秒）以下のタイマーだけを数えます。30秒のセッションタイムアウトは待ちません。
+    - `setInterval`は`sync.countIntervals: true`のときだけ数えます。
+  </Accordion>
+  <Accordion title="react">
+    - React DevToolsのフックを通して、React自身の記録（保留中のlane、予約されたコールバック、Reactスケジューラーのタスク）を読みます。アプリの側は何も変えなくて構いません。
+    - エージェントは、React Nativeのレンダラーが読み込まれる前にこのフックを入れる必要があります。`metro.config.js`の`withQuiesco()`がこれを引き受けます。
+  </Accordion>
+  <Accordion title="native (iOS)">
+    - `@quiesco/native`が報告します。ナビゲーションやモーダルの遷移など、JavaScriptからは見えないUIKitの処理です。
+    - キーボードは、UIKitの`keyboardWill…`通知から対応する`keyboardDid…`まで、最長でアニメーション時間＋0.5秒ビジーです。iOSは`keyboardDidShow`を数秒遅れて送ることがあり、そのときデバイスログに`[Quiesco] keyboard: no Did notification …`が出ます。
+  </Accordion>
+  <Accordion title="frame-stable">
+    - 要素ツリー（型、testID、テキスト、丸めた位置とサイズ）をフレームごとに比べます。直近`sync.stableFrames`（2）フレームで変化があればビジーです。
+    - UIスレッドで動くアニメーション（Reanimated、ネイティブドライバーの`Animated`）は他のトラッカーには見えないので、その受け皿です。
+    - 呼び出しが待っているあいだだけサンプリングします。
+  </Accordion>
+</AccordionGroup>
 
-```js
-module.exports = withQuiesco(getDefaultConfig(__dirname), { nativeModules: true });
-```
+## 呼び出しが遅い、または早く戻りすぎるときは {#timeline}
 
-このビルドでは`native-module`トラッカーがオンになり、ほかの設定は要りません。設定項目は次のとおりです。
+`timeline.html`の各呼び出しのエントリーに、アイドル待ちの様子が出ます。
 
-```ts
-sync: {
-  // 未完了の呼び出しをビジーとみなす上限
-  nativeCallThresholdMs: 2000,
+- **遅い呼び出し**：トラッカーごとに、待ちが何で終わったか。例：`network: GET https://api.example.com/items (240ms)`。
+- **早く戻りすぎた呼び出し**：最後の確認の様子。例：`+272ms busy: native-module | +276ms idle | +277ms idle (confirmed)`。そのあいだに始まった、または終わったネイティブモジュールの呼び出しも出ます。時刻はデバイスの時計なので、デバイスログと突き合わせられます。
 
-  // "Module.method"。文字列は部分一致
-  ignoreNativeCalls: ['ExpoLocation.watch'],
+`SYNC_TIMEOUT`で失敗した呼び出しにも、`scrollTo`の各ステップにも、この記録があります。
 
-  // ラップするビルドでオフにする
-  // trackers: { 'native-module': false },
-}
-```
+## アプリがアイドルにならないとき {#when-the-app-never-becomes-idle}
 
-ラップしない場合、エージェントはネイティブモジュールに手を加えず、トラッカーは何も数えません（このとき`trackers: { 'native-module': true }`と書くとアプリが警告を出し、`quiesco doctor`も警告します）。ラップするビルドでトラッカーをオフにした場合も、呼び出しは記録されます。未完了の呼び出しが残ったまま戻った操作は、タイムラインの項目にその呼び出しが書かれ、失敗したシナリオの`idle-state.json`にも直近のそうした操作が並びます（`nativeCallsNotCounted`）。この競合を疑う手がかりになります。ラップするとモジュールのメソッドがJSの関数に置き換わります。Gesture Handler、Reanimated、WorkletsはUIスレッドのworkletから自身のモジュールのメソッドを呼び出し、それにはネイティブの関数が必要なため、これらのモジュールはラップしません。
-
-このトラッカーは、エージェントの読み込み後にアプリがReact Nativeの`TurboModuleRegistry`とExpo（`requireNativeModule`）から取得するモジュールをラップします。React Nativeが起動時に取得する自身のモジュールは追跡されません。権限のリクエスト、認証シート、ピッカーなど、ユーザーの操作を待つネイティブ呼び出しは、テストが応答するまで未完了のままです。次の呼び出しは既定でビジーとみなしません。Expoモジュールと`PermissionsAndroid`の権限リクエスト（`*.request…Permission(s)(Async)`）、日付・時刻ピッカーのダイアログ（`RNCDatePicker.open`、`RNCTimePicker.open`）、`ExpoLocalAuthentication.authenticateAsync`、共有シート（`ShareModule.share`、`ExpoSharing.shareAsync`）、`ExpoWebBrowser.openBrowserAsync` / `openAuthSessionAsync`、画像とドキュメントのピッカー、アラートとアクションシート（`AlertManager.alertWithArgs`、`DialogManagerAndroid.showAlert`、`ActionSheetManager.show…ActionSheetWithOptions`）です。アニメーションの終了時にコールバックするネイティブドライバーのアニメーション（`NativeAnimatedModule`）も、ビジーとみなしません。イベントの購読（`addListener(eventName, listener)`など`add…Listener` / `remove…Listener(s)`のメソッド）は、イベントが届いたときにだけ呼ばれるリスナーを待ちません。こうした呼び出しはPromiseを返したときだけビジーとみなし、`defaultIgnoreNativeCalls`の設定には左右されません。`ignoreNativeCalls`はこれに追加され、`defaultIgnoreNativeCalls: false`にするとこれらもビジーとみなします。ほかの呼び出しは`nativeCallThresholdMs`を過ぎるとビジーとみなされなくなるので、そうしたUIを開くステップの待ち時間は最長でもその長さです。タイムラインにその呼び出しが出る（`native-module: Module.method() 1990ms`）ので、`ignoreNativeCalls`に加えてください。
-
-Reactトラッカーの仕組みと、エージェントをReact Nativeのレンダラーより先に読み込む必要がある理由は、[docs/spikes/02-react-idle.md](https://github.com/h2nology/quiesco/blob/main/docs/spikes/02-react-idle.md)で説明しています。読み込み順は`metro.config.js`の`withQuiesco()`が面倒を見ます（React Native 0.88はアプリのエントリーファイルより先にレンダラーを読み込みます）。
-
-## アプリがいつまでもアイドルにならないとき {#when-the-app-never-becomes-idle}
-
-`sync.timeoutMs`（10秒）より長く待った呼び出しは`SYNC_TIMEOUT`で失敗し、何がビジーだったかを列挙します。
+呼び出しは`SYNC_TIMEOUT`で失敗し、ビジーだったものを一覧にします。
 
 ```
 App did not become idle within the 10000ms timeout. Busy:
@@ -76,27 +97,115 @@ App did not become idle within the 10000ms timeout. Busy:
     last change: first difference at node 12: Text "Loading 41%" … → Text "Loading 42%" …
 ```
 
-タイムアウトの瞬間にはアイドルでも、その直前（1秒以内）までビジーだったトラッカーも、そのとき何でビジーだったかと合わせて列挙されます（`frame-stable (idle at the timeout, busy 12ms before it): …`）。「タイマー → 描画 → 静かな数フレーム」を繰り返すループは一部の時間アイドルなので、タイムアウトがちょうどそこに当たることがあります。
+ビジーだったトラッカーで表を引いてください。
 
-対処はトラッカーによって異なります。
+| ビジー | よくある原因 | 対処 |
+|---|---|---|
+| `network` | 終わらないリクエスト：ロングポーリング、止まったバックエンド | URLを`sync.ignoreUrls`に加える。またはバックエンド / モックを直す |
+| `timer` | 永遠にかけ直される短いタイマー：ポーリング、自分を予約し直すトースト | そのステップに`{ sync: false }`、`this.app.sync.disableTracker('timer')`、またはe2eビルドでループを止める |
+| `frame-stable` | 終わらないアニメーション：スピナー、シマー、装飾的なグロー | その要素にtestIDを付けて`sync.ignoreElements`に加える |
+| `react` | 描画ループ：ガードのないeffectでの状態更新 | 本物のバグなので直す |
 
-- **network**：終わらないリクエスト（ロングポーリング、応答が止まったバックエンド）です。`sync.ignoreUrls`に追加するか、バックエンド / モックを修正します。意図的に再現するには、モックサーバーに`MOCK_STALL`のような切り替えを用意します。
-- **timer**：短いタイマーが延々と再設定されています（`setTimeout`によるポーリングループ、自分自身を再スケジュールするトースト）。そのステップの同期をスキップする（`{ sync: false }`）か、そのシナリオだけtimer trackerを止める（`this.app.sync.disableTracker('timer')`）か、e2eビルドではループを止めます。カウントされるのは遅延が`sync.timerThresholdMs`以下のタイマーだけなので、しきい値をループの間隔より下げても解消しますが、アプリ全体でそれより短いタイマーがすべて対象外になります。
-- **frame-stable**：何かが動き続けています。終わらないアニメーション（スピナー、シマー、マーキー、ゆっくり動く装飾用の光）やカウンターです。レポートには最初に変化した要素が示されます。その要素が装飾であれば、testIDを付けて`sync.ignoreElements`に加えます。その要素とサブツリーはこのチェックから外れ、それ以外はこれまでどおりチェックされます。そうでなければ、そのステップを`{ sync: false }`付きで呼び出して、必要なことを後からアサートするか、e2eビルドではアニメーションを無効にします。待った時間に対して`frames sampled`が極端に少ない場合は、アニメーションではなくUIスレッドが処理しきれていない（エミュレーターが過負荷）状態です。`recent changes`には直近の変化（待機開始からの時間、ノード数、最初に異なるノード）が並びます。同じ要素が行ったり来たりの変化を続けている場合は、ツリーの他の部分が変わっていても、レポートにその要素が示されます。毎回要素が追加されては削除されているなら、たいていはリストです。`getItemLayout`がなく行の高さが少しずつ違う`FlatList` / `VirtualizedList`は、スクロールのあと描画ウィンドウの端の項目を追加しては削除し続けることがあります。`timeoutMs`を延ばしても解決しません。`getItemLayout`を指定するか行の高さを固定すると、たいてい止まります。実際に起きている処理なので、Quiescoはこれもビジーとして扱います。frame-stableは呼び出しが待機している間だけサンプリングするため、タイムアウト後の`idle-state.json`ではアイドルと表示されます。待機が終わった時点の報告内容は`lastWait`に残ります。待機中にツリーが変化していれば、タイムアウトの瞬間にたまたま安定していても残ります。
-- **react**：レンダリングループ（ガードのないエフェクト内での状態更新）が収まらない状態です。実際のバグです。
+<AccordionGroup>
+  <Accordion title="レポートの読み方">
+    - タイムアウトの少し前（1秒以内）までビジーで、その瞬間にはアイドルだったトラッカーも載ります：`frame-stable (idle at the timeout, busy 12ms before it): …`。「タイマー → 描画 → 静かな数フレーム」のループは一部の時間アイドルなので、タイムアウトがそこに当たることがあります。
+    - `frame-stable`は最初に変化した要素を示し、`recent changes`は直近の変化を並べます。同じ要素が行ったり来たりしているときは、レポートがその要素を名指しします。
+    - 待った時間に対して`frames sampled`がとても少ないなら、アニメーションではなく、UIスレッドが詰まっています（負荷の高いエミュレーター）。
+    - タイムアウト後の`idle-state.json`では`frame-stable`がアイドルと表示されます。呼び出しが待っているあいだしかサンプリングしないためです。`lastWait`に、待ちが終わったときの報告が残っています。
+  </Accordion>
+  <Accordion title="落ち着かないリスト">
+    `getItemLayout`がなく、行の高さが少しずつ違う`FlatList` / `VirtualizedList`は、スクロール後に描画ウィンドウの端の項目を追加しては削除し続けることがあります。レポートには、毎回追加と削除をくり返す要素が出ます。`timeoutMs`を延ばしても効きません。`getItemLayout`か固定の行の高さで、たいてい止まります。
+  </Accordion>
+  <Accordion title="その他の対処">
+    - **timer**：`sync.timerThresholdMs`をループの間隔より小さくしても効きますが、アプリ全体のそれだけ短いタイマーすべてに影響します。
+    - **frame-stable**：動いている要素が装飾でないなら、そのステップを`{ sync: false }`で呼び、あとで必要なことをアサートします。またはe2eビルドでアニメーションを止めます。
+    - **network**：モックサーバーに`MOCK_STALL`のようなスイッチを用意すると、止まったバックエンドをわざと再現できます。
+  </Accordion>
+</AccordionGroup>
 
-`AGENT_TIMEOUT`は別物です。エージェントがまったく応答しなかったことを示し、たいていは長い同期処理でJSスレッドがブロックされています。
+<Note>
+  `AGENT_TIMEOUT`は別物です。エージェントがまったく応答しなかったことを表し、たいていは長い同期処理がJSスレッドをふさいでいます。
+</Note>
 
-## 1回の呼び出しだけ同期をスキップする {#skipping-sync-for-one-call}
+## 1回の呼び出しだけ同期を省く {#skipping-sync-for-one-call}
 
 ```ts
 // 前後で待たない
 await this.app.tap('start-spinner', { sync: false });
 
-// 回っている間にアサートする
+// 回っているあいだにアサートする
 await this.app.expectVisible('spinner', { sync: false });
 ```
 
-## プラットフォームごとの補足 {#platform-notes}
+## ネイティブモジュールの呼び出し {#native-module-calls}
 
-3つのプラットフォームすべてで同じトラッカーが動きます。Webでは、ページ全体の読み込み後にエージェントが再接続し、ホスト側はそれを意識させずに待ちます。Expo Routerの静的出力では、ハイドレーションの後にアプリの準備ができたとみなします。`native`トラッカーはiOSにしかありません。[プラットフォームの違い](./platforms)を参照してください。
+デフォルトでは、終わっていないネイティブモジュールの呼び出し（AsyncStorage、ピッカーなど）はアプリをビジーにしません。そのため、操作が早く戻りすぎることがあります。
+
+```ts
+// fetch：追跡される
+await api.login(email, password);
+
+// ネイティブモジュールのPromise：デフォルトでは追跡されない
+await AsyncStorage.setItem(TOKEN_KEY, token);
+
+// 次の画面がマウントされ、effectでfetchする
+router.replace('/');
+```
+
+`tap('login-submit')`は、`setItem`が終わる前、次の画面が始まる前に戻ることがあります。対処は2つです。
+
+- 次のステップに必要なものを待つ：`await app.expectVisible('item-row-1')`。
+- またはネイティブモジュールの呼び出しを追跡する：e2eビルドで呼び出しをラップし、Metroを再起動します。
+
+```js
+module.exports = withQuiesco(getDefaultConfig(__dirname), { nativeModules: true });
+```
+
+Metroの起動時に`EXPO_PUBLIC_QUIESCO_NATIVE_MODULES=1`を設定しても同じです。これで`native-module`トラッカーが有効になります。設定は次のとおりです。
+
+```ts
+sync: {
+  // 終わっていない呼び出しを数える上限
+  nativeCallThresholdMs: 2000,
+
+  // "Module.method"。文字列は部分一致
+  ignoreNativeCalls: ['ExpoLocation.watch'],
+
+  // ネイティブモジュールをラップしたビルドで無効にする
+  // trackers: { 'native-module': false },
+}
+```
+
+<AccordionGroup>
+  <Accordion title="数えない呼び出し">
+    ユーザーの操作を待つ呼び出しは、テストが応答するまで終わりません。これらは数えません。
+
+    - 権限リクエスト：Expoモジュールと`PermissionsAndroid`（`*.request…Permission(s)(Async)`）
+    - 日付 / 時刻ピッカー：`RNCDatePicker.open`、`RNCTimePicker.open`
+    - `ExpoLocalAuthentication.authenticateAsync`
+    - 共有シート：`ShareModule.share`、`ExpoSharing.shareAsync`
+    - `ExpoWebBrowser.openBrowserAsync` / `openAuthSessionAsync`
+    - 画像とドキュメントのピッカー
+    - アラートとアクションシート：`AlertManager.alertWithArgs`、`DialogManagerAndroid.showAlert`、`ActionSheetManager.show…ActionSheetWithOptions`
+    - ネイティブドライバーのアニメーション（`NativeAnimatedModule`）
+
+    `ignoreNativeCalls`はこの一覧に追加します。`defaultIgnoreNativeCalls: false`にすると、これらも数えます。それ以外の呼び出しは`nativeCallThresholdMs`を過ぎると数えなくなります。タイムラインに呼び出し名（`native-module: Module.method() 1990ms`）が出るので、`ignoreNativeCalls`に加えられます。
+
+    イベントの購読（`addListener(eventName, listener)`、`add…Listener` / `remove…Listener(s)`）は、Promiseを返すときだけ数えます。`defaultIgnoreNativeCalls`の設定には関係しません。
+  </Accordion>
+  <Accordion title="ラップされないもの">
+    - React Nativeの起動中、エージェントの読み込み前に取得されるモジュール：React Native自身のモジュール。ラップされるのは、その後に`TurboModuleRegistry`とExpoの`requireNativeModule`から取得されるモジュールだけです。
+    - Gesture Handler、Reanimated、Worklets：UIスレッドのworkletから自分のモジュールを呼ぶため、ネイティブの関数のままである必要があります。
+  </Accordion>
+  <Accordion title="ラップしていない、またはトラッカーを無効にしたとき">
+    - `nativeModules: true`がなければ、このトラッカーは何も数えません。そのとき`trackers: { 'native-module': true }`は警告を出し、`quiesco doctor`も警告します。
+    - ラップしたうえでトラッカーを無効にした場合も、呼び出しは記録されます。呼び出しが終わる前に戻った操作はタイムラインのエントリーにそれを載せ、失敗したテストの`idle-state.json`にも載ります（`nativeCallsNotCounted`）。
+  </Accordion>
+</AccordionGroup>
+
+## プラットフォームごとの注意 {#platform-notes}
+
+- 3つのプラットフォームで同じトラッカーが動きます。`native`はiOSだけです。
+- Web：ページ全体を読み直すとエージェントが再接続し、Quiescoはそれを待ちます。Expo Routerの静的出力では、ハイドレーションが終わるとアプリの準備が整います。
+
+詳しくは[プラットフォームの違い](./platforms)を参照してください。

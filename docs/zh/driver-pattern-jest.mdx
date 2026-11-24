@@ -1,0 +1,68 @@
+---
+title: "在 Jest 中使用 Driver 模式"
+sidebarTitle: "Jest"
+description: "用纯 JavaScript 给 Jest 测试写一个业务 driver。"
+---
+
+在 Jest 中，测试文件是纯 JavaScript（`transform: {}`），所以 [driver](./driver-pattern#the-driver) 也是。每个测试用全局的 `quiesco.app` 创建一个 driver。
+
+## 用 JavaScript 写的 driver {#driver}
+
+```js
+// e2e/todo-driver.js
+/** 通过 UI、用 Quiesco 实现。只有这个类知道 test id。 */
+class UiTodoDriver {
+  /** @param {import('@quiesco/core').Driver} app */
+  constructor(app) {
+    this.app = app;
+  }
+
+  async seed(todos) {
+    // 不经过 UI 准备数据
+    await this.app.backdoor('seedTodos', todos);
+  }
+
+  async addTodo(title, notes) {
+    await this.app.tap('add-todo');
+    await this.app.type('title-input', title);
+    if (notes !== undefined) await this.app.type('notes-input', notes);
+    await this.app.tap('save-todo');
+    await this.app.expectVisible('todo-list-screen');
+  }
+
+  async todoTitles() {
+    return (await this.app.query('todo-title')).map((e) => e.text);
+  }
+}
+
+module.exports = { UiTodoDriver };
+```
+
+这个文件不以 `.test.js` 结尾，所以 Jest 的 `testMatch` 不会把它当作测试运行。
+
+<Warning>
+  在 Quiesco 0.13.4 及更早的版本中，Jest 下的 `quiesco.app.backdoor()` 会把任何对象参数都当作“不是 JSON”拒绝（[#115](https://github.com/h2nology/quiesco/issues/115)），所以在修复发布之前 `seed()` 会失败。
+</Warning>
+
+## 测试 {#tests}
+
+```js
+// e2e/todos.test.js
+const { UiTodoDriver } = require('./todo-driver');
+
+let todos;
+beforeEach(() => {
+  todos = new UiTodoDriver(quiesco.app);
+});
+
+test('a new todo appears at the top of the list', async () => {
+  await todos.addTodo('Call the dentist');
+  await todos.addTodo('Buy milk');
+
+  expect(await todos.todoTitles()).toEqual(['Buy milk', 'Call the dentist']);
+});
+```
+
+测试里没有 test id，也没有点击。driver 没覆盖的操作仍可以用 `quiesco.app`。
+
+关于 Jest 的更多内容见 [Jest](./jest)。

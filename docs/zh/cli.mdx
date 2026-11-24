@@ -34,7 +34,7 @@ yarn quiesco <command> [options]
    |---|---|
    | Vitest | `vitest.config.mts`、`e2e/app.test.ts` |
    | Jest | `jest.config.cjs`、`e2e/app.test.js` |
-   | Cucumber | `cucumber.mjs`、`features/support/quiesco.ts`、`features/app.feature` 及其步骤；并在 `tsconfig.json` 中加上 `"allowImportingTsExtensions": true`（step 文件之间用 `.ts` 导入，见 [step 文件不会被编译](./driver-pattern#type-stripping)） |
+   | Cucumber | `cucumber.mjs`、`features/support/quiesco.ts`、`features/app.feature` 及其步骤；并在 `tsconfig.json` 中加上 `"allowImportingTsExtensions": true`（step 文件之间用 `.ts` 导入，见 [step 文件不会被编译](./driver-pattern-cucumber#type-stripping)） |
 
    如果项目已经有 Vitest 或 Jest 配置（单元测试用的），会原样保留：Quiesco 的配置放在它旁边，命名为 `vitest.e2e.config.mts` / `jest.e2e.config.cjs`，`e2e:*` 脚本会用 `--config` 传入这个文件名。
 

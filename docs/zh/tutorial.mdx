@@ -1,15 +1,18 @@
 ---
 title: "教程：测试一个待办 App"
+sidebarTitle: "概览"
 description: "以一个有三个页面的小型待办 App 为例，一步步编写它的端到端测试：test id、跨页面的流程、后门、重置和失败排查。"
 ---
 
 本教程从一个能运行的 App 出发，最终得到八个测试，无需修改即可在 Web、iOS 和 Android 上运行。途中会用到一个典型测试需要的全部内容：按 test id 查找元素、在页面之间跳转、填写表单、通过后门准备数据，以及阅读失败信息。
 
+测试按每种 [测试运行器](./runners) 各写了一遍。先在本页准备好项目，再选一个运行器：步骤都一样，只有测试代码不同。
+
 大约需要 30 分钟。你需要 Node.js 24+；iOS 和 Android 还需要 [快速开始](./quickstart) 中列出的工具。
 
 ## 这个 App {#the-app}
 
-[`examples/todo-tutorial`](https://github.com/h2nology/quiesco/tree/main/examples/todo-tutorial) 是一个有三个页面的 Expo Router App：
+这是一个有三个页面的 Expo Router App。仓库里按测试运行器各放了一份：[`todo-tutorial-vitest`](https://github.com/h2nology/quiesco/tree/main/examples/todo-tutorial-vitest)、[`todo-tutorial-jest`](https://github.com/h2nology/quiesco/tree/main/examples/todo-tutorial-jest) 和 [`todo-tutorial-cucumber`](https://github.com/h2nology/quiesco/tree/main/examples/todo-tutorial-cucumber)，只有测试不同。
 
 <Columns cols={3}>
   <Frame caption="列表（/）">
@@ -31,15 +34,27 @@ description: "以一个有三个页面的小型待办 App 为例，一步步编�
 
 ## 获取项目 {#get-the-project}
 
-把示例从仓库中复制出来并安装：
+把对应运行器的示例从仓库中复制出来并安装：
 
-```sh
-npx degit h2nology/quiesco/examples/todo-tutorial quiesco-todo
+<CodeGroup>
+```sh Vitest
+npx degit h2nology/quiesco/examples/todo-tutorial-vitest quiesco-todo
 cd quiesco-todo
 npm install
 ```
+```sh Jest
+npx degit h2nology/quiesco/examples/todo-tutorial-jest quiesco-todo
+cd quiesco-todo
+npm install
+```
+```sh Cucumber
+npx degit h2nology/quiesco/examples/todo-tutorial-cucumber quiesco-todo
+cd quiesco-todo
+npm install
+```
+</CodeGroup>
 
-愿意的话，可以用 `npm run web`（或用 dev client 时的 `npm start`）先试试这个 App。项目已经为 Quiesco 配置好了，内容就是 `npx quiesco init --runner vitest` 加上 [快速开始](./quickstart) 中各步骤的产物：
+愿意的话，可以用 `npm run web`（或用 dev client 时的 `npm start`）先试试这个 App。项目已经为 Quiesco 配置好了，内容就是 `npx quiesco init --runner <runner>` 加上 [快速开始](./quickstart) 中各步骤的产物：
 
 | 文件 | 作用 |
 |---|---|
@@ -48,283 +63,19 @@ npm install
 | `app.json` | 列出 `@quiesco/expo-plugin`，并设置 `quiesco.config.mts` 中引用的 bundle id / package |
 | `src/app/_layout.tsx` | 用 `<QuiescoRoot>` 包裹 App，并且只在 e2e 构建中加载 `src/e2e.ts` |
 | `quiesco.config.mts` | App 在各平台上的位置：web 导出、模拟器构建、APK |
-| `vitest.config.mts` | 用 Quiesco 运行 `e2e/**/*.test.ts` |
+| `vitest.config.mts`、`jest.config.cjs` 或 `cucumber.mjs` | 运行器的配置：用 Quiesco 运行哪些测试文件 |
 | `package.json` | `e2e:*` 脚本：`e2e:web`、`e2e:build:ios`、`e2e:ios`、`e2e:build:android`、`e2e:android` |
 
-测试位于 `e2e/`。下面的步骤会逐个写出这些测试；如果想跟着做，先清空这两个文件，读到一个测试就加一个。
-
-## 第 1 步：给元素加上 test id {#step-1-test-ids}
-
-测试按 `testID` 查找元素。测试中的普通字符串就是 test id：`app.tap('add-todo')` 会点击带有 `testID="add-todo"` 的元素。测试要操作或检查的每个元素，App 都给了一个 test id：
-
-| 页面 | `testID` | 元素 |
-|---|---|---|
-| 列表 | `todo-list-screen` | 页面本身 |
-| | `empty-state` | 列表为空时显示的“Nothing to do” |
-| | `todo-summary` | “1 of 2 done” |
-| | `todo-row`, `todo-title`, `todo-checkbox` | 每一行、行的标题、行的复选框 |
-| | `add-todo` | New todo 按钮 |
-| 新建待办 | `new-todo-screen`, `title-input`, `notes-input`, `title-error`, `save-todo` | 页面、输入框、标题下方的错误提示、Save |
-| 详情 | `todo-detail-screen`, `detail-title`, `detail-notes`, `todo-status` | 页面、文本、Open / Done 标记 |
-| | `toggle-done`, `delete-todo` | 两个按钮 |
-
-在代码中，test id 只是一个 prop（`src/components/TodoRow.tsx`）：
-
-```tsx
-<View testID="todo-row" style={styles.row}>
-  <Checkbox testID="todo-checkbox" checked={todo.done} onToggle={onToggle} label={…} />
-  …
-</View>
-```
-
-每一行的 id 都相同；测试按位置（`{ id: 'todo-title', index: 0 }` 是最上面那行）或按文本（`{ text: 'Buy milk' }`）选出其中一行。App 运行时，`npx quiesco tree` 会打印带有所有 id 的元素树，便于找出 App 中已有的 id。
-
-## 第 2 步：第一个测试 {#step-2-first-test}
-
-先测试刚启动时显示的内容。在 `e2e/list.test.ts` 中：
-
-```ts
-import { test } from '@quiesco/vitest';
-
-test('a fresh start shows the empty list', async ({ app }) => {
-  await app.expectVisible('empty-state');
-  await app.expectCount('todo-row', 0);
-});
-```
-
-`app` 是被测 App 的驱动对象。在 Web 上运行：
-
-```sh
-npx playwright install chromium
-
-# 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
-npm run e2e:web
-```
-
-第一次运行会启动 Chromium 并打开 App，测试几秒内就会通过。在 [第 7 步](#step-7-ios-and-android) 中，你会在 iOS 和 Android 上运行同一个文件。
-
-## 第 3 步：跨页面的流程 {#step-3-flow-across-screens}
-
-接下来像用户一样添加一条待办：打开表单，输入，保存，然后检查列表。
-
-```ts
-test('a new todo appears at the top of the list', async ({ app }) => {
-  await app.tap('add-todo');
-  await app.expectVisible('new-todo-screen');
-
-  await app.type('title-input', 'Buy milk');
-  await app.type('notes-input', 'Oat milk, 1 l');
-  // 保存需要 600 ms，之后 App 回到列表。Quiesco 会等待这两者：不需要 sleep。
-  await app.tap('save-todo');
-
-  await app.expectVisible('todo-list-screen');
-  await app.expectText({ id: 'todo-title', index: 0 }, 'Buy milk');
-  await app.expectText('todo-summary', '0 of 1 done');
-});
-```
-
-测试里没有 `sleep`，也没有 `waitFor`，尽管每一行都依赖某个需要时间的过程：`tap('add-todo')` 之后的页面切换、600 ms 的保存计时器、返回列表的过程。Quiesco 在每次调用前后都会等待 App **空闲**，即没有待执行的计时器、请求、渲染或动画（[同步](./sync)），所以每一行都从上一行留下的状态开始。断言也会不断重试，直到成立或超时。
-
-`expectVisible('new-todo-screen')` 对测试通过来说并非必需，但它能让失败更清楚：如果按钮不再打开表单，测试会在这里失败，而不是在 `type` 处失败。
-
-## 第 4 步：出错时用户看到什么 {#step-4-validation}
-
-没有标题时，表单不会保存待办。检查错误提示是否显示、表单是否仍然打开，然后返回：
-
-```ts
-test('a todo needs a title', async ({ app }) => {
-  await app.tap('add-todo');
-  await app.tap('save-todo');
-
-  await app.expectText('title-error', 'Enter a title');
-  await app.expectVisible('new-todo-screen');
-
-  // 像用户一样回到列表：根据平台，使用返回键、浏览器后退或滑动返回。
-  await app.goBack();
-  await app.expectVisible('empty-state');
-});
-```
-
-`goBack()` 按平台自己的方式返回：Android 的返回键、浏览器的后退、iOS 导航栏的返回按钮。一行就覆盖了三个平台。
-
-## 第 5 步：用后门准备数据 {#step-5-backdoor}
-
-详情页需要列表中已有待办。在每个测试里都通过表单输入当然可行，但速度慢，而且一旦表单出了问题，测试删除待办的用例也会跟着失败。**后门**是 App 只为测试注册的函数；测试调用它来直接准备状态。
-
-在 App 和测试都会编译的文件（`src/backdoors.ts`）中声明一次：
-
-```ts
-export interface SeedTodo {
-  title: string;
-  notes?: string;
-  done?: boolean;
-}
-
-declare module '@quiesco/agent' {
-  interface Backdoors {
-    /** 用这些待办替换列表（第一条在最上面）。 */
-    seedTodos: (todos: SeedTodo[]) => void;
-  }
-}
-```
-
-在 `src/e2e.ts` 中注册它。`_layout.tsx` 只在 e2e 构建中加载这个文件，因此其中的代码都不会进入生产环境：
-
-```ts
-import { quiesco } from '@quiesco/agent';
-
-import type {} from './backdoors';
-import { todoStore } from './store';
-
-quiesco.backdoor('seedTodos', (todos) => {
-  todoStore.replaceAll(todos);
-});
-```
-
-```tsx
-// src/app/_layout.tsx
-if (process.env.EXPO_PUBLIC_QUIESCO === '1') {
-  require('../e2e');
-}
-```
-
-现在，详情页的测试从两条待办开始（`e2e/detail.test.ts`）：
-
-```ts
-import { test } from '@quiesco/vitest';
-
-import type {} from '../src/backdoors';
-
-const seed = [{ title: 'Buy milk', notes: 'Oat milk, 1 l' }, { title: 'Call the dentist' }];
-
-test('a todo opens on its own screen', async ({ app }) => {
-  await app.backdoor('seedTodos', seed);
-
-  await app.tap({ text: 'Buy milk' });
-  await app.expectVisible('todo-detail-screen');
-  await app.expectText('detail-title', 'Buy milk');
-  await app.expectText('detail-notes', 'Oat milk, 1 l');
-
-  await app.goBack();
-  await app.expectVisible('todo-list-screen');
-});
-
-test('marking a todo done shows in the list', async ({ app }) => {
-  await app.backdoor('seedTodos', seed);
-
-  await app.tap({ text: 'Call the dentist' });
-  await app.tap('toggle-done');
-  await app.expectText('todo-status', 'Done');
-
-  await app.goBack();
-  await app.expectChecked({ id: 'todo-checkbox', index: 1 });
-  await app.expectNotChecked({ id: 'todo-checkbox', index: 0 });
-  await app.expectText('todo-summary', '1 of 2 done');
-});
-
-test('the checkbox in the list toggles a todo', async ({ app }) => {
-  await app.backdoor('seedTodos', seed);
-
-  await app.tap({ id: 'todo-checkbox', index: 0 });
-  await app.expectChecked({ id: 'todo-checkbox', index: 0 });
-  await app.expectText('todo-summary', '1 of 2 done');
-});
-
-test('deleting a todo goes back to the list without it', async ({ app }) => {
-  await app.backdoor('seedTodos', seed);
-
-  await app.tap({ text: 'Buy milk' });
-  await app.tap('delete-todo');
-
-  await app.expectVisible('todo-list-screen');
-  await app.expectCount('todo-row', 1);
-  await app.expectNotExists({ text: 'Buy milk' });
-});
-```
-
-有了这份声明，`app.backdoor('seedTodos', …)` 会经过类型检查：名称拼错，或者待办缺少标题，都会在测试中报 TypeScript 错误。`{ text: 'Buy milk' }` 按用户读到的文字查找元素；`expectChecked` 读取复选框的 `accessibilityState`，也就是屏幕阅读器播报的那个状态。
-
-## 第 6 步：每个测试都从干净的状态开始 {#step-6-reset}
-
-在每个测试之前，Quiesco 都会对 App 执行**软重置**：清空存储（iOS / Android 上是 AsyncStorage；Web 上是 localStorage、sessionStorage 和 IndexedDB），把导航恢复到第一个页面，并重新挂载 App。这比重启 App 快得多。
-
-重新挂载不会清除 JavaScript 模块中的状态，而这个 App 把待办保存在一个模块变量里。所以 `src/e2e.ts` 还要告诉 Quiesco 如何清除它们：
-
-```ts
-// Quiesco 在每个测试之前都会软重置 App：清空存储并重新挂载 App。待办保存在
-// 模块变量中，重新挂载后仍会保留，所以在这里清空。
-quiesco.onReset(() => {
-  todoStore.replaceAll([]);
-});
-```
-
-`e2e/detail.test.ts` 中的最后一个测试会检查这一点：
-
-```ts
-test('every test starts with an empty list', async ({ app }) => {
-  // 上面的测试留下了待办；软重置和 src/e2e.ts 中的 onReset hook 已把它们清空。
-  await app.expectVisible('empty-state');
-});
-```
-
-去掉 `onReset` hook，这个测试就会失败，屏幕上仍留着上一个测试的待办。凡是存在于 React 和存储之外的状态，例如模块变量、React Query client 之类的缓存、内存数据库，都需要一个 `onReset` hook。
-
-## 第 7 步：在 iOS 和 Android 上运行 {#step-7-ios-and-android}
-
-测试不需要改动。每个平台构建一次 e2e App，然后运行同样的文件：
-
-<Tabs>
-  <Tab title="iOS">
-    ```sh
-    # 先启动一个模拟器：open -a Simulator
-
-    # 以 EXPO_PUBLIC_QUIESCO=1 执行 prebuild 和 xcodebuild：第一次需要几分钟
-    npm run e2e:build:ios
-
-    npm run e2e:ios
-    ```
-  </Tab>
-  <Tab title="Android">
-    ```sh
-    # 先启动一个模拟器：Android Studio 的 Device Manager，或 emulator -avd <name>
-
-    # 以 EXPO_PUBLIC_QUIESCO=1 执行 prebuild 和 gradlew assembleDebug：第一次需要几分钟
-    npm run e2e:build:android
-
-    npm run e2e:android
-    ```
-  </Tab>
-</Tabs>
-
-`quiesco test` 会安装构建产物、为 dev client 启动 Metro、运行测试，然后停止 Metro。在 iOS 和 Android 上，`tap` 和 `type` 是真实的触摸和键盘输入，而不是直接调用组件：被键盘或其他视图挡住的按钮会让测试失败（`ELEMENT_OBSCURED`），就像它会挡住用户一样。
-
-## 测试失败时 {#when-a-test-fails}
-
-把第 3 步中期望的标题改成 `'Buy bread'`，再运行一次测试。测试会在断言超时后失败，并给出期望的内容、实际找到的内容以及 App 当时所在的位置：
-
-```text
-QuiescoError: expect text failed after 10000ms for { id: "todo-title", index: 0 }: expected "Buy bread", actual "Buy milk" (current route: /)
-
-Quiesco evidence:
-  artifacts/20261123-212209-web/001-a-new-todo-appears-at-the-top-of-the-list/failure.png
-  artifacts/20261123-212209-web/001-a-new-todo-appears-at-the-top-of-the-list/elements.json
-  …
-```
-
-`artifacts/` 文件夹中，每个失败的测试都有以下文件：
-
-| 文件 | 内容 |
-|---|---|
-| `failure.png` | 失败时的屏幕截图，失败调用涉及的元素用红框标出 |
-| `elements.json` | 当前路由，以及所有带 test id、label 或文本的元素，包括是否可见及原因 |
-| `element-tree.json` | 完整的元素树 |
-| `idle-state.json` | 等待空闲超时时，哪些东西还在忙 |
-| `timeline.html` | 测试中的每次调用，及其耗时和等待 App 的时长 |
-
-如果想改为在浏览器页面中运行测试（一次运行一个测试，在页面上查看运行进度和失败时的证据），安装 `@quiesco/ui` 并启动 `npx quiesco ui --platform web`（[测试 UI](./ui)）。
-
-## 下一步 {#next-steps}
-
-- [同步](./sync)：空闲意味着什么，以及如何处理永不停止的动画。
-- [API 参考](./api)：所有操作和断言，以及匹配器（`within`、`has`、正则表达式）。
-- [Driver 模式](./driver-pattern)：测试套件变大后，把 test id 从测试中抽离出来。
+## 选择测试运行器 {#pick-a-runner}
+
+<CardGroup cols={3}>
+  <Card title="Vitest（推荐）" icon="flask" href="./tutorial-vitest">
+    用 TypeScript 编写测试，App 以 `app` fixture 的形式提供。
+  </Card>
+  <Card title="Jest" icon="flask" href="./tutorial-jest">
+    用 JavaScript 编写测试，通过全局的 `quiesco.app` 操作 App。
+  </Card>
+  <Card title="Cucumber" icon="flask" href="./tutorial-cucumber">
+    用 Gherkin 编写场景，用 TypeScript 编写步骤定义。
+  </Card>
+</CardGroup>

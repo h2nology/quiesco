@@ -108,7 +108,7 @@ export class TodoWorld extends QuiescoWorld {
 }
 ```
 
-More in [the driver pattern](../../writing-tests/references/driver-pattern.md). Ready-made generic steps for prototyping are in
+More in [the driver pattern](../../writing-tests/references/driver-pattern-cucumber.md). Ready-made generic steps for prototyping are in
 [generic steps](../../writing-tests/references/steps.md).
 
 ## TypeScript {#typescript}

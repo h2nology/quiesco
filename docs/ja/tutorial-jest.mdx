@@ -1,0 +1,298 @@
+---
+title: "チュートリアル：JestでToDoアプリをテストする"
+sidebarTitle: "Jest"
+description: "3画面の小さなToDoアプリにE2Eテストを一歩ずつ書いていきます。テストID、画面をまたぐフロー、バックドア、リセット、失敗の読み方。"
+---
+
+このページでは、[ToDoアプリのチュートリアル](./tutorial)の8つのテストを**Jest**で書きます。先にそちらで[アプリ](./tutorial#the-app)を確認し、[プロジェクトを用意](./tutorial#get-the-project)してください。同じテストの[Vitest](./tutorial-vitest)版と[Cucumber](./tutorial-cucumber)版もあります。
+
+## テストファイル {#test-files}
+
+[`todo-tutorial-jest`](https://github.com/h2nology/quiesco/tree/main/examples/todo-tutorial-jest)では、`jest.config.cjs`が`@quiesco/jest`のプリセットで`e2e/**/*.test.js`を実行します（[Jest](./jest)）。テストは`e2e/list.test.js`と`e2e/detail.test.js`にあります。素のJavaScriptで、アプリはグローバルの`quiesco.app`から操作します。一緒に進めるなら、両方のファイルを空にして、読みながら各テストを追加してください。
+
+## ステップ1：要素にテストIDを付ける {#step-1-test-ids}
+
+テストは要素を`testID`で見つけます。テストの中の単なる文字列はテストIDです。`app.tap('add-todo')`は`testID="add-todo"`の要素をタップします。このアプリは、テストが操作または確認するすべての要素にテストIDを付けています。
+
+| 画面 | `testID` | 要素 |
+|---|---|---|
+| リスト | `todo-list-screen` | 画面そのもの |
+| | `empty-state` | リストが空のあいだ表示される「Nothing to do」 |
+| | `todo-summary` | 「1 of 2 done」 |
+| | `todo-row`、`todo-title`、`todo-checkbox` | 各行、そのタイトル、そのチェックボックス |
+| | `add-todo` | New todoボタン |
+| 新規ToDo | `new-todo-screen`、`title-input`、`notes-input`、`title-error`、`save-todo` | 画面、入力欄、タイトルの下のエラー、Save |
+| 詳細 | `todo-detail-screen`、`detail-title`、`detail-notes`、`todo-status` | 画面、テキスト、Open / Doneバッジ |
+| | `toggle-done`、`delete-todo` | 2つのボタン |
+
+コード上では、テストIDはpropが1つ増えるだけです（`src/components/TodoRow.tsx`）。
+
+```tsx
+<View testID="todo-row" style={styles.row}>
+  <Checkbox testID="todo-checkbox" checked={todo.done} onToggle={onToggle} label={…} />
+  …
+</View>
+```
+
+どの行も同じIDを持つので、テストは位置（`{ id: 'todo-title', index: 0 }`は一番上の行）かテキスト（`{ text: 'Buy milk' }`）で1行を選びます。アプリの実行中に`npx quiesco tree`を使うと、すべてのIDを含む要素ツリーが出力されるので、既存のアプリに付いているIDを探せます。
+
+## ステップ2：最初のテスト {#step-2-first-test}
+
+まずは、起動直後に表示されるものを確認します。
+
+```js e2e/list.test.js
+test('a fresh start shows the empty list', async () => {
+  const { app } = quiesco;
+  await app.expectVisible('empty-state');
+  await app.expectCount('todo-row', 0);
+});
+```
+
+`quiesco.app`はテスト対象のアプリを操作するドライバーです。`quiesco`は、Jest自身の`test`と同じくグローバルです。
+
+Webで実行してみましょう。
+
+```sh
+npx playwright install chromium
+
+# EXPO_PUBLIC_QUIESCO=1でWebビルドをエクスポートしてから quiesco test --platform web
+npm run e2e:web
+```
+
+初回の実行ではChromiumが起動してアプリを開き、数秒でテストが通ります。同じファイルをiOSとAndroidで実行するのは[ステップ7](#step-7-ios-and-android)です。
+
+## ステップ3：画面をまたぐフロー {#step-3-flow-across-screens}
+
+次は、ユーザーと同じ手順でToDoを追加します。フォームを開き、入力し、保存して、リストを確認します。
+
+```js e2e/list.test.js
+test('a new todo appears at the top of the list', async () => {
+  const { app } = quiesco;
+  await app.tap('add-todo');
+  await app.expectVisible('new-todo-screen');
+
+  await app.type('title-input', 'Buy milk');
+  await app.type('notes-input', 'Oat milk, 1 l');
+  // 保存に600 msかかり、その後リストに戻る。Quiescoはその両方を待つので、sleepは不要。
+  await app.tap('save-todo');
+
+  await app.expectVisible('todo-list-screen');
+  await app.expectText({ id: 'todo-title', index: 0 }, 'Buy milk');
+  await app.expectText('todo-summary', '0 of 1 done');
+});
+```
+
+このテストには`sleep`も`waitFor`もありません。それでも、どの行も時間のかかる処理に依存しています。`tap('add-todo')`の後の画面遷移、600 msの保存タイマー、リストへ戻る遷移です。Quiescoは呼び出しの前後に毎回、アプリが**アイドル**になる（保留中のタイマー、リクエスト、レンダリング、アニメーションがなくなる）のを待つので（[同期](./sync)）、各行は前の行が終えた状態から始まります。アサーションも、条件が満たされるかタイムアウトするまで再試行します。
+
+`expectVisible('new-todo-screen')`はテストを通すためには不要ですが、失敗したときにわかりやすくなります。ボタンを押してもフォームが開かなくなった場合、テストは`type`ではなくこの行で失敗します。
+
+## ステップ4：問題があるときにユーザーが見るもの {#step-4-validation}
+
+フォームは、タイトルのないToDoを保存しません。エラーが表示されてフォームが開いたままになることを確認し、それから戻ります。
+
+```js e2e/list.test.js
+test('a todo needs a title', async () => {
+  const { app } = quiesco;
+  await app.tap('add-todo');
+  await app.tap('save-todo');
+
+  await app.expectText('title-error', 'Enter a title');
+  await app.expectVisible('new-todo-screen');
+
+  // ユーザーと同じ方法でリストに戻る：プラットフォームに応じて戻るボタン、ブラウザーの戻る、スワイプ。
+  await app.goBack();
+  await app.expectVisible('empty-state');
+});
+```
+
+`goBack()`は、そのプラットフォームでの通常の方法で戻ります。Androidは戻るボタン、Webはブラウザーの戻る、iOSはナビゲーションバーの戻るボタンです。1行で3つすべてに対応できます。
+
+## ステップ5：バックドアでデータから始める {#step-5-backdoor}
+
+<Warning>
+  Quiesco 0.13.4以前では、Jestでの`quiesco.app.backdoor()`がオブジェクトの引数をすべて「JSONではない」として拒否します
+  （[#115](https://github.com/h2nology/quiesco/issues/115)）。修正がリリースされるまで、このステップのテストは`NOT_SERIALIZABLE`で失敗します。
+</Warning>
+
+詳細画面のテストには、リストにToDoが必要です。テストごとにフォームから入力しても動きますが、遅いうえに、ToDoの削除についてのテストがフォームの不具合でも失敗してしまいます。**バックドア**は、アプリがテスト用にだけ登録する関数です。テストはこれを呼んで、状態を直接用意します。
+
+アプリとテストの両方がコンパイルするファイル（`src/backdoors.ts`）で一度だけ宣言します。
+
+```ts
+export interface SeedTodo {
+  title: string;
+  notes?: string;
+  done?: boolean;
+}
+
+declare module '@quiesco/agent' {
+  interface Backdoors {
+    /** リストをこれらのToDoで置き換える（先頭の要素が一番上）。 */
+    seedTodos: (todos: SeedTodo[]) => void;
+  }
+}
+```
+
+登録は`src/e2e.ts`で行います。このファイルは`_layout.tsx`がe2eビルドでだけ読み込むので、中身は本番には一切入りません。
+
+```ts
+import { quiesco } from '@quiesco/agent';
+
+import type {} from './backdoors';
+import { todoStore } from './store';
+
+quiesco.backdoor('seedTodos', (todos) => {
+  todoStore.replaceAll(todos);
+});
+```
+
+```tsx
+// src/app/_layout.tsx
+if (process.env.EXPO_PUBLIC_QUIESCO === '1') {
+  require('../e2e');
+}
+```
+
+これで、詳細画面のテストは2件のToDoがある状態から始められます。
+
+```js e2e/detail.test.js
+const seed = [{ title: 'Buy milk', notes: 'Oat milk, 1 l' }, { title: 'Call the dentist' }];
+
+test('a todo opens on its own screen', async () => {
+  const { app } = quiesco;
+  await app.backdoor('seedTodos', seed);
+
+  await app.tap({ text: 'Buy milk' });
+  await app.expectVisible('todo-detail-screen');
+  await app.expectText('detail-title', 'Buy milk');
+  await app.expectText('detail-notes', 'Oat milk, 1 l');
+
+  await app.goBack();
+  await app.expectVisible('todo-list-screen');
+});
+
+test('marking a todo done shows in the list', async () => {
+  const { app } = quiesco;
+  await app.backdoor('seedTodos', seed);
+
+  await app.tap({ text: 'Call the dentist' });
+  await app.tap('toggle-done');
+  await app.expectText('todo-status', 'Done');
+
+  await app.goBack();
+  await app.expectChecked({ id: 'todo-checkbox', index: 1 });
+  await app.expectNotChecked({ id: 'todo-checkbox', index: 0 });
+  await app.expectText('todo-summary', '1 of 2 done');
+});
+
+test('the checkbox in the list toggles a todo', async () => {
+  const { app } = quiesco;
+  await app.backdoor('seedTodos', seed);
+
+  await app.tap({ id: 'todo-checkbox', index: 0 });
+  await app.expectChecked({ id: 'todo-checkbox', index: 0 });
+  await app.expectText('todo-summary', '1 of 2 done');
+});
+
+test('deleting a todo goes back to the list without it', async () => {
+  const { app } = quiesco;
+  await app.backdoor('seedTodos', seed);
+
+  await app.tap({ text: 'Buy milk' });
+  await app.tap('delete-todo');
+
+  await app.expectVisible('todo-list-screen');
+  await app.expectCount('todo-row', 1);
+  await app.expectNotExists({ text: 'Buy milk' });
+});
+```
+
+テストファイルは素のJavaScriptなので、実行前にバックドアの名前と引数を確かめる仕組みはありません。間違っていれば、バックドアを呼んだ時点でテストが失敗します。
+
+`{ text: 'Buy milk' }`はユーザーが読む文字で要素を見つけます。`expectChecked`はチェックボックスの`accessibilityState`を読みます。スクリーンリーダーが読み上げるのと同じ状態です。
+
+## ステップ6：どのテストもきれいな状態から始まる {#step-6-reset}
+
+Quiescoはテストの前に毎回アプリを**ソフトリセット**します。ストレージを消去し（iOS / AndroidではAsyncStorage、WebではlocalStorage、sessionStorage、IndexedDB）、ナビゲーションを最初の画面に戻して、アプリを再マウントします。アプリを再起動するよりずっと高速です。
+
+再マウントではJavaScriptのモジュールの状態は消えません。このアプリはToDoをモジュール変数に保持しているので、`src/e2e.ts`ではその消し方もQuiescoに伝えています。
+
+```ts
+// Quiescoはテストの前に毎回アプリをソフトリセットする：ストレージを消去し、アプリを再マウントする。
+// ToDoはモジュール変数にあり、再マウントでは残るので、ここで消去する。
+quiesco.onReset(() => {
+  todoStore.replaceAll([]);
+});
+```
+
+もう1つのテストでこれを確認します。
+
+```js e2e/detail.test.js
+test('every test starts with an empty list', async () => {
+  const { app } = quiesco;
+  // 上のテストはToDoを残したが、ソフトリセットとsrc/e2e.tsのonResetフックがそれを消去した。
+  await app.expectVisible('empty-state');
+});
+```
+
+`onReset`フックを外すと、このテストは直前のテストのToDoが画面に残ったまま失敗します。Reactとストレージの外にある状態（モジュール変数、React Queryのクライアントのようなキャッシュ、インメモリーのデータベースなど）には、`onReset`フックが必要です。
+
+## ステップ7：iOSとAndroidで実行する {#step-7-ios-and-android}
+
+テストは変更しません。プラットフォームごとにe2eアプリを一度ビルドして、同じファイルを実行します。
+
+<Tabs>
+  <Tab title="iOS">
+    ```sh
+    # 先にシミュレーターを起動しておく：open -a Simulator
+
+    # EXPO_PUBLIC_QUIESCO=1でprebuildしてxcodebuild：初回は数分かかる
+    npm run e2e:build:ios
+
+    npm run e2e:ios
+    ```
+  </Tab>
+  <Tab title="Android">
+    ```sh
+    # 先にエミュレーターを起動しておく：Android StudioのDevice Manager、または emulator -avd <name>
+
+    # EXPO_PUBLIC_QUIESCO=1でprebuildして gradlew assembleDebug：初回は数分かかる
+    npm run e2e:build:android
+
+    npm run e2e:android
+    ```
+  </Tab>
+</Tabs>
+
+`quiesco test`はビルドをインストールし、dev client用にMetroを起動し、テストを実行してからMetroを停止します。iOSとAndroidでは、`tap`と`type`はコンポーネントの呼び出しではなく、実際のタッチとキーボード入力です。キーボードや別のビューに覆われたボタンは、ユーザーが押せないのと同じように、テストを失敗させます（`ELEMENT_OBSCURED`）。
+
+## テストが失敗したとき {#when-a-test-fails}
+
+ステップ3で期待するタイトルを`'Buy bread'`に変えて、もう一度テストを実行してみてください。テストはアサーションのタイムアウト後に失敗し、期待した値、実際の値、アプリがどこにいたかを示します。
+
+```text
+QuiescoError: expect text failed after 10000ms for { id: "todo-title", index: 0 }: expected "Buy bread", actual "Buy milk" (current route: /)
+
+Quiesco evidence:
+  artifacts/20261123-212209-web/001-a-new-todo-appears-at-the-top-of-the-list/failure.png
+  artifacts/20261123-212209-web/001-a-new-todo-appears-at-the-top-of-the-list/elements.json
+  …
+```
+
+`artifacts/`フォルダーには、失敗したテストごとに次のファイルがあります。
+
+| ファイル | 内容 |
+|---|---|
+| `failure.png` | 失敗時の画面。失敗した呼び出しの対象要素が赤枠で囲まれる |
+| `elements.json` | 現在のルートと、テストID、ラベル、テキストを持つすべての要素。表示されているかどうかとその理由も含む |
+| `element-tree.json` | 要素ツリー全体 |
+| `idle-state.json` | アイドル待ちがタイムアウトしたとき、何がビジーだったか |
+| `timeline.html` | テストのすべての呼び出しと、その所要時間、アプリを待った時間 |
+
+代わりにブラウザーのページからテストを実行することもできます。1件ずつ実行でき、実行の進捗と失敗の証拠がページに表示されます。`@quiesco/ui`をインストールして`npx quiesco ui --platform web`を起動してください（[テスト UI](./ui)）。
+
+## 次のステップ {#next-steps}
+
+- [同期](./sync)：アイドルとは何か、終わらないアニメーションはどう扱うか。
+- [APIリファレンス](./api)：すべてのアクションとアサーション、そしてマッチャー（`within`、`has`、正規表現）。
+- [Driverパターン](./driver-pattern-jest)：テストスイートが大きくなったら、テストIDをテストの外に出す。
