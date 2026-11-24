@@ -14,9 +14,10 @@
  * platform (in its or a describe's title; the innermost wins) is skipped, and a failure's message names
  * the evidence files. TypeScript: add `"types": ["@quiesco/jest"]` for the `quiesco` global.
  */
-import type { Driver, Session } from '@quiesco/core';
+import type { Driver, QuiescoConstants, Session } from '@quiesco/core';
 
-export interface QuiescoGlobal {
+/** The `quiesco` global: the driver, the session and the constants (`quiesco.Tag.ios`, `quiesco.Direction.up` …). */
+export interface QuiescoGlobal extends QuiescoConstants {
   readonly app: Driver;
   readonly session: Session;
 }
@@ -25,6 +26,8 @@ declare global {
   var quiesco: QuiescoGlobal;
 }
 
+// The fixed strings a test writes, as constants (also on the global: `quiesco.Tag.ios`).
+export { ActionMode, AppRunState, AppStateName, ColorScheme, Direction, Edge, ErrorName, KeyName, NetworkState, Orientation, Permission, PermissionState, Platform, SemanticType, Speed, Tag, WebBrowser } from '@quiesco/core';
 export { addEvidence, fullName, handleEvent, jestWorker, tagLevelsOf, titlesOf } from './events.js';
 export { jestTestId } from './reporter.js';
 export { registryDir, sweepRegistry } from './shared.js';

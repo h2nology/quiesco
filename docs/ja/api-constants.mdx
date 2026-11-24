@@ -1,0 +1,94 @@
+---
+title: "定数"
+description: "テストに書く決まった文字列（タグ、プラットフォーム、方向、権限、エラー名 …）を定数で書けます。綴りを間違えると、実行時ではなくインポートの時点でエラーになります。"
+---
+
+タグ、方向、権限名など、APIで使う決まった文字列は定数としてもエクスポートされています。定数はオブジェクトで、値がその文字列です。
+`Tag.ios` は `'@ios'`、`Direction.up` は `'up'` です。文字列の代わりに定数を書くと、エディタで補完が効き、
+名前を間違えればテストを実行する前にエラーになります（タイトルに書いたタグの綴りを間違えると黙って無視され、テストが全プラットフォームで動きます）。
+
+それぞれの定数は同じ名前の型でもあります（`Direction` は `'up' | 'down' | 'left' | 'right'`）。
+自分で書くヘルパー関数も、APIと同じ値を受け取れます。
+
+## 使い方 {#using}
+
+<CodeGroup>
+```ts Vitest
+import { Direction, ErrorName, Permission, PermissionState, Speed, Tag, describe, expect, test } from '@quiesco/vitest';
+
+test(`the back button closes the sheet ${Tag.android}`, async ({ app }) => {
+  await app.pressBack();
+});
+
+test('Face ID login', { tags: [Tag.native, Tag.hardReset] }, async ({ app }) => {
+  await app.device.setPermission(Permission.camera, PermissionState.grant);
+  await app.swipe('card', Direction.left, { speed: Speed.fast });
+});
+
+describe(`settings ${Tag.native}`, () => {
+  test('a terminated app cannot be tapped', async ({ app }) => {
+    await app.device.terminate();
+    await expect(app.tap('save')).rejects.toMatchObject({ errorName: ErrorName.APP_NOT_RUNNING });
+  });
+});
+```
+```js Jest
+// The constants are on the `quiesco` global (also exported by @quiesco/jest)
+const { Direction, Tag } = quiesco;
+
+describe(`settings ${Tag.native}`, () => {
+  test(`the back button closes it ${Tag.android}`, async () => {
+    await quiesco.app.swipe('card', Direction.left);
+  });
+});
+```
+```ts Cucumber
+import { Direction, Orientation } from '@quiesco/cucumber';
+import { When } from '@cucumber/cucumber';
+import type { QuiescoWorld } from '@quiesco/cucumber';
+
+When('I turn the phone sideways', async function (this: QuiescoWorld) {
+  await this.app.device.setOrientation(Orientation.landscape);
+});
+
+When('I swipe the card away', async function (this: QuiescoWorld) {
+  await this.app.swipe('card', Direction.left);
+});
+```
+</CodeGroup>
+
+`.feature` ファイルのタグはこれまでどおり書きます（`@android`）。Gherkinにはインポートがありません。
+
+## 定数の一覧 {#list}
+
+| 定数 | 値 | 使う場所 |
+|---|---|---|
+| `Tag` | `ios` `android` `web` `native` `chromium` `firefox` `webkit` `hardReset`（`'@ios'` … `'@hard-reset'`） | [テストタグ](./api-tags) |
+| `Platform` | `ios` `android` `web` | `session.provider.platform` |
+| `WebBrowser` | `chromium` `firefox` `webkit` | [`devices.web.browser`](./config#devices-web) |
+| `Direction` | `up` `down` `left` `right` | [`scroll`, `swipe`](./api-gestures) |
+| `Edge` | `top` `bottom` `left` `right` | [`scrollToEdge`](./api-gestures) |
+| `Speed` | `slow` `normal` `fast` | [`swipe`, `drag`, `pinch`, `rotate`](./api-gestures)の `{ speed }` |
+| `KeyName` | `enter` `backspace` | [`pressKey`](./api-actions) |
+| `ActionMode` | `native` `js` | [操作](./api-actions)の `{ mode }` |
+| `SemanticType` | `button` `link` `header` `text` `input` `image` `switch` `checkbox` `radio` `slider` `picker` `progress` `scroll` `list` | [マッチャー](./api-matchers)の `{ type }` |
+| `Orientation` | `portrait` `landscape` | [`device.setOrientation`](./api-device) |
+| `ColorScheme` | `light` `dark` | [`device.setAppearance`](./api-device) |
+| `Permission` | `camera` `microphone` `location` `notifications` `contacts` `photos` `calendar` | [`device.setPermission`](./api-device)、設定の `permissions` |
+| `PermissionState` | `grant` `revoke` `reset` | [`device.setPermission`](./api-device) |
+| `NetworkState` | `offline` `online` | [`device.setNetwork`](./api-device) |
+| `AppRunState` | `running` `background` `terminated` | [アプリの実行状態](./api-device) |
+| `AppStateName` | `active` `background` `inactive` `unknown` | React Nativeの `AppState` |
+| `ErrorName` | `ELEMENT_NOT_FOUND`、`APP_NOT_RUNNING` …（すべてのエラー名） | [エラー](./api-errors)の `errorName` |
+
+`Tag` 以外は、どの値も自分の名前と同じです（`Speed.fast` は `'fast'`）。`HostErrorName` にはホスト側で発生するエラーだけが入っています
+（`CONNECT_TIMEOUT`、`APP_CRASHED` …）。
+
+## 名前を変えたタグ {#renamed-tags}
+
+`Tag` に入っているのはデフォルトのタグ名です。[タグの名前を変えた](./api-tags#renaming)プロジェクトでは自分の名前を書きます。設定の隣に自分の定数を置いておくと便利です。
+
+```ts
+// e2e/tags.ts
+export const MyTag = { web: '@browser', webkit: '@safari' } as const;
+```

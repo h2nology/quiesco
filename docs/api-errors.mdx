@@ -26,20 +26,20 @@ Most tests never catch these errors: the test fails with the message. To check a
 read its details:
 
 ```ts
-import { QuiescoError } from '@quiesco/core';
+import { ErrorName, QuiescoError } from '@quiesco/core';
 import { expect } from 'vitest';
 
 // the "Save" button must not be there for a read-only user
 const error = await app.tap('save', { timeoutMs: 2_000 }).catch((e: unknown) => e);
 expect(error).toBeInstanceOf(QuiescoError);
-expect((error as QuiescoError).errorName).toBe('ELEMENT_NOT_FOUND');
+expect((error as QuiescoError).errorName).toBe(ErrorName.ELEMENT_NOT_FOUND);
 ```
 
 ```ts
 try {
   await app.expectText('total', '$42.00');
 } catch (e) {
-  if (e instanceof QuiescoError && e.errorName === 'ASSERTION_FAILED') {
+  if (e instanceof QuiescoError && e.errorName === ErrorName.ASSERTION_FAILED) {
     console.log('expected', e.data['expected'], 'but got', e.data['actual']);
   }
   throw e;

@@ -39,7 +39,7 @@ Any other runner uses `@quiesco/core` directly. `Lifecycle` maps a run onto four
 are thin layers over it.
 
 ```ts
-import { Lifecycle, titleTags } from '@quiesco/core';
+import { Lifecycle, Tag, titleTags } from '@quiesco/core';
 
 // config from quiesco.config.*, platform from QUIESCO_PLATFORM
 const lifecycle = new Lifecycle();
@@ -48,7 +48,7 @@ const lifecycle = new Lifecycle();
 await lifecycle.beforeAll();
 
 // per test
-const name = 'logs in @native';
+const name = `logs in ${Tag.native}`;
 const tags = [titleTags(name)];
 let failed = false;
 try {
@@ -71,6 +71,12 @@ await lifecycle.afterAll();
 
 ### `new Lifecycle(options?)` {#new-lifecycle}
 
+```ts
+new Lifecycle(options?: LifecycleOptions)
+```
+
+Types: [`LifecycleOptions`](./api-types.md#lifecycleoptions)
+
 | Option | Default | Meaning |
 |---|---|---|
 | `config` | loaded from `quiesco.config.*` (`QUIESCO_CONFIG` picks another file) | The config to use |
@@ -82,6 +88,10 @@ await lifecycle.afterAll();
 
 ### `beforeAll()` {#beforeall}
 
+```ts
+beforeAll(): Promise<void>
+```
+
 Loads the config, starts the server and the device, installs and launches the app, and waits for the agent
 to connect.
 
@@ -91,14 +101,23 @@ await lifecycle.beforeAll();
 
 ### `before(tags, name?)` {#before}
 
+```ts
+before(
+  tags: ScenarioTags,
+  name?: string,
+): Promise<'skipped' | undefined>
+```
+
+Types: [`ScenarioTags`](./api-types.md#scenariotags)
+
 Before each test. Returns `'skipped'` for a test tagged for another platform or browser (or once the run
 bailed out after repeated identical failures, [`bailOnRepeatedFailure`](./config.md#top-level)); otherwise it
 starts the test's artifacts and resets the app. Pass the tags grouped by level, outermost (suite / feature)
 first, so the innermost platform tag decides.
 
 ```ts
-// a test inside describe('settings @native')
-const result = await lifecycle.before([['@native'], titleTags('back closes it @android')], 'back closes it');
+// a test inside describe(`settings ${Tag.native}`)
+const result = await lifecycle.before([[Tag.native], titleTags(`back closes it ${Tag.android}`)], 'back closes it');
 if (result === 'skipped') return;
 ```
 
@@ -113,6 +132,12 @@ await app.expectVisible('home-screen');
 
 ### `after({ tags, failed, error? })` {#after}
 
+```ts
+after(result: ScenarioResult): Promise<AfterResult>
+```
+
+Types: [`ScenarioResult`](./api-types.md#scenarioresult) · [`AfterResult`](./api-types.md#afterresult)
+
 After each test. On failure it collects the evidence; with the artifacts policy it also keeps video, logs
 and timeline. It returns `{ attachments, files }`: attachments for runners with a report that takes them,
 the files written for runners that print paths. Pass `error` (an Error or the runner's message) so repeated
@@ -120,11 +145,15 @@ identical failures can be told apart. A test that passed still fails (`after` th
 an error after its last step.
 
 ```ts
-const { attachments, files } = await lifecycle.after({ tags: ['@native'], failed: true, error });
+const { attachments, files } = await lifecycle.after({ tags: [Tag.native], failed: true, error });
 if (files.length > 0) console.log(`evidence:\n  ${files.join('\n  ')}`);
 ```
 
 ### `afterAll()` {#afterall}
+
+```ts
+afterAll(): Promise<void>
+```
 
 Closes the connection, the app and the device (per config).
 
@@ -134,10 +163,14 @@ await lifecycle.afterAll();
 
 ### `titleTags(title)` {#titletags}
 
+```ts
+titleTags(title: string): string[]
+```
+
 The tags written in a test or suite title.
 
 ```ts
-titleTags('adds a todo @ios @smoke'); // ['@ios', '@smoke']
+titleTags(`adds a todo ${Tag.ios} @smoke`); // ['@ios', '@smoke']
 ```
 
 ## The session {#session}
@@ -152,7 +185,7 @@ const session = await createSession({ config, platform: resolvePlatform() });
 
 // per test
 await session.startScenario({ name: 'logs in' });
-await session.beforeScenario({ tags: ['@native'], name: 'logs in' });
+await session.beforeScenario({ tags: [Tag.native], name: 'logs in' });
 let failed = false;
 try {
   await session.driver.tap('login-button');
@@ -168,15 +201,27 @@ await session.dispose();
 
 ### `createSession({ config, platform, worker?, logger? })` {#createsession}
 
+```ts
+createSession(options: SessionOptions): Promise<Session>
+```
+
+Types: [`SessionOptions`](./api-types.md#sessionoptions) · [`Session`](./api-custom-runners.md#createsession)
+
 Starts the server, boots the device, installs and launches the app, and waits until the agent connects.
 `worker` (`{ index, count }`, default the only worker) gives the session its own device, server port
 (`server.port + index`) and artifacts directory.
 
 ```ts
-const session = await createSession({ config, platform: 'android', worker: { index: 1, count: 2 } });
+const session = await createSession({ config, platform: Platform.android, worker: { index: 1, count: 2 } });
 ```
 
 ### `startScenario({ name })` {#startscenario}
+
+```ts
+startScenario(info?: ScenarioInfo): Promise<void>
+```
+
+Types: [`ScenarioInfo`](./api-types.md#scenarioinfo)
 
 Starts a test's artifacts (timeline, video) in a directory named after it. Call it before `beforeScenario`,
 so the reset is part of the video.
@@ -187,16 +232,28 @@ await session.startScenario({ name: 'adds a todo' });
 
 ### `beforeScenario({ tags?, name? })` {#beforescenario}
 
+```ts
+beforeScenario(info?: ScenarioInfo): Promise<void>
+```
+
+Types: [`ScenarioInfo`](./api-types.md#scenarioinfo)
+
 Undoes the previous test's [runtime sync](./api-runtime-sync.md) and [device](./api-device.md) changes, brings a
 backgrounded app back or starts a terminated one, then soft resets the app, or terminates and relaunches it
 for `@hard-reset` (or `reset.default: 'hard'`). If the app crashed or stopped answering, it is started
 again.
 
 ```ts
-await session.beforeScenario({ tags: ['@hard-reset'], name: 'first launch' });
+await session.beforeScenario({ tags: [Tag.hardReset], name: 'first launch' });
 ```
 
 ### `afterScenario({ failed })` {#afterscenario}
+
+```ts
+afterScenario(result: { failed: boolean }): Promise<ScenarioArtifacts>
+```
+
+Types: [`ScenarioArtifacts`](./api-types.md#scenarioartifacts)
 
 Ends the test. On failure: the framed screenshot, element tree and idle state; plus video, logs and
 timeline per [the artifacts policy](./api-artifacts.md). Returns `{ attachments, files }`.
@@ -207,6 +264,12 @@ const { files } = await session.afterScenario({ failed: true });
 
 ### `collectEvidence()` {#collectevidence}
 
+```ts
+collectEvidence(): Promise<Evidence>
+```
+
+Types: [`Evidence`](./api-types.md#evidence)
+
 Returns the failure evidence alone, without writing artifacts: `screenshot`, `tree`, `elements`, `idle`,
 and `errors` for any piece it could not collect (after a crash, the screenshot and `crash` only).
 
@@ -216,6 +279,10 @@ if (evidence.screenshot) await fs.writeFile('failure.png', evidence.screenshot);
 ```
 
 ### `dispose()` {#dispose}
+
+```ts
+dispose(): Promise<void>
+```
 
 At the end: undoes the last test's device changes and closes the app. The device keeps running unless
 [`devices.*.shutdown`](./config.md#devices) is set.

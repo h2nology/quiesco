@@ -17,6 +17,15 @@ await app.expectText({ id: 'todo-title', index: 0 }, 'Buy milk');
 
 ### `expectVisible(target, options?)` {#expectvisible}
 
+```ts
+expectVisible(
+  target: MatcherInput,
+  options?: VisibleOptions,
+): Promise<ElementSummary[]>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`VisibleOptions`](./api-types#visibleoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 マッチする要素が少なくとも1つ[表示されている](./api-matchers#visibility)ときに成り立ちます。
 
 ```ts
@@ -34,6 +43,15 @@ await app.expectVisible('promo-banner', { ratio: 0.75 });
 
 ### `expectNotVisible(target, options?)` {#expectnotvisible}
 
+```ts
+expectNotVisible(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 マッチする要素が1つも表示されていないとき（存在しない、または隠れている）に成り立ちます。
 
 ```ts
@@ -47,6 +65,15 @@ await app.expectNotVisible('confirm-dialog');
 | `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
 
 ### `expectExists(target, options?)` {#expectexists}
+
+```ts
+expectExists(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
 
 表示の有無にかかわらず、マッチする要素が要素ツリーにあるときに成り立ちます。
 
@@ -62,10 +89,19 @@ await app.expectExists({ id: 'todo-row', index: 49 });
 
 ### `expectNotExists(target, options?)` {#expectnotexists}
 
+```ts
+expectNotExists(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 マッチする要素が要素ツリーにないときに成り立ちます。
 
 ```ts
-await app.swipe({ id: 'todo-row', has: { text: 'Buy milk' } }, 'left');
+await app.swipe({ id: 'todo-row', has: { text: 'Buy milk' } }, Direction.left);
 await app.tap('delete');
 await app.expectNotExists({ text: 'Buy milk' });
 ```
@@ -77,11 +113,21 @@ await app.expectNotExists({ text: 'Buy milk' });
 
 ### `expectCount(target, n, options?)` {#expectcount}
 
+```ts
+expectCount(
+  target: MatcherInput,
+  n: number,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 マッチする要素がちょうど`n`個のときに成り立ちます。
 
 ```ts
 await app.type('new-todo', 'Walk the dog');
-await app.pressKey('new-todo', 'enter');
+await app.pressKey('new-todo', KeyName.enter);
 await app.expectCount({ id: 'todo-row' }, 3);
 ```
 
@@ -93,6 +139,16 @@ await app.expectCount({ id: 'todo-row' }, 3);
 ## 内容 {#content}
 
 ### `expectText(target, text, options?)` {#expecttext}
+
+```ts
+expectText(
+  target: MatcherInput,
+  text: TextQuery,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`TextQuery`](./api-types#textquery) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
 
 マッチがちょうど1つで、そのテキストが`text`と等しい（`text`が正規表現ならマッチする）ときに成り立ちます。
 
@@ -108,6 +164,16 @@ await app.expectText('items-left', /^\d+ items? left$/);
 | `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
 
 ### `expectValue(target, value, options?)` {#expectvalue}
+
+```ts
+expectValue(
+  target: MatcherInput,
+  value: JsonValue | RegExp | Date,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`JsonValue`](./api-types#jsonvalue) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
 
 マッチがちょうど1つで、その値が`value`と等しい（`value`が正規表現ならマッチする）ときに成り立ちます。値とは、入力欄のテキスト、スイッチの状態、スライダーやピッカーの値、または`accessibilityValue`です。
 
@@ -129,6 +195,16 @@ await app.expectValue('due-date', new Date(2031, 11, 24));
 
 ### `expectLabel(target, text, options?)` {#expectlabel}
 
+```ts
+expectLabel(
+  target: MatcherInput,
+  text: TextQuery,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`TextQuery`](./api-types#textquery) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 マッチがちょうど1つで、そのアクセシビリティラベルが`text`と等しい（`text`が正規表現ならマッチする）ときに成り立ちます。
 
 ```ts
@@ -143,6 +219,17 @@ await app.expectLabel('cart-button', /^Cart, \d+ items$/);
 | `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
 
 ### `expectProp(target, prop, value, options?)` {#expectprop}
+
+```ts
+expectProp(
+  target: MatcherInput,
+  prop: string,
+  value: JsonValue,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`JsonValue`](./api-types#jsonvalue) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
 
 マッチがちょうど1つで、`prop`で指定したpropがこのJSON値を持つときに成り立ちます。まずホスト要素のprops、次にそのコンポーネントのpropsを調べます（例：`disabled`、`value`）。
 
@@ -161,6 +248,15 @@ await app.expectProp('save', 'disabled', false);
 
 ### `expectEnabled(target, options?)` {#expectenabled}
 
+```ts
+expectEnabled(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 マッチがちょうど1つで、それが有効なときに成り立ちます。
 
 ```ts
@@ -175,6 +271,15 @@ await app.expectEnabled('sign-in');
 | `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
 
 ### `expectDisabled(target, options?)` {#expectdisabled}
+
+```ts
+expectDisabled(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
 
 マッチがちょうど1つで、それが無効なときに成り立ちます。
 
@@ -192,11 +297,20 @@ await app.expectDisabled('sign-in');
 
 ### `expectChecked(target, options?)` {#expectchecked}
 
+```ts
+expectChecked(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 マッチがちょうど1つで、それがチェックされているときに成り立ちます。対象はスイッチ、チェックボックス、ラジオ、または`accessibilityState.checked`を持つ任意の要素です。
 
 ```ts
-await app.tap({ type: 'switch', label: 'Notifications' });
-await app.expectChecked({ type: 'switch', label: 'Notifications' });
+await app.tap({ type: SemanticType.switch, label: 'Notifications' });
+await app.expectChecked({ type: SemanticType.switch, label: 'Notifications' });
 ```
 
 | オプション | デフォルト | 意味 |
@@ -206,10 +320,19 @@ await app.expectChecked({ type: 'switch', label: 'Notifications' });
 
 ### `expectNotChecked(target, options?)` {#expectnotchecked}
 
+```ts
+expectNotChecked(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 マッチがちょうど1つで、それがチェックされていないときに成り立ちます。
 
 ```ts
-await app.expectNotChecked({ type: 'checkbox', label: 'Remember me' });
+await app.expectNotChecked({ type: SemanticType.checkbox, label: 'Remember me' });
 ```
 
 | オプション | デフォルト | 意味 |
@@ -220,6 +343,15 @@ await app.expectNotChecked({ type: 'checkbox', label: 'Remember me' });
 チェック状態を持たない要素は、`expectChecked`と`expectNotChecked`の両方で失敗します。
 
 ### `expectFocused(target, options?)` {#expectfocused}
+
+```ts
+expectFocused(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
 
 マッチがちょうど1つで、それに入力フォーカスがあるときに成り立ちます。
 
@@ -235,10 +367,19 @@ await app.expectFocused('new-todo');
 
 ### `expectNotFocused(target, options?)` {#expectnotfocused}
 
+```ts
+expectNotFocused(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 マッチがちょうど1つで、それに入力フォーカスがないときに成り立ちます。
 
 ```ts
-await app.pressKey('new-todo', 'enter');
+await app.pressKey('new-todo', KeyName.enter);
 await app.dismissKeyboard();
 await app.expectNotFocused('new-todo');
 ```
@@ -252,11 +393,17 @@ await app.expectNotFocused('new-todo');
 
 ### `expect(target)` {#expect}
 
+```ts
+expect(target: MatcherInput): ElementExpectation
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`ElementExpectation`](./api-assertions#expect)
+
 同じアサーションを、DetoxやJestのようなチェーン形式で書けます。どちらの形式も動作は同じで、アイドルを待ち、アサーションが成り立つまで再試行します。各メソッドは最後の引数に[呼び出しのオプション](./api#call-options)を受け取り、`.not`で否定できます。
 
 ```ts
 await app.expect('save').toBeEnabled();
-await app.expect({ type: 'switch', label: 'Wi-Fi' }).not.toBeChecked();
+await app.expect({ type: SemanticType.switch, label: 'Wi-Fi' }).not.toBeChecked();
 
 // Detoxでは toBeVisible(75)
 await app.expect('promo-banner').toBeVisible({ ratio: 0.75 });

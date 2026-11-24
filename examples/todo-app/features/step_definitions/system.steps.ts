@@ -1,5 +1,6 @@
 // Steps of features/system.feature (Phase 6.7: app.device system integration).
 import { Given, Then, When } from '@cucumber/cucumber';
+import { Permission, PermissionState, Platform } from '@quiesco/cucumber';
 import type { QuiescoWorld } from '@quiesco/cucumber';
 
 Given('打开系统集成页', async function (this: QuiescoWorld) {
@@ -109,7 +110,7 @@ Then('系统集成页显示对话框结果 {string}', async function (this: Quie
 // Back to "not determined", as after a fresh install (iOS reinstalls the app; Android kills and restarts
 // it), so the page is opened again.
 async function resetNotificationPermission(world: QuiescoWorld): Promise<void> {
-  await world.app.device.setPermission('notifications', 'reset');
+  await world.app.device.setPermission(Permission.notifications, PermissionState.reset);
   await world.app.backdoor('openSystem');
   await world.app.expectVisible('system');
 }
@@ -154,7 +155,7 @@ When('点击网页登录', async function (this: QuiescoWorld) {
 
 When('同意 App 使用网站登录', async function (this: QuiescoWorld) {
   // iOS asks first ("<app> Wants to Use <site> to Sign In"); Android opens the page directly.
-  if (process.env['QUIESCO_PLATFORM'] === 'ios') await this.app.device.system.tap({ text: 'Continue' });
+  if (this.app.platform === Platform.ios) await this.app.device.system.tap({ text: 'Continue' });
 });
 
 Then('系统集成页显示网页登录结果 {string}', async function (this: QuiescoWorld, result: string) {
@@ -177,7 +178,7 @@ When('打开输入对话框', async function (this: QuiescoWorld) {
   await this.app.scrollTo('system-scroll', 'open-note');
   await this.app.tap('open-note');
   // iOS shows the field on the page, below the button (Android: in a dialog window).
-  if (process.env['QUIESCO_PLATFORM'] === 'ios') await this.app.scrollTo('system-scroll', 'note-input');
+  if (this.app.platform === Platform.ios) await this.app.scrollTo('system-scroll', 'note-input');
 });
 
 Then('系统集成页显示输入的内容 {string}', async function (this: QuiescoWorld, text: string) {

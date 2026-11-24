@@ -46,6 +46,12 @@ Then('the home screen is visible', async function (this: QuiescoWorld) {
 
 ## `registerQuiesco()` {#register-quiesco}
 
+```ts
+registerQuiesco(options?: RegisterOptions): Lifecycle
+```
+
+型： [`RegisterOptions`](./api-types#registeroptions) · [`Lifecycle`](./api-custom-runners#new-lifecycle)
+
 `import '@quiesco/cucumber/register'`は、すべてをデフォルトのまま登録します。デフォルトを変えるときは、代わりにサポートファイルで`registerQuiesco()`を呼びます（両方は使いません）。
 
 ```ts

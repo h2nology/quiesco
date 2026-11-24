@@ -1,8 +1,14 @@
 import type { Matcher } from './matcher.js';
 
-export type ActionMode = 'native' | 'js';
-export type Direction = 'up' | 'down' | 'left' | 'right';
-export type Speed = 'slow' | 'normal' | 'fast';
+/** How an action is performed (`{ mode }` of an action's options). */
+export const ActionMode = { native: 'native', js: 'js' } as const;
+export type ActionMode = (typeof ActionMode)[keyof typeof ActionMode];
+/** For `scroll` / `swipe`. */
+export const Direction = { up: 'up', down: 'down', left: 'left', right: 'right' } as const;
+export type Direction = (typeof Direction)[keyof typeof Direction];
+/** `{ speed }` of `swipe`, `drag`, `pinch` and `rotate`. */
+export const Speed = { slow: 'slow', normal: 'normal', fast: 'fast' } as const;
+export type Speed = (typeof Speed)[keyof typeof Speed];
 
 /** A point: in an element's own coordinates (`point`) or in window coordinates (`tapAt`), logical units. */
 export interface Point {
@@ -11,10 +17,12 @@ export interface Point {
 }
 
 /** Keys of the software keyboard that `pressKey` can send. */
-export type KeyName = 'enter' | 'backspace';
+export const KeyName = { enter: 'enter', backspace: 'backspace' } as const;
+export type KeyName = (typeof KeyName)[keyof typeof KeyName];
 
 /** Edges for `scrollToEdge`. */
-export type Edge = 'top' | 'bottom' | 'left' | 'right';
+export const Edge = { top: 'top', bottom: 'bottom', left: 'left', right: 'right' } as const;
+export type Edge = (typeof Edge)[keyof typeof Edge];
 
 /** A finger's position at a time: ms from the start of the gesture. */
 export interface TimedPoint {

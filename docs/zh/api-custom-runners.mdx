@@ -31,7 +31,7 @@ Quiesco 为 Cucumber、Vitest 和 Jest 提供了适配器（[测试运行器](./
 其他任何运行器都直接使用 `@quiesco/core`。`Lifecycle` 把一次运行映射为四个调用；上面的适配器只是它之上的薄封装。
 
 ```ts
-import { Lifecycle, titleTags } from '@quiesco/core';
+import { Lifecycle, Tag, titleTags } from '@quiesco/core';
 
 // 配置来自 quiesco.config.*，平台来自 QUIESCO_PLATFORM
 const lifecycle = new Lifecycle();
@@ -40,7 +40,7 @@ const lifecycle = new Lifecycle();
 await lifecycle.beforeAll();
 
 // 每个测试
-const name = 'logs in @native';
+const name = `logs in ${Tag.native}`;
 const tags = [titleTags(name)];
 let failed = false;
 try {
@@ -63,6 +63,12 @@ await lifecycle.afterAll();
 
 ### `new Lifecycle(options?)` {#new-lifecycle}
 
+```ts
+new Lifecycle(options?: LifecycleOptions)
+```
+
+类型： [`LifecycleOptions`](./api-types#lifecycleoptions)
+
 | 选项 | 默认值 | 含义 |
 |---|---|---|
 | `config` | 从 `quiesco.config.*` 加载（`QUIESCO_CONFIG` 可指定其他文件） | 要使用的配置 |
@@ -74,6 +80,10 @@ await lifecycle.afterAll();
 
 ### `beforeAll()` {#beforeall}
 
+```ts
+beforeAll(): Promise<void>
+```
+
 加载配置，启动服务器和设备，安装并启动 App，然后等待 agent 连接。
 
 ```ts
@@ -82,11 +92,20 @@ await lifecycle.beforeAll();
 
 ### `before(tags, name?)` {#before}
 
+```ts
+before(
+  tags: ScenarioTags,
+  name?: string,
+): Promise<'skipped' | undefined>
+```
+
+类型： [`ScenarioTags`](./api-types#scenariotags)
+
 在每个测试之前调用。对于标记为其他平台或浏览器的测试（或在连续出现相同失败而提前终止运行之后，见 [`bailOnRepeatedFailure`](./config#top-level)），返回 `'skipped'`；否则开始该测试的产物记录并重置 App。请按层级分组传入标签，最外层（suite / feature）在前，这样由最内层的平台标签决定。
 
 ```ts
-// describe('settings @native') 中的一个测试
-const result = await lifecycle.before([['@native'], titleTags('back closes it @android')], 'back closes it');
+// describe(`settings ${Tag.native}`) 中的一个测试
+const result = await lifecycle.before([[Tag.native], titleTags(`back closes it ${Tag.android}`)], 'back closes it');
 if (result === 'skipped') return;
 ```
 
@@ -101,14 +120,24 @@ await app.expectVisible('home-screen');
 
 ### `after({ tags, failed, error? })` {#after}
 
+```ts
+after(result: ScenarioResult): Promise<AfterResult>
+```
+
+类型： [`ScenarioResult`](./api-types#scenarioresult) · [`AfterResult`](./api-types#afterresult)
+
 在每个测试之后调用。失败时收集证据；按产物策略还会保留 video、logs 和 timeline。它返回 `{ attachments, files }`：attachments 供能接收附件的报告使用，files 是写入的文件，供打印路径的运行器使用。请传入 `error`（一个 Error 或运行器的消息），以便区分连续相同的失败。如果 App 在测试最后一步之后报告了错误，通过的测试仍会失败（`after` 抛出错误）。
 
 ```ts
-const { attachments, files } = await lifecycle.after({ tags: ['@native'], failed: true, error });
+const { attachments, files } = await lifecycle.after({ tags: [Tag.native], failed: true, error });
 if (files.length > 0) console.log(`evidence:\n  ${files.join('\n  ')}`);
 ```
 
 ### `afterAll()` {#afterall}
+
+```ts
+afterAll(): Promise<void>
+```
 
 关闭连接、App 和设备（按配置）。
 
@@ -118,10 +147,14 @@ await lifecycle.afterAll();
 
 ### `titleTags(title)` {#titletags}
 
+```ts
+titleTags(title: string): string[]
+```
+
 写在测试或 suite 标题中的标签。
 
 ```ts
-titleTags('adds a todo @ios @smoke'); // ['@ios', '@smoke']
+titleTags(`adds a todo ${Tag.ios} @smoke`); // ['@ios', '@smoke']
 ```
 
 ## 会话 {#session}
@@ -136,7 +169,7 @@ const session = await createSession({ config, platform: resolvePlatform() });
 
 // 每个测试
 await session.startScenario({ name: 'logs in' });
-await session.beforeScenario({ tags: ['@native'], name: 'logs in' });
+await session.beforeScenario({ tags: [Tag.native], name: 'logs in' });
 let failed = false;
 try {
   await session.driver.tap('login-button');
@@ -152,13 +185,25 @@ await session.dispose();
 
 ### `createSession({ config, platform, worker?, logger? })` {#createsession}
 
+```ts
+createSession(options: SessionOptions): Promise<Session>
+```
+
+类型： [`SessionOptions`](./api-types#sessionoptions) · [`Session`](./api-custom-runners#createsession)
+
 启动服务器、启动设备、安装并启动 App，然后等待 agent 连接。`worker`（`{ index, count }`，默认为唯一的 worker）让会话使用它自己的设备、服务器端口（`server.port + index`）和产物目录。
 
 ```ts
-const session = await createSession({ config, platform: 'android', worker: { index: 1, count: 2 } });
+const session = await createSession({ config, platform: Platform.android, worker: { index: 1, count: 2 } });
 ```
 
 ### `startScenario({ name })` {#startscenario}
+
+```ts
+startScenario(info?: ScenarioInfo): Promise<void>
+```
+
+类型： [`ScenarioInfo`](./api-types#scenarioinfo)
 
 在以测试命名的目录中开始该测试的产物记录（timeline、video）。请在 `beforeScenario` 之前调用，这样重置也会被录进视频。
 
@@ -168,13 +213,25 @@ await session.startScenario({ name: 'adds a todo' });
 
 ### `beforeScenario({ tags?, name? })` {#beforescenario}
 
+```ts
+beforeScenario(info?: ScenarioInfo): Promise<void>
+```
+
+类型： [`ScenarioInfo`](./api-types#scenarioinfo)
+
 撤销上一个测试的 [运行时同步](./api-runtime-sync) 和 [设备](./api-device) 更改，把处于后台的 App 切回前台或启动已终止的 App，然后对 App 进行软重置；对于 `@hard-reset`（或 `reset.default: 'hard'`），则终止并重新启动它。如果 App 崩溃或不再响应，会重新启动它。
 
 ```ts
-await session.beforeScenario({ tags: ['@hard-reset'], name: 'first launch' });
+await session.beforeScenario({ tags: [Tag.hardReset], name: 'first launch' });
 ```
 
 ### `afterScenario({ failed })` {#afterscenario}
+
+```ts
+afterScenario(result: { failed: boolean }): Promise<ScenarioArtifacts>
+```
+
+类型： [`ScenarioArtifacts`](./api-types#scenarioartifacts)
 
 结束该测试。失败时：带红框的截图、元素树和空闲状态；以及按 [产物策略](./api-artifacts) 生成的 video、logs 和 timeline。返回 `{ attachments, files }`。
 
@@ -184,6 +241,12 @@ const { files } = await session.afterScenario({ failed: true });
 
 ### `collectEvidence()` {#collectevidence}
 
+```ts
+collectEvidence(): Promise<Evidence>
+```
+
+类型： [`Evidence`](./api-types#evidence)
+
 只返回失败证据，不写入产物：`screenshot`、`tree`、`elements`、`idle`，以及记录无法收集的部分的 `errors`（崩溃之后只有截图和 `crash`）。
 
 ```ts
@@ -192,6 +255,10 @@ if (evidence.screenshot) await fs.writeFile('failure.png', evidence.screenshot);
 ```
 
 ### `dispose()` {#dispose}
+
+```ts
+dispose(): Promise<void>
+```
 
 最后调用：撤销最后一个测试的设备更改并关闭 App。除非设置了 [`devices.*.shutdown`](./config#devices)，否则设备会继续运行。
 

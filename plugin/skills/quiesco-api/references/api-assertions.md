@@ -22,6 +22,15 @@ match; the ones that need it say so below. Each assertion also has a [chained fo
 
 ### `expectVisible(target, options?)` {#expectvisible}
 
+```ts
+expectVisible(
+  target: MatcherInput,
+  options?: VisibleOptions,
+): Promise<ElementSummary[]>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`VisibleOptions`](./api-types.md#visibleoptions) · [`ElementSummary`](./api-types.md#elementsummary)
+
 Holds when at least one matching element is [visible](./api-matchers.md#visibility).
 
 ```ts
@@ -39,6 +48,15 @@ await app.expectVisible('promo-banner', { ratio: 0.75 });
 
 ### `expectNotVisible(target, options?)` {#expectnotvisible}
 
+```ts
+expectNotVisible(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`CallOptions`](./api-types.md#calloptions) · [`ElementSummary`](./api-types.md#elementsummary)
+
 Holds when no matching element is visible: there is none, or it is hidden.
 
 ```ts
@@ -52,6 +70,15 @@ await app.expectNotVisible('confirm-dialog');
 | `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
 
 ### `expectExists(target, options?)` {#expectexists}
+
+```ts
+expectExists(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`CallOptions`](./api-types.md#calloptions) · [`ElementSummary`](./api-types.md#elementsummary)
 
 Holds when a matching element is in the element tree, visible or not.
 
@@ -67,10 +94,19 @@ await app.expectExists({ id: 'todo-row', index: 49 });
 
 ### `expectNotExists(target, options?)` {#expectnotexists}
 
+```ts
+expectNotExists(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`CallOptions`](./api-types.md#calloptions) · [`ElementSummary`](./api-types.md#elementsummary)
+
 Holds when no matching element is in the element tree.
 
 ```ts
-await app.swipe({ id: 'todo-row', has: { text: 'Buy milk' } }, 'left');
+await app.swipe({ id: 'todo-row', has: { text: 'Buy milk' } }, Direction.left);
 await app.tap('delete');
 await app.expectNotExists({ text: 'Buy milk' });
 ```
@@ -82,11 +118,21 @@ await app.expectNotExists({ text: 'Buy milk' });
 
 ### `expectCount(target, n, options?)` {#expectcount}
 
+```ts
+expectCount(
+  target: MatcherInput,
+  n: number,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`CallOptions`](./api-types.md#calloptions) · [`ElementSummary`](./api-types.md#elementsummary)
+
 Holds when exactly `n` elements match.
 
 ```ts
 await app.type('new-todo', 'Walk the dog');
-await app.pressKey('new-todo', 'enter');
+await app.pressKey('new-todo', KeyName.enter);
 await app.expectCount({ id: 'todo-row' }, 3);
 ```
 
@@ -98,6 +144,16 @@ await app.expectCount({ id: 'todo-row' }, 3);
 ## Content {#content}
 
 ### `expectText(target, text, options?)` {#expecttext}
+
+```ts
+expectText(
+  target: MatcherInput,
+  text: TextQuery,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`TextQuery`](./api-types.md#textquery) · [`CallOptions`](./api-types.md#calloptions) · [`ElementSummary`](./api-types.md#elementsummary)
 
 Holds when exactly one element matches and its text equals `text`, or matches it when `text` is a
 regular expression.
@@ -114,6 +170,16 @@ await app.expectText('items-left', /^\d+ items? left$/);
 | `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
 
 ### `expectValue(target, value, options?)` {#expectvalue}
+
+```ts
+expectValue(
+  target: MatcherInput,
+  value: JsonValue | RegExp | Date,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`JsonValue`](./api-types.md#jsonvalue) · [`CallOptions`](./api-types.md#calloptions) · [`ElementSummary`](./api-types.md#elementsummary)
 
 Holds when exactly one element matches and its value equals `value`, or matches it when `value` is a
 regular expression. The value is the text of an input, the state of a switch, the value of a slider or
@@ -139,6 +205,16 @@ when those parts agree. See [date and time pickers](./api-value-controls.md#date
 
 ### `expectLabel(target, text, options?)` {#expectlabel}
 
+```ts
+expectLabel(
+  target: MatcherInput,
+  text: TextQuery,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`TextQuery`](./api-types.md#textquery) · [`CallOptions`](./api-types.md#calloptions) · [`ElementSummary`](./api-types.md#elementsummary)
+
 Holds when exactly one element matches and its accessibility label equals `text`, or matches it when
 `text` is a regular expression.
 
@@ -154,6 +230,17 @@ await app.expectLabel('cart-button', /^Cart, \d+ items$/);
 | `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
 
 ### `expectProp(target, prop, value, options?)` {#expectprop}
+
+```ts
+expectProp(
+  target: MatcherInput,
+  prop: string,
+  value: JsonValue,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`JsonValue`](./api-types.md#jsonvalue) · [`CallOptions`](./api-types.md#calloptions) · [`ElementSummary`](./api-types.md#elementsummary)
 
 Holds when exactly one element matches and its prop `prop` has this JSON value. The host element's props
 are looked at first, then those of its component (e.g. `disabled`, `value`).
@@ -173,6 +260,15 @@ await app.expectProp('save', 'disabled', false);
 
 ### `expectEnabled(target, options?)` {#expectenabled}
 
+```ts
+expectEnabled(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`CallOptions`](./api-types.md#calloptions) · [`ElementSummary`](./api-types.md#elementsummary)
+
 Holds when exactly one element matches and it is enabled.
 
 ```ts
@@ -187,6 +283,15 @@ await app.expectEnabled('sign-in');
 | `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
 
 ### `expectDisabled(target, options?)` {#expectdisabled}
+
+```ts
+expectDisabled(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`CallOptions`](./api-types.md#calloptions) · [`ElementSummary`](./api-types.md#elementsummary)
 
 Holds when exactly one element matches and it is disabled.
 
@@ -205,12 +310,21 @@ An element is disabled through `disabled`, `accessibilityState.disabled`, `aria-
 
 ### `expectChecked(target, options?)` {#expectchecked}
 
+```ts
+expectChecked(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`CallOptions`](./api-types.md#calloptions) · [`ElementSummary`](./api-types.md#elementsummary)
+
 Holds when exactly one element matches and it is checked: a switch, checkbox or radio, or any element
 with `accessibilityState.checked`.
 
 ```ts
-await app.tap({ type: 'switch', label: 'Notifications' });
-await app.expectChecked({ type: 'switch', label: 'Notifications' });
+await app.tap({ type: SemanticType.switch, label: 'Notifications' });
+await app.expectChecked({ type: SemanticType.switch, label: 'Notifications' });
 ```
 
 | Option | Default | Meaning |
@@ -220,10 +334,19 @@ await app.expectChecked({ type: 'switch', label: 'Notifications' });
 
 ### `expectNotChecked(target, options?)` {#expectnotchecked}
 
+```ts
+expectNotChecked(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`CallOptions`](./api-types.md#calloptions) · [`ElementSummary`](./api-types.md#elementsummary)
+
 Holds when exactly one element matches and it is unchecked.
 
 ```ts
-await app.expectNotChecked({ type: 'checkbox', label: 'Remember me' });
+await app.expectNotChecked({ type: SemanticType.checkbox, label: 'Remember me' });
 ```
 
 | Option | Default | Meaning |
@@ -234,6 +357,15 @@ await app.expectNotChecked({ type: 'checkbox', label: 'Remember me' });
 An element without a checked state fails both `expectChecked` and `expectNotChecked`.
 
 ### `expectFocused(target, options?)` {#expectfocused}
+
+```ts
+expectFocused(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`CallOptions`](./api-types.md#calloptions) · [`ElementSummary`](./api-types.md#elementsummary)
 
 Holds when exactly one element matches and it has the input focus.
 
@@ -249,10 +381,19 @@ await app.expectFocused('new-todo');
 
 ### `expectNotFocused(target, options?)` {#expectnotfocused}
 
+```ts
+expectNotFocused(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`CallOptions`](./api-types.md#calloptions) · [`ElementSummary`](./api-types.md#elementsummary)
+
 Holds when exactly one element matches and it does not have the input focus.
 
 ```ts
-await app.pressKey('new-todo', 'enter');
+await app.pressKey('new-todo', KeyName.enter);
 await app.dismissKeyboard();
 await app.expectNotFocused('new-todo');
 ```
@@ -266,13 +407,19 @@ await app.expectNotFocused('new-todo');
 
 ### `expect(target)` {#expect}
 
+```ts
+expect(target: MatcherInput): ElementExpectation
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`ElementExpectation`](./api-assertions.md#expect)
+
 The same assertions in a chained form, like Detox and Jest. Both forms do the same thing: they wait for
 idle and retry until the assertion holds. Each method takes the [call options](./api.md#call-options) as its
 last argument, and `.not` negates it.
 
 ```ts
 await app.expect('save').toBeEnabled();
-await app.expect({ type: 'switch', label: 'Wi-Fi' }).not.toBeChecked();
+await app.expect({ type: SemanticType.switch, label: 'Wi-Fi' }).not.toBeChecked();
 
 // Detox: toBeVisible(75)
 await app.expect('promo-banner').toBeVisible({ ratio: 0.75 });

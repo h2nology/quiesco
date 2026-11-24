@@ -9,6 +9,15 @@ description: "要素と要素ツリーを読み取り、アイドルを待ち、
 
 ### `query(target, options?)` {#query}
 
+```ts
+query(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary[]>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 マッチするすべての要素の[概要](#element-summary)をすぐに返します。ほかの呼び出しと同じくアプリがアイドルになるのは待ちますが、マッチが現れるのは待ちません。マッチがなければ`[]`です。
 
 ```ts
@@ -26,6 +35,15 @@ if ((await app.query('onboarding-tip')).length > 0) await app.tap('dismiss-tip')
 
 ### `attributes(target, options?)` {#attributes}
 
+```ts
+attributes(
+  target: MatcherInput,
+  options?: CallOptions,
+): Promise<ElementSummary>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`CallOptions`](./api-types#calloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 要素が存在するまで待ったうえで、マッチした唯一の要素の[概要](#element-summary)を返します（Detoxの`getAttributes`）。複数の要素がマッチした場合は`MULTIPLE_MATCHES`で失敗します。
 
 ```ts
@@ -42,6 +60,12 @@ console.log(row.rect); // { x, y, width, height }
 | `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
 
 ### `getTree()` {#gettree}
+
+```ts
+getTree(): Promise<TreeNode | null>
+```
+
+型： [`TreeNode`](./api-types#treenode)
 
 セマンティックな型付きの要素ツリーをJSONで返します。各ノードは`type`、`testID`、`text`、`role`、`semanticType`、丸めた`rect`、そして`children`を持ちます。ツリーは失敗したテストにも添付されます（[成果物](./api-artifacts)）。
 
@@ -77,6 +101,12 @@ console.log(JSON.stringify(tree, null, 2));
 
 ### `waitForIdle(options?)` {#waitforidle}
 
+```ts
+waitForIdle(options?: WaitForIdleOptions): Promise<number>
+```
+
+型： [`WaitForIdleOptions`](./api-types#waitforidleoptions)
+
 アプリがアイドルになるまで待ち、かかった時間（ミリ秒）で解決します。すべての呼び出しが既にこれを行っています。アプリのバックエンドを読むなど、ドライバーの外で作業する前に使ってください。
 
 ```ts
@@ -90,6 +120,12 @@ console.log(`sync took ${ms} ms`);
 | `timeoutMs` | `sync.timeoutMs`（10秒） | 待つ時間 |
 
 ### `getIdleState()` {#getidlestate}
+
+```ts
+getIdleState(): Promise<TrackerState[]>
+```
+
+型： [`TrackerState`](./api-types#trackerstate)
 
 すべての[トラッカー](./sync#trackers)の現在の状態を返します。アプリを何がビジーにしているかがわかります。
 
@@ -106,6 +142,12 @@ for (const t of await app.getIdleState()) {
 
 ### `backdoor(name, ...args)` {#backdoor}
 
+```ts
+backdoor<T = JsonValue>(name: string, ...args: JsonValue[]): Promise<T>
+```
+
+型： [`JsonValue`](./api-types#jsonvalue)
+
 アプリが`quiesco.backdoor`で登録したバックドアを呼び出し（[アプリ内API](./api-in-app)）、その結果で解決します。引数と結果はJSONです（TypeScriptのinterfaceも可）。JSONでない引数は`NOT_SERIALIZABLE`で失敗します。
 
 ```ts
@@ -118,6 +160,10 @@ const todos = await app.backdoor<Todo[]>('todos.list');
 `Backdoors`を宣言すると、名前、引数、結果が型チェックされます（[型付きバックドア](./api-in-app#typed-backdoors)）。
 
 ### `reset()` {#reset}
+
+```ts
+reset(): Promise<number>
+```
 
 ソフトリセットです。アプリのストレージをクリアし、`onReset`フックを実行し、アプリを再マウントしてアイドルを待ちます。かかった時間（ミリ秒）で解決します。Quiescoは各テストの前にこれを行うので、テストでこれを呼ぶのは途中でやり直したいときだけです。
 
@@ -135,7 +181,7 @@ await app.expectVisible('login-screen');
 テスト対象のプラットフォームで、`'ios'`、`'android'`、`'web'`のいずれかです。メソッドではなくプロパティです。Cucumberの`QuiescoWorld`では`this.platform`、また`session.platform`でも取得できます（[プラットフォームごとに異なるステップ](./driver-pattern#per-platform-steps)）。
 
 ```ts
-if (app.platform === 'android') {
+if (app.platform === Platform.android) {
   // 戻るボタンでボトムシートを閉じる
   await app.pressBack();
 } else {

@@ -17,6 +17,12 @@ await app.sync.ignoreElements.add('poll-count');
 
 ### `disableTracker(name)` {#disabletracker}
 
+```ts
+disableTracker(name: TrackerName): Promise<void>
+```
+
+型： [`TrackerName`](./api-types#trackername)
+
 1つの[トラッカー](./sync#trackers)、つまりビジーの原因の1つを待たないようにします。
 
 ```ts
@@ -29,6 +35,12 @@ await app.tap('live-scores');
 
 ### `enableTracker(name)` {#enabletracker}
 
+```ts
+enableTracker(name: TrackerName): Promise<void>
+```
+
+型： [`TrackerName`](./api-types#trackername)
+
 トラッカーを再び待つようにします。設定でオフにしたトラッカーも対象です。
 
 ```ts
@@ -40,6 +52,10 @@ await app.sync.enableTracker('timer');
 
 ### `disable()` {#disable}
 
+```ts
+disable(): Promise<void>
+```
+
 アプリを一切待たないようにします。`enable()`までは、すべてのトラッカーがオフになります（Detoxの`disableSynchronization`）。
 
 ```ts
@@ -49,6 +65,10 @@ await app.expectVisible('splash');
 ```
 
 ### `enable()` {#enable}
+
+```ts
+enable(): Promise<void>
+```
 
 再びアプリを待つようにします。トラッカーは設定どおりの状態に戻り、`disableTracker`と`enableTracker`で行った変更は引き続き有効です。
 
@@ -61,6 +81,11 @@ await app.sync.enable();
 ## 無視リスト {#ignore-lists}
 
 ### `ignoreUrls.add(pattern)` / `ignoreUrls.remove(pattern)` {#ignoreurls}
+
+```ts
+ignoreUrls.add(pattern: string | RegExp): Promise<void>
+ignoreUrls.remove(pattern: string | RegExp): Promise<void>
+```
 
 `network`トラッカーが無視するリクエストに、設定の`sync.ignoreUrls`（[設定](./config#sync)）に加えてURLを追加、またはそこから削除します。`pattern`は文字列か正規表現です。
 
@@ -76,6 +101,13 @@ await app.sync.ignoreUrls.add('/chat/poll');
 
 ### `ignoreElements.add(target)` / `ignoreElements.remove(target)` {#ignoreelements}
 
+```ts
+ignoreElements.add(target: MatcherInput): Promise<void>
+ignoreElements.remove(target: MatcherInput): Promise<void>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput)
+
 `frame-stable`トラッカーが除外する要素に、設定の`sync.ignoreElements`（[設定](./config#sync)）に加えて要素を追加、またはそこから削除します。`target`は[マッチャー](./api-matchers)です。
 
 ```ts
@@ -83,7 +115,7 @@ await app.sync.ignoreUrls.add('/chat/poll');
 await app.sync.ignoreElements.add('poll-count');
 
 // ヘッダーで回り続けるスピナー
-await app.sync.ignoreElements.add({ type: 'progress', within: 'header' });
+await app.sync.ignoreElements.add({ type: SemanticType.progress, within: 'header' });
 ```
 
 `remove`は、設定由来のマッチャーもテストの残りの間だけ取り除きます。

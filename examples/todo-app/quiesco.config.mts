@@ -1,4 +1,4 @@
-import { defineConfig } from '@quiesco/core';
+import { ActionMode, Permission, WebBrowser, defineConfig } from '@quiesco/core';
 import type { WebViewport } from '@quiesco/core';
 
 // Web viewports under test (requirements.md §11-7: phone, tablet and desktop are all accepted).
@@ -10,8 +10,8 @@ const viewports: Record<string, WebViewport> = {
 };
 const viewportName = process.env['QUIESCO_VIEWPORT'] ?? 'mobile';
 // Browser for web runs (QUIESCO_BROWSER): chromium (default), firefox or webkit.
-const browser = process.env['QUIESCO_BROWSER'] ?? 'chromium';
-if (browser !== 'chromium' && browser !== 'firefox' && browser !== 'webkit') throw new Error(`Unknown QUIESCO_BROWSER "${browser}" (chromium, firefox, webkit)`);
+const browser = process.env['QUIESCO_BROWSER'] ?? WebBrowser.chromium;
+if (browser !== WebBrowser.chromium && browser !== WebBrowser.firefox && browser !== WebBrowser.webkit) throw new Error(`Unknown QUIESCO_BROWSER "${browser}" (chromium, firefox, webkit)`);
 // Metro serving the dev clients (`pnpm start:e2e`, port 8082); QUIESCO_METRO_URL points at another one.
 const metroUrl = process.env['QUIESCO_METRO_URL'] ?? 'http://localhost:8082';
 const viewport = viewports[viewportName];
@@ -57,8 +57,8 @@ export default defineConfig(({ workerIndex }) => ({
   // Granted before the app starts, so no system dialog interrupts a scenario (features/permissions.feature).
   // Location is pre-granted on every platform (camera cannot be on the iOS simulator: simctl privacy has
   // no such service). Notifications could be, but features/system.feature needs the prompt.
-  permissions: ['location'],
+  permissions: [Permission.location],
   // actions.mode is not set: `native` (real touches) when the app has @quiesco/native, else `js`.
   // Run with QUIESCO_ACTION_MODE=js to force callback mode.
-  ...(process.env['QUIESCO_ACTION_MODE'] === 'js' ? { actions: { mode: 'js' as const } } : {}),
+  ...(process.env['QUIESCO_ACTION_MODE'] === ActionMode.js ? { actions: { mode: ActionMode.js } } : {}),
 }));

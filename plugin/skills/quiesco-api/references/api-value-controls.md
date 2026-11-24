@@ -13,6 +13,16 @@ to be idle before and after ([every call waits](./api.md#every-call-waits)) and 
 
 ### `setValue(target, value, options?)` {#setvalue}
 
+```ts
+setValue(
+  target: MatcherInput,
+  value: number | boolean | string | Date,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`ActionOptions`](./api-types.md#actionoptions) · [`ElementSummary`](./api-types.md#elementsummary)
+
 Sets the control at `target` to `value`: a number, a boolean, a string or a `Date`. It uses real input
 where the control has it (a tap on a switch, iOS wheels turned by a finger, a browser `<select>`), and the
 component's callbacks otherwise.
@@ -158,6 +168,16 @@ the web the component renders nothing.
 
 ### `adjustSlider(target, position, options?)` {#adjustslider}
 
+```ts
+adjustSlider(
+  target: MatcherInput,
+  position: number,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`ActionOptions`](./api-types.md#actionoptions) · [`ElementSummary`](./api-types.md#elementsummary)
+
 Drags the slider's thumb to `position`, from `0` (the minimum) to `1` (the maximum), with a real finger or
 mouse. Use it when the test should exercise the drag itself; `setValue` sets an exact value instead.
 
@@ -181,6 +201,16 @@ await app.adjustSlider('volume-slider', 0.5);
 ## Accessibility actions {#accessibility-actions}
 
 ### `accessibilityAction(target, name, options?)` {#accessibilityaction}
+
+```ts
+accessibilityAction(
+  target: MatcherInput,
+  name: string,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`ActionOptions`](./api-types.md#actionoptions) · [`ElementSummary`](./api-types.md#elementsummary)
 
 Performs the accessibility action `name`, as a screen reader does. It acts on the target or the nearest
 ancestor that declares `accessibilityActions`; the target does not have to be on screen.

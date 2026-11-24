@@ -1,0 +1,94 @@
+---
+title: "常量"
+description: "测试里要写的固定字符串（标签、平台、方向、权限、错误名 …）都有对应的常量：拼错会在导入时报错，而不是在运行时才发现。"
+---
+
+标签、方向、权限名以及 API 中其他固定的字符串，也以常量的形式导出。常量是一个对象，它的值就是这些字符串：
+`Tag.ios` 就是 `'@ios'`，`Direction.up` 就是 `'up'`。用常量代替手写字符串，编辑器可以补全，名字拼错会在测试运行之前就报错
+（标题里拼错的标签会被悄悄忽略：测试会在所有平台上运行）。
+
+每个常量同时也是一个同名的类型（`Direction` 即 `'up' | 'down' | 'left' | 'right'`），
+你自己写的辅助函数可以接受与 API 相同的取值。
+
+## 用法 {#using}
+
+<CodeGroup>
+```ts Vitest
+import { Direction, ErrorName, Permission, PermissionState, Speed, Tag, describe, expect, test } from '@quiesco/vitest';
+
+test(`the back button closes the sheet ${Tag.android}`, async ({ app }) => {
+  await app.pressBack();
+});
+
+test('Face ID login', { tags: [Tag.native, Tag.hardReset] }, async ({ app }) => {
+  await app.device.setPermission(Permission.camera, PermissionState.grant);
+  await app.swipe('card', Direction.left, { speed: Speed.fast });
+});
+
+describe(`settings ${Tag.native}`, () => {
+  test('a terminated app cannot be tapped', async ({ app }) => {
+    await app.device.terminate();
+    await expect(app.tap('save')).rejects.toMatchObject({ errorName: ErrorName.APP_NOT_RUNNING });
+  });
+});
+```
+```js Jest
+// The constants are on the `quiesco` global (also exported by @quiesco/jest)
+const { Direction, Tag } = quiesco;
+
+describe(`settings ${Tag.native}`, () => {
+  test(`the back button closes it ${Tag.android}`, async () => {
+    await quiesco.app.swipe('card', Direction.left);
+  });
+});
+```
+```ts Cucumber
+import { Direction, Orientation } from '@quiesco/cucumber';
+import { When } from '@cucumber/cucumber';
+import type { QuiescoWorld } from '@quiesco/cucumber';
+
+When('I turn the phone sideways', async function (this: QuiescoWorld) {
+  await this.app.device.setOrientation(Orientation.landscape);
+});
+
+When('I swipe the card away', async function (this: QuiescoWorld) {
+  await this.app.swipe('card', Direction.left);
+});
+```
+</CodeGroup>
+
+`.feature` 文件里的标签照旧书写（`@android`）：Gherkin 没有 import。
+
+## 常量一览 {#list}
+
+| 常量 | 取值 | 用在哪里 |
+|---|---|---|
+| `Tag` | `ios` `android` `web` `native` `chromium` `firefox` `webkit` `hardReset`（`'@ios'` … `'@hard-reset'`） | [测试标签](./api-tags) |
+| `Platform` | `ios` `android` `web` | `session.provider.platform` |
+| `WebBrowser` | `chromium` `firefox` `webkit` | [`devices.web.browser`](./config#devices-web) |
+| `Direction` | `up` `down` `left` `right` | [`scroll`, `swipe`](./api-gestures) |
+| `Edge` | `top` `bottom` `left` `right` | [`scrollToEdge`](./api-gestures) |
+| `Speed` | `slow` `normal` `fast` | [`swipe`, `drag`, `pinch`, `rotate`](./api-gestures) 的 `{ speed }` |
+| `KeyName` | `enter` `backspace` | [`pressKey`](./api-actions) |
+| `ActionMode` | `native` `js` | [操作](./api-actions)的 `{ mode }` |
+| `SemanticType` | `button` `link` `header` `text` `input` `image` `switch` `checkbox` `radio` `slider` `picker` `progress` `scroll` `list` | [匹配器](./api-matchers)的 `{ type }` |
+| `Orientation` | `portrait` `landscape` | [`device.setOrientation`](./api-device) |
+| `ColorScheme` | `light` `dark` | [`device.setAppearance`](./api-device) |
+| `Permission` | `camera` `microphone` `location` `notifications` `contacts` `photos` `calendar` | [`device.setPermission`](./api-device)、配置中的 `permissions` |
+| `PermissionState` | `grant` `revoke` `reset` | [`device.setPermission`](./api-device) |
+| `NetworkState` | `offline` `online` | [`device.setNetwork`](./api-device) |
+| `AppRunState` | `running` `background` `terminated` | [App 的运行状态](./api-device) |
+| `AppStateName` | `active` `background` `inactive` `unknown` | React Native 的 `AppState` |
+| `ErrorName` | `ELEMENT_NOT_FOUND`、`APP_NOT_RUNNING` …（全部错误名） | [错误](./api-errors)的 `errorName` |
+
+除 `Tag` 外，每个值都等于它自己的名字（`Speed.fast` 就是 `'fast'`）。`HostErrorName` 只包含在 host 端抛出的错误
+（`CONNECT_TIMEOUT`、`APP_CRASHED` …）。
+
+## 改过名的标签 {#renamed-tags}
+
+`Tag` 里是默认的标签名。[改了标签名](./api-tags#renaming)的项目要写自己的名字；可以在配置旁边定义一个自己的常量：
+
+```ts
+// e2e/tags.ts
+export const MyTag = { web: '@browser', webkit: '@safari' } as const;
+```

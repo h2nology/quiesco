@@ -14,6 +14,12 @@ screenshots are on [screenshots](./api-screenshots.md).
 
 ### `relaunch(options?)` {#relaunch}
 
+```ts
+relaunch(options?: RelaunchOptions): Promise<void>
+```
+
+Types: [`RelaunchOptions`](./api-types.md#relaunchoptions)
+
 Terminates the app and starts it again — always a new process. The app keeps its data unless `clearData`
 or `reinstall` is set. Resolves once the app has connected.
 
@@ -25,7 +31,7 @@ await app.device.relaunch({ args: { user: 'ann', retries: 3 }, url: 'myapp://tod
 await app.device.relaunch({ clearData: true });
 
 // a fresh install, with the camera already allowed
-await app.device.relaunch({ reinstall: true, permissions: ['camera'] });
+await app.device.relaunch({ reinstall: true, permissions: [Permission.camera] });
 ```
 
 | Option | Meaning |
@@ -41,6 +47,10 @@ after the launch, with a warning: `getInitialURL` will not return it then.
 
 ### `terminate()` {#terminate}
 
+```ts
+terminate(): Promise<void>
+```
+
 Stops the app. Until the next `relaunch()`, every element call fails at once with `APP_NOT_RUNNING`,
 without waiting.
 
@@ -51,6 +61,10 @@ await app.expectVisible('home-screen');
 ```
 
 ### `sendToBackground()` {#sendtobackground}
+
+```ts
+sendToBackground(): Promise<void>
+```
 
 Goes to the home screen, like the Home button; the process keeps running. Until `bringToForeground()`,
 element calls fail with `APP_IN_BACKGROUND`. Not on the web (`ACTION_NOT_SUPPORTED`).
@@ -63,6 +77,10 @@ await app.openUrl('myapp://todos/42');
 ```
 
 ### `bringToForeground()` {#bringtoforeground}
+
+```ts
+bringToForeground(): Promise<void>
+```
 
 Brings the backgrounded app back — the same process, not a restart — and waits until it is active and
 idle. Not on the web (`ACTION_NOT_SUPPORTED`).
@@ -77,6 +95,10 @@ await app.expectVisible('pin-screen');
 
 ### `install()` {#install}
 
+```ts
+install(): Promise<void>
+```
+
 Installs the app binary from the config's `binaryPath` ([apps](./config.md#apps)). A running app is stopped:
 start it with `relaunch()`.
 
@@ -86,6 +108,10 @@ await app.device.relaunch();
 ```
 
 ### `uninstall()` {#uninstall}
+
+```ts
+uninstall(): Promise<void>
+```
 
 Removes the app from the device. The web has nothing to uninstall (`ACTION_NOT_SUPPORTED`): use
 `relaunch({ clearData: true })` there.
@@ -102,10 +128,14 @@ What the test did to the app last: `'running'`, `'background'` or `'terminated'`
 
 ```ts
 await app.device.sendToBackground();
-expect(app.device.appState).toBe('background');
+expect(app.device.appState).toBe(AppRunState.background);
 ```
 
 ### `openUrl(url)` {#openurl}
+
+```ts
+openUrl(url: string): Promise<void>
+```
 
 The same as [`app.openUrl`](./api-actions.md#openurl): opens a deep link.
 
@@ -114,6 +144,10 @@ await app.device.openUrl('myapp://settings');
 ```
 
 ### `pressBack()` {#pressback}
+
+```ts
+pressBack(): Promise<void>
+```
 
 The same as [`app.pressBack`](./api-actions.md#pressback): the Android back button, or the browser's back on
 the web.
@@ -126,6 +160,10 @@ await app.device.pressBack();
 
 ### `reversePort(port)` {#reverseport}
 
+```ts
+reversePort(port: number): Promise<void>
+```
+
 Makes a port on the host reachable as `localhost:port` from an Android device (`adb reverse`). A no-op on
 the iOS simulator and the web, which share the host's network.
 
@@ -135,6 +173,10 @@ await app.device.reversePort(3001);
 ```
 
 ### `unreversePort(port)` {#unreverseport}
+
+```ts
+unreversePort(port: number): Promise<void>
+```
 
 Removes a forwarding set with `reversePort`. A no-op on the iOS simulator and the web.
 
@@ -146,25 +188,41 @@ await app.device.unreversePort(3001);
 
 ### `setOrientation(orientation)` {#setorientation}
 
+```ts
+setOrientation(orientation: Orientation): Promise<void>
+```
+
+Types: [`Orientation`](./api-constants.md#list)
+
 Rotates the app to `'portrait'` or `'landscape'` and resolves once the app's window has the new shape and
 the app is idle. The app must not lock its orientation (app.json `"orientation": "default"`).
 
 ```ts
-await app.device.setOrientation('landscape');
+await app.device.setOrientation(Orientation.landscape);
 await app.expectVisible('side-by-side-layout');
 ```
 
 ### `setAppearance(scheme)` {#setappearance}
 
+```ts
+setAppearance(scheme: ColorScheme): Promise<void>
+```
+
+Types: [`ColorScheme`](./api-constants.md#list)
+
 Switches the system color scheme to `'light'` or `'dark'`, and checks that the app reports the new one.
 The app must follow the system (app.json `"userInterfaceStyle": "automatic"`).
 
 ```ts
-await app.device.setAppearance('dark');
+await app.device.setAppearance(ColorScheme.dark);
 await app.device.screenshot(undefined, { name: 'home-dark' });
 ```
 
 ### `setFontScale(scale)` {#setfontscale}
+
+```ts
+setFontScale(scale: number): Promise<number>
+```
 
 Sets the system text size, from `0.5` to `4`, and resolves with the scale applied. iOS uses the nearest
 Dynamic Type size and applies it live; Android starts the app again (data kept). Not on the web.
@@ -177,6 +235,10 @@ await app.expectVisible('todo-title', { ratio: 1 });
 ```
 
 ### `setLocale(locale)` {#setlocale}
+
+```ts
+setLocale(locale: string | null): Promise<void>
+```
 
 Sets the app's language and region, a BCP 47 tag such as `'ja-JP'`; `null` goes back to the device
 default. The app is started again with it (data kept).
@@ -195,6 +257,10 @@ await app.device.setLocale(null);
 
 ### `setLocation(latitude, longitude)` {#setlocation}
 
+```ts
+setLocation(latitude: number, longitude: number): Promise<void>
+```
+
 Sets the simulated GPS position. On Android, emulators only.
 
 ```ts
@@ -205,17 +271,23 @@ await app.tap('nearby-stores');
 
 ### `setPermission(name, state)` {#setpermission}
 
+```ts
+setPermission(name: Permission, state: PermissionState): Promise<void>
+```
+
+Types: [`Permission`](./api-constants.md#list) · [`PermissionState`](./api-constants.md#list)
+
 Changes a permission while the app runs. `state` is `'grant'`, `'revoke'` or `'reset'`; the names are
 those of [permissions](./platforms.md#permissions) (`camera`, `microphone`, `location`, `notifications`,
 `contacts`, `photos`, `calendar`).
 
 ```ts
-await app.device.setPermission('location', 'revoke');
+await app.device.setPermission(Permission.location, PermissionState.revoke);
 await app.tap('nearby-stores');
 await app.expectVisible('location-denied-banner');
 
 // ask again: the app's next request shows the system dialog
-await app.device.setPermission('camera', 'reset');
+await app.device.setPermission(Permission.camera, PermissionState.reset);
 ```
 
 - **Revoke on Android** kills the app. Quiesco starts it again (data kept) before resolving, so the app is
@@ -230,16 +302,22 @@ Answering the system's permission dialog itself is on [system UI](./api-system.m
 
 ### `setNetwork(state)` {#setnetwork}
 
+```ts
+setNetwork(state: NetworkState): Promise<void>
+```
+
+Types: [`NetworkState`](./api-constants.md#list)
+
 `'offline'`: the app's new `fetch` / `XMLHttpRequest` / `WebSocket` connections fail as they do without a
 network. Quiesco's own connection keeps working, and connections already open stay open. `'online'` undoes
 it.
 
 ```ts
-await app.device.setNetwork('offline');
+await app.device.setNetwork(NetworkState.offline);
 await app.tap('sync-now');
 await app.expectVisible({ text: 'You are offline' });
 
-await app.device.setNetwork('online');
+await app.device.setNetwork(NetworkState.online);
 ```
 
 - Android also turns Wi-Fi and mobile data off, and the web reports `navigator.onLine === false`, so
@@ -251,6 +329,10 @@ To make the app's own requests not count for idle instead, see [runtime synchron
 (Detox's `setURLBlacklist` is `app.sync.ignoreUrls.add()` here).
 
 ### `clipboard.set(text)` {#clipboard-set}
+
+```ts
+clipboard.set(text: string): Promise<void>
+```
 
 Writes plain text to the device clipboard, inside the app: what the app pastes. Cleared before the next
 test.
@@ -265,6 +347,10 @@ iOS and Android need `@quiesco/native` (≥ Phase 6.6).
 
 ### `clipboard.get()` {#clipboard-get}
 
+```ts
+clipboard.get(): Promise<string>
+```
+
 Reads the device clipboard: what the app copied.
 
 ```ts
@@ -275,6 +361,12 @@ expect(await app.device.clipboard.get()).toMatch(/^https:\/\/example\.com\/invit
 iOS and Android need `@quiesco/native` (≥ Phase 6.6); on iOS a read falls back to `simctl pbpaste`.
 
 ### `setStatusBar(options)` {#setstatusbar}
+
+```ts
+setStatusBar(options: StatusBarOptions): Promise<void>
+```
+
+Types: [`StatusBarOptions`](./api-types.md#statusbaroptions)
 
 Overrides the status bar — clock, battery, signal — for clean screenshots. Nothing to do on the web, which
 has no status bar.
@@ -294,6 +386,10 @@ await app.device.screenshot(undefined, { name: 'store-listing' });
 | `dataNetwork` | `'wifi'`, `'3g'`, `'4g'`, `'lte'`, `'5g'`, or `'hide'` to hide the cellular indicator |
 
 ### `resetStatusBar()` {#resetstatusbar}
+
+```ts
+resetStatusBar(): Promise<void>
+```
 
 Back to the real status bar.
 

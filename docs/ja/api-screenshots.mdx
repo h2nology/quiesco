@@ -9,6 +9,15 @@ description: "画面、1つの要素、またはつなぎ合わせたスクロ�
 
 ### `screenshot(target?, options?)` {#screenshot}
 
+```ts
+screenshot(
+  target?: ScreenshotTarget,
+  options?: ScreenshotOptions,
+): Promise<Buffer>
+```
+
+型： [`ScreenshotTarget`](./api-types#screenshottarget) · [`ScreenshotOptions`](./api-types#screenshotoptions)
+
 ターゲットなしでは、表示されているままの画面です。Webではブラウザーのビューポートです。
 
 ```ts

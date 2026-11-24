@@ -36,6 +36,12 @@ test('the home screen is shown', async ({ app }) => {
 
 ## `quiesco()` {#quiesco}
 
+```ts
+quiesco(options?: QuiescoVitestOptions): QuiescoTestConfig
+```
+
+型： [`QuiescoVitestOptions`](./api-types#quiescovitestoptions) · [`QuiescoTestConfig`](./vitest#quiesco)
+
 `quiesco()`は、Quiescoに必要な`test`のオプションを返します。`test`の中に展開し、自分のオプションはその後に書きます。
 
 <ResponseField name="workers" type="number" default="1">
@@ -69,6 +75,12 @@ test('the home screen is shown', async ({ app }) => {
 コマンドラインの`--fileParallelism --maxWorkers N`は`workers`より優先されます。
 
 ## `quiescoPlugin()` {#quiesco-plugin}
+
+```ts
+quiescoPlugin(): QuiescoVitestPlugin
+```
+
+型： [`QuiescoVitestPlugin`](./vitest#quiesco-plugin)
 
 実行の進捗を`quiesco test`のプログレスバーと[`quiesco ui`](./ui)に送ります。自分のレポーターを追加するのはそれらがVitestを実行するときだけで、設定済みのレポーターはそのまま残ります。なくてもテストは動きますが、`quiesco test`が最後にヒントを出します。
 
@@ -108,13 +120,13 @@ test.beforeEach(async ({ app }) => {
 プラットフォームタグは、テストや`describe`のタイトル、またはテストの`tags`オプションに書きます。
 
 ```ts
-test('Android only', { tags: ['@android'] }, async ({ app }) => {
+test('Android only', { tags: [Tag.android] }, async ({ app }) => {
   // …
 });
 
-describe('settings @native', () => {
+describe(`settings ${Tag.native}`, () => {
   // Androidだけで実行：一番内側のタグで決まる
-  test('the back button closes it @android', async ({ app }) => {
+  test(`the back button closes it ${Tag.android}`, async ({ app }) => {
     // …
   });
 });

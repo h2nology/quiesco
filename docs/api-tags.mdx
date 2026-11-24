@@ -17,34 +17,39 @@ platform, after a soft reset.
 
 Your own tags (e.g. `@smoke`) can sit next to them; Quiesco ignores those.
 
+In Vitest and Jest code the tags are also [constants](./api-constants): `` `… ${Tag.android}` ``,
+`{ tags: [Tag.native, Tag.hardReset] }`.
+
 ## Writing tags {#writing-tags}
 
 <CodeGroup>
 ```ts Vitest
-import { describe, test } from '@quiesco/vitest';
+import { Tag, describe, test } from '@quiesco/vitest';
 
 // in the title
-test('the back button closes the sheet @android', async ({ app }) => {
+test(`the back button closes the sheet ${Tag.android}`, async ({ app }) => {
   await app.pressBack();
 });
 
 // or in the tags option
-test('Face ID login', { tags: ['@native', '@hard-reset'] }, async ({ app }) => {
+test('Face ID login', { tags: [Tag.native, Tag.hardReset] }, async ({ app }) => {
   await app.device.biometrics.enroll();
 });
 
-describe('settings @native', () => {
+describe(`settings ${Tag.native}`, () => {
   // runs on Android only: the innermost tag decides
-  test('the back button closes it @android', async ({ app }) => {
+  test(`the back button closes it ${Tag.android}`, async ({ app }) => {
     await app.pressBack();
   });
 });
 ```
 ```js Jest
 // Jest has no test options: tags go in the test or describe title
-describe('settings @native', () => {
+const { Tag } = quiesco;
+
+describe(`settings ${Tag.native}`, () => {
   // runs on Android only: the innermost tag decides
-  test('the back button closes it @android', async () => {
+  test(`the back button closes it ${Tag.android}`, async () => {
     await quiesco.app.pressBack();
   });
 });

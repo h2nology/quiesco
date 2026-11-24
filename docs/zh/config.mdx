@@ -6,7 +6,7 @@ description: "quiesco.config.mts 的所有配置项，以及各自的类型和�
 Quiesco 从运行目录下的 `quiesco.config.ts` 读取配置。`quiesco.config.mts`、`.js` 和 `.mjs` 也可以；`quiesco init` 生成的是 `quiesco.config.mts`。要使用其他文件，把 `QUIESCO_CONFIG` 设为它的路径。
 
 ```ts
-import { defineConfig } from '@quiesco/core';
+import { Permission, defineConfig } from '@quiesco/core';
 
 export default defineConfig({
   apps: {
@@ -19,7 +19,7 @@ export default defineConfig({
     android: { avd: 'Pixel_9_API_37' },
     web: { viewport: { width: 390, height: 844, hasTouch: true, isMobile: true } },
   },
-  permissions: ['location'],
+  permissions: [Permission.location],
   sync: { ignoreUrls: [/\/analytics\//] },
 });
 ```

@@ -25,6 +25,10 @@ await app.expectVisible('home-screen');
 
 ### `biometrics.enroll(enrolled?)` {#biometrics-enroll}
 
+```ts
+biometrics.enroll(enrolled?: boolean): Promise<void>
+```
+
 录入面容或指纹，或用 `enroll(false)` 移除。`enrolled` 默认为 `true`。在 Android 上，Quiesco 会设置锁屏 PIN（指纹需要），并走完“设置”中的录入流程；之后 App 会被切回前台。录入会在下一个测试之前撤销。
 
 ```ts
@@ -36,6 +40,10 @@ await app.expectVisible('password-input');
 
 ### `biometrics.match()` {#biometrics-match}
 
+```ts
+biometrics.match(): Promise<void>
+```
+
 向 App 正在显示的认证提供匹配的面容或指纹，使认证成功。
 
 ```ts
@@ -45,6 +53,10 @@ await app.expectVisible('vault-contents');
 ```
 
 ### `biometrics.fail()` {#biometrics-fail}
+
+```ts
+biometrics.fail(): Promise<void>
+```
 
 提供未知的面容或指纹。与真机一样，之后系统会保留重试提示：在提示被应答之前（再次匹配，或用 [`system.tap`](#system-tap) 取消），App 得不到结果。连续多次失败会让传感器锁定一段时间（Android 模拟器上从约 0.5 s 到 30 s）。
 
@@ -61,6 +73,10 @@ await app.expectText('unlock-error', 'Authentication cancelled');
 
 ### `shake()` {#shake}
 
+```ts
+shake(): Promise<void>
+```
+
 摇晃设备（iOS：Simulator 的 *Device > Shake*；Android 模拟器：加速度计推送），然后等待 App 空闲。
 
 ```ts
@@ -70,6 +86,10 @@ await app.expectVisible('feedback-form');
 ```
 
 ### `clearKeychain()` {#clearkeychain}
+
+```ts
+clearKeychain(): Promise<void>
+```
 
 iOS：重置模拟器的钥匙串（上面所有 App 的）。Android 没有钥匙串，会以 `ACTION_NOT_SUPPORTED` 失败：请使用 [`relaunch({ clearData: true })`](./api-device#relaunch)，它会删除 App 数据，包括 Keystore 中的密钥。
 
@@ -83,6 +103,12 @@ await app.expectVisible('sign-in-screen');
 ## 通知 {#notifications}
 
 ### `sendNotification({ title, body?, data? })` {#sendnotification}
+
+```ts
+sendNotification(notification: NotificationSpec): Promise<void>
+```
+
+类型： [`NotificationSpec`](./api-types#notificationspec)
 
 发送一条通知。App 在后台时也可用。
 
@@ -104,6 +130,15 @@ await app.device.sendNotification({
 | `data` | 自定义数据；每个值都必须是字符串 |
 
 ### `openNotification(title, options?)` {#opennotification}
+
+```ts
+openNotification(
+  title: string,
+  options?: OpenNotificationOptions,
+): Promise<void>
+```
+
+类型： [`OpenNotificationOptions`](./api-types#opennotificationoptions)
 
 像用户打开通知一样，点击标题为 `title` 的通知：iOS 上点击横幅，横幅消失后在通知中心中点击；Android 上在通知栏中点击。App 回到前台并空闲后 resolve。
 
@@ -139,6 +174,15 @@ await app.expectVisible('chat-42');
 
 ### `system.tap(query, options?)` {#system-tap}
 
+```ts
+system.tap(
+  query: SystemQuery,
+  options?: SystemWaitOptions,
+): Promise<void>
+```
+
+类型： [`SystemQuery`](./api-types#systemquery) · [`SystemWaitOptions`](./api-types#systemwaitoptions)
+
 点击 App 之外的系统 UI，然后等待 App 空闲。
 
 ```ts
@@ -159,6 +203,15 @@ await app.device.system.tap({ text: /^Allow/ });
 
 ### `system.expectVisible(query, options?)` {#system-expectvisible}
 
+```ts
+system.expectVisible(
+  query: SystemQuery,
+  options?: SystemWaitOptions,
+): Promise<void>
+```
+
+类型： [`SystemQuery`](./api-types#systemquery) · [`SystemWaitOptions`](./api-types#systemwaitoptions)
+
 等待此类系统 UI 出现在屏幕上。失败时为 `ELEMENT_NOT_FOUND`，并列出看到的文本。
 
 ```ts
@@ -172,6 +225,15 @@ await app.device.system.expectVisible({ text: /location/i });
 
 ### `system.expectNotVisible(query, options?)` {#system-expectnotvisible}
 
+```ts
+system.expectNotVisible(
+  query: SystemQuery,
+  options?: SystemWaitOptions,
+): Promise<void>
+```
+
+类型： [`SystemQuery`](./api-types#systemquery) · [`SystemWaitOptions`](./api-types#systemwaitoptions)
+
 等待屏幕上不再有此类系统 UI。失败时为 `ASSERTION_FAILED`，并指出仍在屏幕上的文本。
 
 ```ts
@@ -184,6 +246,16 @@ await app.device.system.expectNotVisible({ text: 'Delete all?' });
 | `timeoutMs` | `10000` | 等待时长 |
 
 ### `system.type(query, text, options?)` {#system-type}
+
+```ts
+system.type(
+  query: SystemQuery,
+  text: string,
+  options?: SystemWaitOptions,
+): Promise<void>
+```
+
+类型： [`SystemQuery`](./api-types#systemquery) · [`SystemWaitOptions`](./api-types#systemwaitoptions)
 
 点击与 `query` 匹配的输入框，用设备的输入方式输入 `text`，然后等待 App 空闲。标签和输入框文本相同时，使用输入框（例如输入框旁边的 “Email” 标签）。iOS 上文本经由键盘输入，因此任何文字都可以。Android 上可打印的 ASCII 作为按键事件发送（`input text`）；其他文字经由 `@quiesco/native` 的剪贴板粘贴。
 
@@ -201,6 +273,12 @@ await app.device.system.tap({ text: 'Sign in' });
 
 ### `system.tapAt({ x, y })` {#system-tapat}
 
+```ts
+system.tapAt(point: Point): Promise<void>
+```
+
+类型： [`Point`](./api-types#point)
+
 在屏幕上的一个点（从左上角算起的 pt / dp）做一次系统级的触摸，不管那里是什么。例如点击 iOS 分享面板的上方可以关掉它。在 iOS 上会先等屏幕上的系统 UI 不再移动（最多 2 s）。之后等待 App 空闲。
 
 ```ts
@@ -215,6 +293,12 @@ await app.device.system.tapAt({ x: 200, y: 100 });
 App 请求权限，系统显示弹窗；测试像用户一样应答它。如果想在测试开始时就已授予权限，请改用 `permissions` 配置或 [`setPermission`](./api-device#setpermission)（[各平台情况](./platforms#permissions)）。
 
 ### `system.allowPermission(options?)` {#system-allowpermission}
+
+```ts
+system.allowPermission(options?: SystemWaitOptions): Promise<void>
+```
+
+类型： [`SystemWaitOptions`](./api-types#systemwaitoptions)
 
 无论设备语言是什么，都能点击弹窗的允许按钮。Android 上根据按钮的 id 查找，也包括“仅在使用该 App 时允许”；iOS 上按 iOS 的按钮布局根据位置查找。App 回到前台并空闲后 resolve。
 
@@ -233,6 +317,12 @@ await app.expectText('notifications-status', 'On');
 
 ### `system.denyPermission(options?)` {#system-denypermission}
 
+```ts
+system.denyPermission(options?: SystemWaitOptions): Promise<void>
+```
+
+类型： [`SystemWaitOptions`](./api-types#systemwaitoptions)
+
 用同样的方式点击弹窗的拒绝按钮（Android 上也包括“不再询问”）。App 回到前台并空闲后 resolve。
 
 ```ts
@@ -248,7 +338,7 @@ await app.expectVisible('location-denied-banner');
 **请在弹出权限弹窗的测试里应答它。** 弹窗的生命周期比 App 更长：某个测试遗留的弹窗会在下一个测试之前被关闭（取消，否则第一个按钮），权限弹窗除外。无论怎么回答都会留下结果（通知被拒绝后只有重装 App 才能恢复），所以下一个测试会以指明该弹窗的 `RESET_FAILED` 失败。要再次请求某项权限，请先重置它：
 
 ```ts
-await app.device.setPermission('notifications', 'reset');
+await app.device.setPermission(Permission.notifications, PermissionState.reset);
 ```
 
 当权限弹窗（另一个 activity）位于前台时，Android 会暂停 App 的 JS 定时器。Quiesco 的空闲等待会察觉到 App 进入了后台并返回，因此打开弹窗的那次点击能够完成。

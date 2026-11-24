@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 
 import { Given, Then, When } from '@cucumber/cucumber';
+import { ColorScheme, NetworkState, Orientation, Permission, PermissionState } from '@quiesco/cucumber';
 import type { QuiescoWorld } from '@quiesco/cucumber';
 
 /** The page again, e.g. after the system killed the app (Android revoke) or a locale relaunch. */
@@ -22,11 +23,11 @@ Given('打开设备状态页', async function (this: QuiescoWorld) {
 });
 
 When('把设备转到横屏', async function (this: QuiescoWorld) {
-  await this.app.device.setOrientation('landscape');
+  await this.app.device.setOrientation(Orientation.landscape);
 });
 
 When('把设备切换到深色模式', async function (this: QuiescoWorld) {
-  await this.app.device.setAppearance('dark');
+  await this.app.device.setAppearance(ColorScheme.dark);
 });
 
 When('把系统字号设为 {float} 倍', async function (this: QuiescoWorld, scale: number) {
@@ -44,12 +45,12 @@ When('把设备位置设为北纬 {float}、东经 {float}', async function (thi
 });
 
 When('撤销 App 的定位权限', async function (this: QuiescoWorld) {
-  await this.app.device.setPermission('location', 'revoke');
+  await this.app.device.setPermission(Permission.location, PermissionState.revoke);
   await openDevicePage(this);
 });
 
 Given('定位权限尚未决定', async function (this: QuiescoWorld) {
-  await this.app.device.setPermission('location', 'reset');
+  await this.app.device.setPermission(Permission.location, PermissionState.reset);
   await openDevicePage(this);
 });
 
@@ -102,11 +103,11 @@ Then('设备状态页显示位置 {string}', async function (this: QuiescoWorld,
 });
 
 When('把设备切换到离线', async function (this: QuiescoWorld) {
-  await this.app.device.setNetwork('offline');
+  await this.app.device.setNetwork(NetworkState.offline);
 });
 
 When('把设备切换到在线', async function (this: QuiescoWorld) {
-  await this.app.device.setNetwork('online');
+  await this.app.device.setNetwork(NetworkState.online);
 });
 
 When('发送请求', async function (this: QuiescoWorld) {

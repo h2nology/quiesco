@@ -61,7 +61,7 @@ await app.tap({ role: 'button', text: 'Save' });
 
 ```ts
 // 语义类型：所有平台通用
-await app.tap({ type: 'switch' });
+await app.tap({ type: SemanticType.switch });
 
 // App 中的一个组件
 await app.expectCount({ type: 'TodoCard' }, 2);
@@ -73,9 +73,9 @@ await app.expectCount({ type: 'TodoCard' }, 2);
 
 ```ts
 // 包含 "Buy milk" 的那一行
-await app.swipe({ id: 'todo-row', has: { text: 'Buy milk' } }, 'left');
+await app.swipe({ id: 'todo-row', has: { text: 'Buy milk' } }, Direction.left);
 
-await app.tap({ type: 'button', has: { text: 'Buy milk' } });
+await app.tap({ type: SemanticType.button, has: { text: 'Buy milk' } });
 ```
 
 ### `not` {#not}
@@ -84,7 +84,7 @@ await app.tap({ type: 'button', has: { text: 'Buy milk' } });
 
 ```ts
 // 唯一一个不是 Cancel 的按钮
-await app.tap({ type: 'button', not: { id: 'cancel' } });
+await app.tap({ type: SemanticType.button, not: { id: 'cancel' } });
 ```
 
 ### `within` {#within}
@@ -127,8 +127,8 @@ await app.expectText({ id: 'todo-title', index: 0 }, 'Buy milk');
 
 ```ts
 // 设置页面上的 Wi-Fi 开关
-await app.tap({ type: 'switch', label: 'Wi-Fi' });
-await app.expectChecked({ type: 'switch', label: 'Wi-Fi' });
+await app.tap({ type: SemanticType.switch, label: 'Wi-Fi' });
+await app.expectChecked({ type: SemanticType.switch, label: 'Wi-Fi' });
 ```
 
 由多个 host 组成的控件只算一个。例如，react-native-web 的 `Switch` 是一个包裹着 `<input role="switch">` 的 `<div>`：`{ type: 'switch' }` 匹配外层元素，它同时会报告内部 input 的选中状态、值、焦点、禁用状态和标签。

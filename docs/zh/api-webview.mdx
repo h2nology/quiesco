@@ -23,6 +23,12 @@ await help.element({ id: 'result' }).expectText('Hello, Bob');
 
 ### `webview(target?)` {#webview}
 
+```ts
+webview(target?: MatcherInput): WebView
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`WebView`](./api-webview#webview)
+
 与 `target` 匹配的 WebView，可以是任意 [匹配器](./api-matchers)，例如它的 testID。不传参数时，取屏幕上唯一的那个 WebView。
 
 ```ts
@@ -33,6 +39,12 @@ const page = app.webview();
 ```
 
 ### `element(query)` {#element}
+
+```ts
+element(query: WebElementQuery): WebElement
+```
+
+类型： [`WebElementQuery`](./api-types#webelementquery) · [`WebElement`](./api-webview#element)
 
 页面中的一个元素。`query` 恰好包含 `css`、`xpath`、`id` 或 `text` 中的一个，多个元素匹配时还可以加上 `index`。
 
@@ -61,6 +73,12 @@ help.element({ css: '.faq-item', index: 1 });
 
 ### `tap(options?)` {#tap}
 
+```ts
+tap(options?: CallOptions): Promise<PageElement>
+```
+
+类型： [`CallOptions`](./api-types#calloptions) · [`PageElement`](./api-types#pageelement)
+
 先将元素滚入视图，再进行一次真实点击：iOS / Android 上在元素的屏幕位置触摸，web 上使用 Playwright 输入。
 
 ```ts
@@ -76,6 +94,12 @@ await help.element({ text: 'Contact us' }).tap();
 
 ### `type(text, options?)` {#type}
 
+```ts
+type(text: string, options?: CallOptions): Promise<PageElement>
+```
+
+类型： [`CallOptions`](./api-types#calloptions) · [`PageElement`](./api-types#pageelement)
+
 点击字段，像用户一样让它获得焦点，然后在光标处插入 `text`（`execCommand('insertText')`，会产生与键入相同的 `input` 事件）。不经由软键盘输入。
 
 ```ts
@@ -88,6 +112,12 @@ await help.element({ css: '#name' }).type('Alice');
 | `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 ### `replaceText(text, options?)` {#replacetext}
+
+```ts
+replaceText(text: string, options?: CallOptions): Promise<PageElement>
+```
+
+类型： [`CallOptions`](./api-types#calloptions) · [`PageElement`](./api-types#pageelement)
 
 点击字段，然后用 `text` 替换其全部值。
 
@@ -102,6 +132,12 @@ await help.element({ xpath: '//input[@name="name"]' }).replaceText('Bob');
 
 ### `scrollIntoView(options?)` {#scrollintoview}
 
+```ts
+scrollIntoView(options?: CallOptions): Promise<PageElement>
+```
+
+类型： [`CallOptions`](./api-types#calloptions) · [`PageElement`](./api-types#pageelement)
+
 滚动页面，直到元素进入视图。
 
 ```ts
@@ -114,6 +150,12 @@ await help.element({ css: '#footer' }).scrollIntoView();
 | `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 ### `screenshot(options?)` {#screenshot}
+
+```ts
+screenshot(options?: CallOptions): Promise<Buffer>
+```
+
+类型： [`CallOptions`](./api-types#calloptions)
 
 元素的 PNG，先将其滚入视图：截取它位于 WebView 可见区域内的部分。更多内容见 [截图](./api-screenshots)。
 
@@ -132,6 +174,12 @@ const png = await help.element({ css: '#chart' }).screenshot();
 
 ### `expectText(text, options?)` {#expecttext}
 
+```ts
+expectText(text: TextQuery, options?: CallOptions): Promise<PageElement>
+```
+
+类型： [`TextQuery`](./api-types#textquery) · [`CallOptions`](./api-types#calloptions) · [`PageElement`](./api-types#pageelement)
+
 唯一匹配的文本（空白合并后）等于 `text`，或匹配一个 RegExp。对于输入框，比较的是其值。
 
 ```ts
@@ -146,6 +194,12 @@ await help.element({ css: '#name' }).expectText(/^Bo/);
 
 ### `expectExists(options?)` {#expectexists}
 
+```ts
+expectExists(options?: CallOptions): Promise<PageElement[]>
+```
+
+类型： [`CallOptions`](./api-types#calloptions) · [`PageElement`](./api-types#pageelement)
+
 至少有一个元素匹配，无论是否可见。
 
 ```ts
@@ -158,6 +212,12 @@ await help.element({ css: 'form#contact' }).expectExists();
 | `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 ### `expectNotExists(options?)` {#expectnotexists}
+
+```ts
+expectNotExists(options?: CallOptions): Promise<void>
+```
+
+类型： [`CallOptions`](./api-types#calloptions)
 
 没有元素匹配。
 
@@ -172,6 +232,12 @@ await help.element({ css: '.error' }).expectNotExists();
 
 ### `expectVisible(options?)` {#expectvisible}
 
+```ts
+expectVisible(options?: CallOptions): Promise<PageElement[]>
+```
+
+类型： [`CallOptions`](./api-types#calloptions) · [`PageElement`](./api-types#pageelement)
+
 有一个匹配可见：位于页面视口内（未被滚出）且未被 CSS 隐藏。
 
 ```ts
@@ -184,6 +250,12 @@ await help.element({ text: 'Thanks for your message' }).expectVisible();
 | `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 ### `expectNotVisible(options?)` {#expectnotvisible}
+
+```ts
+expectNotVisible(options?: CallOptions): Promise<void>
+```
+
+类型： [`CallOptions`](./api-types#calloptions)
 
 没有可见的匹配：每一个都被滚出、被 CSS 隐藏或不存在。
 
@@ -199,6 +271,16 @@ await help.element({ text: /^Loading/ }).expectNotVisible();
 ## 页面 {#the-page}
 
 ### `runScript(body, args?, options?)` {#runscript}
+
+```ts
+runScript<T extends JsonValue = JsonValue>(
+  body: string,
+  args?: JsonValue[],
+  options?: CallOptions,
+): Promise<T>
+```
+
+类型： [`JsonValue`](./api-types#jsonvalue) · [`CallOptions`](./api-types#calloptions)
 
 在页面中运行一个函数体，并以 JSON 返回其值。`args` 作为 `arguments` 传入；返回的 promise 会被 await。
 
@@ -223,6 +305,12 @@ const status = await help.runScript<number>('return fetch("/api/ping").then((r) 
 
 ### `url(options?)` {#url}
 
+```ts
+url(options?: CallOptions): Promise<string>
+```
+
+类型： [`CallOptions`](./api-types#calloptions)
+
 页面的 URL，即 `location.href`。
 
 ```ts
@@ -236,6 +324,12 @@ expect(await help.url()).toMatch(/\/pricing$/);
 | `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 
 ### `title(options?)` {#title}
+
+```ts
+title(options?: CallOptions): Promise<string>
+```
+
+类型： [`CallOptions`](./api-types#calloptions)
 
 页面的标题，即 `document.title`。
 

@@ -11,6 +11,15 @@ description: "ユーザーと同じようにタップ、入力、スクロール
 
 ### `tap(target, options?)` {#tap}
 
+```ts
+tap(
+  target: MatcherInput,
+  options?: TapOptions,
+): Promise<ElementSummary | undefined>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`TapOptions`](./api-types#tapoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 要素の中心をタップします。スクロールビューや`overflow`の祖先に一部が切り取られた要素は、見えている部分の中心をタップします。
 
 ```ts
@@ -29,6 +38,15 @@ await app.tap('map', { point: { x: 40, y: 120 } });
 
 ### `doubleTap(target, options?)` {#doubletap}
 
+```ts
+doubleTap(
+  target: MatcherInput,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 1つのジェスチャーで2回タップします。
 
 ```ts
@@ -42,6 +60,16 @@ await app.doubleTap('photo');
 | `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 ### `multiTap(target, count, options?)` {#multitap}
+
+```ts
+multiTap(
+  target: MatcherInput,
+  count: number,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
 
 1つのジェスチャーで`count`回タップします。
 
@@ -57,6 +85,15 @@ await app.multiTap('version-label', 3);
 | `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 ### `longPress(target, options?)` {#longpress}
+
+```ts
+longPress(
+  target: MatcherInput,
+  options?: LongPressOptions,
+): Promise<ElementSummary | undefined>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`LongPressOptions`](./api-types#longpressoptions) · [`ElementSummary`](./api-types#elementsummary)
 
 要素を押し続けます。
 
@@ -76,6 +113,12 @@ await app.longPress('message', { durationMs: 1500, point: { x: 10, y: 10 } });
 
 ### `tapAt(point, options?)` {#tapat}
 
+```ts
+tapAt(point: Point, options?: ActionOptions): Promise<void>
+```
+
+型： [`Point`](./api-types#point) · [`ActionOptions`](./api-types#actionoptions)
+
 画面上の一点（ウィンドウ座標）をタップします。そこに何があっても構いません。
 
 ```ts
@@ -90,6 +133,12 @@ await app.tapAt({ x: 200, y: 100 });
 | `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 ### `longPressAt(point, options?)` {#longpressat}
+
+```ts
+longPressAt(point: Point, options?: LongPressAtOptions): Promise<void>
+```
+
+型： [`Point`](./api-types#point) · [`LongPressAtOptions`](./api-types#longpressatoptions)
 
 画面上の一点（ウィンドウ座標）を押し続けます。
 
@@ -106,6 +155,16 @@ await app.longPressAt({ x: 200, y: 400 }, { durationMs: 1000 });
 ## テキスト入力 {#text-input}
 
 ### `type(target, text, options?)` {#type}
+
+```ts
+type(
+  target: MatcherInput,
+  text: string,
+  options?: TypeOptions,
+): Promise<ElementSummary | undefined>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`TypeOptions`](./api-types#typeoptions) · [`ElementSummary`](./api-types#elementsummary)
 
 入力欄にフォーカスし、既にある内容の後ろに`text`を入力します。`native`モードではテキストがシステムのIMEを経由するので、どの言語でも入力できます。iOSとAndroidではテキスト全体が一度に届き、Webでは1文字ごとに1キーが送られます。
 
@@ -126,6 +185,16 @@ await app.type('search', 'milk', { perCharacter: true });
 
 ### `replaceText(target, text, options?)` {#replacetext}
 
+```ts
+replaceText(
+  target: MatcherInput,
+  text: string,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 入力欄のテキスト全体を一度に置き換えます。
 
 ```ts
@@ -139,6 +208,15 @@ await app.replaceText('email', 'bob@example.com');
 | `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 ### `clear(target, options?)` {#clear}
+
+```ts
+clear(
+  target: MatcherInput,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
 
 入力欄を空にします。
 
@@ -154,13 +232,23 @@ await app.clear('search');
 
 ### `pressKey(target, key, options?)` {#presskey}
 
+```ts
+pressKey(
+  target: MatcherInput,
+  key: KeyName,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`KeyName`](./api-constants#list) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 Returnキー（`'enter'`）または`'backspace'`をフィールドに送ります。`'enter'`は1行の入力欄では送信し、複数行の入力欄では改行を追加します。フィールドが存在しさえすればよく、キーボードのReturnキーに手が届かない状況でもキーはフィールドに届きます。
 
 ```ts
 await app.type('search', 'milk');
-await app.pressKey('search', 'enter');
+await app.pressKey('search', KeyName.enter);
 
-await app.pressKey('code-input', 'backspace');
+await app.pressKey('code-input', KeyName.backspace);
 ```
 
 | オプション | デフォルト | 意味 |
@@ -170,6 +258,12 @@ await app.pressKey('code-input', 'backspace');
 | `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 ### `dismissKeyboard(options?)` {#dismisskeyboard}
+
+```ts
+dismissKeyboard(options?: ActionOptions): Promise<void>
+```
+
+型： [`ActionOptions`](./api-types#actionoptions)
 
 ソフトウェアキーボードを閉じます。
 
@@ -188,12 +282,22 @@ await app.dismissKeyboard();
 
 ### `scroll(target, direction, options?)` {#scroll}
 
+```ts
+scroll(
+  target: MatcherInput,
+  direction: Direction,
+  options?: ScrollOptions,
+): Promise<ElementSummary | undefined>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`Direction`](./api-constants#list) · [`ScrollOptions`](./api-types#scrolloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 スクロールビューをスクロールします。`'down'`で下のコンテンツが現れます。`native`モードでは指をドラッグして徐々に減速させて止めるので、慣性スクロールせずにコンテンツがおよそ`distance`だけ動きます（システムのタッチスロップの分だけ短くなります。iOSで約10pt、Androidで約7%）。
 
 ```ts
-await app.scroll('feed', 'down');
+await app.scroll('feed', Direction.down);
 
-await app.scroll('feed', 'down', { distance: 300, from: { x: 0.5, y: 0.8 } });
+await app.scroll('feed', Direction.down, { distance: 300, from: { x: 0.5, y: 0.8 } });
 ```
 
 | オプション | デフォルト | 意味 |
@@ -205,6 +309,16 @@ await app.scroll('feed', 'down', { distance: 300, from: { x: 0.5, y: 0.8 } });
 | `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 ### `scrollTo(container, target, options?)` {#scrollto}
+
+```ts
+scrollTo(
+  container: MatcherInput,
+  target: MatcherInput,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
 
 `target`の中心（タップが当たる位置）が見えるまで`container`をスクロールします。下、次に上へ。横方向のリストでは右、次に左へ。1ステップの移動は1画面分より短いので、要素を飛ばしません。コンテンツの端まで来ても中心が切り取られたままのターゲットは、そのまま返します。
 
@@ -221,10 +335,20 @@ await app.tap('sign-out');
 
 ### `scrollToEdge(target, edge, options?)` {#scrolltoedge}
 
+```ts
+scrollToEdge(
+  target: MatcherInput,
+  edge: Edge,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`Edge`](./api-constants#list) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 `'top'`、`'bottom'`、`'left'`、`'right'`のいずれかの端までスクロールします。スクロールに応じて行を追加描画する仮想化リストは、伸びていく間も追従します（`native`モードでは実際のフリックで）。
 
 ```ts
-await app.scrollToEdge('feed', 'bottom');
+await app.scrollToEdge('feed', Edge.bottom);
 await app.expectVisible({ text: 'No more posts' });
 ```
 
@@ -235,6 +359,16 @@ await app.expectVisible({ text: 'No more posts' });
 | `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 ### `scrollToIndex(list, index, options?)` {#scrolltoindex}
+
+```ts
+scrollToIndex(
+  list: MatcherInput,
+  index: number,
+  options?: ScrollToIndexOptions,
+): Promise<ElementSummary | undefined>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`ScrollToIndexOptions`](./api-types#scrolltoindexoptions) · [`ElementSummary`](./api-types#elementsummary)
 
 `FlatList` / `FlashList`の`index`行目を表示します。`getItemLayout`がなくても動作します。
 
@@ -258,13 +392,23 @@ await app.scrollToIndex('contacts', 120, { viewPosition: 0.5 });
 
 ### `swipe(target, direction, options?)` {#swipe}
 
+```ts
+swipe(
+  target: MatcherInput,
+  direction: Direction,
+  options?: SwipeOptions,
+): Promise<ElementSummary | undefined>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`Direction`](./api-constants#list) · [`SwipeOptions`](./api-types#swipeoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 慣性のあるスワイプです。`direction`は指の動く向きです。
 
 ```ts
 // 行の削除ボタンを出す
-await app.swipe({ id: 'todo-row', index: 0 }, 'left');
+await app.swipe({ id: 'todo-row', index: 0 }, Direction.left);
 
-await app.swipe('carousel', 'left', { speed: 'fast', distance: 250 });
+await app.swipe('carousel', Direction.left, { speed: Speed.fast, distance: 250 });
 ```
 
 | オプション | デフォルト | 意味 |
@@ -278,13 +422,23 @@ await app.swipe('carousel', 'left', { speed: 'fast', distance: 250 });
 
 ### `drag(target, to, options?)` {#drag}
 
+```ts
+drag(
+  target: MatcherInput,
+  to: MatcherInput | { point: Point },
+  options?: DragOptions,
+): Promise<ElementSummary | undefined>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`Point`](./api-types#point) · [`DragOptions`](./api-types#dragoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 要素を長押しし、`to`の中心（要素）または`{ point }`（ウィンドウ座標）まで動かして離します。実際のタッチが必要なので、`js`モードでは使えません。
 
 ```ts
 // 並べ替え：最初の行を3行目にドラッグする
 await app.drag({ id: 'todo-row', index: 0 }, { id: 'todo-row', index: 2 });
 
-await app.drag('pin', { point: { x: 160, y: 420 } }, { holdMs: 300, speed: 'slow' });
+await app.drag('pin', { point: { x: 160, y: 420 } }, { holdMs: 300, speed: Speed.slow });
 ```
 
 | オプション | デフォルト | 意味 |
@@ -300,6 +454,12 @@ await app.drag('pin', { point: { x: 160, y: 420 } }, { holdMs: 300, speed: 'slow
 ## ナビゲーション {#navigation}
 
 ### `goBack(options?)` {#goback}
+
+```ts
+goBack(options?: ActionOptions): Promise<void>
+```
+
+型： [`ActionOptions`](./api-types#actionoptions)
 
 各プラットフォームでユーザーが行うのと同じ方法で前の画面に戻ります。Androidは戻るボタン（キーボードは先に閉じる）、Webはブラウザーの戻る、iOSはナビゲーションバーの戻るボタン、なければ左端からのスワイプです。Expo Routerを使うアプリでは、ルートが変わらなければ失敗します。
 
@@ -317,6 +477,12 @@ await app.expectVisible('todo-list-screen');
 
 ### `pressBack(options?)` {#pressback}
 
+```ts
+pressBack(options?: ActionOptions): Promise<void>
+```
+
+型： [`ActionOptions`](./api-types#actionoptions)
+
 Androidの戻るボタン、WebではブラウザーのBackです。iOSでは使えません（`ACTION_NOT_SUPPORTED`）。どのプラットフォームでも動くテストには`goBack()`を使ってください。
 
 ```ts
@@ -331,6 +497,12 @@ await app.pressBack();
 | `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
 
 ### `openUrl(url, options?)` {#openurl}
+
+```ts
+openUrl(url: string, options?: ActionOptions): Promise<void>
+```
+
+型： [`ActionOptions`](./api-types#actionoptions)
 
 ディープリンクを開きます。iOSではアプリ内で、Androidでは`am start`で、Webではアドレスバーで開きます。アプリがバックグラウンドにあるとき（`app.device.sendToBackground()`）は、ほかのアプリからと同じようにアプリの外からリンクを開きます。iOSではシステムの「“…”で開きますか？」に答えます。アプリが前面に来てアイドルになった時点で解決します。
 

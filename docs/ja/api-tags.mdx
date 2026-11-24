@@ -16,34 +16,39 @@ description: "テストのタイトルやGherkinのタグで、テストを特�
 
 独自のタグ（`@smoke`など）を並べて付けることもできます。Quiescoはそれらを無視します。
 
+VitestとJestのコードでは、タグを[定数](./api-constants)としても書けます：`` `… ${Tag.android}` ``、
+`{ tags: [Tag.native, Tag.hardReset] }`。
+
 ## タグの書き方 {#writing-tags}
 
 <CodeGroup>
 ```ts Vitest
-import { describe, test } from '@quiesco/vitest';
+import { Tag, describe, test } from '@quiesco/vitest';
 
 // タイトルに書く
-test('the back button closes the sheet @android', async ({ app }) => {
+test(`the back button closes the sheet ${Tag.android}`, async ({ app }) => {
   await app.pressBack();
 });
 
 // またはtagsオプションで指定する
-test('Face ID login', { tags: ['@native', '@hard-reset'] }, async ({ app }) => {
+test('Face ID login', { tags: [Tag.native, Tag.hardReset] }, async ({ app }) => {
   await app.device.biometrics.enroll();
 });
 
-describe('settings @native', () => {
+describe(`settings ${Tag.native}`, () => {
   // Androidでだけ実行される：最も内側のタグが判定に使われる
-  test('the back button closes it @android', async ({ app }) => {
+  test(`the back button closes it ${Tag.android}`, async ({ app }) => {
     await app.pressBack();
   });
 });
 ```
 ```js Jest
 // Jestにはテストのオプションがない：タグはtestやdescribeのタイトルに書く
-describe('settings @native', () => {
+const { Tag } = quiesco;
+
+describe(`settings ${Tag.native}`, () => {
   // Androidでだけ実行される：最も内側のタグが判定に使われる
-  test('the back button closes it @android', async () => {
+  test(`the back button closes it ${Tag.android}`, async () => {
     await quiesco.app.pressBack();
   });
 });

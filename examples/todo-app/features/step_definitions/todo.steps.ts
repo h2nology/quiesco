@@ -1,5 +1,7 @@
 // Step definitions call only the Quiesco driver: no waits, no sleeps (requirements.md §9, §12).
 import { Given, Then, When } from '@cucumber/cucumber';
+import { Direction, KeyName, SemanticType } from '@quiesco/cucumber';
+import type { Edge } from '@quiesco/cucumber';
 import type { QuiescoWorld } from '@quiesco/cucumber';
 
 Given('用户 {string} 已登录', async function (this: QuiescoWorld, email: string) {
@@ -87,7 +89,7 @@ When('输入标题 {string}', async function (this: QuiescoWorld, title: string)
 });
 
 When('标记为重要', async function (this: QuiescoWorld) {
-  await this.app.tap({ type: 'switch', label: '标记为重要' });
+  await this.app.tap({ type: SemanticType.switch, label: '标记为重要' });
 });
 
 Then('标题输入框获得焦点', async function (this: QuiescoWorld) {
@@ -99,8 +101,8 @@ Then('还不能标记为重要', async function (this: QuiescoWorld) {
 });
 
 Then('页面上有 {int} 个开关，并且是关闭的', async function (this: QuiescoWorld, count: number) {
-  await this.app.expectCount({ type: 'switch', within: 'new-todo-screen' }, count);
-  await this.app.expect({ type: 'switch', within: 'new-todo-screen' }).not.toBeChecked();
+  await this.app.expectCount({ type: SemanticType.switch, within: 'new-todo-screen' }, count);
+  await this.app.expect({ type: SemanticType.switch, within: 'new-todo-screen' }).not.toBeChecked();
 });
 
 Then('标题输入框的内容是 {string}', async function (this: QuiescoWorld, title: string) {
@@ -113,7 +115,7 @@ Then('已标记为重要', async function (this: QuiescoWorld) {
 });
 
 When('在标题框按回车', async function (this: QuiescoWorld) {
-  await this.app.pressKey({ id: 'todo-title' }, 'enter');
+  await this.app.pressKey({ id: 'todo-title' }, KeyName.enter);
 });
 
 // ---- playground (Phase 6.2 actions) ----
@@ -160,7 +162,7 @@ When('在备注框输入 {string}', async function (this: QuiescoWorld, text: st
 });
 
 When('在备注框按 {string}', async function (this: QuiescoWorld, key: string) {
-  await this.app.pressKey({ id: 'note' }, key as 'enter' | 'backspace');
+  await this.app.pressKey({ id: 'note' }, key as KeyName);
 });
 
 When('把备注替换为 {string}', async function (this: QuiescoWorld, text: string) {
@@ -188,7 +190,7 @@ When('把长列表滚动到第 {int} 行', async function (this: QuiescoWorld, r
 });
 
 When('把长列表滚动到 {string}', async function (this: QuiescoWorld, edge: string) {
-  await this.app.scrollToEdge({ id: 'long-list' }, edge as 'top' | 'bottom');
+  await this.app.scrollToEdge({ id: 'long-list' }, edge as Edge);
 });
 
 Then('第 {int} 行可见', async function (this: QuiescoWorld, row: number) {
@@ -228,7 +230,7 @@ let slideX: number | undefined;
 
 When('把横向列表向右滚动 {int}', async function (this: QuiescoWorld, distance: number) {
   slideX = (await this.app.query({ id: 'slide-1' }))[0]?.rect?.x;
-  await this.app.scroll({ id: 'carousel' }, 'right', { distance });
+  await this.app.scroll({ id: 'carousel' }, Direction.right, { distance });
 });
 
 Then('横向列表移动了大约 {int}', async function (this: QuiescoWorld, distance: number) {
@@ -393,7 +395,7 @@ Given('打开手势页', async function (this: QuiescoWorld) {
 });
 
 When('把可滑动的行向左滑动并点删除', async function (this: QuiescoWorld) {
-  await this.app.swipe({ id: 'swipe-row' }, 'left');
+  await this.app.swipe({ id: 'swipe-row' }, Direction.left);
   await this.app.tap({ id: 'swipe-row-delete' });
 });
 

@@ -12,6 +12,8 @@
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 
+import { Platform } from '@quiesco/core';
+
 interface Run {
   ok: boolean;
   scenarios: string;
@@ -24,7 +26,7 @@ function arg(name: string, fallback?: string): string | undefined {
 }
 
 const platform = arg('platform');
-if (platform !== 'web' && platform !== 'android' && platform !== 'ios') {
+if (platform !== Platform.web && platform !== Platform.android && platform !== Platform.ios) {
   console.error('usage: node bench/suite.mts --platform web|android|ios [--runs 5]');
   process.exit(2);
 }

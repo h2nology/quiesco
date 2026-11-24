@@ -81,9 +81,11 @@ export default async function teardown() {
 Jestのテストにはオプションがないため、プラットフォームタグはテストや`describe`のタイトルに書きます。
 
 ```js
-describe('settings @native', () => {
+const { Tag } = quiesco;
+
+describe(`settings ${Tag.native}`, () => {
   // Androidだけで実行：一番内側のタグで決まる
-  test('the back button closes it @android', async () => {
+  test(`the back button closes it ${Tag.android}`, async () => {
     await quiesco.app.device.pressBack();
   });
 });

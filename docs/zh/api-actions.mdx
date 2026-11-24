@@ -11,6 +11,15 @@ description: "像用户一样点击、输入、滚动、滑动和拖动，返回
 
 ### `tap(target, options?)` {#tap}
 
+```ts
+tap(
+  target: MatcherInput,
+  options?: TapOptions,
+): Promise<ElementSummary | undefined>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`TapOptions`](./api-types#tapoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 点击元素的中心。被滚动视图或 `overflow` 祖先裁掉一部分的元素，点击其可见部分的中心。
 
 ```ts
@@ -29,6 +38,15 @@ await app.tap('map', { point: { x: 40, y: 120 } });
 
 ### `doubleTap(target, options?)` {#doubletap}
 
+```ts
+doubleTap(
+  target: MatcherInput,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 在一个手势中点击两次。
 
 ```ts
@@ -42,6 +60,16 @@ await app.doubleTap('photo');
 | `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 ### `multiTap(target, count, options?)` {#multitap}
+
+```ts
+multiTap(
+  target: MatcherInput,
+  count: number,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
 
 在一个手势中点击 `count` 次。
 
@@ -57,6 +85,15 @@ await app.multiTap('version-label', 3);
 | `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 ### `longPress(target, options?)` {#longpress}
+
+```ts
+longPress(
+  target: MatcherInput,
+  options?: LongPressOptions,
+): Promise<ElementSummary | undefined>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`LongPressOptions`](./api-types#longpressoptions) · [`ElementSummary`](./api-types#elementsummary)
 
 按住元素。
 
@@ -76,6 +113,12 @@ await app.longPress('message', { durationMs: 1500, point: { x: 10, y: 10 } });
 
 ### `tapAt(point, options?)` {#tapat}
 
+```ts
+tapAt(point: Point, options?: ActionOptions): Promise<void>
+```
+
+类型： [`Point`](./api-types#point) · [`ActionOptions`](./api-types#actionoptions)
+
 点击屏幕上的一个点（窗口坐标），不管那里是什么。
 
 ```ts
@@ -90,6 +133,12 @@ await app.tapAt({ x: 200, y: 100 });
 | `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 ### `longPressAt(point, options?)` {#longpressat}
+
+```ts
+longPressAt(point: Point, options?: LongPressAtOptions): Promise<void>
+```
+
+类型： [`Point`](./api-types#point) · [`LongPressAtOptions`](./api-types#longpressatoptions)
 
 按住屏幕上的一个点（窗口坐标）。
 
@@ -106,6 +155,16 @@ await app.longPressAt({ x: 200, y: 400 }, { durationMs: 1000 });
 ## 文本输入 {#text-input}
 
 ### `type(target, text, options?)` {#type}
+
+```ts
+type(
+  target: MatcherInput,
+  text: string,
+  options?: TypeOptions,
+): Promise<ElementSummary | undefined>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`TypeOptions`](./api-types#typeoptions) · [`ElementSummary`](./api-types#elementsummary)
 
 聚焦输入框，并在已有内容之后输入 `text`。在 `native` 模式下，文本经由系统的输入法输入，因此任何语言都可以。iOS 和 Android 上整段文本一次送达；web 上每个字符一次按键。
 
@@ -126,6 +185,16 @@ await app.type('search', 'milk', { perCharacter: true });
 
 ### `replaceText(target, text, options?)` {#replacetext}
 
+```ts
+replaceText(
+  target: MatcherInput,
+  text: string,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 一次性替换输入框的全部文本。
 
 ```ts
@@ -139,6 +208,15 @@ await app.replaceText('email', 'bob@example.com');
 | `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 ### `clear(target, options?)` {#clear}
+
+```ts
+clear(
+  target: MatcherInput,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
 
 清空输入框。
 
@@ -154,13 +232,23 @@ await app.clear('search');
 
 ### `pressKey(target, key, options?)` {#presskey}
 
+```ts
+pressKey(
+  target: MatcherInput,
+  key: KeyName,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`KeyName`](./api-constants#list) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 向字段发送回车键（`'enter'`）或 `'backspace'`。`'enter'` 在单行输入框中提交，在多行输入框中换行。字段只需存在即可：即使键盘的回车键够不着，按键也能送达。
 
 ```ts
 await app.type('search', 'milk');
-await app.pressKey('search', 'enter');
+await app.pressKey('search', KeyName.enter);
 
-await app.pressKey('code-input', 'backspace');
+await app.pressKey('code-input', KeyName.backspace);
 ```
 
 | 选项 | 默认值 | 含义 |
@@ -170,6 +258,12 @@ await app.pressKey('code-input', 'backspace');
 | `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 ### `dismissKeyboard(options?)` {#dismisskeyboard}
+
+```ts
+dismissKeyboard(options?: ActionOptions): Promise<void>
+```
+
+类型： [`ActionOptions`](./api-types#actionoptions)
 
 隐藏软键盘。
 
@@ -188,12 +282,22 @@ await app.dismissKeyboard();
 
 ### `scroll(target, direction, options?)` {#scroll}
 
+```ts
+scroll(
+  target: MatcherInput,
+  direction: Direction,
+  options?: ScrollOptions,
+): Promise<ElementSummary | undefined>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`Direction`](./api-constants#list) · [`ScrollOptions`](./api-types#scrolloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 滚动一个滚动视图。`'down'` 显示下方的内容。在 `native` 模式下，手指拖动时逐渐减速直到停下，所以内容移动约 `distance`，不会惯性滑动（会少掉系统的触摸 slop：iOS 约 10 pt，Android 约 7%）。
 
 ```ts
-await app.scroll('feed', 'down');
+await app.scroll('feed', Direction.down);
 
-await app.scroll('feed', 'down', { distance: 300, from: { x: 0.5, y: 0.8 } });
+await app.scroll('feed', Direction.down, { distance: 300, from: { x: 0.5, y: 0.8 } });
 ```
 
 | 选项 | 默认值 | 含义 |
@@ -205,6 +309,16 @@ await app.scroll('feed', 'down', { distance: 300, from: { x: 0.5, y: 0.8 } });
 | `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 ### `scrollTo(container, target, options?)` {#scrollto}
+
+```ts
+scrollTo(
+  container: MatcherInput,
+  target: MatcherInput,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
 
 滚动 `container`，直到 `target` 的中心可见（点击会落在那里）：先向下再向上；横向列表先向右再向左。每一步移动不到一屏的距离，所以不会跳过任何元素。滚到内容尽头时，中心仍被裁掉的目标按原样返回。
 
@@ -221,10 +335,20 @@ await app.tap('sign-out');
 
 ### `scrollToEdge(target, edge, options?)` {#scrolltoedge}
 
+```ts
+scrollToEdge(
+  target: MatcherInput,
+  edge: Edge,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`Edge`](./api-constants#list) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 滚动到 `'top'`、`'bottom'`、`'left'` 或 `'right'` 一端。滚动时会渲染更多行的虚拟化列表，在增长时会被一直跟随（`native` 模式下使用真实的快速滑动）。
 
 ```ts
-await app.scrollToEdge('feed', 'bottom');
+await app.scrollToEdge('feed', Edge.bottom);
 await app.expectVisible({ text: 'No more posts' });
 ```
 
@@ -235,6 +359,16 @@ await app.expectVisible({ text: 'No more posts' });
 | `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 ### `scrollToIndex(list, index, options?)` {#scrolltoindex}
+
+```ts
+scrollToIndex(
+  list: MatcherInput,
+  index: number,
+  options?: ScrollToIndexOptions,
+): Promise<ElementSummary | undefined>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`ScrollToIndexOptions`](./api-types#scrolltoindexoptions) · [`ElementSummary`](./api-types#elementsummary)
 
 将 `FlatList` / `FlashList` 的第 `index` 行滚入视图，无需 `getItemLayout`。
 
@@ -258,13 +392,23 @@ await app.scrollToIndex('contacts', 120, { viewPosition: 0.5 });
 
 ### `swipe(target, direction, options?)` {#swipe}
 
+```ts
+swipe(
+  target: MatcherInput,
+  direction: Direction,
+  options?: SwipeOptions,
+): Promise<ElementSummary | undefined>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`Direction`](./api-constants#list) · [`SwipeOptions`](./api-types#swipeoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 一个带惯性的滑动手势。`direction` 指手指移动的方向。
 
 ```ts
 // 露出该行的删除按钮
-await app.swipe({ id: 'todo-row', index: 0 }, 'left');
+await app.swipe({ id: 'todo-row', index: 0 }, Direction.left);
 
-await app.swipe('carousel', 'left', { speed: 'fast', distance: 250 });
+await app.swipe('carousel', Direction.left, { speed: Speed.fast, distance: 250 });
 ```
 
 | 选项 | 默认值 | 含义 |
@@ -278,13 +422,23 @@ await app.swipe('carousel', 'left', { speed: 'fast', distance: 250 });
 
 ### `drag(target, to, options?)` {#drag}
 
+```ts
+drag(
+  target: MatcherInput,
+  to: MatcherInput | { point: Point },
+  options?: DragOptions,
+): Promise<ElementSummary | undefined>
+```
+
+类型： [`MatcherInput`](./api-types#matcherinput) · [`Point`](./api-types#point) · [`DragOptions`](./api-types#dragoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 按住元素，移动到 `to`（一个元素）的中心或 `{ point }`（窗口坐标），然后松开。它需要真实的触摸：`js` 模式下不可用。
 
 ```ts
 // 重新排序：把第一行拖到第三行上
 await app.drag({ id: 'todo-row', index: 0 }, { id: 'todo-row', index: 2 });
 
-await app.drag('pin', { point: { x: 160, y: 420 } }, { holdMs: 300, speed: 'slow' });
+await app.drag('pin', { point: { x: 160, y: 420 } }, { holdMs: 300, speed: Speed.slow });
 ```
 
 | 选项 | 默认值 | 含义 |
@@ -300,6 +454,12 @@ await app.drag('pin', { point: { x: 160, y: 420 } }, { holdMs: 300, speed: 'slow
 ## 导航 {#navigation}
 
 ### `goBack(options?)` {#goback}
+
+```ts
+goBack(options?: ActionOptions): Promise<void>
+```
+
+类型： [`ActionOptions`](./api-types#actionoptions)
 
 像用户在各平台上那样返回上一页：Android 按返回键（先关闭键盘），web 浏览器后退，iOS 点导航栏的返回按钮，没有时从左边缘右滑。使用 Expo Router 的 App，路由没有变化时会失败。
 
@@ -317,6 +477,12 @@ await app.expectVisible('todo-list-screen');
 
 ### `pressBack(options?)` {#pressback}
 
+```ts
+pressBack(options?: ActionOptions): Promise<void>
+```
+
+类型： [`ActionOptions`](./api-types#actionoptions)
+
 Android 返回键，web 上是浏览器后退。iOS 上不可用（`ACTION_NOT_SUPPORTED`）：要在所有平台上运行的测试请使用 `goBack()`。
 
 ```ts
@@ -331,6 +497,12 @@ await app.pressBack();
 | `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |
 
 ### `openUrl(url, options?)` {#openurl}
+
+```ts
+openUrl(url: string, options?: ActionOptions): Promise<void>
+```
+
+类型： [`ActionOptions`](./api-types#actionoptions)
 
 打开一个深层链接：iOS 上在 App 内打开，Android 上用 `am start`，web 上通过地址栏。App 在后台时（`app.device.sendToBackground()`），像其他 App 那样从 App 外打开该链接；iOS 上会回答系统的「在 … 中打开？」确认。App 回到前台并空闲后 resolve。
 

@@ -36,6 +36,12 @@ test('the home screen is shown', async ({ app }) => {
 
 ## `quiesco()` {#quiesco}
 
+```ts
+quiesco(options?: QuiescoVitestOptions): QuiescoTestConfig
+```
+
+类型： [`QuiescoVitestOptions`](./api-types#quiescovitestoptions) · [`QuiescoTestConfig`](./vitest#quiesco)
+
 `quiesco()` 返回 Quiesco 需要的 `test` 选项。把它展开到 `test` 里，自己的选项写在它后面。
 
 <ResponseField name="workers" type="number" default="1">
@@ -69,6 +75,12 @@ test('the home screen is shown', async ({ app }) => {
 命令行上的 `--fileParallelism --maxWorkers N` 会覆盖 `workers`。
 
 ## `quiescoPlugin()` {#quiesco-plugin}
+
+```ts
+quiescoPlugin(): QuiescoVitestPlugin
+```
+
+类型： [`QuiescoVitestPlugin`](./vitest#quiesco-plugin)
 
 把运行进度发送给 `quiesco test` 的进度条和 [`quiesco ui`](./ui)。只有在它们运行 Vitest 时才会添加自己的 reporter，和你配置的 reporter 并存。不加它测试也能运行，`quiesco test` 会在结束时给出提示。
 
@@ -108,13 +120,13 @@ test.beforeEach(async ({ app }) => {
 平台标签写在测试或 `describe` 的标题里，或者写在测试的 `tags` 选项里：
 
 ```ts
-test('Android only', { tags: ['@android'] }, async ({ app }) => {
+test('Android only', { tags: [Tag.android] }, async ({ app }) => {
   // …
 });
 
-describe('settings @native', () => {
+describe(`settings ${Tag.native}`, () => {
   // 只在 Android 上运行：最内层的标签生效
-  test('the back button closes it @android', async ({ app }) => {
+  test(`the back button closes it ${Tag.android}`, async ({ app }) => {
     // …
   });
 });

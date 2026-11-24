@@ -66,7 +66,7 @@ host type (`'RCTView'`, `'div'`), or the `displayName` of a component that rende
 
 ```ts
 // semantic type: works on every platform
-await app.tap({ type: 'switch' });
+await app.tap({ type: SemanticType.switch });
 
 // a component of the app
 await app.expectCount({ type: 'TodoCard' }, 2);
@@ -78,9 +78,9 @@ The element has a descendant that matches this matcher (Detox `withDescendant`).
 
 ```ts
 // the row that contains "Buy milk"
-await app.swipe({ id: 'todo-row', has: { text: 'Buy milk' } }, 'left');
+await app.swipe({ id: 'todo-row', has: { text: 'Buy milk' } }, Direction.left);
 
-await app.tap({ type: 'button', has: { text: 'Buy milk' } });
+await app.tap({ type: SemanticType.button, has: { text: 'Buy milk' } });
 ```
 
 ### `not` {#not}
@@ -89,7 +89,7 @@ Leaves out elements that match this matcher.
 
 ```ts
 // the only button that is not Cancel
-await app.tap({ type: 'button', not: { id: 'cancel' } });
+await app.tap({ type: SemanticType.button, not: { id: 'cancel' } });
 ```
 
 ### `within` {#within}
@@ -134,8 +134,8 @@ the host component, so they also work in release builds where component names ar
 
 ```ts
 // the Wi-Fi switch on the settings screen
-await app.tap({ type: 'switch', label: 'Wi-Fi' });
-await app.expectChecked({ type: 'switch', label: 'Wi-Fi' });
+await app.tap({ type: SemanticType.switch, label: 'Wi-Fi' });
+await app.expectChecked({ type: SemanticType.switch, label: 'Wi-Fi' });
 ```
 
 A widget made of several hosts counts once. For example, react-native-web's `Switch` is a `<div>` around

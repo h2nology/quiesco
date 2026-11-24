@@ -28,6 +28,12 @@ Every method takes the `timeoutMs` and `sync` [call options](./api.md#call-optio
 
 ### `webview(target?)` {#webview}
 
+```ts
+webview(target?: MatcherInput): WebView
+```
+
+Types: [`MatcherInput`](./api-types.md#matcherinput) · [`WebView`](./api-webview.md#webview)
+
 The WebView matching `target`, any [matcher](./api-matchers.md) such as its testID. Without an argument, the
 only WebView on screen.
 
@@ -39,6 +45,12 @@ const page = app.webview();
 ```
 
 ### `element(query)` {#element}
+
+```ts
+element(query: WebElementQuery): WebElement
+```
+
+Types: [`WebElementQuery`](./api-types.md#webelementquery) · [`WebElement`](./api-webview.md#element)
 
 An element of the page. `query` has exactly one of `css`, `xpath`, `id` or `text`, and optionally an
 `index` when several elements match.
@@ -68,6 +80,12 @@ help.element({ css: '.faq-item', index: 1 });
 
 ### `tap(options?)` {#tap}
 
+```ts
+tap(options?: CallOptions): Promise<PageElement>
+```
+
+Types: [`CallOptions`](./api-types.md#calloptions) · [`PageElement`](./api-types.md#pageelement)
+
 A real tap, after scrolling the element into view: on iOS and Android a touch at the element's position on
 the screen, on the web Playwright input.
 
@@ -85,6 +103,12 @@ visible, enabled match appears within the timeout.
 
 ### `type(text, options?)` {#type}
 
+```ts
+type(text: string, options?: CallOptions): Promise<PageElement>
+```
+
+Types: [`CallOptions`](./api-types.md#calloptions) · [`PageElement`](./api-types.md#pageelement)
+
 Taps the field, so it gets the focus as from a user, then inserts `text` at the caret
 (`execCommand('insertText')`, which fires `input` events like typing). There is no software keyboard input.
 
@@ -99,6 +123,12 @@ await help.element({ css: '#name' }).type('Alice');
 
 ### `replaceText(text, options?)` {#replacetext}
 
+```ts
+replaceText(text: string, options?: CallOptions): Promise<PageElement>
+```
+
+Types: [`CallOptions`](./api-types.md#calloptions) · [`PageElement`](./api-types.md#pageelement)
+
 Taps the field, then replaces its whole value with `text`.
 
 ```ts
@@ -112,6 +142,12 @@ await help.element({ xpath: '//input[@name="name"]' }).replaceText('Bob');
 
 ### `scrollIntoView(options?)` {#scrollintoview}
 
+```ts
+scrollIntoView(options?: CallOptions): Promise<PageElement>
+```
+
+Types: [`CallOptions`](./api-types.md#calloptions) · [`PageElement`](./api-types.md#pageelement)
+
 Scrolls the page until the element is in view.
 
 ```ts
@@ -124,6 +160,12 @@ await help.element({ css: '#footer' }).scrollIntoView();
 | `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
 
 ### `screenshot(options?)` {#screenshot}
+
+```ts
+screenshot(options?: CallOptions): Promise<Buffer>
+```
+
+Types: [`CallOptions`](./api-types.md#calloptions)
 
 A PNG of the element, scrolled into view first: the part inside the WebView's visible area. More on
 [screenshots](./api-screenshots.md).
@@ -144,6 +186,12 @@ runs out.
 
 ### `expectText(text, options?)` {#expecttext}
 
+```ts
+expectText(text: TextQuery, options?: CallOptions): Promise<PageElement>
+```
+
+Types: [`TextQuery`](./api-types.md#textquery) · [`CallOptions`](./api-types.md#calloptions) · [`PageElement`](./api-types.md#pageelement)
+
 The single match's text equals `text` (whitespace collapsed), or matches a RegExp. For an input field, its
 value.
 
@@ -159,6 +207,12 @@ await help.element({ css: '#name' }).expectText(/^Bo/);
 
 ### `expectExists(options?)` {#expectexists}
 
+```ts
+expectExists(options?: CallOptions): Promise<PageElement[]>
+```
+
+Types: [`CallOptions`](./api-types.md#calloptions) · [`PageElement`](./api-types.md#pageelement)
+
 At least one element matches, visible or not.
 
 ```ts
@@ -171,6 +225,12 @@ await help.element({ css: 'form#contact' }).expectExists();
 | `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
 
 ### `expectNotExists(options?)` {#expectnotexists}
+
+```ts
+expectNotExists(options?: CallOptions): Promise<void>
+```
+
+Types: [`CallOptions`](./api-types.md#calloptions)
 
 No element matches.
 
@@ -185,6 +245,12 @@ await help.element({ css: '.error' }).expectNotExists();
 
 ### `expectVisible(options?)` {#expectvisible}
 
+```ts
+expectVisible(options?: CallOptions): Promise<PageElement[]>
+```
+
+Types: [`CallOptions`](./api-types.md#calloptions) · [`PageElement`](./api-types.md#pageelement)
+
 A match is visible: in the page's viewport (not scrolled away) and not hidden by CSS.
 
 ```ts
@@ -197,6 +263,12 @@ await help.element({ text: 'Thanks for your message' }).expectVisible();
 | `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
 
 ### `expectNotVisible(options?)` {#expectnotvisible}
+
+```ts
+expectNotVisible(options?: CallOptions): Promise<void>
+```
+
+Types: [`CallOptions`](./api-types.md#calloptions)
 
 No match is visible: each one is scrolled away, hidden by CSS, or missing.
 
@@ -212,6 +284,16 @@ await help.element({ text: /^Loading/ }).expectNotVisible();
 ## The page {#the-page}
 
 ### `runScript(body, args?, options?)` {#runscript}
+
+```ts
+runScript<T extends JsonValue = JsonValue>(
+  body: string,
+  args?: JsonValue[],
+  options?: CallOptions,
+): Promise<T>
+```
+
+Types: [`JsonValue`](./api-types.md#jsonvalue) · [`CallOptions`](./api-types.md#calloptions)
 
 Runs a function body in the page and returns its value, as JSON. `args` are passed as `arguments`; a
 returned promise is awaited.
@@ -238,6 +320,12 @@ Content-Security-Policy may forbid.
 
 ### `url(options?)` {#url}
 
+```ts
+url(options?: CallOptions): Promise<string>
+```
+
+Types: [`CallOptions`](./api-types.md#calloptions)
+
 The page's URL, `location.href`.
 
 ```ts
@@ -251,6 +339,12 @@ expect(await help.url()).toMatch(/\/pricing$/);
 | `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api.md#call-options)) |
 
 ### `title(options?)` {#title}
+
+```ts
+title(options?: CallOptions): Promise<string>
+```
+
+Types: [`CallOptions`](./api-types.md#calloptions)
 
 The page's title, `document.title`.
 

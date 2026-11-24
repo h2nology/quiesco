@@ -8,7 +8,9 @@ import type { StepTiming, WaitEnd } from './timing.js';
 
 export type { StepTiming, WaitEnd } from './timing.js';
 
-export type Platform = 'ios' | 'android' | 'web';
+/** The platforms Quiesco drives. A constant as well as a type: `Platform.ios` is `'ios'`. */
+export const Platform = { ios: 'ios', android: 'android', web: 'web' } as const;
+export type Platform = (typeof Platform)[keyof typeof Platform];
 
 /** State of one idle tracker (requirements.md §6.2 `IdleTracker`). */
 export interface TrackerState {
@@ -132,10 +134,13 @@ export interface WebViewCallResult {
   viaHost?: boolean;
 }
 
-export type Orientation = 'portrait' | 'landscape';
+/** For `app.device.setOrientation`. */
+export const Orientation = { portrait: 'portrait', landscape: 'landscape' } as const;
+export type Orientation = (typeof Orientation)[keyof typeof Orientation];
 
 /** `AppState` as React Native reports it; `unknown` where it cannot be read. */
-export type AppStateName = 'active' | 'background' | 'inactive' | 'unknown';
+export const AppStateName = { active: 'active', background: 'background', inactive: 'inactive', unknown: 'unknown' } as const;
+export type AppStateName = (typeof AppStateName)[keyof typeof AppStateName];
 
 export interface DeviceInfo {
   /** The app window in logical units (dp / pt / CSS px), the space of element rects. */

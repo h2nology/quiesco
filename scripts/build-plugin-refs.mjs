@@ -42,6 +42,8 @@ const PAGES = {
     'api-webview',
     'api-in-app',
     'api-tags',
+    'api-constants',
+    'api-types',
     'api-errors',
     'api-artifacts',
     'api-custom-runners',

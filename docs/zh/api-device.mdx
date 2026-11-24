@@ -11,6 +11,12 @@ App 之外的系统 UI（权限弹窗、生物识别、通知）见 [系统 UI](
 
 ### `relaunch(options?)` {#relaunch}
 
+```ts
+relaunch(options?: RelaunchOptions): Promise<void>
+```
+
+类型： [`RelaunchOptions`](./api-types#relaunchoptions)
+
 终止 App 并重新启动——始终是一个新进程。除非指定 `clearData` 或 `reinstall`，否则保留 App 数据。App 连接上之后 resolve。
 
 ```ts
@@ -21,7 +27,7 @@ await app.device.relaunch({ args: { user: 'ann', retries: 3 }, url: 'myapp://tod
 await app.device.relaunch({ clearData: true });
 
 // 全新安装，并预先允许相机权限
-await app.device.relaunch({ reinstall: true, permissions: ['camera'] });
+await app.device.relaunch({ reinstall: true, permissions: [Permission.camera] });
 ```
 
 | 选项 | 含义 |
@@ -36,6 +42,10 @@ await app.device.relaunch({ reinstall: true, permissions: ['camera'] });
 
 ### `terminate()` {#terminate}
 
+```ts
+terminate(): Promise<void>
+```
+
 停止 App。在下一次 `relaunch()` 之前，所有元素调用都会立即以 `APP_NOT_RUNNING` 失败，不等待。
 
 ```ts
@@ -45,6 +55,10 @@ await app.expectVisible('home-screen');
 ```
 
 ### `sendToBackground()` {#sendtobackground}
+
+```ts
+sendToBackground(): Promise<void>
+```
 
 回到主屏幕，相当于按下 Home 键；进程继续运行。在 `bringToForeground()` 之前，元素调用会以 `APP_IN_BACKGROUND` 失败。web 上不可用（`ACTION_NOT_SUPPORTED`）。
 
@@ -56,6 +70,10 @@ await app.openUrl('myapp://todos/42');
 ```
 
 ### `bringToForeground()` {#bringtoforeground}
+
+```ts
+bringToForeground(): Promise<void>
+```
 
 把处于后台的 App 切回前台——同一个进程，不重启——并等待它处于活跃且空闲状态。web 上不可用（`ACTION_NOT_SUPPORTED`）。
 
@@ -69,6 +87,10 @@ await app.expectVisible('pin-screen');
 
 ### `install()` {#install}
 
+```ts
+install(): Promise<void>
+```
+
 从配置的 `binaryPath` 安装 App（[apps](./config#apps)）。正在运行的 App 会被停止：请用 `relaunch()` 启动它。
 
 ```ts
@@ -77,6 +99,10 @@ await app.device.relaunch();
 ```
 
 ### `uninstall()` {#uninstall}
+
+```ts
+uninstall(): Promise<void>
+```
 
 从设备上移除 App。web 上没有可卸载的东西（`ACTION_NOT_SUPPORTED`）：请改用 `relaunch({ clearData: true })`。
 
@@ -92,10 +118,14 @@ await app.device.relaunch();
 
 ```ts
 await app.device.sendToBackground();
-expect(app.device.appState).toBe('background');
+expect(app.device.appState).toBe(AppRunState.background);
 ```
 
 ### `openUrl(url)` {#openurl}
+
+```ts
+openUrl(url: string): Promise<void>
+```
 
 与 [`app.openUrl`](./api-actions#openurl) 相同：打开一个深层链接。
 
@@ -104,6 +134,10 @@ await app.device.openUrl('myapp://settings');
 ```
 
 ### `pressBack()` {#pressback}
+
+```ts
+pressBack(): Promise<void>
+```
 
 与 [`app.pressBack`](./api-actions#pressback) 相同：Android 返回键，web 上是浏览器后退。
 
@@ -115,6 +149,10 @@ await app.device.pressBack();
 
 ### `reversePort(port)` {#reverseport}
 
+```ts
+reversePort(port: number): Promise<void>
+```
+
 让 host 端的端口在 Android 设备上可以通过 `localhost:port` 访问（`adb reverse`）。在 iOS 模拟器和 web 上不做任何事，它们与 host 共用网络。
 
 ```ts
@@ -123,6 +161,10 @@ await app.device.reversePort(3001);
 ```
 
 ### `unreversePort(port)` {#unreverseport}
+
+```ts
+unreversePort(port: number): Promise<void>
+```
 
 移除用 `reversePort` 设置的转发。在 iOS 模拟器和 web 上不做任何事。
 
@@ -134,23 +176,39 @@ await app.device.unreversePort(3001);
 
 ### `setOrientation(orientation)` {#setorientation}
 
+```ts
+setOrientation(orientation: Orientation): Promise<void>
+```
+
+类型： [`Orientation`](./api-constants#list)
+
 把 App 旋转为 `'portrait'` 或 `'landscape'`，在 App 窗口变为新的形状且 App 空闲后 resolve。App 不能锁定方向（app.json 中 `"orientation": "default"`）。
 
 ```ts
-await app.device.setOrientation('landscape');
+await app.device.setOrientation(Orientation.landscape);
 await app.expectVisible('side-by-side-layout');
 ```
 
 ### `setAppearance(scheme)` {#setappearance}
 
+```ts
+setAppearance(scheme: ColorScheme): Promise<void>
+```
+
+类型： [`ColorScheme`](./api-constants#list)
+
 把系统配色方案切换为 `'light'` 或 `'dark'`，并检查 App 上报的是新的方案。App 必须跟随系统（app.json 中 `"userInterfaceStyle": "automatic"`）。
 
 ```ts
-await app.device.setAppearance('dark');
+await app.device.setAppearance(ColorScheme.dark);
 await app.device.screenshot(undefined, { name: 'home-dark' });
 ```
 
 ### `setFontScale(scale)` {#setfontscale}
+
+```ts
+setFontScale(scale: number): Promise<number>
+```
 
 设置系统文字大小，范围 `0.5` 到 `4`，resolve 的值为实际采用的缩放比例。iOS 使用最接近的 Dynamic Type 尺寸并立即生效；Android 会重新启动 App（保留数据）。web 上不可用。
 
@@ -162,6 +220,10 @@ await app.expectVisible('todo-title', { ratio: 1 });
 ```
 
 ### `setLocale(locale)` {#setlocale}
+
+```ts
+setLocale(locale: string | null): Promise<void>
+```
 
 设置 App 的语言和地区，即 `'ja-JP'` 这样的 BCP 47 标签；`null` 恢复为设备默认值。会以该设置重新启动 App（保留数据）。
 
@@ -177,6 +239,10 @@ await app.device.setLocale(null);
 
 ### `setLocation(latitude, longitude)` {#setlocation}
 
+```ts
+setLocation(latitude: number, longitude: number): Promise<void>
+```
+
 设置模拟的 GPS 位置。Android 上仅限模拟器。
 
 ```ts
@@ -187,15 +253,21 @@ await app.tap('nearby-stores');
 
 ### `setPermission(name, state)` {#setpermission}
 
+```ts
+setPermission(name: Permission, state: PermissionState): Promise<void>
+```
+
+类型： [`Permission`](./api-constants#list) · [`PermissionState`](./api-constants#list)
+
 在 App 运行时更改权限。`state` 为 `'grant'`、`'revoke'` 或 `'reset'`；名称见 [权限](./platforms#permissions)（`camera`、`microphone`、`location`、`notifications`、`contacts`、`photos`、`calendar`）。
 
 ```ts
-await app.device.setPermission('location', 'revoke');
+await app.device.setPermission(Permission.location, PermissionState.revoke);
 await app.tap('nearby-stores');
 await app.expectVisible('location-denied-banner');
 
 // 重新询问：App 下一次请求时会显示系统弹窗
-await app.device.setPermission('camera', 'reset');
+await app.device.setPermission(Permission.camera, PermissionState.reset);
 ```
 
 - **在 Android 上撤销权限**会杀掉 App。Quiesco 会在 resolve 之前重新启动它（保留数据），因此 App 会回到首屏。
@@ -206,14 +278,20 @@ await app.device.setPermission('camera', 'reset');
 
 ### `setNetwork(state)` {#setnetwork}
 
+```ts
+setNetwork(state: NetworkState): Promise<void>
+```
+
+类型： [`NetworkState`](./api-constants#list)
+
 `'offline'`：App 新建的 `fetch` / `XMLHttpRequest` / `WebSocket` 连接会像没有网络时一样失败。Quiesco 自己的连接不受影响，已打开的连接保持打开。`'online'` 撤销这一设置。
 
 ```ts
-await app.device.setNetwork('offline');
+await app.device.setNetwork(NetworkState.offline);
 await app.tap('sync-now');
 await app.expectVisible({ text: 'You are offline' });
 
-await app.device.setNetwork('online');
+await app.device.setNetwork(NetworkState.online);
 ```
 
 - Android 还会关闭 Wi-Fi 和移动数据，web 会报告 `navigator.onLine === false`，因此这两个平台上 NetInfo 能感知到。
@@ -223,6 +301,10 @@ await app.device.setNetwork('online');
 如果想让 App 自己的请求不计入空闲判断，请见 [运行时同步](./api-runtime-sync)（Detox 的 `setURLBlacklist` 在这里对应 `app.sync.ignoreUrls.add()`）。
 
 ### `clipboard.set(text)` {#clipboard-set}
+
+```ts
+clipboard.set(text: string): Promise<void>
+```
 
 在 App 内向设备剪贴板写入纯文本：即 App 粘贴的内容。会在下一个测试前清空。
 
@@ -236,6 +318,10 @@ iOS 和 Android 需要 `@quiesco/native`（≥ Phase 6.6）。
 
 ### `clipboard.get()` {#clipboard-get}
 
+```ts
+clipboard.get(): Promise<string>
+```
+
 读取设备剪贴板：即 App 复制的内容。
 
 ```ts
@@ -246,6 +332,12 @@ expect(await app.device.clipboard.get()).toMatch(/^https:\/\/example\.com\/invit
 iOS 和 Android 需要 `@quiesco/native`（≥ Phase 6.6）；iOS 上读取失败时回退到 `simctl pbpaste`。
 
 ### `setStatusBar(options)` {#setstatusbar}
+
+```ts
+setStatusBar(options: StatusBarOptions): Promise<void>
+```
+
+类型： [`StatusBarOptions`](./api-types#statusbaroptions)
 
 覆盖状态栏（时钟、电量、信号），用于干净的截图。web 没有状态栏，无需处理。
 
@@ -264,6 +356,10 @@ await app.device.screenshot(undefined, { name: 'store-listing' });
 | `dataNetwork` | `'wifi'`、`'3g'`、`'4g'`、`'lte'`、`'5g'`，或 `'hide'` 隐藏蜂窝网络指示 |
 
 ### `resetStatusBar()` {#resetstatusbar}
+
+```ts
+resetStatusBar(): Promise<void>
+```
 
 恢复为真实的状态栏。
 

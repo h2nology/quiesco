@@ -32,6 +32,12 @@ export default function RootLayout() {
 
 ### `withQuiesco(config, options?)` {#withquiesco}
 
+```ts
+withQuiesco<T>(config: T, options?: WithQuiescoOptions): T
+```
+
+Types: [`WithQuiescoOptions`](./api-types#withquiescooptions)
+
 Wraps the Metro config (from `@quiesco/agent/metro`). In builds without `EXPO_PUBLIC_QUIESCO=1` it
 replaces the agent with a no-op stub, so this page's code can stay in the app: production bundles get
 none of it.
@@ -75,6 +81,12 @@ Every registration below returns a function that removes it.
 ## Backdoors {#backdoors}
 
 ### `quiesco.backdoor(name, fn)` {#backdoor}
+
+```ts
+quiesco.backdoor(name: string, fn: Backdoor): () => void
+```
+
+Types: [`Backdoor`](./api-types#backdoor)
 
 Registers a test-only function the test can call with [`app.backdoor(name, ...args)`](./api-queries#backdoor),
 to set up state without going through the UI. `fn` may be async. Its arguments and result must be JSON.
@@ -148,6 +160,10 @@ navigation goes back to the start, and everything under `<QuiescoRoot>` is remou
 
 ### `quiesco.onReset(hook)` {#onreset}
 
+```ts
+quiesco.onReset(hook: () => void | Promise<void>): () => void
+```
+
 Runs `hook` during every soft reset, after storage is cleared and before the app is remounted. Use it for
 state that lives in memory, outside React: caches, stores, a mock backend.
 
@@ -159,6 +175,12 @@ quiesco.onReset(async () => {
 ```
 
 ### `quiesco.registerStorage({ name, clear })` {#registerstorage}
+
+```ts
+quiesco.registerStorage(adapter: StorageAdapter): () => void
+```
+
+Types: [`StorageAdapter`](./api-types#storageadapter)
 
 Adds a store for the soft reset to clear, next to the built-in ones: AsyncStorage's default store on iOS /
 Android; `localStorage`, `sessionStorage` and IndexedDB on the web. `clear` may be async.
@@ -185,6 +207,12 @@ Router, [`reset.expectVisible`](./config#reset) in the config does the same chec
 
 ### `quiesco.launchArgs()` {#launchargs}
 
+```ts
+quiesco.launchArgs(): Record<string, JsonValue>
+```
+
+Types: [`JsonValue`](./api-types#jsonvalue)
+
 Returns the arguments of this launch: the config's `launchArgs` merged with
 [`app.device.relaunch({ args })`](./api-device#relaunch), with their JSON types. It is synchronous, so the
 app can read it at startup. It returns `{}` when there are none, in production, and in builds without
@@ -204,6 +232,10 @@ await app.device.relaunch({ args: { user: 'ann', apiUrl: 'http://localhost:3001'
 ```
 
 ### `quiesco.workerIndex()` {#workerindex}
+
+```ts
+quiesco.workerIndex(): number | null
+```
 
 The index of the [parallel test worker](./parallel) driving this app: `0` when tests run serially, `null`
 until the test host has connected (it connects before the first test command) and in production. Use it

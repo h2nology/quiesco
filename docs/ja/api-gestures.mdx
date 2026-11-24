@@ -16,6 +16,16 @@ description: "ピンチ、回転、そして任意の本数の指を時刻付き
 
 ### `pinch(target, scale, options?)` {#pinch}
 
+```ts
+pinch(
+  target: MatcherInput,
+  scale: number,
+  options?: PinchOptions,
+): Promise<ElementSummary | undefined>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`PinchOptions`](./api-types#pinchoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 要素上の2本の指を、間隔が`scale`倍になるまで広げます（`scale` > 1、拡大）または狭めます（`scale` < 1、縮小）。
 
 ```ts
@@ -23,7 +33,7 @@ description: "ピンチ、回転、そして任意の本数の指を時刻付き
 await app.pinch('map', 2);
 
 // 縮小する。指は垂直線上を動く
-await app.pinch('photo', 0.5, { angle: Math.PI / 2, speed: 'slow' });
+await app.pinch('photo', 0.5, { angle: Math.PI / 2, speed: Speed.slow });
 ```
 
 | オプション | デフォルト | 意味 |
@@ -38,6 +48,16 @@ await app.pinch('photo', 0.5, { angle: Math.PI / 2, speed: 'slow' });
 
 ### `rotate(target, radians, options?)` {#rotate}
 
+```ts
+rotate(
+  target: MatcherInput,
+  radians: number,
+  options?: RotateOptions,
+): Promise<ElementSummary | undefined>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`RotateOptions`](./api-types#rotateoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 2本の指が要素の中心のまわりを`radians`だけ回ります。正の値は画面上で時計回りです。
 
 ```ts
@@ -45,7 +65,7 @@ await app.pinch('photo', 0.5, { angle: Math.PI / 2, speed: 'slow' });
 await app.rotate('photo', Math.PI / 2);
 
 // ゆっくり元に戻す
-await app.rotate('photo', -Math.PI / 2, { speed: 'slow' });
+await app.rotate('photo', -Math.PI / 2, { speed: Speed.slow });
 ```
 
 | オプション | デフォルト | 意味 |
@@ -70,6 +90,15 @@ await app.rotate('photo', -Math.PI / 2, { speed: 'slow' });
 ## 任意のタッチ経路 {#any-touch-paths}
 
 ### `multiTouch(fingers, options?)` {#multitouch}
+
+```ts
+multiTouch(
+  fingers: TimedPoint[][],
+  options?: MultiTouchOptions,
+): Promise<void>
+```
+
+型： [`TimedPoint`](./api-types#timedpoint) · [`MultiTouchOptions`](./api-types#multitouchoptions)
 
 任意の本数の指を、時刻付きの経路に沿って動かします。`fingers[i]`は指`i`の`{ x, y, t }`の点列で、`t`は開始からのミリ秒です。各指は最初の点で触れ、最後の点で離れます。
 

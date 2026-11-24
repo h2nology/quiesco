@@ -161,9 +161,14 @@ function collapseAgentFrames(upstream) {
 }
 
 /**
+ * `withQuiesco()` options.
+ * @typedef {{ enabled?: boolean; env?: NodeJS.ProcessEnv; projectRoot?: string; artifactsDir?: string | false; nativeModules?: boolean; argv?: readonly string[] }} WithQuiescoOptions
+ */
+
+/**
  * @template {{ projectRoot?: string; resolver?: { resolveRequest?: Function | null; blockList?: RegExp | RegExp[] | null }; serializer?: { getModulesRunBeforeMainModule?: (entryFilePath: string) => string[] }; symbolicator?: { customizeFrame?: ((frame: { file?: string }) => unknown) | null } }} T
  * @param {T} config Metro config (e.g. from expo/metro-config)
- * @param {{ enabled?: boolean; env?: NodeJS.ProcessEnv; projectRoot?: string; artifactsDir?: string | false; nativeModules?: boolean; argv?: readonly string[] }} [options]
+ * @param {WithQuiescoOptions} [options]
  *   `nativeModules`: wrap native modules for the `native-module` tracker (default:
  *   `EXPO_PUBLIC_QUIESCO_NATIVE_MODULES=1`). `argv`: Metro's command line (default: this process's).
  * @returns {T}

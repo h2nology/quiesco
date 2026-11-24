@@ -1,0 +1,103 @@
+<!-- Generated from docs/api-constants.mdx by scripts/build-plugin-refs.mjs — do not edit. -->
+
+# Constants
+
+The fixed strings a test writes (tags, platforms, directions, permissions, error names …) as constants, so a typo fails at the import instead of at run time.
+Tags, directions, permission names and the other fixed strings of the API are also exported as
+constants. A constant is an object whose values are those strings: `Tag.ios` is `'@ios'`,
+`Direction.up` is `'up'`. Writing the constant instead of the string gives you completion in the editor,
+and a misspelled name is an error before the test runs (a misspelled tag in a title is silently ignored:
+the test runs everywhere).
+
+Each constant is also a type of the same name (`Direction` is `'up' | 'down' | 'left' | 'right'`), so a
+helper of your own can take the same values as the API.
+
+## Using them {#using}
+
+**Vitest:**
+
+```ts
+import { Direction, ErrorName, Permission, PermissionState, Speed, Tag, describe, expect, test } from '@quiesco/vitest';
+
+test(`the back button closes the sheet ${Tag.android}`, async ({ app }) => {
+  await app.pressBack();
+});
+
+test('Face ID login', { tags: [Tag.native, Tag.hardReset] }, async ({ app }) => {
+  await app.device.setPermission(Permission.camera, PermissionState.grant);
+  await app.swipe('card', Direction.left, { speed: Speed.fast });
+});
+
+describe(`settings ${Tag.native}`, () => {
+  test('a terminated app cannot be tapped', async ({ app }) => {
+    await app.device.terminate();
+    await expect(app.tap('save')).rejects.toMatchObject({ errorName: ErrorName.APP_NOT_RUNNING });
+  });
+});
+```
+
+**Jest:**
+
+```js
+// The constants are on the `quiesco` global (also exported by @quiesco/jest)
+const { Direction, Tag } = quiesco;
+
+describe(`settings ${Tag.native}`, () => {
+  test(`the back button closes it ${Tag.android}`, async () => {
+    await quiesco.app.swipe('card', Direction.left);
+  });
+});
+```
+
+**Cucumber:**
+
+```ts
+import { Direction, Orientation } from '@quiesco/cucumber';
+import { When } from '@cucumber/cucumber';
+import type { QuiescoWorld } from '@quiesco/cucumber';
+
+When('I turn the phone sideways', async function (this: QuiescoWorld) {
+  await this.app.device.setOrientation(Orientation.landscape);
+});
+
+When('I swipe the card away', async function (this: QuiescoWorld) {
+  await this.app.swipe('card', Direction.left);
+});
+```
+
+In `.feature` files tags stay as they are (`@android`): Gherkin has no imports.
+
+## The constants {#list}
+
+| Constant | Values | Where |
+|---|---|---|
+| `Tag` | `ios` `android` `web` `native` `chromium` `firefox` `webkit` `hardReset` (`'@ios'` … `'@hard-reset'`) | [test tags](./api-tags.md) |
+| `Platform` | `ios` `android` `web` | `session.provider.platform` |
+| `WebBrowser` | `chromium` `firefox` `webkit` | [`devices.web.browser`](./config.md#devices-web) |
+| `Direction` | `up` `down` `left` `right` | [`scroll`, `swipe`](./api-gestures.md) |
+| `Edge` | `top` `bottom` `left` `right` | [`scrollToEdge`](./api-gestures.md) |
+| `Speed` | `slow` `normal` `fast` | `{ speed }` of [`swipe`, `drag`, `pinch`, `rotate`](./api-gestures.md) |
+| `KeyName` | `enter` `backspace` | [`pressKey`](./api-actions.md) |
+| `ActionMode` | `native` `js` | `{ mode }` of [actions](./api-actions.md) |
+| `SemanticType` | `button` `link` `header` `text` `input` `image` `switch` `checkbox` `radio` `slider` `picker` `progress` `scroll` `list` | `{ type }` of [matchers](./api-matchers.md) |
+| `Orientation` | `portrait` `landscape` | [`device.setOrientation`](./api-device.md) |
+| `ColorScheme` | `light` `dark` | [`device.setAppearance`](./api-device.md) |
+| `Permission` | `camera` `microphone` `location` `notifications` `contacts` `photos` `calendar` | [`device.setPermission`](./api-device.md), `permissions` in the config |
+| `PermissionState` | `grant` `revoke` `reset` | [`device.setPermission`](./api-device.md) |
+| `NetworkState` | `offline` `online` | [`device.setNetwork`](./api-device.md) |
+| `AppRunState` | `running` `background` `terminated` | [the app's run state](./api-device.md) |
+| `AppStateName` | `active` `background` `inactive` `unknown` | React Native's `AppState` |
+| `ErrorName` | `ELEMENT_NOT_FOUND`, `APP_NOT_RUNNING` … (every name) | `errorName` of [errors](./api-errors.md) |
+
+Apart from `Tag`, every value is its own name (`Speed.fast` is `'fast'`). `HostErrorName` holds only the
+errors raised on the host (`CONNECT_TIMEOUT`, `APP_CRASHED` …).
+
+## Renamed tags {#renamed-tags}
+
+`Tag` holds the default names. A project that [renames the tags](./api-tags.md#renaming) writes its own
+names; keep them in a constant of your own next to the config:
+
+```ts
+// e2e/tags.ts
+export const MyTag = { web: '@browser', webkit: '@safari' } as const;
+```

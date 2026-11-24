@@ -16,34 +16,39 @@ description: "在测试标题或 Gherkin 中用标签让测试只在某些平台
 
 你自己的标签（例如 `@smoke`）可以和它们写在一起；Quiesco 会忽略这些标签。
 
+在 Vitest 和 Jest 的代码里，这些标签也有对应的[常量](./api-constants)：`` `… ${Tag.android}` ``、
+`{ tags: [Tag.native, Tag.hardReset] }`。
+
 ## 编写标签 {#writing-tags}
 
 <CodeGroup>
 ```ts Vitest
-import { describe, test } from '@quiesco/vitest';
+import { Tag, describe, test } from '@quiesco/vitest';
 
 // 写在标题中
-test('the back button closes the sheet @android', async ({ app }) => {
+test(`the back button closes the sheet ${Tag.android}`, async ({ app }) => {
   await app.pressBack();
 });
 
 // 或写在 tags 选项中
-test('Face ID login', { tags: ['@native', '@hard-reset'] }, async ({ app }) => {
+test('Face ID login', { tags: [Tag.native, Tag.hardReset] }, async ({ app }) => {
   await app.device.biometrics.enroll();
 });
 
-describe('settings @native', () => {
+describe(`settings ${Tag.native}`, () => {
   // 只在 Android 上运行：由最内层的标签决定
-  test('the back button closes it @android', async ({ app }) => {
+  test(`the back button closes it ${Tag.android}`, async ({ app }) => {
     await app.pressBack();
   });
 });
 ```
 ```js Jest
 // Jest 没有测试选项：标签写在测试或 describe 的标题中
-describe('settings @native', () => {
+const { Tag } = quiesco;
+
+describe(`settings ${Tag.native}`, () => {
   // 只在 Android 上运行：由最内层的标签决定
-  test('the back button closes it @android', async () => {
+  test(`the back button closes it ${Tag.android}`, async () => {
     await quiesco.app.pressBack();
   });
 });

@@ -14,6 +14,15 @@ Coordinates are logical units: points on iOS, dp on Android, CSS pixels on the w
 
 ### `tap(target, options?)` {#tap}
 
+```ts
+tap(
+  target: MatcherInput,
+  options?: TapOptions,
+): Promise<ElementSummary | undefined>
+```
+
+Types: [`MatcherInput`](./api-types#matcherinput) · [`TapOptions`](./api-types#tapoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 Taps the center of the element. An element partly cut off by a scroll view or an `overflow` ancestor is
 tapped at the center of its visible part.
 
@@ -33,6 +42,15 @@ await app.tap('map', { point: { x: 40, y: 120 } });
 
 ### `doubleTap(target, options?)` {#doubletap}
 
+```ts
+doubleTap(
+  target: MatcherInput,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+Types: [`MatcherInput`](./api-types#matcherinput) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 Two taps in one gesture.
 
 ```ts
@@ -46,6 +64,16 @@ await app.doubleTap('photo');
 | `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 ### `multiTap(target, count, options?)` {#multitap}
+
+```ts
+multiTap(
+  target: MatcherInput,
+  count: number,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+Types: [`MatcherInput`](./api-types#matcherinput) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
 
 `count` taps in one gesture.
 
@@ -61,6 +89,15 @@ await app.multiTap('version-label', 3);
 | `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 ### `longPress(target, options?)` {#longpress}
+
+```ts
+longPress(
+  target: MatcherInput,
+  options?: LongPressOptions,
+): Promise<ElementSummary | undefined>
+```
+
+Types: [`MatcherInput`](./api-types#matcherinput) · [`LongPressOptions`](./api-types#longpressoptions) · [`ElementSummary`](./api-types#elementsummary)
 
 Presses and holds the element.
 
@@ -80,6 +117,12 @@ await app.longPress('message', { durationMs: 1500, point: { x: 10, y: 10 } });
 
 ### `tapAt(point, options?)` {#tapat}
 
+```ts
+tapAt(point: Point, options?: ActionOptions): Promise<void>
+```
+
+Types: [`Point`](./api-types#point) · [`ActionOptions`](./api-types#actionoptions)
+
 Taps a point of the screen (window coordinates), whatever is there.
 
 ```ts
@@ -94,6 +137,12 @@ await app.tapAt({ x: 200, y: 100 });
 | `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 ### `longPressAt(point, options?)` {#longpressat}
+
+```ts
+longPressAt(point: Point, options?: LongPressAtOptions): Promise<void>
+```
+
+Types: [`Point`](./api-types#point) · [`LongPressAtOptions`](./api-types#longpressatoptions)
 
 Presses and holds a point of the screen (window coordinates).
 
@@ -110,6 +159,16 @@ await app.longPressAt({ x: 200, y: 400 }, { durationMs: 1000 });
 ## Text input {#text-input}
 
 ### `type(target, text, options?)` {#type}
+
+```ts
+type(
+  target: MatcherInput,
+  text: string,
+  options?: TypeOptions,
+): Promise<ElementSummary | undefined>
+```
+
+Types: [`MatcherInput`](./api-types#matcherinput) · [`TypeOptions`](./api-types#typeoptions) · [`ElementSummary`](./api-types#elementsummary)
 
 Focuses the input and enters `text` after what is already there. In `native` mode the text goes through
 the system's input method, so any language works. On iOS and Android the whole text arrives at once; on the
@@ -132,6 +191,16 @@ await app.type('search', 'milk', { perCharacter: true });
 
 ### `replaceText(target, text, options?)` {#replacetext}
 
+```ts
+replaceText(
+  target: MatcherInput,
+  text: string,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+Types: [`MatcherInput`](./api-types#matcherinput) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 Replaces the whole text of the input at once.
 
 ```ts
@@ -145,6 +214,15 @@ await app.replaceText('email', 'bob@example.com');
 | `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 ### `clear(target, options?)` {#clear}
+
+```ts
+clear(
+  target: MatcherInput,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+Types: [`MatcherInput`](./api-types#matcherinput) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
 
 Empties the input.
 
@@ -160,15 +238,25 @@ await app.clear('search');
 
 ### `pressKey(target, key, options?)` {#presskey}
 
+```ts
+pressKey(
+  target: MatcherInput,
+  key: KeyName,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+Types: [`MatcherInput`](./api-types#matcherinput) · [`KeyName`](./api-constants#list) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 Sends the return key (`'enter'`) or `'backspace'` to the field. `'enter'` submits a single-line input and
 adds a newline in a multi-line one. The field only has to exist: the key reaches it even where the
 keyboard's return key would be out of reach.
 
 ```ts
 await app.type('search', 'milk');
-await app.pressKey('search', 'enter');
+await app.pressKey('search', KeyName.enter);
 
-await app.pressKey('code-input', 'backspace');
+await app.pressKey('code-input', KeyName.backspace);
 ```
 
 | Option | Default | Meaning |
@@ -178,6 +266,12 @@ await app.pressKey('code-input', 'backspace');
 | `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 ### `dismissKeyboard(options?)` {#dismisskeyboard}
+
+```ts
+dismissKeyboard(options?: ActionOptions): Promise<void>
+```
+
+Types: [`ActionOptions`](./api-types#actionoptions)
 
 Hides the software keyboard.
 
@@ -196,14 +290,24 @@ await app.dismissKeyboard();
 
 ### `scroll(target, direction, options?)` {#scroll}
 
+```ts
+scroll(
+  target: MatcherInput,
+  direction: Direction,
+  options?: ScrollOptions,
+): Promise<ElementSummary | undefined>
+```
+
+Types: [`MatcherInput`](./api-types#matcherinput) · [`Direction`](./api-constants#list) · [`ScrollOptions`](./api-types#scrolloptions) · [`ElementSummary`](./api-types#elementsummary)
+
 Scrolls a scroll view. `'down'` reveals the content below. In `native` mode a finger drags and slows down
 to a stop, so the content moves by about `distance` without a fling (less the system's touch slop: about
 10 pt on iOS, 7% on Android).
 
 ```ts
-await app.scroll('feed', 'down');
+await app.scroll('feed', Direction.down);
 
-await app.scroll('feed', 'down', { distance: 300, from: { x: 0.5, y: 0.8 } });
+await app.scroll('feed', Direction.down, { distance: 300, from: { x: 0.5, y: 0.8 } });
 ```
 
 | Option | Default | Meaning |
@@ -215,6 +319,16 @@ await app.scroll('feed', 'down', { distance: 300, from: { x: 0.5, y: 0.8 } });
 | `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 ### `scrollTo(container, target, options?)` {#scrollto}
+
+```ts
+scrollTo(
+  container: MatcherInput,
+  target: MatcherInput,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+Types: [`MatcherInput`](./api-types#matcherinput) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
 
 Scrolls `container` until the center of `target` is visible (where a tap goes): down, then up; right,
 then left in a horizontal list. Each step moves less than one screenful, so nothing is skipped. At an end
@@ -233,11 +347,21 @@ await app.tap('sign-out');
 
 ### `scrollToEdge(target, edge, options?)` {#scrolltoedge}
 
+```ts
+scrollToEdge(
+  target: MatcherInput,
+  edge: Edge,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+Types: [`MatcherInput`](./api-types#matcherinput) · [`Edge`](./api-constants#list) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 Scrolls to the `'top'`, `'bottom'`, `'left'` or `'right'` end. A virtualized list that renders more rows as
 it scrolls is followed while it grows (in `native` mode with real flings).
 
 ```ts
-await app.scrollToEdge('feed', 'bottom');
+await app.scrollToEdge('feed', Edge.bottom);
 await app.expectVisible({ text: 'No more posts' });
 ```
 
@@ -248,6 +372,16 @@ await app.expectVisible({ text: 'No more posts' });
 | `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 ### `scrollToIndex(list, index, options?)` {#scrolltoindex}
+
+```ts
+scrollToIndex(
+  list: MatcherInput,
+  index: number,
+  options?: ScrollToIndexOptions,
+): Promise<ElementSummary | undefined>
+```
+
+Types: [`MatcherInput`](./api-types#matcherinput) · [`ScrollToIndexOptions`](./api-types#scrolltoindexoptions) · [`ElementSummary`](./api-types#elementsummary)
 
 Brings row `index` of a `FlatList` / `FlashList` into view, also without `getItemLayout`.
 
@@ -272,13 +406,23 @@ call's timeout for the app to settle.
 
 ### `swipe(target, direction, options?)` {#swipe}
 
+```ts
+swipe(
+  target: MatcherInput,
+  direction: Direction,
+  options?: SwipeOptions,
+): Promise<ElementSummary | undefined>
+```
+
+Types: [`MatcherInput`](./api-types#matcherinput) · [`Direction`](./api-constants#list) · [`SwipeOptions`](./api-types#swipeoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 A swipe with inertia. `direction` is the direction the finger moves.
 
 ```ts
 // reveal the row's delete button
-await app.swipe({ id: 'todo-row', index: 0 }, 'left');
+await app.swipe({ id: 'todo-row', index: 0 }, Direction.left);
 
-await app.swipe('carousel', 'left', { speed: 'fast', distance: 250 });
+await app.swipe('carousel', Direction.left, { speed: Speed.fast, distance: 250 });
 ```
 
 | Option | Default | Meaning |
@@ -292,6 +436,16 @@ await app.swipe('carousel', 'left', { speed: 'fast', distance: 250 });
 
 ### `drag(target, to, options?)` {#drag}
 
+```ts
+drag(
+  target: MatcherInput,
+  to: MatcherInput | { point: Point },
+  options?: DragOptions,
+): Promise<ElementSummary | undefined>
+```
+
+Types: [`MatcherInput`](./api-types#matcherinput) · [`Point`](./api-types#point) · [`DragOptions`](./api-types#dragoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 Presses and holds the element, moves it to the center of `to` (an element), or to `{ point }` (window
 coordinates), and releases. It needs real touches: not available in `js` mode.
 
@@ -299,7 +453,7 @@ coordinates), and releases. It needs real touches: not available in `js` mode.
 // reorder: drag the first row onto the third
 await app.drag({ id: 'todo-row', index: 0 }, { id: 'todo-row', index: 2 });
 
-await app.drag('pin', { point: { x: 160, y: 420 } }, { holdMs: 300, speed: 'slow' });
+await app.drag('pin', { point: { x: 160, y: 420 } }, { holdMs: 300, speed: Speed.slow });
 ```
 
 | Option | Default | Meaning |
@@ -315,6 +469,12 @@ Pinch, rotate and other gestures with several fingers are on [multi-finger gestu
 ## Navigation {#navigation}
 
 ### `goBack(options?)` {#goback}
+
+```ts
+goBack(options?: ActionOptions): Promise<void>
+```
+
+Types: [`ActionOptions`](./api-types#actionoptions)
 
 Goes back to the previous screen the way a user does on each platform: the Android back button (after
 closing the keyboard), the browser's back, the navigation bar's back button on iOS, else the iOS edge
@@ -334,6 +494,12 @@ await app.expectVisible('todo-list-screen');
 
 ### `pressBack(options?)` {#pressback}
 
+```ts
+pressBack(options?: ActionOptions): Promise<void>
+```
+
+Types: [`ActionOptions`](./api-types#actionoptions)
+
 The Android back button, or the browser's back on the web. Not available on iOS (`ACTION_NOT_SUPPORTED`):
 use `goBack()` for a test that runs everywhere.
 
@@ -349,6 +515,12 @@ await app.pressBack();
 | `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |
 
 ### `openUrl(url, options?)` {#openurl}
+
+```ts
+openUrl(url: string, options?: ActionOptions): Promise<void>
+```
+
+Types: [`ActionOptions`](./api-types#actionoptions)
 
 Opens a deep link: in the app on iOS, with `am start` on Android, in the address bar on the web. While the
 app is in the background (`app.device.sendToBackground()`), it opens the link from outside the app as

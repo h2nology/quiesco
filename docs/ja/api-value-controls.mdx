@@ -9,6 +9,16 @@ description: "スイッチ、スライダー、ピッカー、セグメンテッ
 
 ### `setValue(target, value, options?)` {#setvalue}
 
+```ts
+setValue(
+  target: MatcherInput,
+  value: number | boolean | string | Date,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 `target`のコントロールに`value`（数値、真偽値、文字列、`Date`のいずれか）を設定します。コントロールが実際の入力を受け付けるならそれを使い（スイッチのタップ、iOSで指で回すホイール、ブラウザーの`<select>`）、そうでなければコンポーネントのコールバックを使います。
 
 ```ts
@@ -132,6 +142,16 @@ await app.setValue('due-date-picker', '2031-12-24');
 
 ### `adjustSlider(target, position, options?)` {#adjustslider}
 
+```ts
+adjustSlider(
+  target: MatcherInput,
+  position: number,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
+
 スライダーのつまみを、実際の指またはマウスで`position`（`0`が最小、`1`が最大）までドラッグします。ドラッグそのものをテストしたいときに使います。`setValue`は代わりに正確な値を設定します。
 
 ```ts
@@ -152,6 +172,16 @@ await app.adjustSlider('volume-slider', 0.5);
 ## アクセシビリティアクション {#accessibility-actions}
 
 ### `accessibilityAction(target, name, options?)` {#accessibilityaction}
+
+```ts
+accessibilityAction(
+  target: MatcherInput,
+  name: string,
+  options?: ActionOptions,
+): Promise<ElementSummary | undefined>
+```
+
+型： [`MatcherInput`](./api-types#matcherinput) · [`ActionOptions`](./api-types#actionoptions) · [`ElementSummary`](./api-types#elementsummary)
 
 アクセシビリティアクション`name`を、スクリーンリーダーと同じように実行します。ターゲット、または`accessibilityActions`を宣言している最も近い祖先に作用します。ターゲットが画面上にある必要はありません。
 

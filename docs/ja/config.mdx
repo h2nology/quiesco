@@ -6,7 +6,7 @@ description: "quiesco.config.mtsのすべての設定項目と、その型とデ
 Quiescoは、実行したディレクトリの`quiesco.config.ts`から設定を読み込みます。`quiesco.config.mts`、`.js`、`.mjs`も使えます。`quiesco init`が作るのは`quiesco.config.mts`です。別のファイルを使うときは、`QUIESCO_CONFIG`にそのパスを設定します。
 
 ```ts
-import { defineConfig } from '@quiesco/core';
+import { Permission, defineConfig } from '@quiesco/core';
 
 export default defineConfig({
   apps: {
@@ -19,7 +19,7 @@ export default defineConfig({
     android: { avd: 'Pixel_9_API_37' },
     web: { viewport: { width: 390, height: 844, hasTouch: true, isMobile: true } },
   },
-  permissions: ['location'],
+  permissions: [Permission.location],
   sync: { ignoreUrls: [/\/analytics\//] },
 });
 ```

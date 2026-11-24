@@ -27,6 +27,12 @@ export default function RootLayout() {
 
 ### `withQuiesco(config, options?)` {#withquiesco}
 
+```ts
+withQuiesco<T>(config: T, options?: WithQuiescoOptions): T
+```
+
+类型： [`WithQuiescoOptions`](./api-types#withquiescooptions)
+
 包装 Metro 配置（来自 `@quiesco/agent/metro`）。在没有 `EXPO_PUBLIC_QUIESCO=1` 的构建中，它会把 agent 替换为一个空实现的桩，因此本页的代码可以一直留在 App 中：生产包里不会包含任何这些代码。
 
 ```js
@@ -64,6 +70,12 @@ if (process.env.EXPO_PUBLIC_QUIESCO === '1') require('../src/e2e');
 ## 后门 {#backdoors}
 
 ### `quiesco.backdoor(name, fn)` {#backdoor}
+
+```ts
+quiesco.backdoor(name: string, fn: Backdoor): () => void
+```
+
+类型： [`Backdoor`](./api-types#backdoor)
 
 注册一个仅用于测试的函数，测试可以用 [`app.backdoor(name, ...args)`](./api-queries#backdoor) 调用它，从而无需经过 UI 就能准备好状态。`fn` 可以是 async。其参数和结果必须是 JSON。用同一名称再次注册会替换原有的注册。
 
@@ -128,6 +140,10 @@ import type {} from '../../src/backdoors';
 
 ### `quiesco.onReset(hook)` {#onreset}
 
+```ts
+quiesco.onReset(hook: () => void | Promise<void>): () => void
+```
+
 在每次软重置时运行 `hook`：存储清空之后、App 重新挂载之前。用于 React 之外、存在于内存中的状态：缓存、store、mock 后端。
 
 ```ts
@@ -138,6 +154,12 @@ quiesco.onReset(async () => {
 ```
 
 ### `quiesco.registerStorage({ name, clear })` {#registerstorage}
+
+```ts
+quiesco.registerStorage(adapter: StorageAdapter): () => void
+```
+
+类型： [`StorageAdapter`](./api-types#storageadapter)
 
 在内置存储之外，添加一个软重置时要清空的存储。内置存储为：iOS / Android 上 AsyncStorage 的默认存储；web 上的 `localStorage`、`sessionStorage` 和 IndexedDB。`clear` 可以是 async。
 
@@ -158,6 +180,12 @@ quiesco.registerStorage({ name: 'mmkv', clear: () => storage.clearAll() });
 
 ### `quiesco.launchArgs()` {#launchargs}
 
+```ts
+quiesco.launchArgs(): Record<string, JsonValue>
+```
+
+类型： [`JsonValue`](./api-types#jsonvalue)
+
 返回本次启动的参数：配置中的 `launchArgs` 与 [`app.device.relaunch({ args })`](./api-device#relaunch) 合并后的结果，保留其 JSON 类型。它是同步调用，因此 App 可以在启动时读取。没有参数时、在生产环境中，以及 iOS / Android 上未包含 `@quiesco/native` 的构建中，返回 `{}`。
 
 ```ts
@@ -174,6 +202,10 @@ await app.device.relaunch({ args: { user: 'ann', apiUrl: 'http://localhost:3001'
 ```
 
 ### `quiesco.workerIndex()` {#workerindex}
+
+```ts
+quiesco.workerIndex(): number | null
+```
 
 驱动此 App 的 [并行测试 worker](./parallel) 的序号：测试串行运行时为 `0`；在测试 host 连接上之前（它会在第一条测试命令之前连接）以及在生产环境中为 `null`。用它来访问该 worker 自己的资源，例如每个 worker 一个的 mock 后端。
 

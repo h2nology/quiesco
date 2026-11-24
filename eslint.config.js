@@ -18,7 +18,7 @@ export default tseslint.config(
   },
   {
     // Jest e2e tests: Jest's globals and the `quiesco` global of @quiesco/jest.
-    files: ['examples/**/e2e/jest/**/*.test.js'],
+    files: ['examples/**/e2e/jest/**/*.test.js', 'examples/todo-tutorial-jest/e2e/**/*.test.js'],
     languageOptions: { globals: { ...globals.jest, quiesco: 'readonly' } },
   },
   {

@@ -86,9 +86,11 @@ state, logs) is written to the artifacts directory and listed in the failure mes
 Jest has no test options, so platform tags go in the test or `describe` title:
 
 ```js
-describe('settings @native', () => {
+const { Tag } = quiesco;
+
+describe(`settings ${Tag.native}`, () => {
   // runs on Android only: the innermost tag decides
-  test('the back button closes it @android', async () => {
+  test(`the back button closes it ${Tag.android}`, async () => {
     await quiesco.app.device.pressBack();
   });
 });

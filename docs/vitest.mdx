@@ -38,6 +38,12 @@ If the project already has a `vitest.config.*` for its unit tests, `init` writes
 
 ## `quiesco()` {#quiesco}
 
+```ts
+quiesco(options?: QuiescoVitestOptions): QuiescoTestConfig
+```
+
+Types: [`QuiescoVitestOptions`](./api-types#quiescovitestoptions) · [`QuiescoTestConfig`](./vitest#quiesco)
+
 `quiesco()` returns the `test` options Quiesco needs. Spread it into `test` and add your own options after
 it.
 
@@ -76,6 +82,12 @@ What it sets:
 `--fileParallelism --maxWorkers N` on the command line overrides `workers`.
 
 ## `quiescoPlugin()` {#quiesco-plugin}
+
+```ts
+quiescoPlugin(): QuiescoVitestPlugin
+```
+
+Types: [`QuiescoVitestPlugin`](./vitest#quiesco-plugin)
 
 Sends the run's progress to the progress bar of `quiesco test` and to [`quiesco ui`](./ui). It adds its
 reporter only when one of them runs Vitest, next to your own reporters. Without it, the tests still run,
@@ -122,13 +134,13 @@ element tree, idle state, logs) is written to the artifacts directory and listed
 Platform tags go in the test or `describe` title, or in the test's `tags` option:
 
 ```ts
-test('Android only', { tags: ['@android'] }, async ({ app }) => {
+test('Android only', { tags: [Tag.android] }, async ({ app }) => {
   // …
 });
 
-describe('settings @native', () => {
+describe(`settings ${Tag.native}`, () => {
   // runs on Android only: the innermost tag decides
-  test('the back button closes it @android', async ({ app }) => {
+  test(`the back button closes it ${Tag.android}`, async ({ app }) => {
     // …
   });
 });

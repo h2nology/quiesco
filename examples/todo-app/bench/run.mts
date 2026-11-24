@@ -12,8 +12,8 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import os from 'node:os';
 
-import { Session, loadConfig, resolvePlatform, silentLogger } from '@quiesco/core';
-import type { ActionMode, QuiescoConfig } from '@quiesco/core';
+import { ActionMode, Platform, Session, loadConfig, resolvePlatform, silentLogger } from '@quiesco/core';
+import type { QuiescoConfig } from '@quiesco/core';
 
 import { startMockServer } from '../mock-server/server.mjs';
 
@@ -68,7 +68,7 @@ const extra = dashes === -1 ? [] : process.argv.slice(dashes + 1);
 function suite(mode: ActionMode): number {
   const t = performance.now();
   const r = spawnSync('npx', ['cucumber-js', '--format', 'summary', ...extra], {
-    env: { ...process.env, QUIESCO_PLATFORM: platform, ...(mode === 'js' ? { QUIESCO_ACTION_MODE: 'js' } : {}) },
+    env: { ...process.env, QUIESCO_PLATFORM: platform, ...(mode === ActionMode.js ? { QUIESCO_ACTION_MODE: ActionMode.js } : {}) },
     encoding: 'utf8',
   });
   if (r.status !== 0) throw new Error(`suite failed in ${mode} mode:\n${r.stdout}\n${r.stderr}`);
@@ -88,13 +88,13 @@ const mock = await startMockServer();
 const results: Record<string, Record<string, Stats>> = {};
 const suiteSeconds: Record<string, number> = {};
 try {
-  for (const mode of ['native', 'js'] as const) results[mode] = await measure(mode, config);
+  for (const mode of [ActionMode.native, ActionMode.js]) results[mode] = await measure(mode, config);
 } finally {
   await mock.close();
 }
-for (const mode of ['native', 'js'] as const) suiteSeconds[mode] = suite(mode);
+for (const mode of [ActionMode.native, ActionMode.js]) suiteSeconds[mode] = suite(mode);
 
-const device = platform === 'android' ? `${adb(['shell', 'getprop', 'ro.boot.qemu.avd_name'])} (Android ${adb(['shell', 'getprop', 'ro.build.version.release'])}, API ${adb(['shell', 'getprop', 'ro.build.version.sdk'])})` : platform;
+const device = platform === Platform.android ? `${adb(['shell', 'getprop', 'ro.boot.qemu.avd_name'])} (Android ${adb(['shell', 'getprop', 'ro.build.version.release'])}, API ${adb(['shell', 'getprop', 'ro.build.version.sdk'])})` : platform;
 const lines = [
   `### ${new Date().toISOString().slice(0, 10)} — ${platform}, ${iterations} iterations`,
   '',
@@ -107,6 +107,6 @@ const lines = [
   '',
   '| Full example suite (s, incl. install + launch) | native | js |',
   '|---|---|---|',
-  `| \`cucumber-js\` | ${suiteSeconds['native']} | ${suiteSeconds['js']} |`,
+  `| \`cucumber-js\` | ${suiteSeconds[ActionMode.native]} | ${suiteSeconds[ActionMode.js]} |`,
 ];
 console.log(lines.join('\n'));
