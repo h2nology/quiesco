@@ -68,13 +68,24 @@ scenario. A permission a platform cannot pre-grant is skipped with a warning.
 | `camera` | — (no simctl service) | `CAMERA` | `camera` |
 | `microphone` | `microphone` | `RECORD_AUDIO` | `microphone` |
 | `location` | `location` | `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | `geolocation` |
-| `notifications` | — (no simctl service) | `POST_NOTIFICATIONS` | `notifications` |
+| `notifications` | SpringBoard's notification settings, before the app starts (no simctl service) | `POST_NOTIFICATIONS` | `notifications` |
 | `contacts` | `contacts` | `READ_CONTACTS` | — |
 | `photos` | `photos` | `READ_MEDIA_IMAGES` | — |
 | `calendar` | `calendar` | `READ_CALENDAR`, `WRITE_CALENDAR` | — |
 
 - Android grants only permissions the app declares in its manifest (`expo.android.permissions` in
   `app.json`); others are reported as a warning.
+- iOS notifications: `simctl privacy` has no service for them. Quiesco writes the app's entry in the
+  simulator's notification settings (`Library/BulletinBoard/VersionedSectionInfo.plist`, as Detox's
+  applesimutils does) and restarts SpringBoard to read it. That happens only before the app starts (at
+  session start, and after `relaunch({ reinstall | clearData })`), and only when the setting is not
+  already "allowed": a reused simulator without reinstalls pays nothing, otherwise about 10 s. Quiesco
+  then waits until SpringBoard and PosterBoard have settled: restarting SpringBoard again while
+  PosterBoard is still setting up has corrupted its data on the simulator (it then crashes at every
+  start; [issue #113](https://github.com/h2nology/quiesco/issues/113)). `setPermission('notifications', …)`
+  is not supported while the app runs; `'reset'` reinstalls the app.
+- If the pre-grant fails, Quiesco answers the app's notifications prompt with "Allow" when it comes
+  across it, and logs that it did. Weaker than a pre-grant: until the app asks, it sees "not determined".
 - iOS still needs the usage description (`NSLocationWhenInUseUsageDescription`, …) in `Info.plist`
   (`expo.ios.infoPlist`) for the app to request the permission at all.
 

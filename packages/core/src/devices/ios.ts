@@ -36,13 +36,19 @@ import type { Exec } from './exec.js';
 import { execCommand } from './exec.js';
 import { LogBuffer, exited, spawnProcess } from './streams.js';
 import type { ChildLike, SpawnProcess } from './streams.js';
-import { IosSystemRunner, PERMISSION_ALLOW, PERMISSION_DENY, backButton, describeAlert, dismissButton, isPermissionAlert, screenNodes } from './ios-runner.js';
+import { plistDict, writeBplist } from './bplist.js';
+import { IOS_NOTIFICATION_SETTINGS_FILE, withNotificationAuthorization } from './ios-notifications.js';
+import type { NotificationAuthorization } from './ios-notifications.js';
+import { IosSystemRunner, PERMISSION_ALLOW, PERMISSION_DENY, backButton, describeAlert, dismissButton, isNotificationPermissionAlert, isPermissionAlert, screenNodes } from './ios-runner.js';
 import type { RunnerScreen } from './ios-runner.js';
 import type { Permission } from './permissions.js';
 import { SERIAL_WORKER } from './provider.js';
 import type { ColorScheme, DeviceProvider, InAppControls, LaunchParams, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions, SystemNode, WorkerInfo } from './provider.js';
 
-/** `simctl privacy` services; camera and notifications have none (Xcode 27). */
+/**
+ * `simctl privacy` services; camera and notifications have none (Xcode 27). Notifications can only be
+ * pre-granted, at a safe point (issue #113: grantPermissions); camera not at all.
+ */
 const IOS_PRIVACY: Partial<Record<Permission, string[]>> = {
   microphone: ['microphone'],
   location: ['location'],
@@ -138,6 +144,8 @@ export interface IosProviderOptions {
   worker?: WorkerInfo;
   /** How long match() / fail() wait for the app's authentication to start (tests). Default 10 s. */
   biometricWaitMs?: number;
+  /** How long SpringBoard and PosterBoard must stay unchanged after a SpringBoard restart (tests). Default 5 s. */
+  springBoardSettleMs?: number;
   /** Where crash reports are written (tests). Default ~/Library/Logs/DiagnosticReports. */
   crashReportDir?: string;
   /** How long crashReport() waits for the report to appear (tests). Default 5 s. */
@@ -256,6 +264,11 @@ const BANNER_WAIT_MS = 5_000;
 const NOTIFICATION_POLL_MS = 250;
 /** System UI slides in for ~430–615 ms: two reads this far apart must agree before a touch (issue #87). */
 const SYSTEM_UI_SETTLE_MS = 250;
+/** How long SpringBoard may take to come back and settle after it is restarted (issue #113). */
+const SPRINGBOARD_RESTART_MS = 30_000;
+/** SpringBoard and PosterBoard unchanged this long = settled (a new SpringBoard ends PosterBoard ~4 s after it starts). */
+const SPRINGBOARD_SETTLED_MS = 5_000;
+const SPRINGBOARD_POLL_MS = 500;
 /** openUrlFromOutside: how long SpringBoard's "Open in …?" confirmation may take to show up. */
 const OPEN_URL_CONFIRM_MS = 5_000;
 /**
@@ -290,6 +303,12 @@ export class IosProvider implements DeviceProvider {
   private readonly logger: Logger;
   /** XCUITest runner for SpringBoard's UI, started on first use (Phase 6.7 batch C). */
   private runnerInstance: SystemRunnerLike | null = null;
+  /**
+   * Why config `permissions: ['notifications']` could not be pre-granted (issue #113), or null. Then the
+   * app's notifications prompt is answered with "Allow" when Quiesco comes across it: weaker than a
+   * pre-grant (the app sees "not determined" until it asks).
+   */
+  private notificationsNotGranted: string | null = null;
   /** A runner start in progress: a warm-up (sendToBackground) and a system UI call share it. */
   private runnerStarting: Promise<void> | null = null;
   /** Phase 6.9 artifacts: the running recorder and log stream. */
@@ -550,9 +569,12 @@ export class IosProvider implements DeviceProvider {
   async setPermission(permission: Permission, grant: boolean): Promise<StateChange> {
     const services = IOS_PRIVACY[permission];
     if (services === undefined) {
-      throw new QuiescoError('ACTION_NOT_SUPPORTED', `the "${permission}" permission cannot be changed on the iOS simulator (simctl privacy has no such service)`, {
+      // Notifications: only by restarting SpringBoard, which is done only before the app starts (issue #113).
+      const hint = permission === 'notifications' ? "grant it before the app starts (config permissions: ['notifications']), or let the app ask and answer with app.device.system.allowPermission()" : undefined;
+      throw new QuiescoError('ACTION_NOT_SUPPORTED', `the "${permission}" permission cannot be changed on the iOS simulator while the app runs (simctl privacy has no such service)`, {
         action: 'setPermission',
         platform: 'ios',
+        ...(hint !== undefined ? { hint } : {}),
       });
     }
     for (const svc of services) await this.simctl(['privacy', this.udid, grant ? 'grant' : 'revoke', svc, this.bundleId]);
@@ -562,7 +584,8 @@ export class IosProvider implements DeviceProvider {
 
   /**
    * `simctl privacy reset` (the app keeps running). Permissions simctl has no service for (notifications,
-   * camera) are only reset by reinstalling the app: the caller does that.
+   * camera) are only reset by reinstalling the app: the caller does that (uninstalling also removes the
+   * app's notification settings, without restarting SpringBoard).
    */
   async resetPermission(permission: Permission): Promise<StateChange> {
     const services = IOS_PRIVACY[permission];
@@ -713,7 +736,7 @@ export class IosProvider implements DeviceProvider {
   /**
    * A simulated remote push (`simctl push`): `data` sits next to `aps`, as a push server would send it. The
    * app's push library sees it while the app is in front; the system shows it only when the app may show
-   * notifications (simctl cannot grant that: the app has to ask).
+   * notifications (config `permissions`, or the app asks and the test allows).
    */
   async sendNotification(n: NotificationSpec): Promise<void> {
     const payload = { aps: { alert: { title: n.title, ...(n.body !== undefined ? { body: n.body } : {}) }, sound: 'default' }, ...n.data };
@@ -727,7 +750,7 @@ export class IosProvider implements DeviceProvider {
           throw new QuiescoError('DEVICE_ERROR', `sendNotification: ${this.bundleId} may not show notifications on ${this.sim?.name ?? this.udid} (iOS: "Source is not authorized")`, {
             action: 'sendNotification',
             platform: 'ios',
-            hint: 'let the app request the permission and allow it first (app.device.system.allowPermission()); each simulator, parallel workers included, keeps its own answer',
+            hint: "grant it before the app starts (config permissions: ['notifications']), or let the app ask and allow it (app.device.system.allowPermission())",
           });
         }
         throw e;
@@ -887,7 +910,10 @@ export class IosProvider implements DeviceProvider {
     let shown: RunnerScreen['others'] = [];
     // The topmost one: in an expanded stack the newest notification comes first.
     const find = async () => {
-      shown = (await runner.screen()).others;
+      const screen = await runner.screen();
+      // The prompt the scheduling brought up (issue #113 fallback): answered, the notification comes.
+      for (const alert of screen.alerts) await this.answerNotificationPrompt(alert);
+      shown = screen.others;
       return shown.filter(matches).sort((a, b) => (a.frame[1] ?? 0) - (b.frame[1] ?? 0))[0];
     };
     const appState = runner.appState?.bind(runner);
@@ -1009,6 +1035,7 @@ export class IosProvider implements DeviceProvider {
     for (let i = 0; i < 3; i++) {
       const alert = (await this.runner.screen().catch(() => null))?.alerts[0];
       if (alert === undefined) return;
+      if (await this.answerNotificationPrompt(alert)) continue;
       if (isPermissionAlert(alert)) {
         const message =
           `a system permission alert left by the previous scenario is still up: ${describeAlert(alert)}. Quiesco does not answer it for you ` +
@@ -1034,6 +1061,10 @@ export class IosProvider implements DeviceProvider {
     for (let i = 0; i < 3; i++) {
       const alert = (await this.runner.screen().catch(() => null))?.alerts[0];
       if (alert === undefined) break;
+      if (await this.answerNotificationPrompt(alert)) {
+        closed.push(alert.label);
+        continue;
+      }
       const button = dismissButton(alert);
       if (button === undefined) break;
       this.logger.warn(`dismissing a system alert covering the app: ${describeAlert(alert)}; tapping ${JSON.stringify(button.label)}`);
@@ -1042,6 +1073,20 @@ export class IosProvider implements DeviceProvider {
       closed.push(alert.label);
     }
     return closed;
+  }
+
+  /**
+   * The fallback when config `permissions: ['notifications']` could not be pre-granted: answer the app's
+   * notifications prompt with "Allow". Whether `alert` was that prompt (and was answered).
+   */
+  private async answerNotificationPrompt(alert: RunnerScreen['alerts'][number]): Promise<boolean> {
+    if (this.notificationsNotGranted === null || !isNotificationPermissionAlert(alert)) return false;
+    const allow = alert.buttons[1];
+    if (allow === undefined) return false;
+    this.logger.warn(`answered the notifications prompt ${describeAlert(alert)} with ${JSON.stringify(allow.label)}: config permissions has notifications, but they could not be pre-granted (${this.notificationsNotGranted})`);
+    const [x = 0, y = 0, w = 0, h = 0] = allow.frame;
+    await this.runner.tap(x + w / 2, y + h / 2);
+    return true;
   }
 
   async unansweredSystemAlert(): Promise<string | undefined> {
@@ -1091,8 +1136,94 @@ export class IosProvider implements DeviceProvider {
 
   async unreversePort(): Promise<void> {}
 
+  /**
+   * The app's notification permission, written into SpringBoard's settings file (issue #113;
+   * ios-notifications.ts), then SpringBoard is restarted to read it. Nothing is written or restarted when
+   * the setting already is `want`.
+   * @returns whether it changed: SpringBoard was restarted, which ended the running apps.
+   */
+  private async setNotifications(want: NotificationAuthorization): Promise<boolean> {
+    const data = this.sim?.dataPath;
+    if (data === undefined) {
+      throw new QuiescoError('DEVICE_ERROR', `cannot find the data directory of ${this.sim?.name ?? 'the simulator'}, which holds its notification settings`, {
+        action: 'setPermission',
+        platform: 'ios',
+      });
+    }
+    const file = path.join(data, IOS_NOTIFICATION_SETTINGS_FILE);
+    let current: Buffer | null = await fs.readFile(file).catch(() => null);
+    // SpringBoard writes it as XML; written back as binary, which it reads all the same.
+    if (current !== null && current.toString('latin1', 0, 8) !== 'bplist00') current = (await this.exec('plutil', ['-convert', 'binary1', '-o', '-', file])).stdout;
+    current ??= writeBplist(plistDict({ sectionInfo: plistDict(), sectionInfoVersionNumber: 3 }));
+    const next = withNotificationAuthorization(current, this.bundleId, want);
+    if (next === null) return false;
+    this.logger.debug(`notifications of ${this.bundleId}: ${want}; restarting SpringBoard`);
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    const tmp = `${file}.quiesco-${process.pid}`;
+    await fs.writeFile(tmp, next);
+    await fs.rename(tmp, file);
+    await this.restartSpringBoard();
+    return true;
+  }
+
+  /** SpringBoard's and PosterBoard's pids from launchd; undefined while one is not running. */
+  private async boardPids(): Promise<{ springBoard?: string; posterBoard?: string }> {
+    const list = await this.simctl(['spawn', this.udid, 'launchctl', 'list']).catch(() => '');
+    const pid = (label: string) => new RegExp(`^(\\d+)\\s+\\S+\\s+${label.replace(/\./g, '\\.')}$`, 'm').exec(list)?.[1];
+    const springBoard = pid('com.apple.SpringBoard');
+    const posterBoard = pid('com.apple.PosterBoard');
+    return { ...(springBoard !== undefined ? { springBoard } : {}), ...(posterBoard !== undefined ? { posterBoard } : {}) };
+  }
+
+  /**
+   * Restart SpringBoard, then wait until it and PosterBoard have settled. The apps end with it, the system
+   * UI runner (an XCUITest app) too: stopped first, started again when next needed. A new SpringBoard ends
+   * PosterBoard (wallpapers) a few seconds after it starts; a second restart while PosterBoard is still
+   * setting up has corrupted its data store (it then crashes at every start, also after a reboot: issue
+   * #113), so this returns only once neither process has changed for SPRINGBOARD_SETTLED_MS.
+   */
+  private async restartSpringBoard(): Promise<void> {
+    await this.runnerInstance?.stop().catch(() => undefined);
+    const before = (await this.boardPids()).springBoard;
+    await this.simctl(['spawn', this.udid, 'launchctl', 'stop', 'com.apple.SpringBoard']);
+    const started = Date.now();
+    let last = '';
+    let since = started;
+    for (;;) {
+      const pids = await this.boardPids();
+      const now = `${pids.springBoard ?? '-'}/${pids.posterBoard ?? '-'}`;
+      if (now !== last) {
+        last = now;
+        since = Date.now();
+      }
+      const restarted = pids.springBoard !== undefined && pids.springBoard !== before;
+      if (restarted && Date.now() - since >= (this.options.springBoardSettleMs ?? SPRINGBOARD_SETTLED_MS)) {
+        this.logger.debug(`SpringBoard restarted and settled in ${Date.now() - started} ms`);
+        return;
+      }
+      if (Date.now() - started > SPRINGBOARD_RESTART_MS) {
+        const what = restarted ? 'did not settle' : 'did not come back';
+        this.logger.warn(`SpringBoard ${what} within ${SPRINGBOARD_RESTART_MS / 1000} s after restarting it on ${this.sim?.name ?? this.udid}`);
+        return;
+      }
+      await new Promise((r) => setTimeout(r, Math.min(SPRINGBOARD_POLL_MS, this.options.springBoardSettleMs ?? SPRINGBOARD_POLL_MS)));
+    }
+  }
+
   async grantPermissions(perms: readonly Permission[]): Promise<void> {
     for (const p of perms) {
+      if (p === 'notifications') {
+        await this.setNotifications('allowed').then(
+          () => {
+            this.notificationsNotGranted = null;
+          },
+          (e: unknown) => {
+            this.notificationsNotGranted = (e as Error).message;
+            this.logger.warn(`cannot pre-grant notifications on iOS (${this.notificationsNotGranted}); Quiesco answers the app's notifications prompt with "Allow" instead`);
+          },
+        );
+        continue;
+      }
       const services = IOS_PRIVACY[p];
       if (services === undefined) {
         this.logger.warn(`permission "${p}" cannot be pre-granted on the iOS simulator (simctl privacy has no such service); skipped`);

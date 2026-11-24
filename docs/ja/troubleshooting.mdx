@@ -65,7 +65,7 @@ Quiescoが`Android showed "com.android.systemui isn't responding" over the app; 
 
 - **ログインフォームの後に「Save Password?」がアプリを覆う：** `devices.ios.disablePasswordAutoFill`を有効のままにしてください（デフォルト）。
 - **`simctl`がシミュレーターを見つけられない：** `devices.ios.device`を設定する（そのデバイスに複数のランタイムがある場合は`os`も）か、シミュレーターを1台起動してください。
-- **カメラ / 通知の権限が付与されない：** シミュレーターではこれらを事前に付与できません（[権限](./platforms#permissions)を参照）。テストではシステムダイアログを避けるか、ステップで許可してください。
+- **カメラの権限が付与されない：** シミュレーターではカメラを事前に付与できません（[権限](./platforms#permissions)を参照）。テストではシステムダイアログを避けるか、ステップで許可してください。通知は事前に付与できます（設定の`permissions`。アプリの起動前）。
 
 ## Android {#android}
 

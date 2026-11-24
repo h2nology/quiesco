@@ -115,8 +115,9 @@ fail the step; a failure later in the scenario names it ([LogBox covers the app]
   enabled (the default).
 - **`simctl` cannot find the simulator:** set `devices.ios.device` (and `os` when several runtimes have
   that device), or boot one.
-- **Camera / notifications are not granted:** the simulator cannot pre-grant them (see
+- **The camera is not granted:** the simulator cannot pre-grant it (see
   [permissions](./platforms#permissions)); avoid the system dialog in tests, or accept it in a step.
+  Notifications can be pre-granted (config `permissions`, before the app starts).
 
 ## Android {#android}
 

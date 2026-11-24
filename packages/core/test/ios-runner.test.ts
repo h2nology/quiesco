@@ -7,7 +7,7 @@ import type { Exec } from '../src/devices/exec';
 import { silentLogger } from '../src/logger';
 import { IosProvider, uikitNodes } from '../src/devices/ios';
 import type { SystemRunnerLike } from '../src/devices/ios';
-import { IosSystemRunner, backButton, PERMISSION_ALLOW, isConnectionRefused, isRunnerGone, PERMISSION_ALLOW_ONCE, PERMISSION_DENY, dismissButton, runnerCacheKey, screenNodes } from '../src/devices/ios-runner';
+import { isNotificationPermissionAlert, IosSystemRunner, backButton, PERMISSION_ALLOW, isConnectionRefused, isRunnerGone, PERMISSION_ALLOW_ONCE, PERMISSION_DENY, dismissButton, runnerCacheKey, screenNodes } from '../src/devices/ios-runner';
 import type { RunnerElements, RunnerScreen } from '../src/devices/ios-runner';
 
 const f = (y: number) => [57, y, 140, 48];
@@ -55,6 +55,8 @@ describe('iOS system UI runner screens (6.7 batch C)', () => {
   it('dismisses leftover alerts with cancel, else the first button; never answers a permission alert (#86)', () => {
     expect(dismissButton(FACE_ID_ALERT)?.frame).toEqual(f(491));
     expect(dismissButton(NOTIFICATION_ALERT)).toBeUndefined();
+    expect(isNotificationPermissionAlert(NOTIFICATION_ALERT)).toBe(true);
+    expect(isNotificationPermissionAlert({ ...NOTIFICATION_ALERT, label: '“Quiesco Todo” Would Like to Access the Camera' })).toBe(false);
     expect(dismissButton({ ...FACE_ID_ALERT, id: 'x', buttons: [{ label: 'OK', id: 'ok', frame: f(1) }] })?.frame).toEqual(f(1));
   });
 

@@ -100,7 +100,8 @@ Delivers a notification. It also works while the app is in the background.
 
 - **iOS**: a simulated remote push (`simctl push`), with `data` next to `aps` in the payload. The app's push
   library receives it while the app is in front. The system shows it only when the app may show
-  notifications, which cannot be granted in advance on the simulator: let the app ask, and answer with
+  notifications: grant them before the app starts (config [`permissions`](./config.md)), or let the app ask
+  and answer with
   [`allowPermission()`](#system-allowpermission).
 - **Android**: an emulator has no push service, so the notification is posted as the app (it needs the
   `notifications` permission). Tapping it opens the app with `data` as intent extras; the push library's

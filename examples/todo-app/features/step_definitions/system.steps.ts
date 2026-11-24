@@ -47,7 +47,9 @@ Then('系统集成页显示摇动次数 {string}', async function (this: Quiesco
   await this.app.expectText('shake-count', count);
 });
 
-// The iOS simulator cannot grant notifications up front (simctl privacy has no such service): ask, then allow.
+// Ask, then allow. (Config `permissions: ['notifications']` would pre-grant them, but the 通知权限尚未决定
+// scenarios need the prompt: on iOS only reinstalling the app resets the permission, and a pre-grant
+// would follow the reinstall.)
 Given('App 可以显示通知', async function (this: QuiescoWorld) {
   await resetNotificationPermission(this);
   await this.app.tap('request-notification-permission');

@@ -67,12 +67,14 @@ description: "iOS、Android、Webの比較：入力、権限、システムダ�
 | `camera` | —（simctlのサービスがない） | `CAMERA` | `camera` |
 | `microphone` | `microphone` | `RECORD_AUDIO` | `microphone` |
 | `location` | `location` | `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | `geolocation` |
-| `notifications` | —（simctlのサービスがない） | `POST_NOTIFICATIONS` | `notifications` |
+| `notifications` | アプリの起動前にSpringBoardの通知設定へ（simctlのサービスはない） | `POST_NOTIFICATIONS` | `notifications` |
 | `contacts` | `contacts` | `READ_CONTACTS` | — |
 | `photos` | `photos` | `READ_MEDIA_IMAGES` | — |
 | `calendar` | `calendar` | `READ_CALENDAR`, `WRITE_CALENDAR` | — |
 
 - Androidは、アプリがマニフェストで宣言した権限（`app.json`の`expo.android.permissions`）しか付与しません。それ以外は警告として報告されます。
+- iOSの通知：`simctl privacy`には通知のサービスがありません。Quiescoはシミュレーターの通知設定（`Library/BulletinBoard/VersionedSectionInfo.plist`）にアプリの項目を書き込み（Detoxのapplesimutilsと同じ方法）、読み込ませるためにSpringBoardを再起動します。これはアプリの起動前（セッション開始時と、`relaunch({ reinstall | clearData })`の後）だけで、設定がまだ「許可」でないときに限ります。再インストールせずに使い続けるシミュレーターでは時間がかからず、それ以外では10秒ほどかかります。再起動の後は、SpringBoardとPosterBoardが落ち着くまで待ちます。PosterBoardの準備中にSpringBoardをもう一度再起動すると、シミュレーター上のPosterBoardのデータが壊れることがありました（以後、起動のたびにクラッシュします。[issue #113](https://github.com/h2nology/quiesco/issues/113)）。アプリの実行中の`setPermission('notifications', …)`には対応しません。`'reset'`はアプリを再インストールします。
+- 事前許可に失敗したときは、アプリの通知の許可ダイアログを見つけたときにQuiescoが「許可」で応答し、そのことをログに出します。事前許可より弱い動作です（アプリが要求するまでは「未決定」に見えます）。
 - iOSでは、アプリが権限を要求するためには、`Info.plist`（`expo.ios.infoPlist`）に使用目的の説明（`NSLocationWhenInUseUsageDescription`など）が必要です。
 
 ## iOS {#ios}

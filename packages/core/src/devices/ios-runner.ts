@@ -87,6 +87,14 @@ export function isPermissionAlert(alert: RunnerScreen['alerts'][number]): boolea
   return alert.id === '' && alert.buttons.every((b) => b.id === '') && (alert.buttons.length === 2 || alert.buttons.length === 3);
 }
 
+/**
+ * The app's notifications prompt ("“App” Would Like to Send You Notifications"): a two-button permission
+ * alert whose title names notifications. By its words, so in English, Japanese, Chinese or Korean.
+ */
+export function isNotificationPermissionAlert(alert: RunnerScreen['alerts'][number]): boolean {
+  return isPermissionAlert(alert) && alert.buttons.length === 2 && /notification|通知|알림/i.test(alert.label);
+}
+
 /** `"<title>" [<button>, <button>]`, for messages. */
 export function describeAlert(alert: RunnerScreen['alerts'][number]): string {
   return `${JSON.stringify(alert.label)} [${alert.buttons.map((b) => b.label).join(', ')}]`;
