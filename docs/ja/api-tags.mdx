@@ -16,6 +16,9 @@ description: "テストのタイトルやGherkinのタグで、テストを特�
 
 独自のタグ（`@smoke`など）を並べて付けることもできます。Quiescoはそれらを無視します。
 
+VitestとJestのコードでは、タグを[定数](./api-constants)としても書けます：`` `… ${Tag.android}` ``、
+`{ tags: [Tag.native, Tag.hardReset] }`。
+
 ## タグの書き方 {#writing-tags}
 
 <CodeGroup>

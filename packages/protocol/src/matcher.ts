@@ -29,6 +29,8 @@ export const SEMANTIC_TYPES = [
 ] as const;
 
 export type SemanticType = (typeof SEMANTIC_TYPES)[number];
+/** SEMANTIC_TYPES by name, for `{ type }` in a matcher: `SemanticType.button` is `'button'`. */
+export const SemanticType = Object.freeze(Object.fromEntries(SEMANTIC_TYPES.map((t) => [t, t]))) as { readonly [K in SemanticType]: K };
 
 /**
  * Element query (requirements.md §6.1). All given fields must match.

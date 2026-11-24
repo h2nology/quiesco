@@ -1,10 +1,10 @@
 /**
  * Jest test environment (`testEnvironment: '@quiesco/jest/environment'`, set by the preset): Node's
  * environment plus the run's Quiesco session, exposed to tests as the global `quiesco`
- * (`quiesco.app`, `quiesco.session`).
+ * (`quiesco.app`, `quiesco.session`, and the constants: `quiesco.Tag.ios` …).
  */
 import type { EnvironmentContext, JestEnvironmentConfig } from '@jest/environment';
-import { connectRunEvents } from '@quiesco/core';
+import { connectRunEvents, constants } from '@quiesco/core';
 import type { Lifecycle, RunEventClient } from '@quiesco/core';
 import { TestEnvironment } from 'jest-environment-node';
 
@@ -42,6 +42,7 @@ export default class QuiescoEnvironment extends TestEnvironment {
         throw new Error('quiesco is not available while listing tests');
       };
       this.global['quiesco'] = {
+        ...constants,
         get app() {
           return unavailable();
         },
@@ -54,6 +55,7 @@ export default class QuiescoEnvironment extends TestEnvironment {
     const lifecycle = await startShared(this.worker);
     this.lifecycle = lifecycle;
     this.global['quiesco'] = {
+      ...constants,
       get app() {
         return lifecycle.current.driver;
       },

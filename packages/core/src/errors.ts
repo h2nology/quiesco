@@ -1,4 +1,5 @@
-import type { ErrorName, JsonRpcErrorObject, JsonValue } from '@quiesco/protocol';
+import { ErrorCode } from '@quiesco/protocol';
+import type { ErrorName as AgentErrorName, JsonRpcErrorObject, JsonValue } from '@quiesco/protocol';
 
 /** Errors raised only on the host side. */
 export type HostErrorName =
@@ -17,16 +18,39 @@ export type HostErrorName =
   /** The app's process died (issue #76): the message carries the crash's reason when the device kept one. */
   | 'APP_CRASHED';
 
+export const HostErrorName = {
+  CONNECT_TIMEOUT: 'CONNECT_TIMEOUT',
+  AGENT_TIMEOUT: 'AGENT_TIMEOUT',
+  AGENT_DISCONNECTED: 'AGENT_DISCONNECTED',
+  DEVICE_ERROR: 'DEVICE_ERROR',
+  CONFIG_ERROR: 'CONFIG_ERROR',
+  AGENT_ERROR: 'AGENT_ERROR',
+  APP_NOT_RUNNING: 'APP_NOT_RUNNING',
+  APP_IN_BACKGROUND: 'APP_IN_BACKGROUND',
+  DIALOG_OPEN: 'DIALOG_OPEN',
+  APP_CRASHED: 'APP_CRASHED',
+} as const satisfies { [K in HostErrorName]: K };
+
+/**
+ * Every `QuiescoError.errorName`, the agent's and the host's: `e.errorName === ErrorName.APP_NOT_RUNNING`.
+ * A constant as well as a type.
+ */
+export const ErrorName = {
+  ...(Object.fromEntries(Object.keys(ErrorCode).map((n) => [n, n])) as { readonly [K in AgentErrorName]: K }),
+  ...HostErrorName,
+} as const;
+export type ErrorName = AgentErrorName | HostErrorName;
+
 /**
  * Every failure surfaced by @quiesco/core. Agent errors keep their protocol code and structured data
  * (requirements.md §7), so runners can show "expected / actual / elements" etc.
  */
 export class QuiescoError extends Error {
-  readonly errorName: ErrorName | HostErrorName;
+  readonly errorName: ErrorName;
   readonly code: number | undefined;
   readonly data: Record<string, unknown>;
 
-  constructor(name: ErrorName | HostErrorName, message: string, data: Record<string, unknown> = {}, code?: number) {
+  constructor(name: ErrorName, message: string, data: Record<string, unknown> = {}, code?: number) {
     super(message);
     this.name = 'QuiescoError';
     this.errorName = name;

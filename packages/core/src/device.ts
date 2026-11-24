@@ -6,7 +6,7 @@
  */
 import type { DeviceInfo, Matcher, Orientation, Rect, ScrollViewInfo } from '@quiesco/protocol';
 
-import type { Permission } from './devices/permissions.js';
+import type { Permission, PermissionState } from './devices/permissions.js';
 import type { ColorScheme, DeviceProvider, InAppControls, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions, SystemNode } from './devices/provider.js';
 import { QuiescoError } from './errors.js';
 import { checkLaunchArgs } from './launch-args.js';
@@ -20,7 +20,12 @@ import { SYSTEM_WAIT_MS, checkSystemQuery, describeSystemQuery, matchesSystemQue
 import type { SystemQuery, SystemWaitOptions } from './system-ui.js';
 
 /** What the test did to the app last. Element calls need `running`. */
-export type AppRunState = 'running' | 'background' | 'terminated';
+export const AppRunState = { running: 'running', background: 'background', terminated: 'terminated' } as const;
+export type AppRunState = (typeof AppRunState)[keyof typeof AppRunState];
+
+/** For `app.device.setNetwork`. */
+export const NetworkState = { offline: 'offline', online: 'online' } as const;
+export type NetworkState = (typeof NetworkState)[keyof typeof NetworkState];
 
 export interface RelaunchOptions {
   /** Launch arguments (any JSON), merged over the config's `launchArgs`; read with `quiesco.launchArgs()`. */
@@ -379,7 +384,7 @@ export class DeviceApi {
    * Grant or revoke a permission while the app runs. Where the system kills the app on revoke
    * (Android), the app is started again (data kept) before this resolves (HU 2026-11-09).
    */
-  async setPermission(permission: Permission, state: 'grant' | 'revoke' | 'reset'): Promise<void> {
+  async setPermission(permission: Permission, state: PermissionState): Promise<void> {
     if (state !== 'grant' && state !== 'revoke' && state !== 'reset') throw new RangeError(`state must be 'grant', 'revoke' or 'reset', got ${String(state)}`);
     const change =
       state === 'reset' ? await this.provider('resetPermission').resetPermission(permission) : await this.provider('setPermission').setPermission(permission, state === 'grant');
@@ -526,7 +531,7 @@ export class DeviceApi {
    * it there. The iOS simulator has no network switch: NetInfo keeps reporting the Mac's network. Lasts
    * across relaunches until online or the next scenario.
    */
-  async setNetwork(state: 'offline' | 'online'): Promise<void> {
+  async setNetwork(state: NetworkState): Promise<void> {
     if (state !== 'offline' && state !== 'online') throw new RangeError(`state must be 'offline' or 'online', got ${String(state)}`);
     const offline = state === 'offline';
     // Online: the device first, so the app's first new request finds a network.

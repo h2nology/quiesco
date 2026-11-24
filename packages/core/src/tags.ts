@@ -10,7 +10,9 @@
  */
 import type { Platform } from '@quiesco/protocol';
 
-export type WebBrowser = 'chromium' | 'firefox' | 'webkit';
+/** The browsers of `devices.web.browser`. */
+export const WebBrowser = { chromium: 'chromium', firefox: 'firefox', webkit: 'webkit' } as const;
+export type WebBrowser = (typeof WebBrowser)[keyof typeof WebBrowser];
 
 export interface TagNames {
   ios: string;
@@ -29,7 +31,24 @@ export interface TagNames {
  */
 export type ScenarioTags = readonly string[] | readonly (readonly string[])[];
 
-export const DEFAULT_TAGS: TagNames = { ios: '@ios', android: '@android', web: '@web', native: '@native', chromium: '@chromium', firefox: '@firefox', webkit: '@webkit', hardReset: '@hard-reset' };
+/**
+ * The tags Quiesco reacts to, under their default names: `` test(`logs in ${Tag.ios}`, …) ``,
+ * `{ tags: [Tag.native, Tag.hardReset] }`. A project that renames them (`tags` in the config) passes
+ * its own names instead.
+ */
+export const Tag = {
+  ios: '@ios',
+  android: '@android',
+  web: '@web',
+  native: '@native',
+  chromium: '@chromium',
+  firefox: '@firefox',
+  webkit: '@webkit',
+  hardReset: '@hard-reset',
+} as const satisfies TagNames;
+export type Tag = (typeof Tag)[keyof typeof Tag];
+
+export const DEFAULT_TAGS: TagNames = Tag;
 
 export function tagNames(overrides: Partial<TagNames> = {}): TagNames {
   return { ...DEFAULT_TAGS, ...overrides };

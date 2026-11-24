@@ -17,6 +17,9 @@ platform, after a soft reset.
 
 Your own tags (e.g. `@smoke`) can sit next to them; Quiesco ignores those.
 
+In Vitest and Jest code the tags are also [constants](./api-constants): `` `… ${Tag.android}` ``,
+`{ tags: [Tag.native, Tag.hardReset] }`.
+
 ## Writing tags {#writing-tags}
 
 <CodeGroup>

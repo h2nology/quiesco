@@ -82,7 +82,9 @@ export interface StatusBarOptions {
   dataNetwork?: 'wifi' | '3g' | '4g' | 'lte' | '5g' | 'hide';
 }
 
-export type ColorScheme = 'light' | 'dark';
+/** For `app.device.setAppearance`. */
+export const ColorScheme = { light: 'light', dark: 'dark' } as const;
+export type ColorScheme = (typeof ColorScheme)[keyof typeof ColorScheme];
 
 /** How a device-state change reached the app (Phase 6.6). */
 export interface StateChange {

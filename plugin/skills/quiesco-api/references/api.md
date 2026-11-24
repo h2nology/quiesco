@@ -113,6 +113,7 @@ dismissed first.
 - [WebView](./api-webview.md): Elements of a web page inside the app.
 - [In-app API](./api-in-app.md): What the app registers: backdoors, reset hooks, storage, launch arguments.
 - [Test tags](./api-tags.md): Run a test only on some platforms or browsers, or after a full restart.
+- [Constants](./api-constants.md): Tags, directions, permissions, error names … as constants instead of hand-written strings.
 - [Errors](./api-errors.md): Every error a call can fail with, and what it means.
 - [Artifacts](./api-artifacts.md): Screenshots, element trees, videos, logs and timelines of a run.
 - [Other test runners](./api-custom-runners.md): Vitest and Jest adapters in detail, and driving Quiesco from any runner.
