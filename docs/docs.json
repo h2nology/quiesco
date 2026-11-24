@@ -65,8 +65,16 @@
             "group": "Get started",
             "pages": [
               "index",
-              "quickstart",
-              "tutorial"
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Tutorial",
+            "pages": [
+              "tutorial",
+              "tutorial-vitest",
+              "tutorial-jest",
+              "tutorial-cucumber"
             ]
           },
           {
@@ -123,8 +131,16 @@
             "group": "入门",
             "pages": [
               "zh/index",
-              "zh/quickstart",
-              "zh/tutorial"
+              "zh/quickstart"
+            ]
+          },
+          {
+            "group": "教程",
+            "pages": [
+              "zh/tutorial",
+              "zh/tutorial-vitest",
+              "zh/tutorial-jest",
+              "zh/tutorial-cucumber"
             ]
           },
           {
@@ -181,8 +197,16 @@
             "group": "はじめに",
             "pages": [
               "ja/index",
-              "ja/quickstart",
-              "ja/tutorial"
+              "ja/quickstart"
+            ]
+          },
+          {
+            "group": "チュートリアル",
+            "pages": [
+              "ja/tutorial",
+              "ja/tutorial-vitest",
+              "ja/tutorial-jest",
+              "ja/tutorial-cucumber"
             ]
           },
           {

@@ -46,7 +46,7 @@ const PAGES = {
     'api-artifacts',
     'api-custom-runners',
     'config', 'sync', 'platforms', 'parallel', 'runners', 'vitest', 'jest', 'cucumber'],
-  'writing-tests': ['tutorial', 'steps', 'driver-pattern'],
+  'writing-tests': ['tutorial', 'tutorial-vitest', 'tutorial-jest', 'tutorial-cucumber', 'steps', 'driver-pattern'],
   setup: ['quickstart', 'cli'],
   debug: ['troubleshooting'],
 };

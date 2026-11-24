@@ -1,0 +1,81 @@
+---
+title: "チュートリアル：ToDoアプリをテストする"
+sidebarTitle: "概要"
+description: "3画面の小さなToDoアプリにE2Eテストを一歩ずつ書いていきます。テストID、画面をまたぐフロー、バックドア、リセット、失敗の読み方。"
+---
+
+このチュートリアルは動くアプリから始めて、Web、iOS、Androidでそのまま動く8つのテストを書き上げます。その過程で、典型的なテストに必要なことを一通り使います。テストIDで要素を見つける、画面を移動する、フォームに入力する、バックドアでデータを用意する、失敗を読み解く、の5つです。
+
+テストは[テストランナー](./runners)ごとに1通りずつ書いてあります。このページでプロジェクトを用意してから、1つ選んでください。手順は同じで、違うのはテストのコードだけです。
+
+所要時間は約30分です。Node.js 24+が必要で、iOSとAndroidでは[クイックスタート](./quickstart)に挙げたツールも必要です。
+
+## アプリ {#the-app}
+
+アプリは、3つの画面からなるExpo Routerアプリです。リポジトリにはテストランナーごとに1つずつ、[`todo-tutorial-vitest`](https://github.com/h2nology/quiesco/tree/main/examples/todo-tutorial-vitest)、[`todo-tutorial-jest`](https://github.com/h2nology/quiesco/tree/main/examples/todo-tutorial-jest)、[`todo-tutorial-cucumber`](https://github.com/h2nology/quiesco/tree/main/examples/todo-tutorial-cucumber)があり、違うのはテストだけです。
+
+<Columns cols={3}>
+  <Frame caption="リスト（/）">
+    <img src="/images/tutorial/list.png" alt="2件のToDoがあり、1件にチェックが入ったToDoリストと、New todoボタン" />
+  </Frame>
+  <Frame caption="新規ToDo（/new）">
+    <img src="/images/tutorial/new-todo.png" alt="タイトル欄、メモ欄、Saveボタンがある新規ToDoフォーム" />
+  </Frame>
+  <Frame caption="詳細（/todo/[id]）">
+    <img src="/images/tutorial/details.png" alt="Mark as doneボタンとDelete todoボタンがあるToDoの詳細" />
+  </Frame>
+</Columns>
+
+- **リスト**はすべてのToDoをチェックボックス付きで表示し、完了した件数も示します。**New todo**でフォームが開き、ToDoをタップするとその詳細が開きます。
+- **新規ToDo**ではタイトルと、任意でメモを入力します。保存には少し時間がかかり（バックエンドへのリクエストの代わりです）、その後リストに戻ります。
+- **詳細**は1件のToDoを表示し、2つのボタンがあります。完了にする（または未完了に戻す）ボタンと、削除するボタンです。
+
+ToDoはメモリ上にあり（`src/store.ts`）、起動するたびに空のリストから始まります。
+
+## プロジェクトを用意する {#get-the-project}
+
+使うテストランナーのサンプルをリポジトリからコピーしてインストールします。
+
+<CodeGroup>
+```sh Vitest
+npx degit h2nology/quiesco/examples/todo-tutorial-vitest quiesco-todo
+cd quiesco-todo
+npm install
+```
+```sh Jest
+npx degit h2nology/quiesco/examples/todo-tutorial-jest quiesco-todo
+cd quiesco-todo
+npm install
+```
+```sh Cucumber
+npx degit h2nology/quiesco/examples/todo-tutorial-cucumber quiesco-todo
+cd quiesco-todo
+npm install
+```
+</CodeGroup>
+
+アプリを触ってみたければ`npm run web`（dev clientなら`npm start`）で起動できます。プロジェクトはQuiesco向けにセットアップ済みです。`npx quiesco init --runner <runner>`と[クイックスタート](./quickstart)の手順で作られるものと同じです。
+
+| ファイル | 役割 |
+|---|---|
+| `index.ts` | `expo-router/entry`より前に`@quiesco/agent`をインポートし、最初のレンダリングからエージェントがアプリを把握できるようにする |
+| `metro.config.js` | `withQuiesco()`：e2eビルド（`EXPO_PUBLIC_QUIESCO=1`）では本物のエージェント、それ以外では何もしないスタブ |
+| `app.json` | `@quiesco/expo-plugin`を登録し、`quiesco.config.mts`が指すbundle id / packageを設定する |
+| `src/app/_layout.tsx` | アプリを`<QuiescoRoot>`でラップし、e2eビルドでだけ`src/e2e.ts`を読み込む |
+| `quiesco.config.mts` | 各プラットフォームでのアプリの場所：Webエクスポート、シミュレータービルド、APK |
+| `vitest.config.mts`、`jest.config.cjs`、`cucumber.mjs`のいずれか | テストランナーの設定：どのテストファイルをQuiescoで実行するか |
+| `package.json` | `e2e:*`スクリプト：`e2e:web`、`e2e:build:ios`、`e2e:ios`、`e2e:build:android`、`e2e:android` |
+
+## テストランナーを選ぶ {#pick-a-runner}
+
+<CardGroup cols={3}>
+  <Card title="Vitest（推奨）" icon="flask" href="./tutorial-vitest">
+    TypeScriptでテストを書き、アプリは`app`フィクスチャーで受け取ります。
+  </Card>
+  <Card title="Jest" icon="flask" href="./tutorial-jest">
+    JavaScriptでテストを書き、アプリはグローバルの`quiesco.app`から操作します。
+  </Card>
+  <Card title="Cucumber" icon="flask" href="./tutorial-cucumber">
+    Gherkinでシナリオを、TypeScriptでステップ定義を書きます。
+  </Card>
+</CardGroup>

@@ -1,0 +1,367 @@
+---
+title: "教程：用 Cucumber 测试一个待办 App"
+sidebarTitle: "Cucumber"
+description: "以一个有三个页面的小型待办 App 为例，一步步编写它的端到端测试：test id、跨页面的流程、后门、重置和失败排查。"
+---
+
+本页用 **Cucumber** 编写 [待办 App 教程](./tutorial) 的八个测试。请先在那里了解 [这个 App](./tutorial#the-app) 并 [获取项目](./tutorial#get-the-project)。同样的测试也有 [Vitest](./tutorial-vitest) 和 [Jest](./tutorial-jest) 版本。
+
+## 测试文件 {#test-files}
+
+在 [`todo-tutorial-cucumber`](https://github.com/h2nology/quiesco/tree/main/examples/todo-tutorial-cucumber) 中，`cucumber.mjs` 加载注册 Quiesco 的 `features/support/quiesco.ts` 和步骤定义（[Cucumber](./cucumber)）。场景位于 `features/list.feature` 和 `features/detail.feature`，步骤位于 `features/step_definitions/todo.steps.ts`；步骤通过 `this.app` 操作 App。如果想跟着做，先清空这三个文件，读到一个场景就加上它和它的步骤。
+
+## 第 1 步：给元素加上 test id {#step-1-test-ids}
+
+测试按 `testID` 查找元素。测试中的普通字符串就是 test id：`app.tap('add-todo')` 会点击带有 `testID="add-todo"` 的元素。测试要操作或检查的每个元素，App 都给了一个 test id：
+
+| 页面 | `testID` | 元素 |
+|---|---|---|
+| 列表 | `todo-list-screen` | 页面本身 |
+| | `empty-state` | 列表为空时显示的“Nothing to do” |
+| | `todo-summary` | “1 of 2 done” |
+| | `todo-row`, `todo-title`, `todo-checkbox` | 每一行、行的标题、行的复选框 |
+| | `add-todo` | New todo 按钮 |
+| 新建待办 | `new-todo-screen`, `title-input`, `notes-input`, `title-error`, `save-todo` | 页面、输入框、标题下方的错误提示、Save |
+| 详情 | `todo-detail-screen`, `detail-title`, `detail-notes`, `todo-status` | 页面、文本、Open / Done 标记 |
+| | `toggle-done`, `delete-todo` | 两个按钮 |
+
+在代码中，test id 只是一个 prop（`src/components/TodoRow.tsx`）：
+
+```tsx
+<View testID="todo-row" style={styles.row}>
+  <Checkbox testID="todo-checkbox" checked={todo.done} onToggle={onToggle} label={…} />
+  …
+</View>
+```
+
+每一行的 id 都相同；测试按位置（`{ id: 'todo-title', index: 0 }` 是最上面那行）或按文本（`{ text: 'Buy milk' }`）选出其中一行。App 运行时，`npx quiesco tree` 会打印带有所有 id 的元素树，便于找出 App 中已有的 id。
+
+## 第 2 步：第一个测试 {#step-2-first-test}
+
+先测试刚启动时显示的内容：
+
+```gherkin features/list.feature
+Feature: The todo list
+
+  Scenario: A fresh start shows the empty list
+    Then the list is empty
+```
+
+```ts features/step_definitions/todo.steps.ts
+import { type DataTable, Given, Then, When } from '@cucumber/cucumber';
+import type { QuiescoWorld } from '@quiesco/cucumber';
+
+import type { SeedTodo } from '../../src/backdoors.ts';
+
+Then('the list is empty', async function (this: QuiescoWorld) {
+  await this.app.expectVisible('empty-state');
+  await this.app.expectCount('todo-row', 0);
+});
+```
+
+`this.app` 是被测 App 的驱动对象。步骤读起来就是用户的操作和检查，test id 只出现在步骤定义中。（`Given`、`When`、`DataTable` 和 `SeedTodo` 供后面的步骤使用。）
+
+在 Web 上运行：
+
+```sh
+npx playwright install chromium
+
+# 以 EXPO_PUBLIC_QUIESCO=1 导出 web 构建，然后执行 quiesco test --platform web
+npm run e2e:web
+```
+
+第一次运行会启动 Chromium 并打开 App，测试几秒内就会通过。在 [第 7 步](#step-7-ios-and-android) 中，你会在 iOS 和 Android 上运行同一个文件。
+
+## 第 3 步：跨页面的流程 {#step-3-flow-across-screens}
+
+接下来像用户一样添加一条待办：打开表单，输入，保存，然后检查列表。
+
+```gherkin features/list.feature
+  Scenario: A new todo appears at the top of the list
+    When I add a todo "Buy milk" with the notes "Oat milk, 1 l"
+    Then the first todo is "Buy milk"
+    And the summary reads "0 of 1 done"
+```
+
+```ts features/step_definitions/todo.steps.ts
+When('I add a todo {string} with the notes {string}', async function (this: QuiescoWorld, title: string, notes: string) {
+  await this.app.tap('add-todo');
+  await this.app.expectVisible('new-todo-screen');
+
+  await this.app.type('title-input', title);
+  await this.app.type('notes-input', notes);
+  // 保存需要 600 ms，之后 App 回到列表。Quiesco 会等待这两者：不需要 sleep。
+  await this.app.tap('save-todo');
+
+  await this.app.expectVisible('todo-list-screen');
+});
+
+Then('the first todo is {string}', async function (this: QuiescoWorld, title: string) {
+  await this.app.expectText({ id: 'todo-title', index: 0 }, title);
+});
+
+Then('the summary reads {string}', async function (this: QuiescoWorld, summary: string) {
+  await this.app.expectText('todo-summary', summary);
+});
+```
+
+测试里没有 `sleep`，也没有 `waitFor`，尽管每一行都依赖某个需要时间的过程：`tap('add-todo')` 之后的页面切换、600 ms 的保存计时器、返回列表的过程。Quiesco 在每次调用前后都会等待 App **空闲**，即没有待执行的计时器、请求、渲染或动画（[同步](./sync)），所以每一行都从上一行留下的状态开始。断言也会不断重试，直到成立或超时。
+
+`expectVisible('new-todo-screen')` 对测试通过来说并非必需，但它能让失败更清楚：如果按钮不再打开表单，测试会在这里失败，而不是在 `type` 处失败。
+
+## 第 4 步：出错时用户看到什么 {#step-4-validation}
+
+没有标题时，表单不会保存待办。检查错误提示是否显示、表单是否仍然打开，然后返回：
+
+```gherkin features/list.feature
+  Scenario: A todo needs a title
+    When I save a new todo without a title
+    Then the form says "Enter a title"
+    When I go back
+    Then the list is empty
+```
+
+```ts features/step_definitions/todo.steps.ts
+When('I save a new todo without a title', async function (this: QuiescoWorld) {
+  await this.app.tap('add-todo');
+  await this.app.tap('save-todo');
+});
+
+Then('the form says {string}', async function (this: QuiescoWorld, error: string) {
+  await this.app.expectText('title-error', error);
+  await this.app.expectVisible('new-todo-screen');
+});
+
+When('I go back', async function (this: QuiescoWorld) {
+  // 像用户一样返回：根据平台，使用返回键、浏览器后退或滑动返回。
+  await this.app.goBack();
+});
+```
+
+`goBack()` 按平台自己的方式返回：Android 的返回键、浏览器的后退、iOS 导航栏的返回按钮。一行就覆盖了三个平台。
+
+## 第 5 步：用后门准备数据 {#step-5-backdoor}
+
+详情页需要列表中已有待办。在每个测试里都通过表单输入当然可行，但速度慢，而且一旦表单出了问题，测试删除待办的用例也会跟着失败。**后门**是 App 只为测试注册的函数；测试调用它来直接准备状态。
+
+在 App 和测试都会编译的文件（`src/backdoors.ts`）中声明一次：
+
+```ts
+export interface SeedTodo {
+  title: string;
+  notes?: string;
+  done?: boolean;
+}
+
+declare module '@quiesco/agent' {
+  interface Backdoors {
+    /** 用这些待办替换列表（第一条在最上面）。 */
+    seedTodos: (todos: SeedTodo[]) => void;
+  }
+}
+```
+
+在 `src/e2e.ts` 中注册它。`_layout.tsx` 只在 e2e 构建中加载这个文件，因此其中的代码都不会进入生产环境：
+
+```ts
+import { quiesco } from '@quiesco/agent';
+
+import type {} from './backdoors';
+import { todoStore } from './store';
+
+quiesco.backdoor('seedTodos', (todos) => {
+  todoStore.replaceAll(todos);
+});
+```
+
+```tsx
+// src/app/_layout.tsx
+if (process.env.EXPO_PUBLIC_QUIESCO === '1') {
+  require('../e2e');
+}
+```
+
+现在，详情页的测试从两条待办开始：
+
+`Background` 会在该 feature 的每个场景之前运行：
+
+```gherkin features/detail.feature
+Feature: Todo details
+
+  Background:
+    Given these todos:
+      | title            | notes         |
+      | Buy milk         | Oat milk, 1 l |
+      | Call the dentist |               |
+
+  Scenario: A todo opens on its own screen
+    When I open the todo "Buy milk"
+    Then I see the details of "Buy milk" with the notes "Oat milk, 1 l"
+    When I go back
+    Then I see the list
+
+  Scenario: Marking a todo done shows in the list
+    When I open the todo "Call the dentist"
+    And I mark it as done
+    Then its status is "Done"
+    When I go back
+    Then todo 2 is checked
+    And todo 1 is not checked
+    And the summary reads "1 of 2 done"
+
+  Scenario: The checkbox in the list toggles a todo
+    When I check todo 1
+    Then todo 1 is checked
+    And the summary reads "1 of 2 done"
+
+  Scenario: Deleting a todo goes back to the list without it
+    When I open the todo "Buy milk"
+    And I delete it
+    Then I see the list
+    And the list has 1 todo
+    And there is no todo "Buy milk"
+```
+
+```ts features/step_definitions/todo.steps.ts
+Given('these todos:', async function (this: QuiescoWorld, table: DataTable) {
+  // 空单元格是空字符串：这时不传 notes。
+  const todos: SeedTodo[] = table.hashes().map(({ title, notes }) => (notes ? { title, notes } : { title }));
+  await this.app.backdoor('seedTodos', todos);
+});
+
+When('I open the todo {string}', async function (this: QuiescoWorld, title: string) {
+  await this.app.tap({ text: title });
+  await this.app.expectVisible('todo-detail-screen');
+});
+
+Then('I see the details of {string} with the notes {string}', async function (this: QuiescoWorld, title: string, notes: string) {
+  await this.app.expectText('detail-title', title);
+  await this.app.expectText('detail-notes', notes);
+});
+
+Then('I see the list', async function (this: QuiescoWorld) {
+  await this.app.expectVisible('todo-list-screen');
+});
+
+When('I mark it as done', async function (this: QuiescoWorld) {
+  await this.app.tap('toggle-done');
+});
+
+Then('its status is {string}', async function (this: QuiescoWorld, status: string) {
+  await this.app.expectText('todo-status', status);
+});
+
+When('I check todo {int}', async function (this: QuiescoWorld, n: number) {
+  await this.app.tap({ id: 'todo-checkbox', index: n - 1 });
+});
+
+Then('todo {int} is checked', async function (this: QuiescoWorld, n: number) {
+  await this.app.expectChecked({ id: 'todo-checkbox', index: n - 1 });
+});
+
+Then('todo {int} is not checked', async function (this: QuiescoWorld, n: number) {
+  await this.app.expectNotChecked({ id: 'todo-checkbox', index: n - 1 });
+});
+
+When('I delete it', async function (this: QuiescoWorld) {
+  await this.app.tap('delete-todo');
+});
+
+Then('the list has {int} todo(s)', async function (this: QuiescoWorld, count: number) {
+  await this.app.expectCount('todo-row', count);
+});
+
+Then('there is no todo {string}', async function (this: QuiescoWorld, title: string) {
+  await this.app.expectNotExists({ text: title });
+});
+```
+
+有了这份声明（步骤文件导入了 `src/backdoors.ts`），`this.app.backdoor('seedTodos', …)` 会经过类型检查：名称拼错，或者待办缺少标题，都会在步骤中报 TypeScript 错误。
+
+`{ text: 'Buy milk' }` 按用户读到的文字查找元素；`expectChecked` 读取复选框的 `accessibilityState`，也就是屏幕阅读器播报的那个状态。
+
+## 第 6 步：每个测试都从干净的状态开始 {#step-6-reset}
+
+在每个测试之前，Quiesco 都会对 App 执行**软重置**：清空存储（iOS / Android 上是 AsyncStorage；Web 上是 localStorage、sessionStorage 和 IndexedDB），把导航恢复到第一个页面，并重新挂载 App。这比重启 App 快得多。
+
+重新挂载不会清除 JavaScript 模块中的状态，而这个 App 把待办保存在一个模块变量里。所以 `src/e2e.ts` 还要告诉 Quiesco 如何清除它们：
+
+```ts
+// Quiesco 在每个测试之前都会软重置 App：清空存储并重新挂载 App。待办保存在
+// 模块变量中，重新挂载后仍会保留，所以在这里清空。
+quiesco.onReset(() => {
+  todoStore.replaceAll([]);
+});
+```
+
+再加一个测试来检查这一点：
+
+`features/detail.feature` 的 `Background` 会给其中每个场景准备数据，所以这个场景放在 `features/list.feature` 的末尾，在添加待办的场景之后：
+
+```gherkin features/list.feature
+  Scenario: Every scenario starts with an empty list
+    # 上面的场景留下了一条待办；软重置和 src/e2e.ts 中的 onReset hook 已把它清空。
+    Then the list is empty
+```
+
+去掉 `onReset` hook，这个测试就会失败，屏幕上仍留着上一个测试的待办。凡是存在于 React 和存储之外的状态，例如模块变量、React Query client 之类的缓存、内存数据库，都需要一个 `onReset` hook。
+
+## 第 7 步：在 iOS 和 Android 上运行 {#step-7-ios-and-android}
+
+测试不需要改动。每个平台构建一次 e2e App，然后运行同样的文件：
+
+<Tabs>
+  <Tab title="iOS">
+    ```sh
+    # 先启动一个模拟器：open -a Simulator
+
+    # 以 EXPO_PUBLIC_QUIESCO=1 执行 prebuild 和 xcodebuild：第一次需要几分钟
+    npm run e2e:build:ios
+
+    npm run e2e:ios
+    ```
+  </Tab>
+  <Tab title="Android">
+    ```sh
+    # 先启动一个模拟器：Android Studio 的 Device Manager，或 emulator -avd <name>
+
+    # 以 EXPO_PUBLIC_QUIESCO=1 执行 prebuild 和 gradlew assembleDebug：第一次需要几分钟
+    npm run e2e:build:android
+
+    npm run e2e:android
+    ```
+  </Tab>
+</Tabs>
+
+`quiesco test` 会安装构建产物、为 dev client 启动 Metro、运行测试，然后停止 Metro。在 iOS 和 Android 上，`tap` 和 `type` 是真实的触摸和键盘输入，而不是直接调用组件：被键盘或其他视图挡住的按钮会让测试失败（`ELEMENT_OBSCURED`），就像它会挡住用户一样。
+
+## 测试失败时 {#when-a-test-fails}
+
+把第 3 步中的 `Then the first todo is "Buy milk"` 改成 `Then the first todo is "Buy bread"`，再运行一次测试。测试会在断言超时后失败，并给出期望的内容、实际找到的内容以及 App 当时所在的位置：
+
+```text
+QuiescoError: expect text failed after 10000ms for { id: "todo-title", index: 0 }: expected "Buy bread", actual "Buy milk" (current route: /)
+
+Quiesco evidence:
+  artifacts/20261123-212209-web/001-a-new-todo-appears-at-the-top-of-the-list/failure.png
+  artifacts/20261123-212209-web/001-a-new-todo-appears-at-the-top-of-the-list/elements.json
+  …
+```
+
+`artifacts/` 文件夹中，每个失败的测试都有以下文件：
+
+| 文件 | 内容 |
+|---|---|
+| `failure.png` | 失败时的屏幕截图，失败调用涉及的元素用红框标出 |
+| `elements.json` | 当前路由，以及所有带 test id、label 或文本的元素，包括是否可见及原因 |
+| `element-tree.json` | 完整的元素树 |
+| `idle-state.json` | 等待空闲超时时，哪些东西还在忙 |
+| `timeline.html` | 测试中的每次调用，及其耗时和等待 App 的时长 |
+
+如果想改为在浏览器页面中运行测试（一次运行一个测试，在页面上查看运行进度和失败时的证据），安装 `@quiesco/ui` 并启动 `npx quiesco ui --platform web`（[测试 UI](./ui)）。
+
+## 下一步 {#next-steps}
+
+- [同步](./sync)：空闲意味着什么，以及如何处理永不停止的动画。
+- [API 参考](./api)：所有操作和断言，以及匹配器（`within`、`has`、正则表达式）。
+- [Driver 模式](./driver-pattern)：测试套件变大后，把 test id 从测试中抽离出来。

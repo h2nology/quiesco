@@ -1,0 +1,81 @@
+---
+title: "教程：测试一个待办 App"
+sidebarTitle: "概览"
+description: "以一个有三个页面的小型待办 App 为例，一步步编写它的端到端测试：test id、跨页面的流程、后门、重置和失败排查。"
+---
+
+本教程从一个能运行的 App 出发，最终得到八个测试，无需修改即可在 Web、iOS 和 Android 上运行。途中会用到一个典型测试需要的全部内容：按 test id 查找元素、在页面之间跳转、填写表单、通过后门准备数据，以及阅读失败信息。
+
+测试按每种 [测试运行器](./runners) 各写了一遍。先在本页准备好项目，再选一个运行器：步骤都一样，只有测试代码不同。
+
+大约需要 30 分钟。你需要 Node.js 24+；iOS 和 Android 还需要 [快速开始](./quickstart) 中列出的工具。
+
+## 这个 App {#the-app}
+
+这是一个有三个页面的 Expo Router App。仓库里按测试运行器各放了一份：[`todo-tutorial-vitest`](https://github.com/h2nology/quiesco/tree/main/examples/todo-tutorial-vitest)、[`todo-tutorial-jest`](https://github.com/h2nology/quiesco/tree/main/examples/todo-tutorial-jest) 和 [`todo-tutorial-cucumber`](https://github.com/h2nology/quiesco/tree/main/examples/todo-tutorial-cucumber)，只有测试不同。
+
+<Columns cols={3}>
+  <Frame caption="列表（/）">
+    <img src="/images/tutorial/list.png" alt="待办列表，有两条待办，其中一条已勾选，下方是 New todo 按钮" />
+  </Frame>
+  <Frame caption="新建待办（/new）">
+    <img src="/images/tutorial/new-todo.png" alt="新建待办的表单，包含标题和备注两个输入框，以及 Save 按钮" />
+  </Frame>
+  <Frame caption="详情（/todo/[id]）">
+    <img src="/images/tutorial/details.png" alt="一条待办的详情，带有 Mark as done 和 Delete todo 按钮" />
+  </Frame>
+</Columns>
+
+- **列表**显示所有待办，每条带一个复选框，并显示完成了几条。点 **New todo** 打开表单；点某条待办打开它的详情。
+- **新建待办**要求填写标题，备注可选。保存需要一点时间（模拟向后端发送请求），之后 App 回到列表。
+- **详情**显示一条待办，有两个按钮：标记为完成（或重新打开），以及删除。
+
+待办保存在内存中（`src/store.ts`）：每次启动时列表都是空的。
+
+## 获取项目 {#get-the-project}
+
+把对应运行器的示例从仓库中复制出来并安装：
+
+<CodeGroup>
+```sh Vitest
+npx degit h2nology/quiesco/examples/todo-tutorial-vitest quiesco-todo
+cd quiesco-todo
+npm install
+```
+```sh Jest
+npx degit h2nology/quiesco/examples/todo-tutorial-jest quiesco-todo
+cd quiesco-todo
+npm install
+```
+```sh Cucumber
+npx degit h2nology/quiesco/examples/todo-tutorial-cucumber quiesco-todo
+cd quiesco-todo
+npm install
+```
+</CodeGroup>
+
+愿意的话，可以用 `npm run web`（或用 dev client 时的 `npm start`）先试试这个 App。项目已经为 Quiesco 配置好了，内容就是 `npx quiesco init --runner <runner>` 加上 [快速开始](./quickstart) 中各步骤的产物：
+
+| 文件 | 作用 |
+|---|---|
+| `index.ts` | 在 `expo-router/entry` 之前导入 `@quiesco/agent`，让 agent 从第一次渲染起就能看到 App |
+| `metro.config.js` | `withQuiesco()`：e2e 构建（`EXPO_PUBLIC_QUIESCO=1`）中使用真正的 agent，其他情况下是什么都不做的空实现 |
+| `app.json` | 列出 `@quiesco/expo-plugin`，并设置 `quiesco.config.mts` 中引用的 bundle id / package |
+| `src/app/_layout.tsx` | 用 `<QuiescoRoot>` 包裹 App，并且只在 e2e 构建中加载 `src/e2e.ts` |
+| `quiesco.config.mts` | App 在各平台上的位置：web 导出、模拟器构建、APK |
+| `vitest.config.mts`、`jest.config.cjs` 或 `cucumber.mjs` | 运行器的配置：用 Quiesco 运行哪些测试文件 |
+| `package.json` | `e2e:*` 脚本：`e2e:web`、`e2e:build:ios`、`e2e:ios`、`e2e:build:android`、`e2e:android` |
+
+## 选择测试运行器 {#pick-a-runner}
+
+<CardGroup cols={3}>
+  <Card title="Vitest（推荐）" icon="flask" href="./tutorial-vitest">
+    用 TypeScript 编写测试，App 以 `app` fixture 的形式提供。
+  </Card>
+  <Card title="Jest" icon="flask" href="./tutorial-jest">
+    用 JavaScript 编写测试，通过全局的 `quiesco.app` 操作 App。
+  </Card>
+  <Card title="Cucumber" icon="flask" href="./tutorial-cucumber">
+    用 Gherkin 编写场景，用 TypeScript 编写步骤定义。
+  </Card>
+</CardGroup>
