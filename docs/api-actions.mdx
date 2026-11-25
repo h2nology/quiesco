@@ -152,6 +152,7 @@ await app.longPressAt({ x: 200, y: 400 }, { durationMs: 1000 });
 
 | Option | Default | Meaning |
 |---|---|---|
+| `durationMs` | `800` | How long to hold |
 | `timeoutMs` | `sync.timeoutMs` (10 s) | How long to wait for the app to be idle |
 | `sync` | `true` | `false`: do not wait for the app to be idle around this call ([call options](./api#call-options)) |
 | `mode` | `actions.mode` | `'native'`: real touches and keyboard input; `'js'`: call the component's callbacks |

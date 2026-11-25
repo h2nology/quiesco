@@ -148,6 +148,7 @@ await app.longPressAt({ x: 200, y: 400 }, { durationMs: 1000 });
 
 | 选项 | 默认值 | 含义 |
 |---|---|---|
+| `durationMs` | `800` | 按住多久 |
 | `timeoutMs` | `sync.timeoutMs`（10 秒） | 等待 App 空闲的最长时间 |
 | `sync` | `true` | `false`：这次调用前后不等待 App 空闲（[通用选项](./api#call-options)） |
 | `mode` | `actions.mode` | `'native'`：真实的触摸和键盘输入；`'js'`：调用组件的回调 |

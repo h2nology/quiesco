@@ -53,8 +53,12 @@ module.exports = withQuiesco(getDefaultConfig(__dirname), {
 
 | 选项 | 默认值 | 含义 |
 |---|---|---|
+| `enabled` | `EXPO_PUBLIC_QUIESCO` 是否为 `1` | `true`：打包真正的 agent；`false`：替换为空实现的桩 |
+| `env` | `process.env` | 决定 `enabled` 和 `nativeModules` 默认值的环境变量 |
+| `projectRoot` | Metro 的 `projectRoot`，没有则为当前目录 | 解析 `artifactsDir` 和 `.expo/` 的基准目录 |
 | `artifactsDir` | `'artifacts'` | 相对于项目根目录。修改 [`artifacts.dir`](./config#artifacts) 时必须与之一致；`false`：不排除任何目录 |
 | `nativeModules` | `EXPO_PUBLIC_QUIESCO_NATIVE_MODULES` 是否为 `1` | 构建时包装原生模块，从而开启 `native-module` 跟踪器（[原生模块调用](./sync#native-module-calls)） |
+| `argv` | 当前进程的参数 | Metro 的命令行：`export` / `bundle` 时按一次性打包处理，而不是监听文件的开发服务器 |
 
 ### 不让测试代码进入生产环境 {#e2e-module}
 

@@ -53,8 +53,12 @@ Metroが成果物ディレクトリを監視しないようにもします。Met
 
 | オプション | デフォルト | 意味 |
 |---|---|---|
+| `enabled` | `EXPO_PUBLIC_QUIESCO`が`1`かどうか | `true`：本物のエージェントをバンドルします。`false`：何もしないスタブに置き換えます |
+| `env` | `process.env` | `enabled`と`nativeModules`のデフォルトを決める環境変数 |
+| `projectRoot` | Metroの`projectRoot`、なければカレントディレクトリ | `artifactsDir`と`.expo/`の基準になるディレクトリ |
 | `artifactsDir` | `'artifacts'` | プロジェクトルートからの相対パス。[`artifacts.dir`](./config#artifacts)を変更した場合はそれに合わせる必要があります。`false`：除外しない |
 | `nativeModules` | `EXPO_PUBLIC_QUIESCO_NATIVE_MODULES`が`1`かどうか | ネイティブモジュールをラップしてアプリをビルドし、`native-module`トラッカーをオンにします（[ネイティブモジュールの呼び出し](./sync#native-module-calls)） |
+| `argv` | このプロセスの引数 | Metroのコマンドライン。`export` / `bundle`なら監視する開発サーバーではなく一回きりのバンドルとして扱います |
 
 ### テスト用のコードを本番に入れない {#e2e-module}
 

@@ -63,8 +63,12 @@ it every time a dev client app starts.
 
 | Option | Default | Meaning |
 |---|---|---|
+| `enabled` | whether `EXPO_PUBLIC_QUIESCO` is `1` | `true`: bundle the real agent; `false`: replace it with the no-op stub |
+| `env` | `process.env` | The environment `enabled` and `nativeModules` default from |
+| `projectRoot` | Metro's `projectRoot`, else the current directory | The directory `artifactsDir` and `.expo/` are resolved from |
 | `artifactsDir` | `'artifacts'` | Relative to the project root. Must match [`artifacts.dir`](./config#artifacts) when you change it; `false`: none |
 | `nativeModules` | whether `EXPO_PUBLIC_QUIESCO_NATIVE_MODULES` is `1` | Build the app with native modules wrapped, which turns the `native-module` tracker on ([native module calls](./sync#native-module-calls)) |
+| `argv` | this process's arguments | Metro's command line: `export` / `bundle` build a one-off bundle instead of a watched dev server |
 
 ### Keeping test code out of production {#e2e-module}
 

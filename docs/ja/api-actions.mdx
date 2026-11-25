@@ -148,6 +148,7 @@ await app.longPressAt({ x: 200, y: 400 }, { durationMs: 1000 });
 
 | オプション | デフォルト | 意味 |
 |---|---|---|
+| `durationMs` | `800` | 押し続ける時間 |
 | `timeoutMs` | `sync.timeoutMs`（10秒） | アプリがアイドルになるまで待つ最大時間 |
 | `sync` | `true` | `false`：この呼び出しの前後でアプリのアイドルを待ちません（[共通オプション](./api#call-options)） |
 | `mode` | `actions.mode` | `'native'`：実際のタッチとキーボード入力、`'js'`：コンポーネントのコールバックを呼び出します |
