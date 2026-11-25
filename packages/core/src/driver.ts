@@ -30,7 +30,7 @@ import type {
 } from '@quiesco/protocol';
 
 import { QuiescoError, captureCallSite, withCallSite } from './errors.js';
-import { findNonJson } from './json.js';
+import { findNonJson, isDate, isRegExp } from './json.js';
 import type { Logger } from './logger.js';
 import { silentLogger } from './logger.js';
 import type { MatcherInput, TextQuery } from './matcher.js';
@@ -425,7 +425,7 @@ export class Driver {
    * matches when those parts agree.
    */
   expectValue(target: MatcherInput, expected: JsonValue | RegExp | Date, opts?: CallOptions): Promise<ElementSummary[]> {
-    const value = expected instanceof RegExp ? toTextMatch(expected) : expected instanceof Date ? toControlValue(expected) : expected;
+    const value = isRegExp(expected) ? toTextMatch(expected) : isDate(expected) ? toControlValue(expected) : expected;
     return this.assert({ type: 'value', matcher: toMatcher(target), expected: value as JsonValue | TextMatch }, opts);
   }
   expectLabel(target: MatcherInput, expected: TextQuery, opts?: CallOptions): Promise<ElementSummary[]> {
@@ -769,7 +769,7 @@ function checkPoint(p: Point, name: string): Point {
 
 /** A setValue argument in JSON: dates as ISO strings. */
 export function toControlValue(v: number | boolean | string | Date): ControlValue {
-  if (v instanceof Date) {
+  if (isDate(v)) {
     if (Number.isNaN(v.getTime())) throw new RangeError('setValue got an invalid Date');
     return { date: v.toISOString() };
   }

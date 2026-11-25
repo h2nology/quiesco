@@ -7,6 +7,7 @@ import type { AssertionSpec, ElementSummary, JsonValue, Matcher } from '@quiesco
 
 import type { CallOptions } from './options.js';
 import type { MatcherInput, TextQuery } from './matcher.js';
+import { isRegExp } from './json.js';
 import { toMatcher, toTextMatch } from './matcher.js';
 
 export interface VisibleOptions extends CallOptions {
@@ -58,7 +59,7 @@ export class ElementExpectation {
   }
   /** Input text, switch state, slider / picker value or accessibilityValue (Detox `toHaveValue` / `toHaveSliderPosition`). */
   toHaveValue(value: JsonValue | RegExp, opts?: CallOptions): Promise<ElementSummary[]> {
-    const expected = value instanceof RegExp ? toTextMatch(value) : value;
+    const expected = isRegExp(value) ? toTextMatch(value) : value;
     return this.run(this.neg({ type: 'value', matcher: this.m(), expected }), opts);
   }
   toHaveProp(prop: string, value: JsonValue, opts?: CallOptions): Promise<ElementSummary[]> {

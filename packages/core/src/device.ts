@@ -9,6 +9,7 @@ import type { DeviceInfo, Matcher, Orientation, Point, Rect, ScrollViewInfo } fr
 import type { Permission, PermissionState } from './devices/permissions.js';
 import type { ColorScheme, DeviceProvider, InAppControls, LaunchUrlHandling, NotificationSpec, StateChange, StatusBarOptions, SystemNode } from './devices/provider.js';
 import { QuiescoError } from './errors.js';
+import { isRegExp } from './json.js';
 import { checkLaunchArgs } from './launch-args.js';
 import type { LaunchArgs } from './launch-args.js';
 import type { Logger } from './logger.js';
@@ -784,7 +785,7 @@ const BACKGROUND_HINT: Record<DeviceProvider['platform'], string> = {
 };
 
 function isFullPage(t: MatcherInput | { fullPage: true | MatcherInput }): t is { fullPage: true | MatcherInput } {
-  return typeof t === 'object' && t !== null && !(t instanceof RegExp) && Object.prototype.hasOwnProperty.call(t, 'fullPage');
+  return typeof t === 'object' && t !== null && !isRegExp(t) && Object.prototype.hasOwnProperty.call(t, 'fullPage');
 }
 
 function notSupported(action: string, platform: string, hint?: string): QuiescoError {
