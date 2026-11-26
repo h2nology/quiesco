@@ -1,0 +1,254 @@
+---
+title: "EAS"
+description: "用 EAS Build 构建 e2e 应用，用 EAS Workflows 在 Expo 的 worker 上运行测试。"
+---
+
+原生测试的两半都可以交给 EAS：[EAS Build](https://docs.expo.dev/build/introduction/) 构建应用的 e2e 版本，
+[EAS Workflows](https://docs.expo.dev/eas/workflows/get-started/) 针对它运行 `quiesco test`——iOS 在带模拟器的
+macOS worker 上，Android 在带模拟器的 Linux worker 上。你不需要自己的 Mac 或模拟器。
+
+下面的配置在两个平台上运行教程应用的测试（[examples/todo-tutorial-vitest](https://github.com/h2nology/quiesco/tree/main/examples/todo-tutorial-vitest)）。
+需要 EAS CLI（`npm install -g eas-cli`）、一个 Expo 账号（`eas login`），并且项目已关联到该账号（`eas init`）。
+
+## 构建 profile {#build-profile}
+
+在 `eas.json` 中添加 `e2e` profile：
+
+```json eas.json
+{
+  "build": {
+    "e2e": {
+      "withoutCredentials": true,
+      "env": { "EXPO_PUBLIC_QUIESCO": "1" },
+      "ios": { "simulator": true },
+      "android": { "buildType": "apk" }
+    }
+  }
+}
+```
+
+- `EXPO_PUBLIC_QUIESCO=1` 与本地 `quiesco build` 设置的相同：agent 保留在 JS bundle 中，
+  `@quiesco/expo-plugin` 链接 `@quiesco/native` 并允许连接测试主机。没有它，构建出来的就是生产包，Quiesco
+  无法连接应用。
+- `ios.simulator` 生成模拟器构建（`.app`），`android.buildType: "apk"` 生成可安装到模拟器的 APK。两者都不需要
+  签名凭据（`withoutCredentials`）。
+- 该 profile 没有 `developmentClient`：JS 打包进应用，运行时不需要 Metro。
+
+## 配置 {#config}
+
+本地配置启动的是从 Metro 加载 JS 的 dev client，而 EAS 构建是独立应用。EAS 会在它的 worker 上设置
+`EAS_BUILD`，因此 `quiesco.config.mts` 可以据此区分两者：
+
+```ts quiesco.config.mts
+import { defineConfig } from '@quiesco/core';
+
+// 在 EAS worker 上：workflow 放到 build/ 的 `e2e` 构建。
+const onEas = process.env['EAS_BUILD'] !== undefined;
+
+export default defineConfig({
+  apps: {
+    ios: onEas
+      ? { bundleId: 'dev.quiesco.tutorial', binaryPath: 'build/e2e-ios.app' }
+      : {
+          bundleId: 'dev.quiesco.tutorial',
+          binaryPath: 'ios/build/Build/Products/Debug-iphonesimulator/QuiescoTodoTutorial.app',
+          devClient: { metroUrl: 'http://localhost:8081' },
+        },
+    android: onEas
+      ? { package: 'dev.quiesco.tutorial', binaryPath: 'build/e2e-android.apk' }
+      : {
+          package: 'dev.quiesco.tutorial',
+          binaryPath: 'android/app/build/outputs/apk/debug/app-debug.apk',
+          devClient: { scheme: 'quiescotutorial', metroUrl: 'http://localhost:8081' },
+        },
+  },
+  // 在 EAS 上，Quiesco 自己启动这台模拟器；Android 模拟器由 workflow 启动。
+  ...(onEas ? { devices: { ios: { device: 'iPhone 17' } } } : {}),
+});
+```
+
+没有 `devClient` 时，Quiesco 直接启动应用，也不会启动 Metro。请选择 worker 镜像中存在的模拟器（在 workflow
+的某个步骤里运行 `xcrun simctl list devices available` 可以列出）。
+
+## Workflow {#workflow}
+
+```yaml .eas/workflows/e2e.yml
+name: e2e
+
+on:
+  pull_request:
+    branches: ['*']
+
+jobs:
+  build_ios:
+    type: build
+    params:
+      platform: ios
+      profile: e2e
+
+  build_android:
+    type: build
+    params:
+      platform: android
+      profile: e2e
+
+  test_ios:
+    needs: [build_ios]
+    runs_on: macos-medium
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - uses: eas/download_build
+        id: download
+        with:
+          build_id: ${{ needs.build_ios.outputs.build_id }}
+      - name: Run the tests on the iOS simulator
+        run: |
+          mkdir -p build
+          cp -R "${{ steps.download.outputs.artifact_path }}" build/e2e-ios.app
+          source "$NVM_DIR/nvm.sh" && nvm install 24
+          npx quiesco test --platform ios
+      - uses: eas/upload_artifact
+        if: ${{ always() }}
+        with:
+          type: other
+          name: quiesco-ios
+          path: artifacts
+          ignore_error: true
+
+  test_android:
+    needs: [build_android]
+    runs_on: linux-medium-nested-virtualization
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - uses: eas/download_build
+        id: download
+        with:
+          build_id: ${{ needs.build_android.outputs.build_id }}
+      - name: Start an Android emulator
+        run: |
+          echo no | avdmanager create avd -n e2e -d pixel_6 -k 'system-images;android-36;google_apis;x86_64' > /dev/null 2>&1
+          nohup emulator -avd e2e -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > emulator.log 2>&1 &
+          adb wait-for-device
+          timeout 300 sh -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 2; done'
+      - name: Run the tests on the emulator
+        run: |
+          mkdir -p build
+          cp "${{ steps.download.outputs.artifact_path }}" build/e2e-android.apk
+          source "$NVM_DIR/nvm.sh" && nvm install 24
+          npx quiesco test --platform android
+      - uses: eas/upload_artifact
+        if: ${{ always() }}
+        with:
+          type: other
+          name: quiesco-android
+          path: artifacts
+          ignore_error: true
+```
+
+各部分的作用：
+
+- **Worker。** iOS 模拟器需要 `macos-*` worker，Android 模拟器需要 `linux-*-nested-virtualization` worker
+  （其他 worker 没有 KVM）。
+- **Node.js 24。** Quiesco 需要 Node.js 24 及以上，而 worker 默认的版本更旧。`nvm install 24` 在运行 Quiesco
+  的那个步骤里切换：每个 `run` 是独立的 shell，切换不会带到下一个步骤。`eas/install_node_modules` 用默认的 Node
+  即可。
+- **构建产物。** `eas/download_build` 会解开 iOS 模拟器构建（EAS 以 `.tar.gz` 保存），所以 `artifact_path` 在
+  iOS 上是 `.app`，在 Android 上是 `.apk`。步骤把它复制到 `binaryPath` 指向的位置。
+- **Android 模拟器。** Linux worker 没有显示器，所以 workflow 用 `-no-window` 自己启动模拟器并等待启动完成；
+  之后 Quiesco 使用这台正在运行的模拟器。worker 镜像在 `$ANDROID_HOME/system-images` 下带有 system image
+  （撰写本文时为 Android 30 到 37）。`avdmanager` 在这些镜像上会打印 `devices.xml` 相关的错误，这些错误无害，
+  所以它的输出被丢弃了。
+- **iOS 模拟器。** Quiesco 自己启动 `devices.ios` 中指定的模拟器。每个 job 的第一个测试要多花一分半钟左右：
+  模拟器启动，并且 Quiesco 的系统 UI runner 要针对 worker 的 Xcode 构建一次。
+- **证据文件。** 失败的测试会在 `artifacts/` 下留下截图、元素树和日志（[产物](./api-artifacts)）；
+  `eas/upload_artifact` 把它们附加到 EAS 控制台上的 job。`if: ${{ always() }}` 让它在失败后也会运行，
+  `ignore_error` 则避免在所有测试都通过（从未创建 `artifacts/`）时因为上传而失败。
+
+在本机运行它：
+
+```sh
+eas workflow:run .eas/workflows/e2e.yml
+```
+
+Expo 项目关联到 GitHub 仓库后（expo.dev 上的项目设置），`pull_request` 触发器会在每个 pull request 上运行它。
+其他触发方式见 Expo 的 [workflow 语法](https://docs.expo.dev/eas/workflows/syntax/)。
+
+## 测试通过后再构建发布包 {#release}
+
+上面的 workflow 到测试就结束了。要在测试通过后才构建发布包，就添加发布构建 job，并在它的 `needs` 里列出测试 job：
+EAS 只有在 `needs` 中的所有 job 都成功后才会启动该 job，所以测试失败时发布构建会被跳过，不消耗构建额度。
+
+把它们放在单独的 workflow 里，在发布的来源处运行，例如 push 到 `main` 时；`e2e.yml` 继续用于 pull request。发布构建
+之前的 job 与 `e2e.yml` 相同：
+
+```yaml .eas/workflows/release.yml
+name: release
+
+on:
+  push:
+    branches: ['main']
+
+jobs:
+  # build_ios、build_android、test_ios、test_android：从 e2e.yml 复制
+
+  build_release_ios:
+    needs: [test_ios, test_android]
+    type: build
+    params:
+      platform: ios
+      profile: production
+
+  build_release_android:
+    needs: [test_ios, test_android]
+    type: build
+    params:
+      platform: android
+      profile: production
+```
+
+测试失败的运行，结果是 `test_*` 失败、`build_release_*` 被跳过。如果还要把发布包提交到商店，再添加一个
+`needs: [build_release_ios]`（以及 Android 对应的）的 `submit` job；它需要在 EAS 中配置好商店凭据（见 Expo 的
+[预置 job](https://docs.expo.dev/eas/workflows/pre-packaged-jobs/)）。
+
+发布包是同一个 commit 单独构建出来的，不带 `EXPO_PUBLIC_QUIESCO`：测试运行的是这份代码的 e2e 构建，而不是发布用的
+二进制。两者的区别见下一节。
+
+## 生产构建 {#production}
+
+Quiesco 是灰盒测试工具：e2e 构建带有 agent 和原生模块，而发布版本不能带。在 EAS 上，两者是同一份源码的两次独立构建，
+只由 `EXPO_PUBLIC_QUIESCO` 决定是哪一种：
+
+| | `e2e` profile | 你的发布 profile |
+|---|---|---|
+| `EXPO_PUBLIC_QUIESCO` | `"1"`，写在 profile 的 `env` 中 | 不设置 |
+| JS bundle（Metro 中的 `withQuiesco()`） | agent | 用空的 stub 替代 `@quiesco/agent` |
+| 原生（prebuild 时的 `@quiesco/expo-plugin`） | 链接 `@quiesco/native`，允许连接 localhost | 把 `@quiesco/native` 排除在 autolinking 之外（Podfile、`settings.gradle`） |
+
+EAS 每次构建都会打包 JS；对于没有提交 `ios/` / `android/` 目录的项目，还会用该 profile 的 `env` 运行
+`expo prebuild`，所以两个开关都跟随 profile。在 EAS 上不带该变量构建的教程应用（模拟器 `.app` 和 release APK）
+不含 `scripts/check-prod-strip.mjs` 扫描的任何 agent 和 `@quiesco/native` 标记；`e2e` 构建则全部包含。
+
+可能让 Quiesco 进入发布版本的情况：
+
+- **变量设在了别处。** 只在 `e2e` profile 中设置 `EXPO_PUBLIC_QUIESCO`：不要写进提交到仓库的 `.env` 文件（Expo
+  会把其中的 `EXPO_PUBLIC_*` 加载到每次构建中），不要设为发布构建所用 environment 的 EAS 环境变量，也不要写在
+  发布 profile `extends` 的 profile 里。
+- **提交了原生目录。** 仓库里有 `ios/` 或 `android/` 时，EAS 不运行 `expo prebuild`，config plugin 也不会运行：
+  `@quiesco/native` 是否被链接，由提交的 Podfile 和 `settings.gradle` 决定，对所有 profile 都一样。请让原生目录
+  保持自动生成（CNG），或检查提交的目录链接了什么。
+- **EAS Update。** update 和构建一样会打包 JS：发布时不要带这个变量。不要给 `e2e` profile 设置 `channel`，这样
+  e2e 构建就不会下载发布用的 update（其中的 stub 会切断与 Quiesco 的连接）。
+
+## 在其他机器上使用 EAS 构建 {#download}
+
+`e2e` 构建也可以在 EAS 之外运行，例如在你的 Mac 上或其他 CI 中：
+
+```sh
+eas build --profile e2e --platform ios
+eas build:download --build-id <id>       # 打印解包后的 .app（或 .apk）的路径
+```
+
+把文件复制到 `apps.ios.binaryPath`（或 `apps.android.binaryPath`）指向的位置，并像上面的[配置](#config)一样
+去掉 `devClient`。

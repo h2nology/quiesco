@@ -101,8 +101,8 @@ Known first-run failures:
 
 Summarize: platforms set up, files created and edited (separating app code from test setup), the first
 run's result, and next steps — write real scenarios (the `writing-tests` skill), `npx quiesco tree` to find
-testIDs, `npx quiesco ui` for the browser test UI, and an EAS profile with `EXPO_PUBLIC_QUIESCO=1` for CI
-native builds.
+testIDs, `npx quiesco ui` for the browser test UI, and `/quiesco:eas` to build the app and run the native tests on
+EAS.
 
 ## Additional resources
 

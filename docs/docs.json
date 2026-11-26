@@ -127,6 +127,7 @@
                 ]
               },
               "parallel",
+              "eas",
               "platforms",
               "ui",
               "troubleshooting"
@@ -203,6 +204,7 @@
                 ]
               },
               "zh/parallel",
+              "zh/eas",
               "zh/platforms",
               "zh/ui",
               "zh/troubleshooting"
@@ -279,6 +281,7 @@
                 ]
               },
               "ja/parallel",
+              "ja/eas",
               "ja/platforms",
               "ja/ui",
               "ja/troubleshooting"

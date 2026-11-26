@@ -1,0 +1,267 @@
+---
+title: "EAS"
+description: "EAS Build で e2e 用のアプリをビルドし、EAS Workflows で Expo の worker 上でテストを実行します。"
+---
+
+ネイティブのテスト実行は、2 つとも EAS に任せられます。[EAS Build](https://docs.expo.dev/build/introduction/)
+がアプリの e2e ビルドを作り、[EAS Workflows](https://docs.expo.dev/eas/workflows/get-started/) がそれに対して
+`quiesco test` を実行します。iOS はシミュレーター付きの macOS worker で、Android はエミュレーター付きの Linux
+worker で動きます。手元の Mac やエミュレーターは要りません。
+
+以下の設定で、チュートリアルアプリのテスト（[examples/todo-tutorial-vitest](https://github.com/h2nology/quiesco/tree/main/examples/todo-tutorial-vitest)）
+を両方のプラットフォームで実行します。EAS CLI（`npm install -g eas-cli`）と Expo アカウント（`eas login`）が
+必要で、プロジェクトをそのアカウントに紐づけておきます（`eas init`）。
+
+## ビルドプロファイル {#build-profile}
+
+`eas.json` に `e2e` プロファイルを追加します。
+
+```json eas.json
+{
+  "build": {
+    "e2e": {
+      "withoutCredentials": true,
+      "env": { "EXPO_PUBLIC_QUIESCO": "1" },
+      "ios": { "simulator": true },
+      "android": { "buildType": "apk" }
+    }
+  }
+}
+```
+
+- `EXPO_PUBLIC_QUIESCO=1` は、ローカルで `quiesco build` が設定するのと同じものです。agent が JS バンドルに
+  残り、`@quiesco/expo-plugin` が `@quiesco/native` をリンクしてテストホストへの接続を許可します。これがないと
+  本番ビルドになり、Quiesco はアプリに接続できません。
+- `ios.simulator` でシミュレーター用ビルド（`.app`）が、`android.buildType: "apk"` でエミュレーターに
+  インストールできる APK ができます。どちらも署名の認証情報は要りません（`withoutCredentials`）。
+- このプロファイルには `developmentClient` がありません。JS はアプリに同梱されるので、実行時に Metro は
+  要りません。
+
+## 設定 {#config}
+
+ローカルの設定は、Metro から JS を読み込む dev client を起動します。一方、EAS のビルドは単体のアプリです。
+EAS は worker 上で `EAS_BUILD` を設定するので、`quiesco.config.mts` でこの 2 つを切り替えられます。
+
+```ts quiesco.config.mts
+import { defineConfig } from '@quiesco/core';
+
+// EAS の worker 上: workflow が build/ に置く `e2e` ビルド。
+const onEas = process.env['EAS_BUILD'] !== undefined;
+
+export default defineConfig({
+  apps: {
+    ios: onEas
+      ? { bundleId: 'dev.quiesco.tutorial', binaryPath: 'build/e2e-ios.app' }
+      : {
+          bundleId: 'dev.quiesco.tutorial',
+          binaryPath: 'ios/build/Build/Products/Debug-iphonesimulator/QuiescoTodoTutorial.app',
+          devClient: { metroUrl: 'http://localhost:8081' },
+        },
+    android: onEas
+      ? { package: 'dev.quiesco.tutorial', binaryPath: 'build/e2e-android.apk' }
+      : {
+          package: 'dev.quiesco.tutorial',
+          binaryPath: 'android/app/build/outputs/apk/debug/app-debug.apk',
+          devClient: { scheme: 'quiescotutorial', metroUrl: 'http://localhost:8081' },
+        },
+  },
+  // EAS では、このシミュレーターを Quiesco が起動します。Android エミュレーターは workflow が起動します。
+  ...(onEas ? { devices: { ios: { device: 'iPhone 17' } } } : {}),
+});
+```
+
+`devClient` がなければ、Quiesco はアプリを直接起動し、Metro も起動しません。シミュレーターは worker の
+イメージにあるものを選んでください（workflow のステップで `xcrun simctl list devices available` を実行すると
+一覧が出ます）。
+
+## Workflow {#workflow}
+
+```yaml .eas/workflows/e2e.yml
+name: e2e
+
+on:
+  pull_request:
+    branches: ['*']
+
+jobs:
+  build_ios:
+    type: build
+    params:
+      platform: ios
+      profile: e2e
+
+  build_android:
+    type: build
+    params:
+      platform: android
+      profile: e2e
+
+  test_ios:
+    needs: [build_ios]
+    runs_on: macos-medium
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - uses: eas/download_build
+        id: download
+        with:
+          build_id: ${{ needs.build_ios.outputs.build_id }}
+      - name: Run the tests on the iOS simulator
+        run: |
+          mkdir -p build
+          cp -R "${{ steps.download.outputs.artifact_path }}" build/e2e-ios.app
+          source "$NVM_DIR/nvm.sh" && nvm install 24
+          npx quiesco test --platform ios
+      - uses: eas/upload_artifact
+        if: ${{ always() }}
+        with:
+          type: other
+          name: quiesco-ios
+          path: artifacts
+          ignore_error: true
+
+  test_android:
+    needs: [build_android]
+    runs_on: linux-medium-nested-virtualization
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - uses: eas/download_build
+        id: download
+        with:
+          build_id: ${{ needs.build_android.outputs.build_id }}
+      - name: Start an Android emulator
+        run: |
+          echo no | avdmanager create avd -n e2e -d pixel_6 -k 'system-images;android-36;google_apis;x86_64' > /dev/null 2>&1
+          nohup emulator -avd e2e -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > emulator.log 2>&1 &
+          adb wait-for-device
+          timeout 300 sh -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 2; done'
+      - name: Run the tests on the emulator
+        run: |
+          mkdir -p build
+          cp "${{ steps.download.outputs.artifact_path }}" build/e2e-android.apk
+          source "$NVM_DIR/nvm.sh" && nvm install 24
+          npx quiesco test --platform android
+      - uses: eas/upload_artifact
+        if: ${{ always() }}
+        with:
+          type: other
+          name: quiesco-android
+          path: artifacts
+          ignore_error: true
+```
+
+各部分の役割:
+
+- **Worker。** iOS シミュレーターには `macos-*` の worker が、Android エミュレーターには
+  `linux-*-nested-virtualization` の worker が必要です（ほかの worker には KVM がありません）。
+- **Node.js 24。** Quiesco には Node.js 24 以降が必要ですが、worker の既定のバージョンはそれより古いものです。
+  `nvm install 24` で、Quiesco を実行するステップの中で切り替えます。`run` はそれぞれ別のシェルなので、切り替えは
+  次のステップに引き継がれません。`eas/install_node_modules` は既定の Node のままでかまいません。
+- **ビルド。** `eas/download_build` は iOS のシミュレーター用ビルド（EAS は `.tar.gz` で保存します）を展開する
+  ので、`artifact_path` は iOS では `.app`、Android では `.apk` になります。ステップでそれを `binaryPath` の
+  指す場所にコピーします。
+- **Android エミュレーター。** Linux の worker にはディスプレイがないので、workflow が `-no-window` で
+  エミュレーターを自分で起動し、起動完了を待ちます。Quiesco はその起動済みのエミュレーターを使います。worker の
+  イメージには `$ANDROID_HOME/system-images` に system image があります（執筆時点で Android 30 から 37）。
+  `avdmanager` はこれらのイメージで `devices.xml` のエラーを表示しますが、害はないので出力は捨てています。
+- **iOS シミュレーター。** `devices.ios` で指定したシミュレーターは Quiesco が起動します。各 job の最初の
+  テストは 1 分半ほど長くかかります。シミュレーターの起動と、Quiesco のシステム UI ランナーを worker の Xcode
+  向けに一度ビルドするためです。
+- **証拠ファイル。** 失敗したテストは `artifacts/` にスクリーンショット、要素ツリー、ログを残します
+  （[アーティファクト](./api-artifacts)）。`eas/upload_artifact` がそれらを EAS ダッシュボードの job に添付
+  します。`if: ${{ always() }}` で失敗後も実行され、`ignore_error` で、すべてのテストが通って `artifacts/` が
+  作られなかった場合にアップロードで失敗しないようにしています。
+
+手元から実行するには:
+
+```sh
+eas workflow:run .eas/workflows/e2e.yml
+```
+
+Expo のプロジェクトを GitHub のリポジトリに紐づけると（expo.dev のプロジェクト設定）、`pull_request` トリガーで
+すべての pull request で実行されます。ほかのトリガーは Expo の
+[workflow の構文](https://docs.expo.dev/eas/workflows/syntax/)を参照してください。
+
+## テストが通ってからリリースをビルドする {#release}
+
+上の workflow はテストで終わります。テストが通ったときだけリリースをビルドするには、テストの job を `needs` に
+並べたリリースビルドの job を追加します。EAS は `needs` の job がすべて成功したときだけその job を始めるので、
+テストが失敗するとリリースビルドはスキップされ、ビルドを消費しません。
+
+これらは、リリースの元になるところ（たとえば `main` への push）で動く別の workflow に置き、`e2e.yml` は pull
+request 用に残します。リリースビルドより前の job は `e2e.yml` と同じです。
+
+```yaml .eas/workflows/release.yml
+name: release
+
+on:
+  push:
+    branches: ['main']
+
+jobs:
+  # build_ios、build_android、test_ios、test_android: e2e.yml からコピー
+
+  build_release_ios:
+    needs: [test_ios, test_android]
+    type: build
+    params:
+      platform: ios
+      profile: production
+
+  build_release_android:
+    needs: [test_ios, test_android]
+    type: build
+    params:
+      platform: android
+      profile: production
+```
+
+テストが失敗した実行は、`test_*` が失敗、`build_release_*` がスキップで終わります。リリースをストアにも送るなら、
+`needs: [build_release_ios]`（と Android 用のもの）を付けた `submit` job を追加します。これには EAS にストアの
+認証情報を設定しておく必要があります（Expo の [pre-packaged jobs](https://docs.expo.dev/eas/workflows/pre-packaged-jobs/)）。
+
+リリースビルドは、同じコミットから `EXPO_PUBLIC_QUIESCO` なしで別にビルドしたものです。テストが動かしたのは
+そのコードの e2e ビルドで、リリースのバイナリではありません。両者の違いは次の節にあります。
+
+## 本番ビルド {#production}
+
+Quiesco はグレーボックスのテストツールです。e2e ビルドには agent とネイティブモジュールが入りますが、リリースには
+入れてはいけません。EAS では、この 2 つは同じソースからの別々のビルドで、どちらになるかは `EXPO_PUBLIC_QUIESCO`
+だけで決まります。
+
+| | `e2e` プロファイル | リリース用のプロファイル |
+|---|---|---|
+| `EXPO_PUBLIC_QUIESCO` | `"1"`（プロファイルの `env` に書く） | 設定しない |
+| JS バンドル（Metro の `withQuiesco()`） | agent | `@quiesco/agent` の代わりに何もしない stub |
+| ネイティブ（prebuild 時の `@quiesco/expo-plugin`） | `@quiesco/native` をリンクし、localhost への接続を許可 | `@quiesco/native` を autolinking から外す（Podfile、`settings.gradle`） |
+
+EAS はビルドのたびに JS をバンドルし、`ios/` / `android/` をコミットしていないプロジェクトでは、そのプロファイルの
+`env` で `expo prebuild` も実行します。そのため 2 つの切り替えはどちらもプロファイルに従います。変数なしで EAS で
+ビルドしたチュートリアルアプリ（シミュレーター用 `.app` と release APK）には、`scripts/check-prod-strip.mjs` が
+調べる agent と `@quiesco/native` の目印が 1 つも入っていません。`e2e` ビルドにはすべて入っています。
+
+Quiesco がリリースに入り込むのは、次のような場合です。
+
+- **変数をほかの場所で設定している。** `EXPO_PUBLIC_QUIESCO` は `e2e` プロファイルにだけ設定します。コミットした
+  `.env` ファイル（Expo はそこにある `EXPO_PUBLIC_*` をすべてのビルドに読み込みます）、リリースビルドが使う
+  environment の EAS 環境変数、リリース用プロファイルが `extends` するプロファイルには書かないでください。
+- **ネイティブのディレクトリをコミットしている。** リポジトリに `ios/` や `android/` があると、EAS は
+  `expo prebuild` を実行せず、config plugin も動きません。`@quiesco/native` がリンクされるかどうかは、どの
+  プロファイルでも、コミットされた Podfile と `settings.gradle` のとおりになります。ネイティブのディレクトリは自動
+  生成（CNG）のままにするか、コミットしたものが何をリンクしているかを確かめてください。
+- **EAS Update。** update もビルドと同じように JS をバンドルします。変数なしで公開してください。`e2e`
+  プロファイルには `channel` を付けないでおくと、e2e ビルドがリリース用の update（その stub で Quiesco との接続が
+  切れます）を取得しなくなります。
+
+## EAS のビルドをほかのマシンで使う {#download}
+
+`e2e` ビルドは EAS の外でも実行できます。たとえば手元の Mac や、ほかの CI です。
+
+```sh
+eas build --profile e2e --platform ios
+eas build:download --build-id <id>       # 展開した .app（または .apk）のパスを表示
+```
+
+ファイルを `apps.ios.binaryPath`（または `apps.android.binaryPath`）の指す場所にコピーし、上の
+[設定](#config)と同じく `devClient` を外します。

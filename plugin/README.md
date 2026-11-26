@@ -7,6 +7,7 @@ app.
 |---|---|---|
 | `/quiesco:setup [web] [ios] [android]` | skill (slash command) | Sets Quiesco up in an Expo project: `quiesco init`, `<QuiescoRoot>`, testIDs, Playwright / native builds, `quiesco doctor` until it passes, the first run. Asks which platforms when none are given. |
 | `/quiesco:debug [tests] [--platform p]` | skill (slash command) | Without arguments: analyzes the failures of the latest run in `artifacts/`. With arguments: re-runs those tests first. Fixes test code and config directly, asks before changing app code, re-runs to verify. |
+| `/quiesco:eas [ios] [android]` | skill (slash command) | Runs the native tests on EAS: the `e2e` build profile in `eas.json`, the EAS build in `quiesco.config.mts`, `.eas/workflows/e2e.yml` (iOS simulator on macOS, Android emulator on Linux). Runs it after asking, and debugs a red run from the evidence EAS keeps. |
 | `quiesco-api` | skill (automatic) | The Driver API, matchers, in-app API, configuration, synchronization, platform differences. Loaded when Claude works on Quiesco code. |
 | `writing-tests` | skill (automatic) | Business-language Gherkin, step definitions, the driver pattern, testIDs, tags, verifying a new test. Loaded when Claude writes or edits e2e tests. |
 | `failure-investigator` | agent | Reads a failed scenario's evidence (screenshot, elements, element tree, idle state, logs, timeline) and returns the cause and a fix. Used by `/quiesco:debug`, and on its own when a run fails. |
