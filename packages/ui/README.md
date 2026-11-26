@@ -12,7 +12,7 @@ npx quiesco ui --platform web
 
 The CLI loads this package; it is not used directly. Works with cucumber-js, Vitest (add `quiescoPlugin()`
 from `@quiesco/vitest/config`) and Jest (the `@quiesco/jest` preset). Served on 127.0.0.1 only, behind a
-token. Details: [test UI](https://shift-14cc7601.mintlify.site/ui).
+token. Details: [test UI](https://docs.quiesco.dev/ui).
 
 Part of [Quiesco](https://github.com/h2nology/quiesco): gray-box end-to-end testing for Expo apps on iOS, Android and the web. Setup: `npx quiesco init` ([quick start](https://github.com/h2nology/quiesco#quick-start-web-about-10-minutes)).
 

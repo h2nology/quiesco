@@ -145,7 +145,7 @@ npx quiesco ui --platform ios --config vitest.e2e.config.mts --port 5173
 npx quiesco ui --help
 ```
 
-Opens the [test UI](https://shift-14cc7601.mintlify.site/ui) in the browser: the project's tests, run all / a file / a test with a click, live
+Opens the [test UI](https://docs.quiesco.dev/ui) in the browser: the project's tests, run all / a file / a test with a click, live
 progress, failures with their evidence. Needs `@quiesco/ui` in the project. `--platform`, `--runner`,
 `--workers` and the runner's arguments work as for `quiesco test`; `--port N` chooses the port and
 `--no-open` does not open the browser. Metro stays up while it runs; Ctrl-C stops it.

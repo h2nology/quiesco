@@ -13,7 +13,7 @@ npx quiesco tree      # print the element tree of the running app
 npx quiesco devices   # list / prune the worker devices of parallel runs
 ```
 
-Every command and option: [CLI docs](https://shift-14cc7601.mintlify.site/cli).
+Every command and option: [CLI docs](https://docs.quiesco.dev/cli).
 
 Part of [Quiesco](https://github.com/h2nology/quiesco): gray-box end-to-end testing for Expo apps on iOS, Android and the web. Setup: `npx quiesco init` ([quick start](https://github.com/h2nology/quiesco#quick-start-web-about-10-minutes)).
 

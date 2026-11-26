@@ -1,0 +1,5 @@
+# Not served: the deploy config and the data build script.
+wrangler.jsonc
+.assetsignore
+build-data.mjs
+.wrangler

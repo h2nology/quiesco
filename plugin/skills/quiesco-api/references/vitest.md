@@ -85,7 +85,7 @@ quiescoPlugin(): QuiescoVitestPlugin
 
 Types: [`QuiescoVitestPlugin`](./vitest.md#quiesco-plugin)
 
-Sends the run's progress to the progress bar of `quiesco test` and to [`quiesco ui`](https://shift-14cc7601.mintlify.site/ui). It adds its
+Sends the run's progress to the progress bar of `quiesco test` and to [`quiesco ui`](https://docs.quiesco.dev/ui). It adds its
 reporter only when one of them runs Vitest, next to your own reporters. Without it, the tests still run,
 and `quiesco test` prints a hint at the end.
 

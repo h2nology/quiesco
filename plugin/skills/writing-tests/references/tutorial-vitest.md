@@ -311,7 +311,7 @@ The `artifacts/` folder has, per failed test:
 
 To run tests from a page in the browser instead — one test at a time, with the run's progress and a
 failure's evidence on the page — install `@quiesco/ui` and start `npx quiesco ui --platform web`
-([test UI](https://shift-14cc7601.mintlify.site/ui)).
+([test UI](https://docs.quiesco.dev/ui)).
 
 ## Next steps {#next-steps}
 

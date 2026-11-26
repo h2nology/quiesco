@@ -41,7 +41,7 @@ pass `--config jest.e2e.config.cjs`.
 |---|---|
 | `testEnvironment` | Quiesco's test environment: one session per worker process, the global `quiesco` |
 | `globalTeardown` | Closes the session of an in-band run, and what parallel workers left running |
-| `reporters` | `'default'` and `'@quiesco/jest/reporter'`, which sends the run's progress to `quiesco test` and [`quiesco ui`](https://shift-14cc7601.mintlify.site/ui) |
+| `reporters` | `'default'` and `'@quiesco/jest/reporter'`, which sends the run's progress to `quiesco test` and [`quiesco ui`](https://docs.quiesco.dev/ui) |
 
 ## What your config sets {#your-config}
 
