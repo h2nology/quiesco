@@ -61,6 +61,8 @@ eas build --profile e2e --platform ios
 eas build --profile e2e --platform android
 ```
 
+To run the tests on EAS workers as well, see [EAS](https://shift-14cc7601.mintlify.site/eas).
+
 The mock backend is started by `features/support/mock-server.ts`. Knobs for robustness checks:
 
 | Variable | Effect |

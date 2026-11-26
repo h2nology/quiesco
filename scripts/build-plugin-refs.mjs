@@ -51,6 +51,7 @@ const PAGES = {
   'writing-tests': ['tutorial', 'tutorial-vitest', 'tutorial-jest', 'tutorial-cucumber', 'steps', 'driver-pattern', 'driver-pattern-vitest', 'driver-pattern-jest', 'driver-pattern-cucumber'],
   setup: ['quickstart', 'cli'],
   debug: ['troubleshooting'],
+  eas: ['eas'],
 };
 
 const PACKAGE_MANAGERS = ['npm', 'pnpm', 'bun', 'yarn'];
