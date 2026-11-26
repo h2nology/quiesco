@@ -183,6 +183,36 @@ Expo のプロジェクトを GitHub のリポジトリに紐づけると（expo
 すべての pull request で実行されます。ほかのトリガーは Expo の
 [workflow の構文](https://docs.expo.dev/eas/workflows/syntax/)を参照してください。
 
+## 本番ビルド {#production}
+
+Quiesco はグレーボックスのテストツールです。e2e ビルドには agent とネイティブモジュールが入りますが、リリースには
+入れてはいけません。EAS では、この 2 つは同じソースからの別々のビルドで、どちらになるかは `EXPO_PUBLIC_QUIESCO`
+だけで決まります。
+
+| | `e2e` プロファイル | リリース用のプロファイル |
+|---|---|---|
+| `EXPO_PUBLIC_QUIESCO` | `"1"`（プロファイルの `env` に書く） | 設定しない |
+| JS バンドル（Metro の `withQuiesco()`） | agent | `@quiesco/agent` の代わりに何もしない stub |
+| ネイティブ（prebuild 時の `@quiesco/expo-plugin`） | `@quiesco/native` をリンクし、localhost への接続を許可 | `@quiesco/native` を autolinking から外す（Podfile、`settings.gradle`） |
+
+EAS はビルドのたびに JS をバンドルし、`ios/` / `android/` をコミットしていないプロジェクトでは、そのプロファイルの
+`env` で `expo prebuild` も実行します。そのため 2 つの切り替えはどちらもプロファイルに従います。変数なしで EAS で
+ビルドしたチュートリアルアプリ（シミュレーター用 `.app` と release APK）には、`scripts/check-prod-strip.mjs` が
+調べる agent と `@quiesco/native` の目印が 1 つも入っていません。`e2e` ビルドにはすべて入っています。
+
+Quiesco がリリースに入り込むのは、次のような場合です。
+
+- **変数をほかの場所で設定している。** `EXPO_PUBLIC_QUIESCO` は `e2e` プロファイルにだけ設定します。コミットした
+  `.env` ファイル（Expo はそこにある `EXPO_PUBLIC_*` をすべてのビルドに読み込みます）、リリースビルドが使う
+  environment の EAS 環境変数、リリース用プロファイルが `extends` するプロファイルには書かないでください。
+- **ネイティブのディレクトリをコミットしている。** リポジトリに `ios/` や `android/` があると、EAS は
+  `expo prebuild` を実行せず、config plugin も動きません。`@quiesco/native` がリンクされるかどうかは、どの
+  プロファイルでも、コミットされた Podfile と `settings.gradle` のとおりになります。ネイティブのディレクトリは自動
+  生成（CNG）のままにするか、コミットしたものが何をリンクしているかを確かめてください。
+- **EAS Update。** update もビルドと同じように JS をバンドルします。変数なしで公開してください。`e2e`
+  プロファイルには `channel` を付けないでおくと、e2e ビルドがリリース用の update（その stub で Quiesco との接続が
+  切れます）を取得しなくなります。
+
 ## EAS のビルドをほかのマシンで使う {#download}
 
 `e2e` ビルドは EAS の外でも実行できます。たとえば手元の Mac や、ほかの CI です。

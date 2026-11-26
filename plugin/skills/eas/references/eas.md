@@ -181,6 +181,38 @@ The `pull_request` trigger runs it on every pull request once the Expo project i
 repository (project settings on expo.dev). See Expo's [workflow syntax](https://docs.expo.dev/eas/workflows/syntax/)
 for other triggers.
 
+## Production builds {#production}
+
+Quiesco is a gray-box tool: the e2e build carries an agent and a native module that a release must not.
+On EAS the two are separate builds of the same source, and `EXPO_PUBLIC_QUIESCO` alone decides which is
+which:
+
+| | `e2e` profile | Your release profiles |
+|---|---|---|
+| `EXPO_PUBLIC_QUIESCO` | `"1"`, in the profile's `env` | not set |
+| JS bundle (`withQuiesco()` in Metro) | the agent | a no-op stub in place of `@quiesco/agent` |
+| Native (`@quiesco/expo-plugin` at prebuild) | `@quiesco/native` linked, connections to localhost allowed | `@quiesco/native` left out of autolinking (Podfile, `settings.gradle`) |
+
+EAS bundles the JS and, for a project without committed `ios/` / `android/` directories, runs
+`expo prebuild` in every build with that profile's `env`, so both switches follow the profile. A build of
+the tutorial app without the variable on EAS (simulator `.app` and release APK) contains none of the agent's
+and `@quiesco/native`'s markers that `scripts/check-prod-strip.mjs` scans for; the `e2e` build contains all
+of them.
+
+What can let Quiesco into a release:
+
+- **The variable set somewhere else.** Set `EXPO_PUBLIC_QUIESCO` only in the `e2e` profile: not in a
+  committed `.env` file (Expo loads `EXPO_PUBLIC_*` from it into every build), not as an EAS environment
+  variable of an environment your release builds use, and not in a profile that release profiles
+  `extends`.
+- **Committed native directories.** When `ios/` or `android/` is in the repository, EAS does not run
+  `expo prebuild` and the config plugin does not run either: whether `@quiesco/native` is linked is what the
+  committed Podfile and `settings.gradle` say, for every profile. Keep the native directories generated
+  (CNG), or check what the committed ones link.
+- **EAS Update.** An update is bundled like a build: publish it without the variable. Give the `e2e`
+  profile no `channel`, so an e2e build never downloads a release update (whose stub would cut the
+  connection to Quiesco).
+
 ## An EAS build on another machine {#download}
 
 The `e2e` build also runs outside EAS, e.g. on your Mac or in another CI:

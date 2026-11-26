@@ -31,6 +31,12 @@ what is missing (`EXPO_PUBLIC_QUIESCO=1`, `ios.simulator`, `android.buildType: "
 `withoutCredentials`), saying what changed. The profile must not set `developmentClient`: the EAS build
 bundles its JS and runs without Metro.
 
+`EXPO_PUBLIC_QUIESCO=1` belongs in the `e2e` profile only: it is what keeps the agent and
+`@quiesco/native` out of release builds. Check that no release profile has it (also through `extends`),
+that no committed `.env` sets it, and warn the user when `ios/` / `android/` are committed (EAS then does
+not run prebuild, so the config plugin cannot leave `@quiesco/native` out per profile). See "Production
+builds" in the reference.
+
 ## 3. The config
 
 Make `quiesco.config.mts` pick the EAS build when `EAS_BUILD` is set (EAS sets it on its workers), as the

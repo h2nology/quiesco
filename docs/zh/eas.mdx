@@ -175,6 +175,32 @@ eas workflow:run .eas/workflows/e2e.yml
 Expo 项目关联到 GitHub 仓库后（expo.dev 上的项目设置），`pull_request` 触发器会在每个 pull request 上运行它。
 其他触发方式见 Expo 的 [workflow 语法](https://docs.expo.dev/eas/workflows/syntax/)。
 
+## 生产构建 {#production}
+
+Quiesco 是灰盒测试工具：e2e 构建带有 agent 和原生模块，而发布版本不能带。在 EAS 上，两者是同一份源码的两次独立构建，
+只由 `EXPO_PUBLIC_QUIESCO` 决定是哪一种：
+
+| | `e2e` profile | 你的发布 profile |
+|---|---|---|
+| `EXPO_PUBLIC_QUIESCO` | `"1"`，写在 profile 的 `env` 中 | 不设置 |
+| JS bundle（Metro 中的 `withQuiesco()`） | agent | 用空的 stub 替代 `@quiesco/agent` |
+| 原生（prebuild 时的 `@quiesco/expo-plugin`） | 链接 `@quiesco/native`，允许连接 localhost | 把 `@quiesco/native` 排除在 autolinking 之外（Podfile、`settings.gradle`） |
+
+EAS 每次构建都会打包 JS；对于没有提交 `ios/` / `android/` 目录的项目，还会用该 profile 的 `env` 运行
+`expo prebuild`，所以两个开关都跟随 profile。在 EAS 上不带该变量构建的教程应用（模拟器 `.app` 和 release APK）
+不含 `scripts/check-prod-strip.mjs` 扫描的任何 agent 和 `@quiesco/native` 标记；`e2e` 构建则全部包含。
+
+可能让 Quiesco 进入发布版本的情况：
+
+- **变量设在了别处。** 只在 `e2e` profile 中设置 `EXPO_PUBLIC_QUIESCO`：不要写进提交到仓库的 `.env` 文件（Expo
+  会把其中的 `EXPO_PUBLIC_*` 加载到每次构建中），不要设为发布构建所用 environment 的 EAS 环境变量，也不要写在
+  发布 profile `extends` 的 profile 里。
+- **提交了原生目录。** 仓库里有 `ios/` 或 `android/` 时，EAS 不运行 `expo prebuild`，config plugin 也不会运行：
+  `@quiesco/native` 是否被链接，由提交的 Podfile 和 `settings.gradle` 决定，对所有 profile 都一样。请让原生目录
+  保持自动生成（CNG），或检查提交的目录链接了什么。
+- **EAS Update。** update 和构建一样会打包 JS：发布时不要带这个变量。不要给 `e2e` profile 设置 `channel`，这样
+  e2e 构建就不会下载发布用的 update（其中的 stub 会切断与 Quiesco 的连接）。
+
 ## 在其他机器上使用 EAS 构建 {#download}
 
 `e2e` 构建也可以在 EAS 之外运行，例如在你的 Mac 上或其他 CI 中：
