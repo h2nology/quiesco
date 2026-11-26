@@ -1,0 +1,12 @@
+// Cloudflare Workers static assets: quiesco.dev. Deployed by Workers Builds from this folder
+// (root directory `site`, deploy command `npx wrangler deploy`). No Worker script: assets only.
+{
+  "name": "quiesco",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": ".",
+    // /benchmark.html is served at /benchmark (the canonical URL); /benchmark.html redirects there.
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  }
+}

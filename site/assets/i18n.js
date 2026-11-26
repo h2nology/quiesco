@@ -200,11 +200,14 @@
   const enCache = {};
   const enAttr = {};
 
+  // The language: ?lang= in the URL, else one picked with the switch in this tab (sessionStorage, so it
+  // carries from page to page but a new visit starts over), else the browser's languages, else English.
   function detect() {
+    try { localStorage.removeItem('quiesco-lang'); } catch {} // an earlier version kept the pick for good
     try {
       const q = new URLSearchParams(location.search).get('lang');
       if (SUPPORTED.includes(q)) return q;
-      const s = localStorage.getItem('quiesco-lang');
+      const s = sessionStorage.getItem('quiesco-lang');
       if (SUPPORTED.includes(s)) return s;
     } catch {}
     for (const l of navigator.languages || [navigator.language || 'en']) {
@@ -241,13 +244,15 @@
       }
     });
     document.querySelectorAll('.lang [data-lang]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.lang === lang)));
+    // Links into the docs open them in the same language (docs.quiesco.dev/zh/…, /ja/…).
+    document.querySelectorAll('a[data-docs]').forEach((a) => { a.href = `https://docs.quiesco.dev${lang === 'en' ? '' : `/${lang}`}${a.dataset.docs}`; });
     document.dispatchEvent(new CustomEvent('langchange', { detail: lang }));
   }
 
   function set(next) {
     if (!SUPPORTED.includes(next) || next === lang) return;
     lang = next;
-    try { localStorage.setItem('quiesco-lang', lang); } catch {}
+    try { sessionStorage.setItem('quiesco-lang', lang); } catch {}
     try {
       const u = new URL(location.href);
       if (u.searchParams.has('lang')) { u.searchParams.set('lang', lang); history.replaceState(null, '', u); }
