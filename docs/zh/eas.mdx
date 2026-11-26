@@ -175,6 +175,46 @@ eas workflow:run .eas/workflows/e2e.yml
 Expo 项目关联到 GitHub 仓库后（expo.dev 上的项目设置），`pull_request` 触发器会在每个 pull request 上运行它。
 其他触发方式见 Expo 的 [workflow 语法](https://docs.expo.dev/eas/workflows/syntax/)。
 
+## 测试通过后再构建发布包 {#release}
+
+上面的 workflow 到测试就结束了。要在测试通过后才构建发布包，就添加发布构建 job，并在它的 `needs` 里列出测试 job：
+EAS 只有在 `needs` 中的所有 job 都成功后才会启动该 job，所以测试失败时发布构建会被跳过，不消耗构建额度。
+
+把它们放在单独的 workflow 里，在发布的来源处运行，例如 push 到 `main` 时；`e2e.yml` 继续用于 pull request。发布构建
+之前的 job 与 `e2e.yml` 相同：
+
+```yaml .eas/workflows/release.yml
+name: release
+
+on:
+  push:
+    branches: ['main']
+
+jobs:
+  # build_ios、build_android、test_ios、test_android：从 e2e.yml 复制
+
+  build_release_ios:
+    needs: [test_ios, test_android]
+    type: build
+    params:
+      platform: ios
+      profile: production
+
+  build_release_android:
+    needs: [test_ios, test_android]
+    type: build
+    params:
+      platform: android
+      profile: production
+```
+
+测试失败的运行，结果是 `test_*` 失败、`build_release_*` 被跳过。如果还要把发布包提交到商店，再添加一个
+`needs: [build_release_ios]`（以及 Android 对应的）的 `submit` job；它需要在 EAS 中配置好商店凭据（见 Expo 的
+[预置 job](https://docs.expo.dev/eas/workflows/pre-packaged-jobs/)）。
+
+发布包是同一个 commit 单独构建出来的，不带 `EXPO_PUBLIC_QUIESCO`：测试运行的是这份代码的 e2e 构建，而不是发布用的
+二进制。两者的区别见下一节。
+
 ## 生产构建 {#production}
 
 Quiesco 是灰盒测试工具：e2e 构建带有 agent 和原生模块，而发布版本不能带。在 EAS 上，两者是同一份源码的两次独立构建，

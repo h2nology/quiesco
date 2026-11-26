@@ -183,6 +183,47 @@ Expo のプロジェクトを GitHub のリポジトリに紐づけると（expo
 すべての pull request で実行されます。ほかのトリガーは Expo の
 [workflow の構文](https://docs.expo.dev/eas/workflows/syntax/)を参照してください。
 
+## テストが通ってからリリースをビルドする {#release}
+
+上の workflow はテストで終わります。テストが通ったときだけリリースをビルドするには、テストの job を `needs` に
+並べたリリースビルドの job を追加します。EAS は `needs` の job がすべて成功したときだけその job を始めるので、
+テストが失敗するとリリースビルドはスキップされ、ビルドを消費しません。
+
+これらは、リリースの元になるところ（たとえば `main` への push）で動く別の workflow に置き、`e2e.yml` は pull
+request 用に残します。リリースビルドより前の job は `e2e.yml` と同じです。
+
+```yaml .eas/workflows/release.yml
+name: release
+
+on:
+  push:
+    branches: ['main']
+
+jobs:
+  # build_ios、build_android、test_ios、test_android: e2e.yml からコピー
+
+  build_release_ios:
+    needs: [test_ios, test_android]
+    type: build
+    params:
+      platform: ios
+      profile: production
+
+  build_release_android:
+    needs: [test_ios, test_android]
+    type: build
+    params:
+      platform: android
+      profile: production
+```
+
+テストが失敗した実行は、`test_*` が失敗、`build_release_*` がスキップで終わります。リリースをストアにも送るなら、
+`needs: [build_release_ios]`（と Android 用のもの）を付けた `submit` job を追加します。これには EAS にストアの
+認証情報を設定しておく必要があります（Expo の [pre-packaged jobs](https://docs.expo.dev/eas/workflows/pre-packaged-jobs/)）。
+
+リリースビルドは、同じコミットから `EXPO_PUBLIC_QUIESCO` なしで別にビルドしたものです。テストが動かしたのは
+そのコードの e2e ビルドで、リリースのバイナリではありません。両者の違いは次の節にあります。
+
 ## 本番ビルド {#production}
 
 Quiesco はグレーボックスのテストツールです。e2e ビルドには agent とネイティブモジュールが入りますが、リリースには

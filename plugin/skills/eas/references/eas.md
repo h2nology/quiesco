@@ -181,6 +181,48 @@ The `pull_request` trigger runs it on every pull request once the Expo project i
 repository (project settings on expo.dev). See Expo's [workflow syntax](https://docs.expo.dev/eas/workflows/syntax/)
 for other triggers.
 
+## Release builds after the tests {#release}
+
+The workflow above stops at the tests. To build the release only once they pass, add release build jobs
+that list the test jobs in `needs`: EAS starts a job only when every job in its `needs` succeeded, so a
+failed test leaves the release builds skipped and spends no build on them.
+
+Put them in a workflow of their own that runs where releases come from, e.g. pushes to `main`, and keep
+`e2e.yml` for pull requests. The jobs before the release builds are those of `e2e.yml`:
+
+```yaml .eas/workflows/release.yml
+name: release
+
+on:
+  push:
+    branches: ['main']
+
+jobs:
+  # build_ios, build_android, test_ios, test_android: copied from e2e.yml
+
+  build_release_ios:
+    needs: [test_ios, test_android]
+    type: build
+    params:
+      platform: ios
+      profile: production
+
+  build_release_android:
+    needs: [test_ios, test_android]
+    type: build
+    params:
+      platform: android
+      profile: production
+```
+
+A run whose test fails ends with `test_*` failed and `build_release_*` skipped. To send the release to
+the stores as well, add a `submit` job with `needs: [build_release_ios]` (and the Android one); it needs
+the store credentials set up in EAS (Expo's [pre-packaged jobs](https://docs.expo.dev/eas/workflows/pre-packaged-jobs/)).
+
+The release build is a build of its own from the same commit, without `EXPO_PUBLIC_QUIESCO`: the tests
+ran the e2e build of that code, not the release binary. What differs between the two is the next
+section.
+
 ## Production builds {#production}
 
 Quiesco is a gray-box tool: the e2e build carries an agent and a native module that a release must not.

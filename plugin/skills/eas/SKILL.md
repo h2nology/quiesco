@@ -66,6 +66,12 @@ triggers need the Expo project linked to the GitHub repository (project settings
 eas workflow:validate .eas/workflows/e2e.yml
 ```
 
+When the user wants release builds made only after the tests pass, add `.eas/workflows/release.yml` as in
+"Release builds after the tests" in the reference: the e2e jobs, then release build jobs with
+`needs: [test_ios, test_android]` (EAS skips them when a test job fails). Use the user's existing release
+profile (usually `production`) and check it does not set `EXPO_PUBLIC_QUIESCO`. A `submit` job needs store
+credentials in EAS; add it only when the user asks.
+
 ## 5. Run it
 
 **Ask before running**: it uploads the project to EAS and uses the account's build and workflow minutes.
