@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Quiesco">
+<defs><linearGradient id="q-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22252e"/><stop offset="1" stop-color="#0c0f1a"/></linearGradient></defs>
+<rect width="64" height="64" rx="14.5" fill="url(#q-bg)"/>
+<rect x=".5" y=".5" width="63" height="63" rx="14" fill="none" stroke="#fff" stroke-opacity=".1"/>
+<g transform="translate(13.285 13.905) scale(.62)"><path fill="#fff" d="M38.525,49.552 A22.25 22.25 0 1 1 50.552,37.525 A8.89 8.89 0 0 0 43.615,36.918 A15.75 15.75 0 1 0 37.918,42.615 A8.89 8.89 0 0 0 38.525 49.552 Z"/><g fill="#6f86ff"><circle cx="46.371" cy="45.371" r="6.25"/></g></g>
+</svg>

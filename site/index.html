@@ -1,0 +1,714 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title data-i18n="home.title">Quiesco — e2e tests that wait for quiet</title>
+<meta name="description" data-i18n-attr="content:home.desc" content="Gray-box end-to-end testing for Expo apps on iOS, Android and the web. In a 160-run benchmark Quiesco finished the same suite in 38% less time than the next-fastest tool.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollToPlugin.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollSmoother.min.js"></script>
+<script src="assets/site.js"></script>
+<script src="assets/i18n.js"></script>
+<style>
+  /* ---------- Hero (always dark) ---------- */
+  /* ScrollSmoother moves #smooth-content, so the header sits outside it, fixed */
+  .site-header { position: fixed; left: 0; right: 0; top: 0; }
+  #smooth-content { padding-top: 61px; }
+  .px-bg { position: absolute; left: 0; right: 0; top: -30%; bottom: -30%; pointer-events: none; }
+  .hero { position: relative; overflow: hidden; border-bottom: 1px solid var(--line); min-height: calc(100vh - 61px); }
+  .hero .wrap { position: relative; padding-bottom: 88px; }
+  .hero-head { position: relative; z-index: 0; }
+  .term { position: relative; z-index: 1; }
+  .hero-head { text-align: center; padding: 88px 0 48px; display: grid; justify-items: center; }
+  @media (max-width: 720px) { .hero-head { padding: 56px 0 36px; } .hero .wrap { padding-bottom: 56px; } }
+  .hero h1 { margin: 28px 0 0; font-size: clamp(40px, 7.4vw, 88px); line-height: 1.0; letter-spacing: -0.045em; max-width: none; }
+  :lang(zh) .hero h1, :lang(ja) .hero h1 { font-size: clamp(32px, 5.6vw, 68px); letter-spacing: -0.02em; line-height: 1.15; max-width: none; }
+  .hero h1 > span { display: block; }
+  .hero h1 .l2 { color: var(--accent-text); }
+  .hero .lead { margin: 24px auto 0; text-align: center; max-width: 60ch; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center; margin-top: 32px; }
+  .install { display: inline-flex; align-items: center; gap: 10px; height: 36px; padding: 0 4px 0 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; font: 400 13px/1 var(--mono); }
+  .install .p { color: var(--accent-text); }
+  .install .btn { height: 28px; padding: 0 8px; font-size: 12px; background: var(--sunken); color: var(--ink-muted); border-radius: 6px; }
+  .install .btn:hover { color: var(--ink); }
+
+  /* Terminal: what `quiesco test` really prints (Vitest's non-TTY output + Quiesco's sticky progress bar) */
+  .term { max-width: 960px; margin: 0 auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; text-align: left; }
+  .term-bar { display: flex; align-items: center; gap: 12px; height: 40px; padding: 0 16px; border-bottom: 1px solid var(--line); font: 400 12px/1 var(--mono); color: var(--ink-muted); }
+  .term-bar .title { color: var(--ink); }
+  .term-bar .r { margin-left: auto; }
+  .term-body { height: 400px; padding: 16px 20px 14px; display: flex; flex-direction: column;
+    font: 400 13px/1.75 var(--mono); font-feature-settings: "zero" 1; color: var(--ink); }
+  .term-log { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 48px); mask-image: linear-gradient(to bottom, transparent 0, #000 48px); }
+  .tline, .term-sticky { display: block; min-height: 1.75em; white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+  .term-sticky { flex: none; }
+  /* ANSI colours mapped onto the palette */
+  .c-gray { color: var(--ink-muted); }
+  .c-dim { opacity: .62; }
+  .c-green { color: var(--passed); }
+  .c-yellow { color: var(--skipped); }
+  .c-red { color: var(--failed); }
+  .c-cyan { color: var(--accent-text); }
+  .c-bold { font-weight: 500; }
+  .c-badge { background: var(--accent-text); color: var(--canvas); font-weight: 500; }
+  .c-prompt { color: var(--accent-text); }
+  .caret { display: inline-block; width: .6em; height: 1.1em; background: var(--ink); vertical-align: -2px; opacity: var(--blink, 1); }
+  .caret.solid { opacity: 1; }
+  @media (max-width: 720px) { .term-body { height: 360px; padding: 14px; font-size: 11px; } .term-bar .hide-narrow { display: none; } }
+
+  /* ---------- Benchmark ---------- */
+  .bench-grid { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 56px; align-items: start; }
+  @media (max-width: 960px) { .bench-grid { grid-template-columns: 1fr; gap: 32px; } }
+  .bench-side { display: grid; gap: 24px; justify-items: start; }
+  .bench-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .vs { display: grid; border-top: 1px solid var(--line); }
+  .vs-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px 24px; padding: 24px 0; border-bottom: 1px solid var(--line); }
+  .vs-name { font: 400 12px/1 var(--mono); color: var(--ink-muted); align-self: center; }
+  .vs .pct { transform-origin: right center; grid-row: span 2; align-self: center; font-size: clamp(36px, 4.4vw, 52px); font-weight: 600; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; color: var(--accent-text); text-align: right; }
+  .vs-bars { display: grid; gap: 6px; }
+  .vb { display: grid; grid-template-columns: 9.5em minmax(0, 1fr); align-items: center; gap: 10px; height: 22px; }
+  .vb .lbl { font: 400 11px/1 var(--mono); color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .vb.q .lbl { color: var(--accent-text); font-weight: 500; }
+  .vb .trk { position: relative; height: 100%; }
+  .vb i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--bar-other); }
+  .vb.q i { background: var(--primary); }
+  /* the part of the other tool's run that Quiesco doesn't need */
+  .vb .gap { position: absolute; top: 0; bottom: 0; border-radius: 0 4px 4px 0; background: var(--running-soft); box-shadow: inset 0 0 0 1px var(--primary); transform-origin: left center; }
+  .vs-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .vs-cap { font: 400 12px/1.4 var(--mono); color: var(--ink-muted); }
+  .vs .x { grid-column: 1 / -1; font: 400 12px/1.5 var(--mono); color: var(--ink-muted); }
+
+  /* ---------- How ---------- */
+  .why { display: grid; gap: 40px; justify-items: center; }
+  .why-head { text-align: center; justify-items: center; max-width: 720px; }
+  .why-head .lead { max-width: 64ch; }
+  .why-card { width: 100%; max-width: 960px; }
+  .tl-ex { margin: 0 0 22px; font-size: 14px; line-height: 1.6; color: var(--ink); }
+  .tl { display: grid; gap: 18px; }
+  .tl-row { display: grid; gap: 8px; }
+  .tl-label { display: flex; justify-content: space-between; align-items: center; gap: 12px; font: 500 13px/1.3 var(--font); }
+  .tl-res { display: inline-flex; align-items: center; gap: 6px; font: 400 12px/1.3 var(--mono); color: var(--ink-muted); text-align: right; }
+  .tl-res.passed { color: var(--passed); } .tl-res.failed { color: var(--failed); } .tl-res.skipped { color: var(--skipped); }
+  .tl-track { position: relative; height: 32px; }
+  .seg-b { position: absolute; top: 0; bottom: 0; border-radius: 4px; display: flex; align-items: center; padding: 0 6px; font: 400 11px/1 var(--mono); overflow: hidden; white-space: nowrap; }
+  .seg-b.tap { background: var(--surface); color: var(--ink-muted); border: 1px solid var(--line); }
+  .seg-b.next { background: var(--bar-other); color: var(--ink); }
+  .seg-b.next.q { background: var(--primary); color: #fff; font-weight: 500; }
+  .tl-row.q { margin: 0 -12px; padding: 12px; border-radius: 10px; background: var(--running-soft); box-shadow: inset 0 0 0 1px var(--primary); }
+  .tl-q { display: inline-flex; align-items: center; gap: 8px; color: var(--accent-text); font-weight: 600; font-size: 15px; }
+  .tl-row.q .tl-res { font-weight: 500; }
+  .tl-sep { display: flex; align-items: center; gap: 10px; margin-top: 4px; font: 400 11px/1 var(--mono); color: var(--ink-muted); text-transform: uppercase; letter-spacing: .04em; }
+  .tl-sep::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
+  .seg-b.busy { background: var(--sunken); color: var(--ink-muted); border: 1px solid var(--line); }
+  .seg-b.waste { background: repeating-linear-gradient(135deg, var(--sunken) 0 6px, var(--surface) 6px 12px); border: 1px dashed var(--bar-other); color: var(--ink-muted); }
+  .seg-b.early { background: var(--failed-soft); color: var(--failed); border: 1px solid var(--failed); }
+  .tl-track .probe { position: absolute; top: 11px; width: 10px; height: 10px; margin-left: -5px; border-radius: 9999px; border: 1px solid var(--bar-other); background: var(--surface); }
+  .tl-track .ready { position: absolute; top: -9px; bottom: -9px; width: 0; border-left: 1px dashed var(--passed); }
+  .tl-track .ready-tag { position: absolute; top: 50%; transform: translateY(-50%); margin-left: 8px; font: 500 11px/1 var(--mono); color: var(--passed); white-space: nowrap; }
+  .tl-axis { position: relative; height: 22px; border-top: 1px solid var(--line); }
+  .tl-axis span { position: absolute; top: 8px; font: 400 11px/1 var(--mono); color: var(--ink-muted); }
+  .tl-axis span:not(:first-child) { transform: translateX(-50%); }
+  .tl-foot { margin: 0; font-size: 12px; line-height: 1.6; color: var(--ink-muted); }
+
+  /* ---------- Features ---------- */
+  .features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .feature { background: var(--surface); padding: 28px 24px; display: grid; gap: 10px; align-content: start; position: relative; }
+  .feature .anno { position: absolute; top: 18px; right: 18px; }
+  .feature .ico { width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--line); background: var(--sunken); display: grid; place-items: center; color: var(--accent-text); margin-bottom: 6px; }
+  .feature .ico .icon { width: 20px; height: 20px; }
+  .feature p { margin: 0; color: var(--ink-muted); }
+  @media (max-width: 900px) { .features { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 600px) { .features { grid-template-columns: 1fr; } }
+
+  /* ---------- Code ---------- */
+  .code-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 48px; align-items: start; }
+  @media (max-width: 960px) { .code-grid { grid-template-columns: 1fr; } }
+  .file { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; min-width: 0; }
+  .file-bar { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-bottom: 1px solid var(--line); font: 400 12px/1 var(--mono); color: var(--ink-muted); }
+  .file-bar .r { margin-left: auto; }
+  .file .code { border-radius: 0 0 12px 12px; background: var(--surface); counter-reset: ln; }
+  .code .ln { display: block; min-height: 1.65em; }
+  .code .ln::before { counter-increment: ln; content: counter(ln); display: inline-block; width: 2ch; margin-right: 16px; text-align: right; color: var(--bar-other); }
+  .steps { list-style: none; margin: 24px 0 0; padding: 0; display: grid; counter-reset: s; border-top: 1px solid var(--line); }
+  .steps li { display: grid; grid-template-columns: 36px 1fr; gap: 12px; counter-increment: s; padding: 16px 0; border-bottom: 1px solid var(--line); }
+  .steps li::before { content: counter(s, decimal-leading-zero); font: 400 12px/22px var(--mono); color: var(--accent-text); }
+  .steps li p { margin: 2px 0 0; color: var(--ink-muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+
+  /* ---------- Closing ---------- */
+  .closing { position: relative; overflow: hidden; text-align: center; padding: 144px 0; border-bottom: 0; }
+  .closing .wrap { position: relative; }
+  .closing .mark { width: 56px; height: 56px; margin: 0 auto 28px; display: block; color: var(--ink); }
+  .closing .lead { margin: 16px auto 0; }
+</style>
+</head>
+<body>
+
+<header class="site-header dark-scope">
+  <div class="wrap">
+    <a class="lockup" href="./" aria-label="Quiesco">
+      <svg viewBox="0 0 221 52" role="img" aria-hidden="true"><g transform="translate(-6.29 -5.221) scale(1.07)"><path fill="currentColor" d="M38.525,49.552 A22.25 22.25 0 1 1 50.552,37.525 A8.89 8.89 0 0 0 43.615,36.918 A15.75 15.75 0 1 0 37.918,42.615 A8.89 8.89 0 0 0 38.525 49.552 Z"/><circle fill="#6f86ff" cx="46.371" cy="45.371" r="6.25"/></g><path fill="currentColor" d="M87.58 44.06L87.58 14.14L83.18 14.14L83.05 17.62C81.78 15.020 79.31 13.61 75.97 13.61C69.10 13.61 65.94 19.25 65.94 25.80C65.94 32.36 69.10 37.99 75.97 37.99C79.14 37.99 81.51 36.71 82.83 34.29L82.83 44.06ZM70.91 25.80C70.91 21.62 72.76 17.71 77.11 17.71C81.42 17.71 83.27 21.67 83.27 25.80C83.27 29.94 81.42 33.90 77.11 33.90C72.710 33.90 70.91 29.98 70.91 25.80ZM110.99 37.46L110.99 14.14L106.28 14.14L106.28 27.69C106.28 31.79 104.17 33.99 100.87 33.99C97.75 33.99 96.56 31.79 96.56 27.69L96.56 14.14L91.81 14.14L91.81 29.15C91.81 34.25 94.49 37.99 99.64 37.99C102.63 37.99 105.32 36.71 106.55 33.72L106.59 37.46ZM115.52 14.14L115.52 37.46L120.28 37.46L120.28 14.14ZM123.93 25.80C123.93 33.24 128.33 37.99 135.06 37.99C139.81 37.99 143.90 35.22 145.31 30.77L140.38 30.42C139.42 32.62 137.35 33.94 135.06 33.94C131.41 33.94 129.21 31.43 128.94 27.17L145.62 27.17L145.62 25.63C145.36 17.31 140.60 13.61 135.06 13.61C128.33 13.61 123.93 18.37 123.93 25.80ZM128.99 23.60C129.52 19.86 131.67 17.66 135.06 17.66C137.66 17.66 140.08 19.20 140.65 23.60ZM162.91 21.49L167.80 21.23C167.00 16.56 163.13 13.61 158.07 13.61C152.26 13.61 148.57 16.39 148.57 20.96C148.57 25.45 152.84 26.77 157.76 27.83C160.27 28.40 163.22 28.66 163.22 31.17C163.22 33.33 160.58 34.03 158.56 34.03C155.34 34.03 153.32 32.40 152.88 29.81L148.00 30.11C148.35 35.00 152.62 37.99 158.60 37.99C163.53 37.99 168.15 35.97 168.15 31.39C168.15 26.81 164.41 25.23 158.60 24.17C156.22 23.73 153.54 22.90 153.50 20.79C153.45 18.76 155.34 17.57 157.72 17.57C160.10 17.57 162.43 19.03 162.91 21.49ZM186.98 22.33L191.91 22.06C191.29 16.83 186.80 13.61 181.61 13.61C174.88 13.61 170.48 18.37 170.48 25.80C170.48 33.24 174.88 37.99 181.61 37.99C186.98 37.99 191.38 34.60 192.08 29.15L187.11 28.88C186.63 32.09 184.38 33.90 181.61 33.90C177.65 33.90 175.41 30.86 175.41 25.80C175.41 20.74 177.65 17.71 181.61 17.71C184.25 17.71 186.54 19.42 186.98 22.33ZM205.11 37.99C211.84 37.99 216.24 33.24 216.24 25.80C216.24 18.37 211.84 13.61 205.11 13.61C198.38 13.61 193.98 18.37 193.98 25.80C193.98 33.24 198.38 37.99 205.11 37.99ZM198.90 25.80C198.90 20.74 201.15 17.71 205.11 17.71C209.07 17.71 211.31 20.74 211.31 25.80C211.31 30.86 209.07 33.90 205.11 33.90C201.15 33.90 198.90 30.86 198.90 25.80Z"/><circle fill="#6f86ff" cx="117.9" cy="8.466" r="2.76"/></svg>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a class="navlink hide-sm" href="#benchmark" data-i18n="nav.benchmark">Benchmark</a>
+      <a class="navlink hide-sm" href="#how" data-i18n="nav.how">How it works</a>
+      <a class="navlink hide-xs" href="https://shift-14cc7601.mintlify.site" data-i18n="nav.docs">Docs</a>
+      <a class="navlink hide-sm" href="https://github.com/h2nology/quiesco">GitHub</a>
+      <div class="lang" role="group" aria-label="Language"><button type="button" data-lang="en" aria-pressed="true">EN</button><button type="button" data-lang="zh" aria-pressed="false">中文</button><button type="button" data-lang="ja" aria-pressed="false">日本語</button></div>
+      <button class="btn btn-secondary btn-icon theme-toggle" type="button" aria-label="Toggle colour theme">
+        <svg class="icon moon" viewBox="0 0 16 16"><path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7Z"/></svg>
+        <svg class="icon sun" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3 3l1 1M12 12l1 1M3 13l1-1M12 4l1-1"/></svg>
+      </button>
+      <a class="btn btn-primary" href="https://shift-14cc7601.mintlify.site/quickstart" data-i18n="nav.start">Get started</a>
+    </nav>
+  </div>
+</header>
+
+<div id="smooth-wrapper"><div id="smooth-content">
+<main>
+  <!-- Hero -->
+  <div class="hero dark-scope">
+    <div class="px-bg dotgrid" aria-hidden="true"></div>
+    <div class="wrap">
+      <div class="hero-head">
+        <span class="hero-anno"><span class="dot running"></span><span class="v">quiesco@0.14.2</span><span class="sep"></span><span data-i18n="hero.anno">E2E testing for Expo · iOS · Android · Web</span></span>
+        <h1><span data-i18n="hero.h1a">E2E tests, finally</span><span class="l2" data-i18n="hero.h1b">fast and steady.</span></h1>
+        <p class="lead" data-i18n="hero.lead">Quiesco runs each step the moment your Expo app goes idle. No sleep(), no polling, no guessing.</p>
+        <div class="cta">
+          <a class="btn btn-primary" href="https://shift-14cc7601.mintlify.site/quickstart" data-i18n="nav.start">Get started</a>
+          <span class="install"><span class="p">$</span><span>npx quiesco init</span>
+            <button class="btn" type="button" data-copy="npx quiesco init" aria-label="Copy"><svg class="icon" viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><span class="copy-label" data-i18n="ui.copy">Copy</span></button>
+          </span>
+        </div>
+      </div>
+
+      <div class="term ticks" id="term">
+        <span class="tk" aria-hidden="true"></span>
+        <div class="term-bar"><span class="dot running" id="term-dot"></span><span class="title">zsh</span><span class="hide-narrow">~/my-expo-app</span><span class="r">iPhone 17 · iOS 27.0</span></div>
+        <div class="term-body" aria-hidden="true"><div class="term-log" id="term-log"></div><div class="term-sticky" id="term-sticky"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Benchmark -->
+  <section id="benchmark">
+    <div class="wrap bench-grid">
+      <div class="bench-side">
+        <div class="section-head" style="margin:0">
+          <span class="eyebrow" data-i18n="bench.eyebrow"><b>01</b> / benchmark</span>
+          <h2 class="h-lg" data-i18n="bench.h2">Same app, same 22 scenarios, four tools.</h2>
+          <p class="lead" style="margin:0" data-i18n="bench.lead">One Expo SDK 58 release build, tested end to end by Quiesco, Appium, Detox and Maestro. 20 interleaved runs per tool and platform on an Apple M5 Pro. Median full-suite time, resets included.</p>
+        </div>
+        <div class="bench-actions">
+          <a class="btn btn-secondary" href="benchmark.html"><span data-i18n="bench.more">Per-scenario data &amp; method</span><svg class="icon" viewBox="0 0 16 16"><path d="M3 8h10M9 4l4 4-4 4"/></svg></a>
+          <a class="btn btn-secondary" href="https://github.com/h2nology/rn-e2e-shootout" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 16 16"><path d="M6 4 2 8l4 4M10 4l4 4-4 4"/></svg><span data-i18n="bench.code">Benchmark source code</span></a>
+        </div>
+      </div>
+      <div class="bench-main">
+        <div class="vs-top">
+          <span class="vs-cap" data-i18n="bench.cap">Median suite time, Quiesco against each tool</span>
+          <div class="seg" role="tablist" aria-label="Platform">
+            <button role="tab" aria-selected="true" data-plat="ios">iOS</button>
+            <button role="tab" aria-selected="false" data-plat="android">Android</button>
+          </div>
+        </div>
+        <div class="vs" id="vs"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section id="how">
+    <div class="wrap why">
+      <div class="section-head why-head" style="margin:0">
+        <span class="eyebrow" data-i18n="how.eyebrow"><b>02</b> / how it works</span>
+        <h2 class="h-lg" data-i18n="how.h2">Fast because it never guesses.</h2>
+        <p class="lead" style="margin:0" data-i18n="how.lead">Black-box tools can't see inside your app, so they sleep for a fixed time or poll the screen until something appears. Quiesco runs inside the e2e build and tracks every source of work. The instant the last one settles, the next step runs.</p>
+      </div>
+
+      <div class="card ticks why-card" style="padding:24px" data-speed="0.96">
+        <span class="tk" aria-hidden="true"></span>
+        <!-- one example step on a 0–3.6 s scale: left/width are seconds / 3.6 -->
+        <p class="tl-ex" data-i18n="how.tl.ex">Example: after the test taps <b>Save</b>, the app is busy for 1.2 s, sending a request and re-rendering. When should the next step run?</p>
+        <div class="tl">
+          <div class="tl-row">
+            <div class="tl-label"><span data-i18n="how.tl.app">App</span><span class="tl-res" data-i18n="how.tl.app.n">idle at 1.45 s</span></div>
+            <div class="tl-track">
+              <div class="seg-b tap" style="left:0;width:6.94%">tap</div>
+              <div class="seg-b busy" style="left:6.94%;width:33.33%" data-i18n="how.tl.busy">request + render</div>
+              <i class="ready" style="left:40.28%"></i><span class="ready-tag" style="left:40.28%" data-i18n="how.tl.idle">idle</span>
+            </div>
+          </div>
+          <div class="tl-row q">
+            <div class="tl-label"><span class="tl-q"><span class="dot passed"></span>Quiesco</span><span class="tl-res passed" data-i18n="how.tl.q.n">next step right at idle</span></div>
+            <div class="tl-track">
+              <div class="seg-b tap" style="left:0;width:6.94%">tap</div>
+              <div class="seg-b next q" style="left:40.28%;width:9.72%" data-i18n="how.tl.next">next</div>
+              <i class="ready" style="left:40.28%"></i>
+            </div>
+          </div>
+          <div class="tl-sep" data-i18n="how.tl.others">How other tools wait</div>
+          <div class="tl-row">
+            <div class="tl-label"><span data-i18n="how.tl.sleep">Fixed sleep</span><span class="tl-res skipped" data-i18n="how.tl.sleep.n">1.8 s wasted</span></div>
+            <div class="tl-track">
+              <div class="seg-b tap" style="left:0;width:6.94%">tap</div>
+              <div class="seg-b waste" style="left:6.94%;width:83.33%">sleep(3000)</div>
+              <div class="seg-b next" style="left:90.28%;width:9.72%" data-i18n="how.tl.next">next</div>
+              <i class="ready" style="left:40.28%"></i>
+            </div>
+          </div>
+          <div class="tl-row">
+            <div class="tl-label"><span data-i18n="how.tl.poll">Screen polling</span><span class="tl-res failed" data-i18n="how.tl.poll.n">0.35 s too early, may fail</span></div>
+            <div class="tl-track">
+              <div class="seg-b tap" style="left:0;width:6.94%">tap</div>
+              <i class="probe" style="left:13.89%"></i><i class="probe" style="left:22.22%"></i>
+              <div class="seg-b early" style="left:30.56%;width:9.72%" data-i18n="how.tl.next">next</div>
+              <i class="ready" style="left:40.28%"></i>
+            </div>
+          </div>
+          <div class="tl-axis"><span style="left:0">0</span><span style="left:27.78%">1 s</span><span style="left:55.56%">2 s</span><span style="left:83.33%">3 s</span></div>
+          <p class="tl-foot" data-i18n="how.tl.foot">Polling checks the screen every 0.3 s and acts as soon as the button shows up, even while the app is still working. Quiesco waits for the work itself to finish.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow" data-i18n="feat.eyebrow"><b>03</b> / features</span>
+        <h2 class="h-lg" data-i18n="feat.h2">Everything a test needs, nothing in production.</h2>
+      </div>
+      <div class="features">
+        <div class="feature"><span class="anno">F.01</span>
+          <span class="ico"><svg class="icon" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l2.5 2.5"/></svg></span>
+          <h3 class="h-title" data-i18n="feat.1.t">Automatic synchronization</h3>
+          <p data-i18n="feat.1.d">Network, timers, React scheduler, idle callbacks, native transitions and a frame-stability fallback. A sync timeout names what was still busy.</p>
+        </div>
+        <div class="feature"><span class="anno">F.02</span>
+          <span class="ico"><svg class="icon" viewBox="0 0 20 20"><rect x="5.5" y="2.5" width="9" height="15" rx="1.5"/><path d="M9 14.5h2"/></svg></span>
+          <h3 class="h-title" data-i18n="feat.2.t">Real input, every platform</h3>
+          <p data-i18n="feat.2.d">Touches and text through <code>@quiesco/native</code> on iOS and Android, Playwright on the web. The same test runs unchanged on all three.</p>
+        </div>
+        <div class="feature"><span class="anno">F.03</span>
+          <span class="ico"><svg class="icon" viewBox="0 0 20 20"><path d="M3.5 10a6.5 6.5 0 1 0 2-4.7M3.5 3.5v3.5H7"/></svg></span>
+          <h3 class="h-title" data-i18n="feat.3.t">Resets in ~200 ms</h3>
+          <p data-i18n="feat.3.d">A soft reset (storage, your reset hooks, remount) before every test. Tag a test <code>@hard-reset</code> when it really needs a relaunch.</p>
+        </div>
+        <div class="feature"><span class="anno">F.04</span>
+          <span class="ico"><svg class="icon" viewBox="0 0 20 20"><path d="M7 6 3 10l4 4M13 6l4 4-4 4"/></svg></span>
+          <h3 class="h-title" data-i18n="feat.4.t">Backdoors</h3>
+          <p data-i18n="feat.4.d">Set up state from the test without driving the UI: <code>app.backdoor('loginAs', …)</code>. Log in once, test what matters.</p>
+        </div>
+        <div class="feature"><span class="anno">F.05</span>
+          <span class="ico"><svg class="icon" viewBox="0 0 20 20"><rect x="2.5" y="3.5" width="15" height="13" rx="1.5"/><path d="M2.5 7.5h15M6 11h3M6 13.5h6"/></svg></span>
+          <h3 class="h-title" data-i18n="feat.5.t">Test UI and live progress</h3>
+          <p data-i18n="feat.5.d"><code>quiesco ui</code> runs tests from the browser and shows each failure with its screenshot and element tree. The CLI keeps a progress bar on the last line.</p>
+        </div>
+        <div class="feature"><span class="anno">F.06</span>
+          <span class="ico"><svg class="icon" viewBox="0 0 20 20"><path d="M10 2.5 3.5 5v5c0 4 3 6.5 6.5 7.5 3.5-1 6.5-3.5 6.5-7.5V5L10 2.5Z"/><path d="m7.5 10 2 2 3.5-3.5"/></svg></span>
+          <h3 class="h-title" data-i18n="feat.6.t">Nothing in production</h3>
+          <p data-i18n="feat.6.d">Without <code>EXPO_PUBLIC_QUIESCO=1</code> the agent becomes a no-op stub and the native module is left out of the build. Checked in CI.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Code -->
+  <section>
+    <div class="wrap code-grid">
+      <div>
+        <div class="section-head" style="margin:0">
+          <span class="eyebrow" data-i18n="qs.eyebrow"><b>04</b> / quick start</span>
+          <h2 class="h-lg" data-i18n="qs.h2">Your first test in about ten minutes.</h2>
+          <p class="lead" style="margin:0" data-i18n="qs.lead">Bring an Expo app on SDK 55 or later and Node.js 24.</p>
+        </div>
+        <ol class="steps">
+          <li><div><strong data-i18n="qs.1.t">Run <code>npx quiesco init</code></strong><p data-i18n="qs.1.d">Installs dependencies, the config plugin, Metro setup, <code>quiesco.config.mts</code> and a first test.</p></div></li>
+          <li><div><strong data-i18n="qs.2.t">Wrap your root layout in <code>&lt;QuiescoRoot&gt;</code></strong><p data-i18n="qs.2.d">One component turns on the agent in e2e builds only.</p></div></li>
+          <li><div><strong data-i18n="qs.3.t">Run <code>npx quiesco test</code></strong><p data-i18n="qs.3.d">Against Chromium, an iOS simulator or an Android emulator.</p></div></li>
+        </ol>
+        <div class="chips">
+          <span class="pill neutral">Vitest</span><span class="pill neutral">Jest</span><span class="pill neutral">Cucumber</span><span class="pill neutral" data-i18n="qs.any">any Node.js runner</span>
+        </div>
+      </div>
+      <div class="file ticks" data-speed="0.94">
+        <span class="tk" aria-hidden="true"></span>
+        <div class="file-bar"><svg class="icon" viewBox="0 0 16 16"><path d="M9.5 1.5h-6v13h9v-10l-3-3Z M9.5 1.5v3h3"/></svg>e2e/todo.test.ts<span class="r">TypeScript</span></div>
+<pre class="code"><span class="ln"><span class="k">import</span> { test } <span class="k">from</span> <span class="s">'@quiesco/vitest'</span>;</span><span class="ln"></span><span class="ln">test(<span class="s">'a new todo appears at the top'</span>, <span class="k">async</span> ({ app }) =&gt; {</span><span class="ln">  <span class="c" data-i18n="qs.c1">// state set up without driving the UI</span></span><span class="ln">  <span class="k">await</span> app.backdoor(<span class="s">'loginAs'</span>, <span class="s">'a@example.com'</span>);</span><span class="ln"></span><span class="ln">  <span class="c" data-i18n="qs.c2">// each step waits until the app is idle</span></span><span class="ln">  <span class="k">await</span> app.tap(<span class="s">'add-todo'</span>);</span><span class="ln">  <span class="k">await</span> app.type(<span class="s">'todo-title'</span>, <span class="s">'Buy milk'</span>);</span><span class="ln">  <span class="k">await</span> app.tap({ role: <span class="s">'button'</span>, text: <span class="s">'Save'</span> });</span><span class="ln"></span><span class="ln">  <span class="k">await</span> app.expectText({ id: <span class="s">'todo-item'</span>, index: 0 }, <span class="s">'Buy milk'</span>);</span><span class="ln">});</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="closing dark-scope">
+    <div class="px-bg dotgrid" aria-hidden="true"></div>
+    <div class="wrap">
+      <svg class="mark" viewBox="6.75 5.75 46.871 46.871" aria-hidden="true"><path fill="currentColor" d="M38.525,49.552 A22.25 22.25 0 1 1 50.552,37.525 A8.89 8.89 0 0 0 43.615,36.918 A15.75 15.75 0 1 0 37.918,42.615 A8.89 8.89 0 0 0 38.525 49.552 Z"/><circle fill="#6f86ff" cx="46.371" cy="45.371" r="6.25"/></svg>
+      <h2 class="h-lg" data-i18n="close.h2">Fast or stable? Pick both.</h2>
+      <p class="lead" data-i18n="close.lead">Open source, MIT licensed, on npm as <code>quiesco</code>.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="https://shift-14cc7601.mintlify.site/quickstart" data-i18n="nav.start">Get started</a>
+        <a class="btn btn-secondary" href="benchmark.html" data-i18n="close.bench">See the benchmark</a>
+        <a class="btn btn-secondary" href="https://github.com/h2nology/quiesco">GitHub</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span class="small muted" data-i18n="foot.tag">Quiesco — from Latin <em>quiēscō</em>, “to come to rest”.</span>
+    <nav aria-label="Footer">
+      <a href="https://shift-14cc7601.mintlify.site" data-i18n="nav.docs">Docs</a>
+      <a href="benchmark.html" data-i18n="nav.benchmark">Benchmark</a>
+      <a href="https://github.com/h2nology/quiesco">GitHub</a>
+      <a href="https://www.npmjs.com/package/quiesco">npm</a>
+    </nav>
+  </div>
+</footer>
+</div></div>
+
+<script src="assets/benchmark-data.js"></script>
+<script>
+(() => {
+  const B = window.BENCH, I = window.QI18N, t = I.t;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const NAME = { quiesco: 'Quiesco', appium: 'Appium', detox: 'Detox', maestro: 'Maestro' };
+  const PL = { ios: 'iOS', android: 'Android' };
+  const fmt = (n, d = 1) => n.toFixed(d);
+
+  // Smooth scrolling comes first: ScrollSmoother has to exist before any ScrollTrigger is made.
+  // Registered here, not in <head>: ScrollTrigger only sets itself up once <body> exists.
+  const motion = !reduce && !!window.ScrollSmoother && !!window.ScrollTrigger;
+  if (motion) {
+    gsap.registerPlugin(ScrollTrigger, ScrollSmoother);
+    window.QSMOOTHER = ScrollSmoother.create({ wrapper: '#smooth-wrapper', content: '#smooth-content', smooth: 1.1, effects: true });
+  }
+
+  /* =================== Benchmark: Quiesco against each tool =================== */
+  let plat = 'ios', renderedLang = null;
+
+  // The rows are built once and then updated, so a platform switch can morph bars and numbers.
+  const vsEl = document.getElementById('vs');
+  let rows = [], raced = false;
+
+  function data() {
+    const s = B.suite[plat], q = s.quiesco.median;
+    const others = Object.keys(s).filter((x) => x !== 'quiesco').sort((a, b) => s[a].median - s[b].median);
+    const max = s[others[others.length - 1]].median;
+    return others.map((x) => ({ tool: x, q, x: s[x].median, max, pct: (1 - q / s[x].median) * 100 }));
+  }
+  const pctText = (v) => `−${fmt(v)}%`;
+  const W = (v, max) => (v / max) * 100 + '%';
+
+  function build(n) {
+    vsEl.innerHTML = Array.from({ length: n }, () => `
+      <div class="vs-row">
+        <span class="vs-name"></span>
+        <span class="pct">−0.0%</span>
+        <div class="vs-bars">
+          <div class="vb q"><span class="lbl"></span><span class="trk"><i></i></span></div>
+          <div class="vb o"><span class="lbl"></span><span class="trk"><i></i><b class="gap"></b></span></div>
+        </div>
+        <span class="x"></span>
+      </div>`).join('');
+    rows = [...vsEl.querySelectorAll('.vs-row')].map((el) => ({
+      el, name: el.querySelector('.vs-name'), pct: el.querySelector('.pct'), x: el.querySelector('.x'),
+      qBar: el.querySelector('.vb.q i'), qLbl: el.querySelector('.vb.q .lbl'),
+      oBar: el.querySelector('.vb.o i'), oLbl: el.querySelector('.vb.o .lbl'), gap: el.querySelector('.gap'), v: { pct: 0 },
+    }));
+  }
+
+  // Text that changes with platform or language; widths and numbers are left to place()/race()/morph().
+  function label() {
+    renderedLang = I.lang;
+    data().forEach((d, k) => {
+      const r = rows[k];
+      r.name.textContent = t('vs.title', { tool: NAME[d.tool], plat: PL[plat] });
+      r.qLbl.textContent = `Quiesco ${fmt(d.q)} ${t('s')}`;
+      r.oLbl.textContent = `${NAME[d.tool]} ${fmt(d.x)} ${t('s')}`;
+      r.gap.title = `−${fmt(d.x - d.q)} ${t('s')}`;
+      r.x.textContent = t('vs.sub', { x: fmt(d.x / d.q, 2), s: fmt(d.x - d.q) });
+    });
+  }
+  function place() {
+    data().forEach((d, k) => {
+      const r = rows[k];
+      gsap.set(r.qBar, { width: W(d.q, d.max) });
+      gsap.set(r.oBar, { width: W(d.x, d.max) });
+      gsap.set(r.gap, { left: W(d.q, d.max), width: W(d.x - d.q, d.max), scaleX: 1, opacity: 1 });
+      gsap.set([r.qLbl, r.oLbl], { opacity: 1 });
+      r.v.pct = d.pct; r.pct.textContent = pctText(d.pct);
+    });
+  }
+
+  // First time the rows come into view: every bar fills at the same speed, so each row is a race
+  // that Quiesco finishes first. The time it saved then lights up and the percentage zooms in.
+  function race() {
+    if (raced) return; raced = true;
+    const tl = gsap.timeline();
+    const SPEED = 1.1; // seconds for the slowest tool's bar
+    data().forEach((d, k) => {
+      const r = rows[k], at = k * 0.1;
+      const tq = SPEED * d.q / d.max, tx = SPEED * d.x / d.max;
+      gsap.set([r.qBar, r.oBar], { width: '0%' });
+      gsap.set(r.gap, { left: W(d.q, d.max), width: W(d.x - d.q, d.max), scaleX: 0, opacity: 0 });
+      r.v.pct = d.pct; r.pct.textContent = pctText(d.pct);
+      gsap.set(r.pct, { opacity: 0, scale: 0.4 });
+      tl.fromTo([r.qLbl, r.oLbl], { opacity: 0 }, { opacity: 1, duration: 0.3 }, at)
+        .to(r.qBar, { width: W(d.q, d.max), duration: tq, ease: 'none' }, at)
+        .to(r.oBar, { width: W(d.x, d.max), duration: tx, ease: 'none' }, at)
+        .to(r.gap, { opacity: 1, scaleX: 1, duration: 0.35, ease: 'power3.out' }, at + tx)
+        .to(r.pct, { opacity: 1, scale: 1, duration: 0.45, ease: 'back.out(2)' }, at + tx);
+    });
+  }
+
+  // Switching platform: bars, the saved-time band and the numbers glide to the new values.
+  function morph() {
+    data().forEach((d, k) => {
+      const r = rows[k], o = { duration: 0.7, ease: 'power3.inOut' };
+      gsap.to(r.qBar, { width: W(d.q, d.max), ...o });
+      gsap.to(r.oBar, { width: W(d.x, d.max), ...o });
+      gsap.to(r.gap, { left: W(d.q, d.max), width: W(d.x - d.q, d.max), scaleX: 1, opacity: 1, ...o });
+      gsap.to(r.v, { pct: d.pct, ...o, onUpdate: () => { r.pct.textContent = pctText(r.v.pct); } });
+      gsap.fromTo([r.name, r.x], { opacity: 0.25 }, { opacity: 1, duration: 0.5, delay: 0.15 });
+    });
+  }
+
+  function render() { label(); }
+  build(data().length);
+  label();
+  if (motion) {
+    gsap.set(vsEl.querySelectorAll('.lbl, .gap, .pct'), { opacity: 0 }); // empty bars, no numbers until the race
+    ScrollTrigger.create({ trigger: vsEl, start: 'top 80%', once: true, onEnter: race });
+  } else place();
+
+  document.querySelectorAll('.seg [data-plat]').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.plat === plat) return;
+    document.querySelectorAll('.seg [data-plat]').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
+    plat = b.dataset.plat; label();
+    if (!motion) return place();
+    if (!raced) { race(); return; }
+    morph();
+  }));
+
+  /* =================== Terminal: what `quiesco test` prints =================== */
+  // Stylised, not a byte-for-byte reporter: no built-in Vitest 5 reporter both streams each test and groups by
+  // file (verbose repeats the path on every line, default prints a file only once it is done). So the log shows
+  // a file heading when the file starts and each test under it the moment it finishes, in Vitest's own
+  // symbols and colours, keeping step with the progress bar. The banner and summary are Vitest's.
+  // Quiesco keeps its progress bar on the last line (packages/cli/src/progress/render.ts).
+  const logEl = document.getElementById('term-log'), stickyEl = document.getElementById('term-sticky');
+  const termDot = document.getElementById('term-dot');
+  const FILES = [
+    { file: 'e2e/auth.test.ts', tests: [['logs in and lands on the list', 3184], ['shows an error for a wrong password', 2417], ['logs out from settings', 2861]] },
+    { file: 'e2e/todo.test.ts', tests: [['a new todo appears at the top', 2193], ['tapping a todo marks it done', 1412], ['edits a todo title', 2276], ['swipe left deletes a todo', 1934]] },
+    { file: 'e2e/filters.test.ts', tests: [['filters to completed todos', 1688], ['clears completed todos', 2042]] },
+    { file: 'e2e/sync.test.ts', tests: [['syncs offline edits when back online', 4315], ['pull to refresh loads new todos', 2580]] },
+  ];
+  const TOTAL = FILES.reduce((a, f) => a + f.tests.length, 0);
+  const CMD = 'npx quiesco test --platform ios';
+  const BOOT_MS = 9400;        // simulator boot + app launch, counted by the bar's clock
+  const SPEED = 2.5;           // shown seconds per real second
+  const esc = (x) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const c = (cls, txt) => `<span class="${cls}">${esc(txt)}</span>`;
+  const fmtTime = (ms) => (ms > 1000 ? `${(ms / 1000).toFixed(2)}s` : `${Math.round(ms)}ms`);
+  const fmtDur = (ms) => { const s = Math.floor(ms / 1000); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m${String(s % 60).padStart(2, '0')}s`; };
+  const pad = (t) => c('c-dim', t.padStart(11) + ' ');
+
+  function out(html) {
+    const el = document.createElement('div'); el.className = 'tline'; el.innerHTML = html || ' ';
+    logEl.appendChild(el);
+    while (logEl.children.length > 40) logEl.firstChild.remove();
+    return el;
+  }
+  // The sticky bar, as renderBar draws it.
+  function bar(st) {
+    if (st.phase === 'idle') { stickyEl.innerHTML = c('c-dim', 'quiesco: waiting for the test runner…'); return; }
+    const filled = Math.round((st.done / TOTAL) * 20);
+    let line = '▕' + c('c-green', '█'.repeat(filled)) + c('c-dim', '░'.repeat(20 - filled)) + `▏ ${st.done}/${TOTAL}  ` + c('c-green', `✓${st.done}`) + `  ${fmtDur(st.elapsed)}`;
+    if (st.phase === 'running' && st.now) line += '  ' + c('c-cyan', '▶') + ' ' + esc(st.now);
+    if (st.phase === 'ended') line += '  ' + c('c-green', 'passed');
+    stickyEl.innerHTML = line;
+  }
+  // File heading: `❯` while it runs (Vitest's running mark), then a module line once it is done,
+  // ` ✓ file (n tests) 8.46s` (the file's total in seconds), rewritten in place.
+  const fileHead = (f) => out(` ${c('c-cyan', '❯')} ${esc(f.file)}`);
+  function fileDone(el, f) {
+    const total = f.tests.reduce((a, t) => a + t[1], 0), n = f.tests.length;
+    el.innerHTML = ` ${c('c-green', '✓')} ${esc(f.file)} ${c('c-dim', `(${n} test${n > 1 ? 's' : ''})`)}${c('c-yellow', ` ${(total / 1000).toFixed(2)}`)}${c('c-yellow c-dim', 's')}`;
+  }
+  function testLine(f, k) {
+    const [name, ms] = f.tests[k];
+    out(`   ${c('c-green', '✓')} ${esc(name)}${c('c-yellow', ` ${ms}`)}${c('c-yellow c-dim', 'ms')}`);
+  }
+  function summary(startAt, wallMs) {
+    out('');
+    out(pad('Test Files') + c('c-green c-bold', `${FILES.length} passed`) + c('c-gray', ` (${FILES.length})`));
+    out(pad('Tests') + c('c-green c-bold', `${TOTAL} passed`) + c('c-gray', ` (${TOTAL})`));
+    out(pad('Start at') + startAt);
+    out(pad('Duration') + fmtTime(wallMs) + c('c-dim', ' (tests 94%, import 4%, transform 2%)'));
+    out('');
+  }
+  const clockAt = () => new Date().toTimeString().split(' ')[0];
+
+  function staticLog() {
+    logEl.innerHTML = '';
+    out(`${c('c-prompt', '$')} ${esc(CMD)}`); out('');
+    out(`${c('c-badge', ' RUN ')} ${c('c-cyan', 'v5.1.0 ')}${c('c-gray', '/Users/me/my-expo-app')}`); out('');
+    FILES.forEach((f) => { const h = fileHead(f); f.tests.forEach((_, k) => testLine(f, k)); fileDone(h, f); });
+    const testsMs = FILES.reduce((a, f) => a + f.tests.reduce((b, t) => b + t[1], 0), 0);
+    summary(clockAt(), BOOT_MS + testsMs + 820);
+    bar({ phase: 'ended', done: TOTAL, elapsed: BOOT_MS + testsMs + 1500 });
+    termDot.className = 'dot passed';
+  }
+
+  // Every pause and every clock run is a GSAP tween; the one in flight is paused while the terminal is off-screen.
+  let paused = false, current = null;
+  const track = (tw) => { current = tw; if (paused) tw.pause(); return tw; };
+  const wait = (ms) => new Promise((r) => track(gsap.delayedCall(ms / 1000, r)));
+  // Typed like a person: a blinking caret first, quick bursts inside words, small stops at spaces,
+  // a longer one before a flag, one slip that gets backspaced, and the caret held solid while keys go down.
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  async function typeCommand(line) {
+    const show = (txt, solid) => { line.innerHTML = `${c('c-prompt', '$')} ${esc(txt)}<span class="caret${solid ? ' solid' : ''}"></span>`; };
+    show('', false); await wait(rnd(650, 950));
+    const slip = CMD.indexOf('quiesco') + 5; // "quies" then a wrong key, noticed, fixed
+    let typed = '';
+    for (let i = 0; i < CMD.length; i++) {
+      const ch = CMD[i], prev = CMD[i - 1];
+      let d = rnd(38, 85);
+      if (prev === ' ') d += rnd(60, 140);
+      if (ch === '-' && prev === ' ') d += rnd(140, 260);
+      if (Math.random() < 0.07) d += rnd(120, 240);
+      await wait(d);
+      if (i === slip) {
+        show(typed + 'x', true); await wait(rnd(220, 320));
+        show(typed, true); await wait(rnd(90, 140));
+      }
+      typed += ch; show(typed, true);
+    }
+    show(typed, false); await wait(rnd(420, 620));   // a beat before Enter
+    line.innerHTML = `${c('c-prompt', '$')} ${esc(CMD)}`;
+    await wait(220);
+  }
+
+  async function run() {
+    for (;;) {
+      logEl.innerHTML = ''; stickyEl.innerHTML = ''; termDot.className = 'dot running';
+      await wait(600);
+      await typeCommand(out(''));
+      bar({ phase: 'idle' });
+      await wait(900);
+      const startAt = clockAt();
+      out(''); out(`${c('c-badge', ' RUN ')} ${c('c-cyan', 'v5.1.0 ')}${c('c-gray', '/Users/me/my-expo-app')}`); out('');
+      // the bar's clock counts from the runner start, so it includes booting the device and the app
+      let elapsed = 0, done = 0, now = FILES[0].tests[0][0];
+      const st = () => ({ phase: 'running', done, elapsed, now });
+      const advance = (simMs) => new Promise((r) => {
+        const clk = { ms: elapsed };
+        track(gsap.to(clk, { ms: elapsed + simMs, duration: simMs / SPEED / 1000, ease: 'none', onUpdate: () => { elapsed = clk.ms; bar(st()); }, onComplete: r }));
+      });
+      await advance(BOOT_MS);
+      for (const f of FILES) {
+        const head = fileHead(f);
+        for (let k = 0; k < f.tests.length; k++) {
+          now = f.tests[k][0]; bar(st());
+          await advance(f.tests[k][1]);
+          done++; testLine(f, k); bar(st());
+        }
+        fileDone(head, f);
+      }
+      await advance(700);
+      summary(startAt, elapsed + 120);
+      bar({ phase: 'ended', done, elapsed });
+      termDot.className = 'dot passed';
+      await wait(6000);
+    }
+  }
+  if (reduce) staticLog();
+  else {
+    run();
+    new IntersectionObserver((es) => { paused = !es[0].isIntersecting; if (current) paused ? current.pause() : current.resume(); }).observe(logEl);
+  }
+
+  document.addEventListener('langchange', () => {
+    if (renderedLang === I.lang) return;
+    render();
+    if (window.ScrollTrigger) ScrollTrigger.refresh();
+  });
+
+  /* =================== Smooth scroll + parallax =================== */
+  // ScrollSmoother eases the page; ScrollTrigger scrubs the parallax layers. Both are skipped with reduced motion.
+  if (motion) {
+    const smoother = window.QSMOOTHER;
+    const scrub = (trigger, start = 'top bottom') => ({ trigger, start, end: 'bottom top', scrub: true });
+    // Hero: the dot grid drifts slowest; the headline pulls away upward and fades. It moves away from the
+    // terminal, never towards it, so the buttons are never covered.
+    gsap.to('.hero .px-bg', { yPercent: 18, ease: 'none', scrollTrigger: scrub('.hero', 'top top') });
+    gsap.to('.hero-head', { y: -80, opacity: 0.15, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: '60% top', scrub: true } });
+    // Benchmark: the text column drifts against the rows beside it.
+    gsap.fromTo('.bench-side', { y: 40 }, { y: -40, ease: 'none', scrollTrigger: scrub('#benchmark') });
+    // Closing: the grid and the mark move against the scroll.
+    gsap.fromTo('.closing .px-bg', { yPercent: -12 }, { yPercent: 12, ease: 'none', scrollTrigger: scrub('.closing') });
+    gsap.fromTo('.closing .mark', { y: -50 }, { y: 50, ease: 'none', scrollTrigger: scrub('.closing') });
+
+    /* ---------- Reveals: content arrives as it scrolls in, once ---------- */
+    // Elements moved by parallax or data-speed only get opacity/scale here, never y, so the two don't fight.
+    const once = (trigger, start = 'top 85%') => ({ trigger, start, once: true });
+    const rise = { opacity: 0, y: 18, duration: 0.7, ease: 'expo.out', stagger: 0.08 };
+
+    // Hero, on load: badge, the two headline lines, lead, buttons, then the terminal.
+    gsap.timeline({ defaults: { ease: 'expo.out' } })
+      .from('.hero-anno', { opacity: 0, y: -10, duration: 0.5 })
+      .from('.hero h1 > span', { opacity: 0, y: 44, duration: 0.9, stagger: 0.12 }, '-=0.25')
+      .from('.hero .lead', { opacity: 0, y: 16, duration: 0.6 }, '-=0.6')
+      .from('.hero .cta > *', { opacity: 0, y: 12, duration: 0.5, stagger: 0.08 }, '-=0.45')
+      .from('#term', { opacity: 0, scale: 0.96, duration: 0.8 }, '-=0.4');
+
+    // Every section heading: eyebrow, title, lead in turn.
+    gsap.utils.toArray('main section .section-head').forEach((h) => gsap.from(h.children, { ...rise, scrollTrigger: once(h) }));
+    gsap.from('.bench-actions > *, .vs-top', { ...rise, scrollTrigger: once('#benchmark', 'top 70%'), delay: 0.25 });
+
+    // How it works: the example, then each row draws itself left to right, then the idle line drops in.
+    const how = gsap.timeline({ scrollTrigger: once('.why-card', 'top 75%'), defaults: { ease: 'power3.out' } });
+    how.from('.tl-ex', { opacity: 0, y: 12, duration: 0.5 });
+    gsap.utils.toArray('#how .tl-row, #how .tl-sep').forEach((row) => {
+      how.from(row, { opacity: 0, y: 12, duration: 0.4 }, '<0.15');
+      const segs = row.querySelectorAll('.seg-b, .probe');
+      if (segs.length) how.from(segs, { scaleX: 0, transformOrigin: 'left center', duration: 0.4, stagger: 0.1 }, '<0.1');
+    });
+    how.from('#how .ready', { scaleY: 0, transformOrigin: 'top center', duration: 0.5, stagger: 0.05 }, '-=0.1')
+      .from('#how .ready-tag, #how .tl-res', { opacity: 0, duration: 0.4, stagger: 0.05 }, '<')
+      .from('#how .tl-axis, #how .tl-foot', { opacity: 0, duration: 0.4 }, '<0.2');
+
+    // Features: cards come up in batches as their row enters.
+    gsap.set('.feature', { opacity: 0, y: 28 });
+    ScrollTrigger.batch('.feature', { start: 'top 88%', once: true, onEnter: (b) => gsap.to(b, { opacity: 1, y: 0, duration: 0.7, ease: 'expo.out', stagger: 0.09 }) });
+
+    // Quick start: steps and chips, and the code file types itself in line by line.
+    gsap.from('.steps li', { ...rise, scrollTrigger: once('.steps') });
+    gsap.from('.chips > *', { ...rise, y: 10, stagger: 0.05, scrollTrigger: once('.chips', 'top 92%') });
+    gsap.from('.file', { opacity: 0, scale: 0.98, duration: 0.6, ease: 'expo.out', scrollTrigger: once('.file') });
+    gsap.from('.file .code .ln', { opacity: 0, x: -8, duration: 0.35, ease: 'power2.out', stagger: 0.045, scrollTrigger: once('.file', 'top 75%') });
+
+    // Closing: the mark turns in, then the line, the lead and the buttons.
+    gsap.timeline({ scrollTrigger: once('.closing', 'top 70%') })
+      .from('.closing .mark', { opacity: 0, scale: 0.5, rotate: -120, duration: 0.9, ease: 'back.out(1.6)' })
+      .from('.closing h2, .closing .lead, .closing .cta > *', { ...rise }, '-=0.5');
+
+    if (location.hash) { const el = document.querySelector(location.hash); if (el) smoother.scrollTo(el, false, 'top 61px'); }
+  }
+})();
+</script>
+</body>
+</html>
