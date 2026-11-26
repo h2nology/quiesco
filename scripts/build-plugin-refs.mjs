@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const docs = path.join(root, 'docs');
 const skills = path.join(root, 'plugin', 'skills');
-const SITE = 'https://shift-14cc7601.mintlify.site';
+const SITE = 'https://docs.quiesco.dev';
 
 /** skill -> the pages its references/ holds */
 const PAGES = {

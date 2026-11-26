@@ -30,6 +30,11 @@
       "github": "https://github.com/h2nology/quiesco"
     }
   },
+  "seo": {
+    "metatags": {
+      "canonical": "https://docs.quiesco.dev"
+    }
+  },
   "redirects": [
     {
       "source": "/native",

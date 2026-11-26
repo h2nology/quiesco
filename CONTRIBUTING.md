@@ -27,7 +27,7 @@ Tests and steps never sleep or wait a fixed time: wait for a condition (Quiesco'
 
 ## Documentation
 
-`docs/` is the [Mintlify](https://mintlify.com) site <https://shift-14cc7601.mintlify.site>, in English,
+`docs/` is the [Mintlify](https://mintlify.com) site <https://docs.quiesco.dev>, in English,
 Simplified Chinese and Japanese. Mintlify deploys it from `main`. Layout:
 
 ```

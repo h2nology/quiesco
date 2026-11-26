@@ -39,7 +39,7 @@ Each runner has a page on its config:
 ## Running {#running}
 
 Run the tests with `npx quiesco test --platform ios` (`--runner vitest|jest|cucumber` to choose another than
-the installed one), or from the browser with [`quiesco ui`](https://shift-14cc7601.mintlify.site/ui). All three are in
+the installed one), or from the browser with [`quiesco ui`](https://docs.quiesco.dev/ui). All three are in
 [examples/todo-app](https://github.com/h2nology/quiesco/tree/main/examples/todo-app); details in
 [Vitest, Jest and other runners](./api-custom-runners.md), several devices at once in
 [parallel runs](./parallel.md).

@@ -20,7 +20,7 @@ test('a new todo appears at the top @ios', async () => {
 Platform tags go in test or `describe` titles. The preset's reporter sends the run's progress to
 `quiesco test` and `quiesco ui`; a config with its own `reporters` replaces the preset's, so add
 `'@quiesco/jest/reporter'` there. Run with `npx quiesco test --platform ios --runner jest`.
-Details: [using Quiesco without Cucumber](https://shift-14cc7601.mintlify.site/api-custom-runners).
+Details: [using Quiesco without Cucumber](https://docs.quiesco.dev/api-custom-runners).
 
 Part of [Quiesco](https://github.com/h2nology/quiesco): gray-box end-to-end testing for Expo apps on iOS, Android and the web. Setup: `npx quiesco init` ([quick start](https://github.com/h2nology/quiesco#quick-start-web-about-10-minutes)).
 

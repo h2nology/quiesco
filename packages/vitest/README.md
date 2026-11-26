@@ -24,7 +24,7 @@ test('a new todo appears at the top', async ({ app }) => {
 
 `quiescoPlugin()` sends the run's progress to the progress bar of `quiesco test` and to `quiesco ui` (your
 own reporters stay). Run with `npx quiesco test --platform ios --runner vitest`. Details:
-[using Quiesco without Cucumber](https://shift-14cc7601.mintlify.site/api-custom-runners).
+[using Quiesco without Cucumber](https://docs.quiesco.dev/api-custom-runners).
 
 Part of [Quiesco](https://github.com/h2nology/quiesco): gray-box end-to-end testing for Expo apps on iOS, Android and the web. Setup: `npx quiesco init` ([quick start](https://github.com/h2nology/quiesco#quick-start-web-about-10-minutes)).
 

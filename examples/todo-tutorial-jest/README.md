@@ -1,7 +1,7 @@
 # Quiesco todo tutorial (Jest)
 
 A small Expo Router app — a todo list, a new-todo form and a details screen — with the end-to-end tests
-that the [Quiesco tutorial](https://shift-14cc7601.mintlify.site/tutorial/jest) builds step by step, written with Jest.
+that the [Quiesco tutorial](https://docs.quiesco.dev/tutorial/jest) builds step by step, written with Jest.
 The same app with the other runners: [Vitest](../todo-tutorial-vitest), [Cucumber](../todo-tutorial-cucumber).
 
 It is a standalone npm project that uses the published Quiesco packages (it is not part of the

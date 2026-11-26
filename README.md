@@ -27,7 +27,7 @@ test('a new todo appears at the top of the list', async ({ app }) => {
 ```
 
 - **Automatic synchronization** — network, timers, React scheduler, idle callbacks, native transitions
-  and a frame-stability fallback ([how it works](https://shift-14cc7601.mintlify.site/sync)). A sync timeout names what was still busy.
+  and a frame-stability fallback ([how it works](https://docs.quiesco.dev/sync)). A sync timeout names what was still busy.
 - **Real input** — touches and text through `@quiesco/native` (iOS / Android) or Playwright (web); a
   callback mode (`js`) works without native code.
 - **Fast resets** — a soft reset (storage, your reset hooks, remount) before every test, typically
@@ -35,7 +35,7 @@ test('a new todo appears at the top of the list', async ({ app }) => {
 - **Backdoors** — set up state from tests without driving the UI (`app.backdoor('loginAs', …)`).
 - **Live progress** — `quiesco test` keeps a progress bar on the last line of the terminal; `quiesco ui`
   runs tests from the browser with a click and shows failures with their screenshot and element tree
-  ([test UI](https://shift-14cc7601.mintlify.site/ui)).
+  ([test UI](https://docs.quiesco.dev/ui)).
 - **Nothing in production** — without `EXPO_PUBLIC_QUIESCO=1` the agent is replaced by a no-op stub and
   the native module is excluded from the build (checked in CI).
 
@@ -110,12 +110,12 @@ npx quiesco test --platform ios
 
 `quiesco build` runs `expo prebuild` with `EXPO_PUBLIC_QUIESCO=1` and the native build, and writes the app
 where `binaryPath` in `quiesco.config.mts` says (the generated config has the usual paths). `quiesco test`
-starts Metro for the dev client when it is not running, and stops it afterwards. Set the emulator / simulator in `devices` (see [configuration](https://shift-14cc7601.mintlify.site/config)). For CI, an
+starts Metro for the dev client when it is not running, and stops it afterwards. Set the emulator / simulator in `devices` (see [configuration](https://docs.quiesco.dev/config)). For CI, an
 EAS build profile with `EXPO_PUBLIC_QUIESCO=1` produces the same e2e build, and EAS Workflows can run the
-tests on Expo's iOS simulators and Android emulators ([EAS](https://shift-14cc7601.mintlify.site/eas)); see
+tests on Expo's iOS simulators and Android emulators ([EAS](https://docs.quiesco.dev/eas)); see
 [examples/todo-app](examples/todo-app/README.md) for a complete, tested setup on all three platforms.
 
-To learn writing tests on a small app, follow the [tutorial](https://shift-14cc7601.mintlify.site/tutorial):
+To learn writing tests on a small app, follow the [tutorial](https://docs.quiesco.dev/tutorial):
 a three-screen todo app with its tests, which run on the web, iOS and Android, once per test runner:
 [examples/todo-tutorial-vitest](examples/todo-tutorial-vitest),
 [examples/todo-tutorial-jest](examples/todo-tutorial-jest) and
@@ -180,13 +180,13 @@ When('they add a todo {string}', async function (this: QuiescoWorld, title: stri
 Run the tests with `npx quiesco test --platform ios` (it uses the runner whose `@quiesco` package is
 installed; `--runner vitest|jest|cucumber` picks another), or from the browser with `quiesco ui`. All three
 are in [examples/todo-app](examples/todo-app); details in
-[test runners](https://shift-14cc7601.mintlify.site/runners).
+[test runners](https://docs.quiesco.dev/runners).
 
 ## Packages
 
 | Package | What it is |
 |---|---|
-| [`quiesco`](packages/cli) | CLI: `init`, `build`, `test` (with a progress bar), `ui`, `list`, `doctor`, `tree`, `devices` ([docs](https://shift-14cc7601.mintlify.site/cli)) |
+| [`quiesco`](packages/cli) | CLI: `init`, `build`, `test` (with a progress bar), `ui`, `list`, `doctor`, `tree`, `devices` ([docs](https://docs.quiesco.dev/cli)) |
 | [`@quiesco/agent`](packages/agent) | In-app agent: element queries, sync trackers, actions, reset, backdoors; `withQuiesco()` for Metro |
 | [`@quiesco/native`](packages/native) | Expo module for real touches and text input on iOS / Android (e2e builds only) |
 | [`@quiesco/expo-plugin`](packages/expo-plugin) | Config plugin: excludes the native module from production builds, allows the local connection in e2e builds |
@@ -201,17 +201,17 @@ are in [examples/todo-app](examples/todo-app); details in
 
 ## Documentation
 
-[https://shift-14cc7601.mintlify.site](https://shift-14cc7601.mintlify.site) — in English, [中文](https://shift-14cc7601.mintlify.site/zh) and [日本語](https://shift-14cc7601.mintlify.site/ja).
+[https://docs.quiesco.dev](https://docs.quiesco.dev) — in English, [中文](https://docs.quiesco.dev/zh) and [日本語](https://docs.quiesco.dev/ja).
 
-- [Test runners](https://shift-14cc7601.mintlify.site/runners) — Vitest (recommended), Jest or Cucumber
-- [API reference](https://shift-14cc7601.mintlify.site/api) — the Driver (`app`), matchers, the in-app API, configuration, errors
-- [Synchronization](https://shift-14cc7601.mintlify.site/sync) — what "idle" means and how to deal with busy apps
-- [Platform differences](https://shift-14cc7601.mintlify.site/platforms) — iOS, Android and web side by side, permissions
-- [Driver pattern](https://shift-14cc7601.mintlify.site/driver-pattern) — business-language steps on top of `this.app`
-- [Parallel runs](https://shift-14cc7601.mintlify.site/parallel) — a device per worker, Vitest / Jest / cucumber-js
-- [Test UI](https://shift-14cc7601.mintlify.site/ui) — run tests from the browser and watch them live
-- [CLI](https://shift-14cc7601.mintlify.site/cli)
-- [Troubleshooting](https://shift-14cc7601.mintlify.site/troubleshooting)
+- [Test runners](https://docs.quiesco.dev/runners) — Vitest (recommended), Jest or Cucumber
+- [API reference](https://docs.quiesco.dev/api) — the Driver (`app`), matchers, the in-app API, configuration, errors
+- [Synchronization](https://docs.quiesco.dev/sync) — what "idle" means and how to deal with busy apps
+- [Platform differences](https://docs.quiesco.dev/platforms) — iOS, Android and web side by side, permissions
+- [Driver pattern](https://docs.quiesco.dev/driver-pattern) — business-language steps on top of `this.app`
+- [Parallel runs](https://docs.quiesco.dev/parallel) — a device per worker, Vitest / Jest / cucumber-js
+- [Test UI](https://docs.quiesco.dev/ui) — run tests from the browser and watch them live
+- [CLI](https://docs.quiesco.dev/cli)
+- [Troubleshooting](https://docs.quiesco.dev/troubleshooting)
 
 ## Using unreleased changes
 
