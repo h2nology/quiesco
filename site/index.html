@@ -61,7 +61,6 @@
   .c-badge { background: var(--accent-text); color: var(--canvas); font-weight: 500; }
   .c-prompt { color: var(--accent-text); }
   .caret { display: inline-block; width: .6em; height: 1.1em; background: var(--ink); vertical-align: -2px; opacity: var(--blink, 1); }
-  .caret.solid { opacity: 1; }
   @media (max-width: 720px) { .term-body { height: 360px; padding: 14px; font-size: 11px; } .term-bar .hide-narrow { display: none; } }
 
   /* ---------- Benchmark ---------- */
@@ -163,10 +162,6 @@
       <a class="navlink hide-xs" href="https://shift-14cc7601.mintlify.site" data-i18n="nav.docs">Docs</a>
       <a class="navlink hide-sm" href="https://github.com/h2nology/quiesco">GitHub</a>
       <div class="lang" role="group" aria-label="Language"><button type="button" data-lang="en" aria-pressed="true">EN</button><button type="button" data-lang="zh" aria-pressed="false">中文</button><button type="button" data-lang="ja" aria-pressed="false">日本語</button></div>
-      <button class="btn btn-secondary btn-icon theme-toggle" type="button" aria-label="Toggle colour theme">
-        <svg class="icon moon" viewBox="0 0 16 16"><path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7Z"/></svg>
-        <svg class="icon sun" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3 3l1 1M12 12l1 1M3 13l1-1M12 4l1-1"/></svg>
-      </button>
       <a class="btn btn-primary" href="https://shift-14cc7601.mintlify.site/quickstart" data-i18n="nav.start">Get started</a>
     </nav>
   </div>
@@ -190,8 +185,7 @@
         </div>
       </div>
 
-      <div class="term ticks" id="term">
-        <span class="tk" aria-hidden="true"></span>
+      <div class="term" id="term">
         <div class="term-bar"><span class="dot running" id="term-dot"></span><span class="title">zsh</span><span class="hide-narrow">~/my-expo-app</span><span class="r">iPhone 17 · iOS 27.0</span></div>
         <div class="term-body" aria-hidden="true"><div class="term-log" id="term-log"></div><div class="term-sticky" id="term-sticky"></div></div>
       </div>
@@ -234,8 +228,7 @@
         <p class="lead" style="margin:0" data-i18n="how.lead">Black-box tools can't see inside your app, so they sleep for a fixed time or poll the screen until something appears. Quiesco runs inside the e2e build and tracks every source of work. The instant the last one settles, the next step runs.</p>
       </div>
 
-      <div class="card ticks why-card" style="padding:24px" data-speed="0.96">
-        <span class="tk" aria-hidden="true"></span>
+      <div class="card why-card" style="padding:24px" data-speed="0.96">
         <!-- one example step on a 0–3.6 s scale: left/width are seconds / 3.6 -->
         <p class="tl-ex" data-i18n="how.tl.ex">Example: after the test taps <b>Save</b>, the app is busy for 1.2 s, sending a request and re-rendering. When should the next step run?</p>
         <div class="tl">
@@ -341,8 +334,7 @@
           <span class="pill neutral">Vitest</span><span class="pill neutral">Jest</span><span class="pill neutral">Cucumber</span><span class="pill neutral" data-i18n="qs.any">any Node.js runner</span>
         </div>
       </div>
-      <div class="file ticks" data-speed="0.94">
-        <span class="tk" aria-hidden="true"></span>
+      <div class="file" data-speed="0.94">
         <div class="file-bar"><svg class="icon" viewBox="0 0 16 16"><path d="M9.5 1.5h-6v13h9v-10l-3-3Z M9.5 1.5v3h3"/></svg>e2e/todo.test.ts<span class="r">TypeScript</span></div>
 <pre class="code"><span class="ln"><span class="k">import</span> { test } <span class="k">from</span> <span class="s">'@quiesco/vitest'</span>;</span><span class="ln"></span><span class="ln">test(<span class="s">'a new todo appears at the top'</span>, <span class="k">async</span> ({ app }) =&gt; {</span><span class="ln">  <span class="c" data-i18n="qs.c1">// state set up without driving the UI</span></span><span class="ln">  <span class="k">await</span> app.backdoor(<span class="s">'loginAs'</span>, <span class="s">'a@example.com'</span>);</span><span class="ln"></span><span class="ln">  <span class="c" data-i18n="qs.c2">// each step waits until the app is idle</span></span><span class="ln">  <span class="k">await</span> app.tap(<span class="s">'add-todo'</span>);</span><span class="ln">  <span class="k">await</span> app.type(<span class="s">'todo-title'</span>, <span class="s">'Buy milk'</span>);</span><span class="ln">  <span class="k">await</span> app.tap({ role: <span class="s">'button'</span>, text: <span class="s">'Save'</span> });</span><span class="ln"></span><span class="ln">  <span class="k">await</span> app.expectText({ id: <span class="s">'todo-item'</span>, index: 0 }, <span class="s">'Buy milk'</span>);</span><span class="ln">});</span></pre>
       </div>
@@ -502,10 +494,8 @@
   }));
 
   /* =================== Terminal: what `quiesco test` prints =================== */
-  // Stylised, not a byte-for-byte reporter: no built-in Vitest 5 reporter both streams each test and groups by
-  // file (verbose repeats the path on every line, default prints a file only once it is done). So the log shows
-  // a file heading when the file starts and each test under it the moment it finishes, in Vitest's own
-  // symbols and colours, keeping step with the progress bar. The banner and summary are Vitest's.
+  // Vitest 5 runs piped under `quiesco test`, so its default reporter is in non-TTY mode: a block per
+  // test file when the file finishes, tests slower than 300 ms listed in yellow, then the summary.
   // Quiesco keeps its progress bar on the last line (packages/cli/src/progress/render.ts).
   const logEl = document.getElementById('term-log'), stickyEl = document.getElementById('term-sticky');
   const termDot = document.getElementById('term-dot');
@@ -540,16 +530,11 @@
     if (st.phase === 'ended') line += '  ' + c('c-green', 'passed');
     stickyEl.innerHTML = line;
   }
-  // File heading: `❯` while it runs (Vitest's running mark), then a module line once it is done,
-  // ` ✓ file (n tests) 8.46s` (the file's total in seconds), rewritten in place.
-  const fileHead = (f) => out(` ${c('c-cyan', '❯')} ${esc(f.file)}`);
-  function fileDone(el, f) {
-    const total = f.tests.reduce((a, t) => a + t[1], 0), n = f.tests.length;
-    el.innerHTML = ` ${c('c-green', '✓')} ${esc(f.file)} ${c('c-dim', `(${n} test${n > 1 ? 's' : ''})`)}${c('c-yellow', ` ${(total / 1000).toFixed(2)}`)}${c('c-yellow c-dim', 's')}`;
-  }
-  function testLine(f, k) {
-    const [name, ms] = f.tests[k];
-    out(`   ${c('c-green', '✓')} ${esc(name)}${c('c-yellow', ` ${ms}`)}${c('c-yellow c-dim', 'ms')}`);
+  function fileBlock(f) {
+    const total = f.tests.reduce((a, t) => a + t[1], 0);
+    out(` ${c('c-green', '✓')} ${esc(f.file)} ${c('c-dim', `(${f.tests.length} test${f.tests.length > 1 ? 's' : ''})`)}${c('c-yellow', ` ${total}`)}${c('c-yellow c-dim', 'ms')}`);
+    // slower than slowTestThreshold (300 ms): listed with a dim yellow check and a yellow duration
+    for (const [name, ms] of f.tests) out(`   ${c('c-yellow c-dim', '✓')} ${esc(name)}${c('c-yellow', ` ${ms}`)}${c('c-yellow c-dim', 'ms')}`);
   }
   function summary(startAt, wallMs) {
     out('');
@@ -565,7 +550,7 @@
     logEl.innerHTML = '';
     out(`${c('c-prompt', '$')} ${esc(CMD)}`); out('');
     out(`${c('c-badge', ' RUN ')} ${c('c-cyan', 'v5.1.0 ')}${c('c-gray', '/Users/me/my-expo-app')}`); out('');
-    FILES.forEach((f) => { const h = fileHead(f); f.tests.forEach((_, k) => testLine(f, k)); fileDone(h, f); });
+    FILES.forEach(fileBlock);
     const testsMs = FILES.reduce((a, f) => a + f.tests.reduce((b, t) => b + t[1], 0), 0);
     summary(clockAt(), BOOT_MS + testsMs + 820);
     bar({ phase: 'ended', done: TOTAL, elapsed: BOOT_MS + testsMs + 1500 });
@@ -576,37 +561,14 @@
   let paused = false, current = null;
   const track = (tw) => { current = tw; if (paused) tw.pause(); return tw; };
   const wait = (ms) => new Promise((r) => track(gsap.delayedCall(ms / 1000, r)));
-  // Typed like a person: a blinking caret first, quick bursts inside words, small stops at spaces,
-  // a longer one before a flag, one slip that gets backspaced, and the caret held solid while keys go down.
-  const rnd = (a, b) => a + Math.random() * (b - a);
-  async function typeCommand(line) {
-    const show = (txt, solid) => { line.innerHTML = `${c('c-prompt', '$')} ${esc(txt)}<span class="caret${solid ? ' solid' : ''}"></span>`; };
-    show('', false); await wait(rnd(650, 950));
-    const slip = CMD.indexOf('quiesco') + 5; // "quies" then a wrong key, noticed, fixed
-    let typed = '';
-    for (let i = 0; i < CMD.length; i++) {
-      const ch = CMD[i], prev = CMD[i - 1];
-      let d = rnd(38, 85);
-      if (prev === ' ') d += rnd(60, 140);
-      if (ch === '-' && prev === ' ') d += rnd(140, 260);
-      if (Math.random() < 0.07) d += rnd(120, 240);
-      await wait(d);
-      if (i === slip) {
-        show(typed + 'x', true); await wait(rnd(220, 320));
-        show(typed, true); await wait(rnd(90, 140));
-      }
-      typed += ch; show(typed, true);
-    }
-    show(typed, false); await wait(rnd(420, 620));   // a beat before Enter
-    line.innerHTML = `${c('c-prompt', '$')} ${esc(CMD)}`;
-    await wait(220);
-  }
-
   async function run() {
     for (;;) {
       logEl.innerHTML = ''; stickyEl.innerHTML = ''; termDot.className = 'dot running';
       await wait(600);
-      await typeCommand(out(''));
+      const p = out(`${c('c-prompt', '$')} `);
+      for (let i = 1; i <= CMD.length; i++) { p.innerHTML = `${c('c-prompt', '$')} ${esc(CMD.slice(0, i))}<span class="caret"></span>`; await wait(26 + Math.random() * 36); }
+      p.innerHTML = `${c('c-prompt', '$')} ${esc(CMD)}`;
+      await wait(300);
       bar({ phase: 'idle' });
       await wait(900);
       const startAt = clockAt();
@@ -620,13 +582,8 @@
       });
       await advance(BOOT_MS);
       for (const f of FILES) {
-        const head = fileHead(f);
-        for (let k = 0; k < f.tests.length; k++) {
-          now = f.tests[k][0]; bar(st());
-          await advance(f.tests[k][1]);
-          done++; testLine(f, k); bar(st());
-        }
-        fileDone(head, f);
+        for (const [name, ms] of f.tests) { now = name; bar(st()); await advance(ms); done++; }
+        fileBlock(f); bar(st());
       }
       await advance(700);
       summary(startAt, elapsed + 120);

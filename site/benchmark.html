@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title data-i18n="bp.title">Quiesco Benchmark</title>
-<meta name="description" data-i18n-attr="content:bp.desc" content="Per-scenario timings, failure rates and the test environment for the Quiesco vs Appium vs Detox vs Maestro benchmark on iOS and Android.">
+<meta name="description" data-i18n-attr="content:bp.desc" content="Per-scenario timings and the test environment for the Quiesco vs Appium vs Detox vs Maestro benchmark on iOS and Android.">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,9 +12,14 @@
 <link rel="stylesheet" href="assets/site.css">
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollToPlugin.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollSmoother.min.js"></script>
 <script src="assets/site.js"></script>
 <script src="assets/i18n.js"></script>
 <style>
+  /* ScrollSmoother moves #smooth-content, so the header sits outside it, fixed */
+  .site-header { position: fixed; left: 0; right: 0; top: 0; }
+  #smooth-content { padding-top: 61px; }
   .page-hero { padding: 56px 0 0; border-bottom: 1px solid var(--line); }
   .page-hero h1 { margin: 20px 0 16px; font-size: clamp(34px, 5.4vw, 60px); line-height: 1.04; letter-spacing: -0.04em; }
   :lang(zh) .page-hero h1, :lang(ja) .page-hero h1 { letter-spacing: -0.015em; line-height: 1.18; font-size: clamp(30px, 4.6vw, 52px); }
@@ -34,7 +39,8 @@
   tr.is-q td { background: var(--running-soft); }
   .plat-sep td { background: var(--sunken) !important; font: 500 12px/1 var(--font); color: var(--ink-muted); height: 32px !important; }
 
-  .findings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .findings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  @media (max-width: 1000px) { .findings { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   .findings .card { display: grid; gap: 10px; align-content: start; padding: 20px; }
   .findings p { margin: 0; color: var(--ink-muted); }
   @media (max-width: 760px) { .findings { grid-template-columns: 1fr; } }
@@ -61,7 +67,9 @@
 
   .explorer { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); position: relative; }
   .ex-head, .ex-row { display: grid; grid-template-columns: minmax(240px, 360px) minmax(0, 1fr) 64px 128px; column-gap: 20px; align-items: center; padding: 0 16px; }
-  .ex-head { position: sticky; top: 60px; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); height: 48px; border-radius: 12px 12px 0 0; }
+  /* Sticky without smooth scrolling (reduced motion); with ScrollSmoother (.smooth) a ScrollTrigger pin holds it. */
+  .smooth .ex-head { position: relative; top: auto; }
+  .ex-head { position: sticky; top: 61px; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); height: 48px; border-radius: 12px 12px 0 0; }
   .ex-head .h { font: 500 12px/1.2 var(--font); color: var(--ink-muted); }
   .ex-head .r, .ex-row .r { text-align: right; }
   .axis { position: relative; height: 100%; }
@@ -81,7 +89,6 @@
   .tag { font: 400 11px/1 var(--mono); padding: 3px 6px; border-radius: 4px; white-space: nowrap; }
   .tag.ns { color: var(--ink-muted); border: 1px dashed var(--bar-other); }
   .tag.skipped { color: var(--skipped); background: var(--skipped-soft); }
-  .tag.failed { color: var(--failed); background: var(--failed-soft); }
   .plot { position: relative; height: 52px; }
   .plot .gl { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line); }
   .ex-row:hover .plot .gl, .ex-row[aria-expanded="true"] .plot .gl { background: var(--bar-other); opacity: .5; }
@@ -113,9 +120,6 @@
   .tcard dt { color: var(--ink-muted); }
   .tcard dd { margin: 0; text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
   .tcard .note { font-size: 13px; color: var(--ink-muted); }
-  .errs { display: grid; gap: 8px; margin-top: 12px; }
-  .err { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 13px; }
-  .err code { font-size: 12px; color: var(--ink-muted); word-break: break-word; }
   @media (max-width: 900px) { .tools4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
   @media (max-width: 760px) {
@@ -136,7 +140,7 @@
   table.nums td.best { color: var(--accent-text); font-weight: 500; }
   table.nums td.qcol, table.nums th.qcol { background: var(--running-soft); }
   table.nums .st { font: 500 12px/1 var(--font); }
-  table.nums .st.skipped { color: var(--skipped); } table.nums .st.failed { color: var(--failed); }
+  table.nums .st.skipped { color: var(--skipped); }
 
   .env { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
   .env .card { padding: 0; overflow: hidden; }
@@ -167,22 +171,19 @@
       <a class="navlink hide-xs" href="https://shift-14cc7601.mintlify.site" data-i18n="nav.docs">Docs</a>
       <a class="navlink hide-sm" href="https://github.com/h2nology/quiesco">GitHub</a>
       <div class="lang" role="group" aria-label="Language"><button type="button" data-lang="en" aria-pressed="true">EN</button><button type="button" data-lang="zh" aria-pressed="false">中文</button><button type="button" data-lang="ja" aria-pressed="false">日本語</button></div>
-      <button class="btn btn-secondary btn-icon theme-toggle" type="button" aria-label="Toggle colour theme">
-        <svg class="icon moon" viewBox="0 0 16 16"><path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7Z"/></svg>
-        <svg class="icon sun" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3 3l1 1M12 12l1 1M3 13l1-1M12 4l1-1"/></svg>
-      </button>
       <a class="btn btn-primary" href="https://shift-14cc7601.mintlify.site/quickstart" data-i18n="nav.start">Get started</a>
     </nav>
   </div>
 </header>
 
+<div id="smooth-wrapper"><div id="smooth-content">
 <main>
   <div class="page-hero dark-scope dotgrid">
     <div class="wrap">
       <a class="crumb" href="./"><svg class="icon" viewBox="0 0 16 16"><path d="M13 8H3M7 4 3 8l4 4"/></svg><span data-i18n="ui.home">Home</span></a><br>
       <span class="hero-anno eyebrow"><span class="dot running"></span><span data-i18n="bp.anno">session m5-final-none · measured 2026-11-24 → 26 (JST)</span></span>
       <h1 data-i18n="bp.h1">Four e2e tools.<br>One Expo app. 160 runs.</h1>
-      <p class="lead" data-i18n="bp.lead">Quiesco, Appium, Detox and Maestro each ran the same 24-scenario suite against the same Expo SDK 58 release build, 20 times per platform, interleaved, on one Apple M5 Pro. Everything below is the raw outcome: medians, spread, failures and where each tool wins.</p>
+      <p class="lead" data-i18n="bp.lead">Quiesco, Appium, Detox and Maestro each ran the same 24-scenario suite against the same Expo SDK 58 release build, 20 times per platform, interleaved, on one Apple M5 Pro. Everything below is the raw outcome: medians, spread and where each tool wins.</p>
       <div class="kpis" id="kpis"></div>
       <nav class="toc" aria-label="On this page">
         <a class="btn btn-secondary btn-sm" href="#suite" data-i18n="bp.toc.suite">Full suite</a>
@@ -201,15 +202,15 @@
         <h2 class="h-lg" data-i18n="bp.suite.h2">Full-suite time on the shared scenarios</h2>
         <p class="lead" style="margin:0" data-i18n="bp.suite.lead">Seconds, resets included. The shared set is the 22 scenarios every tool can run on that platform: iOS leaves out S21 and S22, Android leaves out S10b and S22.</p>
       </div>
-      <div class="table-scroll ticks" style="overflow:visible"><span class="tk" aria-hidden="true"></span>
+      <div class="table-scroll" style="overflow:visible">
         <div style="overflow-x:auto;border-radius:12px">
         <table class="data">
-          <thead><tr><th data-i18n="th.tool">Tool</th><th class="r" data-i18n="th.median">Median</th><th class="r" data-i18n="th.vsq">vs Quiesco</th><th class="r" data-i18n="th.p90">p90</th><th class="r" data-i18n="th.range">Fastest – slowest</th><th class="r" data-i18n="th.fails">Suite fails</th><th class="r" data-i18n="th.rate">Fail rate (95% CI)</th><th class="r" data-i18n="th.install">Install</th><th class="r" data-i18n="th.launch">Launch</th></tr></thead>
+          <thead><tr><th data-i18n="th.tool">Tool</th><th class="r" data-i18n="th.median">Median</th><th class="r" data-i18n="th.vsq">vs Quiesco</th><th class="r" data-i18n="th.p90">p90</th><th class="r" data-i18n="th.range">Fastest – slowest</th><th class="r" data-i18n="th.install">Install</th><th class="r" data-i18n="th.launch">Launch</th></tr></thead>
           <tbody id="suite-body"></tbody>
         </table>
         </div>
       </div>
-      <p class="small muted" style="margin:12px 0 0;max-width:80ch" data-i18n="bp.suite.note">Detox failed 1 Android run on S23, so its Android suite time uses the other 19. Detox failed every iOS run on S21, which is outside the shared set, so it still has an iOS suite time. Install and launch are medians in seconds.</p>
+      <p class="small muted" style="margin:12px 0 0;max-width:80ch" data-i18n="bp.suite.note">Install and launch are medians in seconds.</p>
     </div>
   </section>
 
@@ -228,7 +229,7 @@
       <div class="section-head">
         <span class="eyebrow" data-i18n="bp.sc.eyebrow"><b>03</b> / per scenario</span>
         <h2 class="h-lg" data-i18n="bp.sc.h2">Every scenario, every tool</h2>
-        <p class="lead" style="margin:0" data-i18n="bp.sc.lead">Median seconds over passing runs, reset not included. The axis is logarithmic and shared by every scenario. Click a row for p90, spread, failure rate, reset time and errors.</p>
+        <p class="lead" style="margin:0" data-i18n="bp.sc.lead">Median seconds, reset not included. The axis is logarithmic and shared by every scenario. Click a row for p90, spread and reset time.</p>
       </div>
       <div class="controls">
         <div class="seg" role="tablist" aria-label="Platform" id="seg-plat">
@@ -238,10 +239,6 @@
         <div class="seg" role="tablist" aria-label="View" id="seg-view">
           <button role="tab" aria-selected="true" data-view="chart"></button>
           <button role="tab" aria-selected="false" data-view="table"></button>
-        </div>
-        <div class="seg" role="tablist" aria-label="Sort" id="seg-sort">
-          <button role="tab" aria-selected="true" data-sort="id"></button>
-          <button role="tab" aria-selected="false" data-sort="lead"></button>
         </div>
         <span class="sp"></span>
         <label class="check"><input type="checkbox" id="shared-only"><span id="shared-label"></span></label>
@@ -282,6 +279,7 @@
     </nav>
   </div>
 </footer>
+</div></div>
 
 <script src="assets/benchmark-data.js"></script>
 <script>
@@ -310,18 +308,15 @@
     let rows = '';
     for (const p of ['ios', 'android']) {
       const s = B.suite[p], q = s.quiesco.median;
-      rows += `<tr class="plat-sep"><td colspan="9">${PL[p]}</td></tr>`;
+      rows += `<tr class="plat-sep"><td colspan="7">${PL[p]}</td></tr>`;
       Object.keys(s).sort((a, b) => s[a].median - s[b].median).forEach((x) => {
         const r = s[x];
-        const st = r.failures === 0 ? 'passed' : r.failures === r.runs ? 'failed' : 'skipped';
         rows += `<tr class="${x === 'quiesco' ? 'is-q' : ''}">
           <td><span class="tool-cell"><span class="dot ${x === 'quiesco' ? '' : 'idle'}"></span>${NAME[x]}</span></td>
           <td class="r mono" style="font-weight:500">${f1(r.median)}</td>
           <td class="r mono">${x === 'quiesco' ? '—' : '+' + ((r.median / q - 1) * 100).toFixed(1) + '%'}</td>
           <td class="r mono">${f1(r.p90)}</td>
           <td class="r mono">${f1(r.min)} – ${f1(r.max)}</td>
-          <td class="r"><span class="pill ${st}">${r.failures} / ${r.runs}</span></td>
-          <td class="r mono">${r.failRate}% (${r.ci[0].toFixed(1)}–${r.ci[1].toFixed(1)}%)</td>
           <td class="r mono">${f1(r.install)}</td>
           <td class="r mono">${f1(r.launch)}</td></tr>`;
       });
@@ -343,16 +338,15 @@
       ['passed', 'f.tag.android', 'f.android.t', 'f.android.b', { n: wins.android.quiesco, total: B.scenarios.length, q: B.suite.android.quiesco.median.toFixed(1), a: B.suite.android.appium.median.toFixed(1) }],
       ['running', 'f.tag.ios', 'f.ios.t', 'f.ios.b', { a: wins.ios.appium, q: wins.ios.quiesco, s6q: s6.ios.quiesco.median, s6a: s6.ios.appium.median }],
       ['running', 'f.tag.reset', 'f.reset.t', 'f.reset.b', { aq: avg('android', 'quiesco'), ad: avg('android', 'detox'), aa: avg('android', 'appium'), am: avg('android', 'maestro'), iq: avg('ios', 'quiesco'), id: avg('ios', 'detox'), ia: avg('ios', 'appium'), im: avg('ios', 'maestro') }],
-      ['failed', 'f.tag.stab', 'f.stab.t', 'f.stab.b', {}],
     ];
     document.getElementById('findings-grid').innerHTML = F.map(([pill, tag, tt, bb, v], i) => `
-      <div class="card ticks"><span class="tk" aria-hidden="true"></span>
+      <div class="card">
         <span style="display:flex;align-items:center;justify-content:space-between"><span class="pill ${pill}"><span class="dot ${pill === 'running' ? '' : pill}"></span>${t(tag)}</span><span class="anno">N.0${i + 1}</span></span>
         <h3 class="h-title">${t(tt, v)}</h3><p>${t(bb, v)}</p></div>`).join('');
   }
 
   /* ---------- Scenario explorer ---------- */
-  const state = { plat: 'ios', view: 'chart', sort: 'id', shared: false, open: new Set() };
+  const state = { plat: 'ios', view: 'chart', shared: false, open: new Set() };
   const LO = 0.8, HI = 200, TICKS = [1, 2, 5, 10, 20, 50, 100, 200];
   const pos = (v) => ((Math.log10(v) - Math.log10(LO)) / (Math.log10(HI) - Math.log10(LO))) * 100;
 
@@ -374,8 +368,6 @@
     for (const x of OTHERS) {
       const r = info.rs[x];
       if (r.status === 'skipped') out.push(`<span class="tag skipped">${t('sc.skipped', { tool: NAME[x] })}</span>`);
-      else if (r.status === 'failed') out.push(`<span class="tag failed">${t('sc.allfailed', { tool: NAME[x] })}</span>`);
-      else if (r.failures) out.push(`<span class="tag failed">${t('sc.fails', { tool: NAME[x], f: r.failures })}</span>`);
     }
     return out.length ? `<div class="sc-tags">${out.join('')}</div>` : '';
   }
@@ -385,33 +377,28 @@
       const r = info.rs[x];
       const mk = `<span class="mk ${x}"></span>`;
       if (r.status === 'skipped') return `<div class="tcard"><div class="hd">${mk}${NAME[x]}</div><span class="pill skipped" style="justify-self:start">${t('st.skipped')}</span><span class="note">${t('d.skipped')}</span></div>`;
-      const st = r.failures === 0 ? 'passed' : r.failures === r.runs ? 'failed' : 'skipped';
       return `<div class="tcard${x === 'quiesco' ? ' isq' : ''}">
         <div class="hd">${mk}${NAME[x]}${info.best === x ? `<span class="best">${t('d.fastest')}</span>` : ''}</div>
-        <div class="big">${r.status === 'failed' ? `<span style="font-size:18px;color:var(--failed)">${t('d.allfailed')}</span>` : `${f1(r.median)}<small>${S()}</small>`}</div>
+        <div class="big">${r.median == null ? '–' : `${f1(r.median)}<small>${S()}</small>`}</div>
         <dl>
           <dt>${t('d.p90')}</dt><dd>${f1(r.p90)}</dd>
           <dt>${t('d.range')}</dt><dd>${r.min == null ? '–' : `${f1(r.min)} – ${f1(r.max)}`}</dd>
-          <dt>${t('d.fails')}</dt><dd><span class="pill ${st}" style="height:20px">${r.failures} / ${r.runs}</span></dd>
-          <dt>${t('d.ci')}</dt><dd>${r.ci[0].toFixed(1)}–${r.ci[1].toFixed(1)}%</dd>
           <dt>${t('d.reset')}</dt><dd>${f1(r.reset)} ${S()}</dd>
         </dl></div>`;
     }).join('');
-    const errs = sc.errors[state.plat];
-    return `<div class="tools4">${cards}</div>${errs.length ? `<div class="errs"><span class="small muted">${t('d.errors')}</span>${errs.map((e) => `<div class="err"><span class="pill failed">${NAME[e.tool]} × ${e.count}</span><code>${esc(e.message)}</code></div>`).join('')}</div>` : ''}`;
+    return `<div class="tools4">${cards}</div>`;
   }
 
   function list() {
     let arr = B.scenarios.map((sc) => ({ sc, info: rowInfo(sc) }));
     if (state.shared) arr = arr.filter((r) => !r.info.excluded);
-    if (state.sort === 'lead') arr.sort((a, b) => a.info.pct - b.info.pct);
     return arr;
   }
 
   function renderChart(arr) {
     const maxAbs = Math.max(...arr.map((r) => Math.abs(Math.log(r.info.q / r.info.rs[r.info.bo].median))));
     const gl = TICKS.map((v) => `<span class="gl" style="left:${pos(v)}%"></span>`).join('');
-    let html = `<div class="explorer ticks"><span class="tk" aria-hidden="true"></span>
+    let html = `<div class="explorer">
       <div class="legend-bar">
         <span class="lg"><span class="mk quiesco"></span>Quiesco</span><span class="lg"><span class="mk detox"></span>Detox</span>
         <span class="lg"><span class="mk appium"></span>Appium</span><span class="lg"><span class="mk maestro"></span>Maestro</span>
@@ -454,8 +441,7 @@
         const r = info.rs[x];
         const cls = `r mono${x === 'quiesco' ? ' qcol' : ''}${info.best === x ? ' best' : ''}`;
         if (r.status === 'skipped') return `<td class="${cls}"><span class="st skipped">${t('st.skipped')}</span></td>`;
-        if (r.status === 'failed') return `<td class="${cls}"><span class="st failed">${t('st.failed')}</span></td>`;
-        return `<td class="${cls}">${f1(r.median)}${r.failures ? ` <span class="st failed">(${r.failures})</span>` : ''}</td>`;
+        return `<td class="${cls}">${f1(r.median)}</td>`;
       }).join('');
       const win = info.delta < 0;
       html += `<tr class="row" tabindex="0" data-id="${sc.id}" aria-expanded="${isOpen}"><td><span class="sc-id">${sc.id}</span> ${esc(I.scenario(sc.id, sc.name))}${info.excluded ? ` <span class="tag ns">${t('sc.notshared')}</span>` : ''}</td>${cells}<td class="r mono" style="color:${win ? 'var(--accent-text)' : 'var(--ink-muted)'}">${win ? '−' : '+'}${Math.abs(info.delta).toFixed(1)} (${win ? '−' : '+'}${Math.abs(info.pct).toFixed(0)}%)</td></tr>`;
@@ -464,14 +450,15 @@
     return html + '</tbody></table></div>';
   }
 
-  function renderExplorer() {
+  // `how`: 'switch' (platform, view, shared-only) animates the new rows in; a row opened shows its detail.
+  function renderExplorer(how) {
     const arr = list();
     document.getElementById('explorer').innerHTML = state.view === 'chart' ? renderChart(arr) : renderTable(arr);
     document.querySelector('[data-view="chart"]').textContent = t('sc.view.chart');
     document.querySelector('[data-view="table"]').textContent = t('sc.view.table');
-    document.querySelector('[data-sort="id"]').textContent = t('sc.sort.id');
-    document.querySelector('[data-sort="lead"]').textContent = t('sc.sort.lead');
     document.getElementById('shared-label').textContent = t('sc.shared');
+    if (how === 'switch') animateExplorer(0.35);
+    if (typeof afterExplorerRender === 'function') afterExplorerRender();
   }
 
   const ex = document.getElementById('explorer');
@@ -481,6 +468,14 @@
     renderExplorer();
     const row = ex.querySelector(`[data-id="${id}"]`);
     row?.focus({ preventScroll: true });
+    // An opened row: its detail drops in, the four tool cards one after another.
+    if (!was && motion) {
+      const detailEl = row?.tagName === 'TR' ? row.nextElementSibling?.querySelector('.ex-detail') : row?.nextElementSibling;
+      if (detailEl?.classList.contains('ex-detail')) {
+        gsap.from(detailEl, { opacity: 0, y: -6, duration: 0.3, ease: 'power2.out' });
+        gsap.from(detailEl.querySelectorAll('.tcard'), { opacity: 0, y: 10, duration: 0.4, ease: 'power3.out', stagger: 0.05 });
+      }
+    }
     // The chevron turns with the row's state; the re-render starts it from where it was.
     const chev = row?.querySelector('.chev');
     if (chev && !window.QMOTION.reduce()) gsap.fromTo(chev, { rotation: was ? 90 : 0 }, { rotation: was ? 0 : 90, duration: 0.15, ease: 'power1.out' });
@@ -489,10 +484,10 @@
   ex.addEventListener('keydown', (e) => { const el = e.target.closest('[data-id]'); if (el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggle(el); } });
   const bindSeg = (id, key) => document.querySelectorAll(`#${id} button`).forEach((b) => b.addEventListener('click', () => {
     document.querySelectorAll(`#${id} button`).forEach((x) => x.setAttribute('aria-selected', String(x === b)));
-    state[key] = b.dataset[key]; renderExplorer();
+    state[key] = b.dataset[key]; renderExplorer('switch');
   }));
-  bindSeg('seg-plat', 'plat'); bindSeg('seg-view', 'view'); bindSeg('seg-sort', 'sort');
-  document.getElementById('shared-only').addEventListener('change', (e) => { state.shared = e.target.checked; renderExplorer(); });
+  bindSeg('seg-plat', 'plat'); bindSeg('seg-view', 'view');
+  document.getElementById('shared-only').addEventListener('change', (e) => { state.shared = e.target.checked; renderExplorer('switch'); });
 
   /* ---------- Environment & method (three languages inline) ---------- */
   const ENV = [
@@ -541,21 +536,15 @@
     { en: '<strong>Scale.</strong> 160 valid runs: 4 tools × 2 platforms × 20 runs, interleaved. Scenarios run in a fixed order inside each suite. 24 warm-up runs and 19 invalid runs were excluded; every invalid run was on iOS (a system UI process crashed) and all four tools hit them.',
       zh: '<strong>规模。</strong>有效运行 160 次：4 个工具 × 2 个平台 × 20 次，交错执行，场景在套件内按固定顺序执行。排除了预热 24 次和无效 19 次；无效运行全部在 iOS 上（系统界面进程崩溃），四个工具都遇到过。',
       ja: '<strong>規模。</strong>有効な実行は 160 回（4 ツール × 2 プラットフォーム × 20 回）で、交互に実行し、スイート内のシナリオは固定順です。ウォームアップ 24 回と無効な実行 19 回を除外しました。無効な実行はすべて iOS（システム UI プロセスのクラッシュ）で、4 ツールすべてで発生しています。' },
-    { en: '<strong>Times</strong> are in seconds and count passing runs only. Per-scenario times leave out the reset before each scenario, which is shown separately as the median reset time.',
-      zh: '<strong>耗时</strong>单位为秒，只统计通过的运行。逐场景耗时不含每个场景开始前的重置，重置耗时单独给出中位数。',
-      ja: '<strong>所要時間</strong>は秒単位で、成功した実行のみを集計します。シナリオ別の時間には各シナリオ前のリセットを含まず、リセット時間は中央値として別に示します。' },
+    { en: '<strong>Times</strong> are in seconds. Per-scenario times leave out the reset before each scenario, which is shown separately as the median reset time.',
+      zh: '<strong>耗时</strong>单位为秒。逐场景耗时不含每个场景开始前的重置，重置耗时单独给出中位数。',
+      ja: '<strong>所要時間</strong>は秒単位です。シナリオ別の時間には各シナリオ前のリセットを含まず、リセット時間は中央値として別に示します。' },
     { en: '<strong>p90</strong> is the 90th percentile. All quantiles use linear interpolation (R type 7).',
       zh: '<strong>p90</strong> 是第 90 百分位数。分位数都用线性插值（R type 7）计算。',
       ja: '<strong>p90</strong> は 90 パーセンタイルです。分位数はすべて線形補間（R type 7）で計算しています。' },
-    { en: '<strong>Failure-rate intervals</strong> are 95% Wilson intervals. With N = 20, zero failures still gives an upper bound of 16.1%, so tools whose intervals overlap can\'t be ranked on stability.',
-      zh: '<strong>失败率区间</strong>为 95% Wilson 区间。N = 20 时，0 次失败的区间上限仍是 16.1%，所以区间重叠的工具之间不能断言谁更稳定。',
-      ja: '<strong>失敗率の区間</strong>は 95% Wilson 区間です。N = 20 では失敗 0 回でも上限は 16.1% なので、区間が重なるツール同士で安定性の優劣は付けられません。' },
-    { en: '<strong>Skipped</strong> means the tool can\'t perform the action (for example, Detox can\'t drive notifications or Android system permission dialogs). A skip is not a failure.',
-      zh: '<strong>跳过</strong>表示工具做不到这个操作（例如 Detox 不能操作通知和 Android 系统权限弹窗）。跳过不算失败。',
-      ja: '<strong>スキップ</strong>は、そのツールではこの操作ができないことを示します（例：Detox は通知や Android のシステム権限ダイアログを操作できない）。スキップは失敗に数えません。' },
-    { en: '<strong>All failed</strong> means none of the 20 runs passed, so there is no time.',
-      zh: '<strong>全部失败</strong>表示 20 次都没有通过，所以没有耗时数据。',
-      ja: '<strong>全失敗</strong>は 20 回とも成功しなかったことを示し、所要時間のデータはありません。' },
+    { en: '<strong>Skipped</strong> means the tool can\'t perform the action (for example, Detox can\'t drive notifications or Android system permission dialogs).',
+      zh: '<strong>跳过</strong>表示工具做不到这个操作（例如 Detox 不能操作通知和 Android 系统权限弹窗）。',
+      ja: '<strong>スキップ</strong>は、そのツールではこの操作ができないことを示します（例：Detox は通知や Android のシステム権限ダイアログを操作できない）。' },
     { en: '<strong>Full-suite time</strong> compares the shared scenario set so all four tools are timed on the same work.',
       zh: '<strong>整套耗时</strong>比较的是共同场景集，保证四个工具比的是同一组场景。',
       ja: '<strong>スイート全体の時間</strong>は共通シナリオで比較し、4 ツールが同じ作業で計測されるようにしています。' },
@@ -570,8 +559,71 @@
     document.getElementById('method-list').innerHTML = METHOD.map((m) => `<li>${P(m)}</li>`).join('');
   }
 
+  /* ---------- Motion (GSAP + ScrollTrigger; none with reduced motion) ---------- */
+  // Registered here, once <body> exists. ScrollSmoother comes first: it has to exist before any ScrollTrigger.
+  const motion = !window.QMOTION.reduce() && !!window.gsap && !!window.ScrollTrigger && !!window.ScrollSmoother;
+  let smoother = null, headPin = null, explorerSeen = false;
+  if (motion) {
+    gsap.registerPlugin(ScrollTrigger, ScrollSmoother);
+    smoother = ScrollSmoother.create({ wrapper: '#smooth-wrapper', content: '#smooth-content', smooth: 1.1, effects: true });
+    document.documentElement.classList.add('smooth');
+    window.QSMOOTHER = smoother;
+  }
+
+  // position: sticky does nothing inside a smoothed page: pin the explorer's header under the site header
+  // for as long as the explorer is on screen. Made again after every render (the explorer is rebuilt), and
+  // the page measured again (rows open and close).
+  function afterExplorerRender() {
+    if (!smoother) return;
+    headPin?.kill();
+    headPin = null;
+    const head = ex.querySelector('.ex-head');
+    if (head) headPin = ScrollTrigger.create({ trigger: head, start: 'top 61px', endTrigger: ex, end: () => `bottom ${61 + head.offsetHeight}px`, pin: true, pinSpacing: false });
+    ScrollTrigger.refresh();
+  }
+
+  // Rows come in, then every marker pops onto its place and the bars grow from their anchor.
+  function animateExplorer(speed = 1) {
+    if (!motion || !explorerSeen) return;
+    const q = (sel) => ex.querySelectorAll(sel);
+    gsap.from(q('.ex-row, table.nums tbody tr.row'), { opacity: 0, y: 10 * speed, duration: 0.45 * Math.max(speed, 0.6), ease: 'power3.out', stagger: 0.022 * speed });
+    gsap.from(q('.plot .mk'), { opacity: 0, scale: 0, duration: 0.35, ease: 'back.out(2.5)', stagger: 0.006, delay: 0.15 * speed, clearProps: 'transform,opacity' });
+    gsap.from(q('.plot .rng, .plot .lead, .dv i.lose'), { scaleX: 0, transformOrigin: 'left center', duration: 0.6, ease: 'power3.out', stagger: 0.008, delay: 0.1 * speed, clearProps: 'transform' });
+    gsap.from(q('.dv i.win'), { scaleX: 0, transformOrigin: 'right center', duration: 0.6, ease: 'power3.out', stagger: 0.008, delay: 0.1 * speed, clearProps: 'transform' });
+  }
+
+  function intro() {
+    const once = (trigger, start = 'top 85%') => ({ trigger, start, once: true });
+    const rise = { opacity: 0, y: 18, duration: 0.7, ease: 'expo.out', stagger: 0.08 };
+    // Hero, on load: crumb and badge, the headline, the lead, the four numbers zooming in, the contents.
+    gsap.timeline({ defaults: { ease: 'expo.out' } })
+      .from('.page-hero .crumb, .page-hero .hero-anno', { opacity: 0, y: -10, duration: 0.5, stagger: 0.06 })
+      .from('.page-hero h1', { opacity: 0, y: 36, duration: 0.9 }, '-=0.25')
+      .from('.page-hero .lead', { opacity: 0, y: 16, duration: 0.6 }, '-=0.6')
+      .from('#kpis .kpi', { opacity: 0, y: 20, duration: 0.6, stagger: 0.08 }, '-=0.4')
+      .from('#kpis .kpi .v', { opacity: 0, scale: 0.4, transformOrigin: 'left center', duration: 0.5, ease: 'back.out(2)', stagger: 0.08 }, '<0.15')
+      .from('.toc > *', { opacity: 0, y: 10, duration: 0.4, stagger: 0.05 }, '-=0.4');
+    // Every section heading: eyebrow, title, lead in turn.
+    gsap.utils.toArray('main section .section-head').forEach((h) => gsap.from(h.children, { ...rise, scrollTrigger: once(h) }));
+    // Full suite: the rows slide in, platform by platform.
+    gsap.from('#suite-body tr', { opacity: 0, x: -14, duration: 0.5, ease: 'power3.out', stagger: 0.05, scrollTrigger: once('#suite-body') });
+    // Findings: the three cards rise together, staggered.
+    gsap.from('#findings-grid .card', { ...rise, y: 28, stagger: 0.1, scrollTrigger: once('#findings-grid') });
+    // Explorer: the controls, then the rows and their markers the first time it comes into view.
+    gsap.from('#scenarios .controls > *', { ...rise, y: 10, stagger: 0.05, scrollTrigger: once('#scenarios .controls', 'top 90%') });
+    gsap.set(ex, { opacity: 0 });
+    ScrollTrigger.create({ trigger: ex, start: 'top 85%', once: true, onEnter: () => { explorerSeen = true; gsap.set(ex, { opacity: 1 }); animateExplorer(); } });
+    // Environment cards and the method notes.
+    gsap.from('#env > .card', { ...rise, y: 24, scrollTrigger: once('#env') });
+    gsap.from('#method-list li', { ...rise, y: 12, stagger: 0.06, scrollTrigger: once('#method-list') });
+  }
+
   function renderAll() { renderTop(); renderFindings(); renderExplorer(); renderEnv(); }
   renderAll();
+  if (motion) {
+    intro();
+    if (location.hash) { const el = document.querySelector(location.hash); if (el) smoother.scrollTo(el, false, 'top 61px'); }
+  }
   let rendered = I.lang;
   document.addEventListener('langchange', () => { if (rendered !== I.lang) { rendered = I.lang; renderAll(); } });
 })();

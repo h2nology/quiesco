@@ -1,8 +1,6 @@
-// Shared by every page: theme toggle, copy buttons, and the page-wide motion, all of it run by GSAP.
-// The stored theme is a per-viewer convenience only.
+// Shared by every page: copy buttons, in-page anchors and the page-wide motion, all of it run by GSAP.
 (function () {
   const root = document.documentElement;
-  try { const t = localStorage.getItem('quiesco-theme'); if (t) root.dataset.theme = t; } catch {}
 
   const gsap = window.gsap;
   if (gsap) {
@@ -20,13 +18,6 @@
     reduce: () => matchMedia('(prefers-reduced-motion: reduce)').matches,
   };
 
-  document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.theme-toggle');
-    if (!btn) return;
-    const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-    root.dataset.theme = dark ? 'light' : 'dark';
-    try { localStorage.setItem('quiesco-theme', root.dataset.theme); } catch {}
-  });
 
   // In-page anchors scroll with GSAP (jump straight there with reduced motion).
   document.addEventListener('click', (e) => {
