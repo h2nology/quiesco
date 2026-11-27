@@ -1,6 +1,6 @@
 {
   "name": "quiesco",
-  "version": "0.14.3",
+  "version": "0.14.4",
   "description": "Set up, write and debug Quiesco gray-box e2e tests for Expo apps (iOS, Android, web)",
   "author": {
     "name": "h2nology",
