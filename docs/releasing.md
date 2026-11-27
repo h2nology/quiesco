@@ -19,7 +19,7 @@ together with one version number.
 1. **Set the version.** Change `version` in all 12 `packages/*/package.json`, `AGENT_VERSION` in
    `packages/agent/src/version.ts` (the agent reports it to the host), `version` in
    `plugin/.claude-plugin/plugin.json`, and the `quiesco@x.y.z` label in `site/index.html` (the
-   quiesco.dev homepage). The packages depend on each other with `workspace:*`; pnpm replaces that with
+   quiesco.dev homepage) with the homepage's `<lastmod>` in `site/sitemap.xml` (the release date). The packages depend on each other with `workspace:*`; pnpm replaces that with
    the exact version when it packs.
 
 2. **Check.** On a clean, up-to-date `main`:
