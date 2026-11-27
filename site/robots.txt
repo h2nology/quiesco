@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://quiesco.dev/sitemap.xml
+Sitemap: https://docs.quiesco.dev/sitemap.xml

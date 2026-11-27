@@ -12,7 +12,7 @@
     "react-native",
     "ui"
   ],
-  "homepage": "https://github.com/h2nology/quiesco/tree/main/packages/ui#readme",
+  "homepage": "https://quiesco.dev",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/h2nology/quiesco.git",
