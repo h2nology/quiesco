@@ -1,6 +1,6 @@
 {
   "name": "@quiesco/ui",
-  "version": "0.14.2",
+  "version": "0.14.3",
   "description": "Quiesco test UI: run tests from the browser and watch them live (quiesco ui).",
   "license": "MIT",
   "author": "h2nology",

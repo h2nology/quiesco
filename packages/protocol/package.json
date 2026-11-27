@@ -1,6 +1,6 @@
 {
   "name": "@quiesco/protocol",
-  "version": "0.14.2",
+  "version": "0.14.3",
   "description": "Shared protocol types and constants between the Quiesco host and agent",
   "license": "MIT",
   "author": "h2nology",
