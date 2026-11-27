@@ -144,6 +144,14 @@ const INSTALL_RETRY_MS = 2000;
 
 /** screenrecord's own limit per file (findings 6.9): longer scenarios get several segments. */
 const SCREENRECORD_LIMIT_S = 180;
+/**
+ * Issue #118: the soft keyboard takes a back press. `mImeShowing` (the window manager) stays true until
+ * the keyboard's hide animation has ended; `mInputShown` (the input method manager) turns false when
+ * the hide starts. Measured on an API 36 emulator: about 0.6 s from the back press to mImeShowing=false.
+ */
+const IME_STATE = 'dumpsys input_method | grep -o "mInputShown=[a-z]*"; dumpsys window displays | grep -o "mImeShowing=[a-z]*"';
+const KEYBOARD_GONE_TIMEOUT_MS = 3000;
+const KEYBOARD_POLL_MS = 100;
 
 function sdkTool(rel: string, fallback: string): string {
   const home = process.env['ANDROID_HOME'] ?? process.env['ANDROID_SDK_ROOT'];
@@ -1042,7 +1050,10 @@ export class AndroidProvider implements DeviceProvider {
   async injectInput(input: HostInput): Promise<void> {
     switch (input.kind) {
       case 'back':
+        await this.shell('input keyevent KEYCODE_BACK');
+        return;
       case 'goBack':
+        await this.closeKeyboard();
         await this.shell('input keyevent KEYCODE_BACK');
         return;
       case 'navigate':
@@ -1055,6 +1066,32 @@ export class AndroidProvider implements DeviceProvider {
           { action: input.kind, platform: 'android', hint: 'add @quiesco/native to the app and rebuild it with EXPO_PUBLIC_QUIESCO=1' },
         );
     }
+  }
+
+  /**
+   * Issue #118: `goBack` is a back press for the screen. While the soft keyboard is on screen, a back
+   * press only closes it; the agent closes it first only when React Native already reported it, and does
+   * not wait for its hide animation. So ask the system: close a shown keyboard as a user would (one back
+   * press), and wait until it has left the screen. A hardware keyboard has no keyboard window on screen,
+   * so nothing changes there.
+   */
+  private async closeKeyboard(): Promise<void> {
+    let ime = await this.imeState();
+    if (!ime.onScreen) return;
+    if (ime.shown) await this.shell('input keyevent KEYCODE_BACK');
+    const deadline = Date.now() + KEYBOARD_GONE_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      await this.sleep(KEYBOARD_POLL_MS);
+      ime = await this.imeState();
+      if (!ime.onScreen) return;
+    }
+    this.logger.debug(`goBack: the soft keyboard was still on screen after ${KEYBOARD_GONE_TIMEOUT_MS}ms`);
+  }
+
+  /** Whether the soft keyboard is shown (`shown`) and whether its window is on screen, hiding included. */
+  private async imeState(): Promise<{ shown: boolean; onScreen: boolean }> {
+    const out = await this.shell(IME_STATE).catch(() => '');
+    return { shown: out.includes('mInputShown=true'), onScreen: out.includes('mImeShowing=true') };
   }
 
   // ---- Phase 6.9 artifacts ----

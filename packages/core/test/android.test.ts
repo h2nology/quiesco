@@ -227,6 +227,54 @@ describe('AndroidProvider', () => {
     await expect(b.p.install()).rejects.toThrow(/com.example.todo is not installed/);
   });
 
+  describe('goBack with the soft keyboard (issue #118)', () => {
+    /** A provider whose keyboard state answers come from `states`, one per query (the last one repeats). */
+    function withKeyboard(states: string[]) {
+      const queue = [...states];
+      const adb = fakeAdb(BOOTED);
+      const exec: Exec = async (file, args, o) => {
+        if (!args.join(' ').includes('mImeShowing')) return adb.exec(file, args, o);
+        adb.calls.push('ime?');
+        return { stdout: Buffer.from((queue.length > 1 ? queue.shift() : queue[0]) as string), stderr: '' };
+      };
+      const p = new AndroidProvider({ app: { package: 'com.example.todo' }, adbPath: 'adb', emulatorPath: 'emulator', exec, pollMs: 1 });
+      return { p, calls: adb.calls };
+    }
+    const BACK = 'adb -s emulator-5554 shell input keyevent KEYCODE_BACK';
+
+    it('only presses back when no keyboard is on screen', async () => {
+      const { p, calls } = withKeyboard(['mInputShown=false\nmImeShowing=false\n']);
+      await p.boot();
+      calls.length = 0;
+      await p.injectInput({ kind: 'goBack' });
+      expect(calls).toEqual(['ime?', BACK]);
+    });
+
+    it('closes a shown keyboard and waits until it has left the screen', async () => {
+      const { p, calls } = withKeyboard(['mInputShown=true\nmImeShowing=true\n', 'mInputShown=false\nmImeShowing=true\n', 'mInputShown=false\nmImeShowing=false\n']);
+      await p.boot();
+      calls.length = 0;
+      await p.injectInput({ kind: 'goBack' });
+      expect(calls).toEqual(['ime?', BACK, 'ime?', 'ime?', BACK]);
+    });
+
+    it('waits for a keyboard that is already hiding without another press', async () => {
+      const { p, calls } = withKeyboard(['mInputShown=false\nmImeShowing=true\n', 'mInputShown=false\nmImeShowing=false\n']);
+      await p.boot();
+      calls.length = 0;
+      await p.injectInput({ kind: 'goBack' });
+      expect(calls).toEqual(['ime?', 'ime?', BACK]);
+    });
+
+    it('leaves pressBack alone: it is the raw key', async () => {
+      const { p, calls } = withKeyboard(['mInputShown=true\nmImeShowing=true\n']);
+      await p.boot();
+      calls.length = 0;
+      await p.injectInput({ kind: 'back' });
+      expect(calls).toEqual([BACK]);
+    });
+  });
+
   it('injects back and navigate, terminates, screenshots, diagnoses', async () => {
     const { p, calls } = provider([...BOOTED, [/screencap/, 'PNGDATA'], [/reverse --list/, 'emulator-5554 tcp:8081 tcp:8081\n'], [/pidof/, '']]);
     await p.boot();
