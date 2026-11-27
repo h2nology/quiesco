@@ -8,5 +8,7 @@
     // /benchmark.html is served at /benchmark (the canonical URL); /benchmark.html redirects there.
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "404-page"
-  }
+  },
+  // Branches other than main build a Preview (`npx wrangler preview`), which needs this block.
+  "previews": {}
 }
