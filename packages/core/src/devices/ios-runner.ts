@@ -117,6 +117,28 @@ const RUNNER_FILES = ['QuiescoSystemUI.xcodeproj/project.pbxproj', 'Host/main.sw
 const START_TIMEOUT_MS = 120_000;
 const REQUEST_TIMEOUT_MS = 30_000;
 
+/** Where built runners are kept by default. */
+export const DEFAULT_RUNNER_CACHE = path.join(os.homedir(), 'Library/Caches/quiesco/ios-runner');
+
+/** A runner use this recent makes the next session start the runner early (config warmUpSystemUi: 'auto'). */
+export const SYSTEM_UI_USE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+const useMarker = (cacheBase: string, bundleId: string): string => path.join(cacheBase, 'used', bundleId.replace(/[^\w.-]/g, '_'));
+
+/** Note that a session of the app `bundleId` used the system UI runner (the marker's time is the last use). */
+export async function recordSystemUiUse(cacheBase: string, bundleId: string, now = new Date()): Promise<void> {
+  const file = useMarker(cacheBase, bundleId);
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  await fs.writeFile(file, '');
+  await fs.utimes(file, now, now);
+}
+
+/** Whether a session of the app `bundleId` used the system UI runner within `maxAgeMs`. */
+export async function usedSystemUiRecently(cacheBase: string, bundleId: string, maxAgeMs = SYSTEM_UI_USE_MAX_AGE_MS, now = Date.now()): Promise<boolean> {
+  const stat = await fs.stat(useMarker(cacheBase, bundleId)).catch(() => null);
+  return stat !== null && now - stat.mtimeMs <= maxAgeMs;
+}
+
 /** Cache key: the Xcode version and the runner's sources (a new Xcode or Quiesco rebuilds it). */
 export async function runnerCacheKey(xcodeVersion: string, readFile: (p: string) => Promise<string | Buffer> = (p) => fs.readFile(p)): Promise<string> {
   const h = createHash('sha256').update(xcodeVersion.trim());
@@ -136,6 +158,8 @@ export class IosSystemRunner {
   private proc: ChildProcess | null = null;
   private port = 0;
   private output = '';
+  /** A start in progress: everyone who needs the runner meanwhile waits for it (a warm-up, then a call). */
+  private starting: Promise<void> | null = null;
 
   constructor(private readonly options: IosRunnerOptions) {}
 
@@ -143,9 +167,26 @@ export class IosSystemRunner {
     return this.proc !== null && this.proc.exitCode === null;
   }
 
-  /** Build (once per Xcode version and runner source) and start the runner, then wait until it answers. */
-  async start(): Promise<void> {
-    if (this.running) return;
+  /**
+   * Build (once per Xcode version and runner source) and start the runner, then wait until it answers.
+   * A call made while a start is in progress waits for that start: the process is there before it
+   * answers, and a request to it then would be refused and restart it.
+   */
+  start(): Promise<void> {
+    if (this.starting !== null) return this.starting;
+    if (this.running) return Promise.resolve();
+    this.starting = this.startOnce().finally(() => {
+      this.starting = null;
+    });
+    return this.starting;
+  }
+
+  /** Whether the runner for this Xcode is built already (start() would not build it first). */
+  async built(): Promise<boolean> {
+    return (await findXctestrun(await this.productsDir())) !== null;
+  }
+
+  private async startOnce(): Promise<void> {
     const xctestrun = await this.build();
     this.port = await freePort();
     this.output = '';
@@ -207,6 +248,15 @@ export class IosSystemRunner {
     await this.call(() => this.request('POST', `/typeText?bundleId=${encodeURIComponent(bundleId)}&text=${encodeURIComponent(text)}`));
   }
 
+  /**
+   * Open `url` in the app `bundleId` as another app would (XCUIApplication.open): the system brings the
+   * app to the front with it, without the "Open in …?" confirmation `simctl openurl` gets. The app's
+   * state afterwards (XCUIApplication.State).
+   */
+  async open(bundleId: string, url: string): Promise<number> {
+    return (await this.call(() => this.request<{ state: number }>('POST', `/open?bundleId=${encodeURIComponent(bundleId)}&url=${encodeURIComponent(url)}`))).state;
+  }
+
   /** The interactive-pop gesture: a drag from the left edge of the screen (issue #4). */
   async edgeSwipeBack(): Promise<void> {
     await this.call(() => this.request('POST', '/edgeSwipeBack'));
@@ -253,10 +303,19 @@ export class IosSystemRunner {
     if (proc.exitCode === null) proc.kill();
   }
 
+  /** The runner's cache directory for this Xcode and runner source. */
+  private async cacheDir(): Promise<string> {
+    const xcode = (await this.options.exec('xcodebuild', ['-version'])).stdout.toString();
+    return path.join(this.options.cacheDir ?? DEFAULT_RUNNER_CACHE, await runnerCacheKey(xcode));
+  }
+
+  private async productsDir(): Promise<string> {
+    return path.join(await this.cacheDir(), 'Build/Products');
+  }
+
   private async build(): Promise<string> {
     const { exec, logger } = this.options;
-    const xcode = (await exec('xcodebuild', ['-version'])).stdout.toString();
-    const dir = path.join(this.options.cacheDir ?? path.join(os.homedir(), 'Library/Caches/quiesco/ios-runner'), await runnerCacheKey(xcode));
+    const dir = await this.cacheDir();
     const products = path.join(dir, 'Build/Products');
     const existing = await findXctestrun(products);
     if (existing !== null) return existing;

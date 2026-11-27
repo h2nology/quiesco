@@ -27,6 +27,12 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.browser } },
   },
   {
+    // quiesco.dev's scripts run in the browser; an empty `catch {}` ignores blocked storage on purpose.
+    files: ['site/assets/**/*.js'],
+    languageOptions: { globals: { ...globals.browser } },
+    rules: { 'no-empty': ['error', { allowEmptyCatch: true }] },
+  },
+  {
     files: ['**/*.cjs', '**/metro.config.js', '**/app.plugin.js', 'scripts/sdk-compat/overlays/xcode27/*.js'],
     languageOptions: { sourceType: 'commonjs' },
     rules: { '@typescript-eslint/no-require-imports': 'off' },

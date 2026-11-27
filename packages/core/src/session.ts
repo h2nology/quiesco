@@ -204,6 +204,7 @@ export class Session {
       await provider.install();
       if (config.permissions !== undefined && config.permissions.length > 0) await provider.grantPermissions(config.permissions);
       await session.launch();
+      provider.warmUp?.();
     } catch (e) {
       await session.dispose().catch(() => undefined);
       throw e;

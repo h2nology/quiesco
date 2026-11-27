@@ -161,6 +161,13 @@ viewports always come from here.
   Turn off password AutoFill, so iOS never covers the app with its "Save Password?" sheet after a login form
   is submitted.
 
+- **`devices.ios.warmUpSystemUi`** (`boolean | 'auto'`, default `'auto'`):
+  Start the XCUITest runner that reads the system UI (`app.device.system.*`, notifications, links opened from
+  the background) in the background once the app has started, instead of on first use, which takes 7–15 s.
+  While it runs, each app launch takes a little longer (about 0.45 s), so `'auto'` starts it early only when
+  the app's tests used it within the last week; `true` always, `false` never. Only a runner built already is
+  started: the first use builds it, once per Xcode version.
+
 ### devices.android {#devices-android}
 
 - **`devices.android.avd`** (`string`, default `a running device`):

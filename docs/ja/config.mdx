@@ -164,6 +164,10 @@ export default defineConfig(({ workerIndex, workerCount }) => ({
   パスワードの自動入力をオフにします。ログインフォームを送信したあと、iOSの「パスワードを保存しますか？」シートがアプリを覆わなくなります。
 </ResponseField>
 
+<ResponseField name="devices.ios.warmUpSystemUi" type="boolean | 'auto'" default="'auto'">
+  システムUI（`app.device.system.*`、通知、バックグラウンドからのリンク）を読むXCUITestランナーを、最初に使うとき（7〜15秒かかります）ではなく、アプリの起動後にバックグラウンドで起動します。ランナーが動いている間はアプリの起動が少し（約0.45秒）遅くなるため、`'auto'`では、そのアプリのテストが過去1週間にランナーを使った場合だけ先に起動します。`true`なら常に、`false`なら起動しません。起動するのはビルド済みのランナーだけです。ランナーは最初に使ったときに、Xcodeのバージョンごとに1回ビルドされます。
+</ResponseField>
+
 ### devices.android {#devices-android}
 
 <ResponseField name="devices.android.avd" type="string" default="起動中のデバイス">

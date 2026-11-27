@@ -11,6 +11,7 @@
 //                                  one snapshot: { state, elements: [{ type, label, id, value, frame, enabled, selected }] }
 //   GET  /appState?bundleId=…   → { state } (XCUIApplication.State) without reading the app's UI
 //   POST /typeText?bundleId=…&text=… → type into the focused field of that app with its keyboard (409 without one)
+//   POST /open?bundleId=…&url=…  → open a link in that app (XCUIApplication.open: no "Open in …?" confirmation)
 //   POST /quit                   → end the test
 import Network
 import XCTest
@@ -115,6 +116,13 @@ final class SystemUIServer: XCTestCase {
       guard app.keyboards.firstMatch.waitForExistence(timeout: 5) else { return ("409 Conflict", ["error": "no keyboard: the field did not take the focus"]) }
       app.typeText(text)
       return ("200 OK", ["ok": true])
+    case "/open":
+      guard let id = q["bundleId"], !id.isEmpty, let link = q["url"], let url = URL(string: link) else { return ("400 Bad Request", ["error": "bundleId and url"]) }
+      // As another app opening the link would: the system brings the app to the front with it, without
+      // SpringBoard's confirmation that `simctl openurl` gets (iOS 16.4+).
+      let app = XCUIApplication(bundleIdentifier: id)
+      app.open(url)
+      return ("200 OK", ["state": app.state.rawValue])
     case "/quit":
       done = true
       return ("200 OK", ["ok": true])
