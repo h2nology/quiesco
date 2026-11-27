@@ -7,7 +7,7 @@ import type { Exec } from '../src/devices/exec';
 import { silentLogger } from '../src/logger';
 import { IosProvider, uikitNodes } from '../src/devices/ios';
 import type { SystemRunnerLike } from '../src/devices/ios';
-import { isNotificationPermissionAlert, IosSystemRunner, backButton, PERMISSION_ALLOW, isConnectionRefused, isRunnerGone, PERMISSION_ALLOW_ONCE, PERMISSION_DENY, dismissButton, runnerCacheKey, screenNodes } from '../src/devices/ios-runner';
+import { isNotificationPermissionAlert, IosSystemRunner, recordSystemUiUse, usedSystemUiRecently, backButton, PERMISSION_ALLOW, isConnectionRefused, isRunnerGone, PERMISSION_ALLOW_ONCE, PERMISSION_DENY, dismissButton, runnerCacheKey, screenNodes } from '../src/devices/ios-runner';
 import type { RunnerElements, RunnerScreen } from '../src/devices/ios-runner';
 
 const f = (y: number) => [57, y, 140, 48];
@@ -122,6 +122,24 @@ describe('IosProvider system UI (6.7 batch C)', () => {
     (p as unknown as { sim: { udid: string } }).sim = { udid: 'SIM-1' }; // as after boot()
     await p.openUrlFromOutside('quiescotodo://lifecycle');
     expect(exec.at(-1)).toEqual(['simctl', 'openurl', 'SIM-1', 'quiescotodo://lifecycle']);
+    expect(calls).toEqual(['tap 270,498']);
+  });
+
+  it('opens a link from outside through the runner\'s XCUIApplication.open, with no confirmation to answer', async () => {
+    const opened: string[] = [];
+    const { runner, calls } = fakeRunner([{ alerts: [], others: [] }], 0, { open: async (id, url) => (opened.push(`${id} ${url}`), 4) });
+    const exec: string[][] = [];
+    const p = new IosProvider({ app: { bundleId: 'com.example.todo' }, systemRunner: runner, exec: async (_cmd: string, args: readonly string[]) => (exec.push([...args]), { stdout: Buffer.from(''), stderr: '' }) });
+    await p.openUrlFromOutside('quiescotodo://lifecycle');
+    expect(opened).toEqual(['com.example.todo quiescotodo://lifecycle']);
+    expect(exec.some((a) => a.includes('openurl'))).toBe(false);
+    expect(calls).toEqual([]);
+  });
+
+  it('answers a confirmation if the app is not in front after XCUIApplication.open', async () => {
+    const confirm = { label: 'Open in “Quiesco Todo”?', id: '', frame: [60, 380, 280, 140], texts: [], buttons: [{ label: 'Cancel', id: '', frame: [60, 476, 140, 44] }, { label: 'Open', id: '', frame: [200, 476, 140, 44] }] };
+    const { runner, calls } = fakeRunner([{ alerts: [confirm], others: [] }], 0, { open: async () => 3 });
+    await make(runner).openUrlFromOutside('quiescotodo://lifecycle');
     expect(calls).toEqual(['tap 270,498']);
   });
 
@@ -291,6 +309,60 @@ describe('IosProvider system UI (6.7 batch C)', () => {
     expect(starts).toBe(1);
   });
 
+  it('warms up a built runner after the first launch, once for a system UI call made meanwhile', async () => {
+    let starts = 0;
+    const { runner } = fakeRunner([{ alerts: [], others: [] }], 0, { built: async () => true, start: () => (starts++, new Promise((r) => setTimeout(r, 100))) });
+    const p = new IosProvider({ app: { bundleId: 'com.example.todo' }, device: { warmUpSystemUi: true }, systemRunner: runner, exec: async () => ({ stdout: Buffer.from(''), stderr: '' }) });
+    p.warmUp();
+    await new Promise((r) => setTimeout(r, 10));
+    await p.prepareSystemUi();
+    expect(starts).toBe(1);
+  });
+
+  it('does not warm up a runner that is not built yet, nor with warmUpSystemUi: false', async () => {
+    let starts = 0;
+    const unbuilt = fakeRunner([], 0, { built: async () => false, start: async () => void starts++ });
+    new IosProvider({ app: { bundleId: 'com.example.todo' }, device: { warmUpSystemUi: true }, systemRunner: unbuilt.runner, exec: async () => ({ stdout: Buffer.from(''), stderr: '' }) }).warmUp();
+    const off = fakeRunner([], 0, { built: async () => true, start: async () => void starts++ });
+    new IosProvider({ app: { bundleId: 'com.example.todo' }, device: { warmUpSystemUi: false }, systemRunner: off.runner, exec: async () => ({ stdout: Buffer.from(''), stderr: '' }) }).warmUp();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(starts).toBe(0);
+  });
+
+  it("'auto' warms up only for an app whose tests used the runner lately, which a system UI call records", async () => {
+    const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'quiesco-runner-'));
+    try {
+      let starts = 0;
+      const provider = () => {
+        const { runner } = fakeRunner([{ alerts: [], others: [] }], 0, { built: async () => true, start: async () => void starts++ });
+        return new IosProvider({ app: { bundleId: 'com.example.todo' }, runnerCacheDir: cacheDir, systemRunner: runner, exec: async () => ({ stdout: Buffer.from(''), stderr: '' }) });
+      };
+      // Never used: no warm-up; a check Quiesco makes between scenarios does not count as a use.
+      const first = provider();
+      first.warmUp();
+      await first.resetDeviceState({} as never);
+      await new Promise((r) => setTimeout(r, 20));
+      expect(starts).toBe(0);
+      expect(await usedSystemUiRecently(cacheDir, 'com.example.todo')).toBe(false);
+      // A system UI call records the use; the next session warms up.
+      await first.systemNodes();
+      await new Promise((r) => setTimeout(r, 20));
+      expect(await usedSystemUiRecently(cacheDir, 'com.example.todo')).toBe(true);
+      starts = 0;
+      provider().warmUp();
+      await new Promise((r) => setTimeout(r, 20));
+      expect(starts).toBe(1);
+      // A use older than a week no longer does.
+      await recordSystemUiUse(cacheDir, 'com.example.todo', new Date(Date.now() - 8 * 24 * 60 * 60 * 1000));
+      starts = 0;
+      provider().warmUp();
+      await new Promise((r) => setTimeout(r, 20));
+      expect(starts).toBe(0);
+    } finally {
+      fs.rmSync(cacheDir, { recursive: true, force: true });
+    }
+  });
+
   it('never taps another notification, or a button on the right, as the "Open" button', async () => {
     const screens: RunnerScreen[] = [{ alerts: [], others: [{ label: '今, Reminder, body', id: 'ListCell', frame: [0, 300, 400, 80] }] }];
     const { runner, calls } = stateful(screens, Number.MAX_SAFE_INTEGER, (n) => {
@@ -403,6 +475,28 @@ describe('IosSystemRunner restart (Phase 6.12)', () => {
     };
     return { runner, counts };
   }
+
+  it('a call made while the runner starts waits for that start instead of restarting it', async () => {
+    const runner = new IosSystemRunner({ udid: 'U', exec: async () => ({ stdout: Buffer.from(''), stderr: '' }), logger: silentLogger });
+    let starts = 0;
+    let up = false;
+    const r = runner as unknown as { startOnce(): Promise<void>; request(m: string, p: string): Promise<unknown>; proc: unknown };
+    r.startOnce = async () => {
+      starts++;
+      r.proc = { exitCode: null }; // the process exists before it answers
+      await new Promise((res) => setTimeout(res, 50));
+      up = true;
+    };
+    r.request = async () => {
+      if (!up) throw refused;
+      return { alerts: [], others: [] };
+    };
+    const warm = runner.start();
+    await new Promise((res) => setTimeout(res, 5));
+    await expect(runner.screen()).resolves.toEqual({ alerts: [], others: [] });
+    await warm;
+    expect(starts).toBe(1);
+  });
 
   it('recognises a refused connection', () => {
     expect(isConnectionRefused(refused)).toBe(true);

@@ -82,6 +82,14 @@ export interface IosDeviceConfig {
    * sheet after a login form is submitted. Default true.
    */
   disablePasswordAutoFill?: boolean;
+  /**
+   * Start the XCUITest runner that reads the system UI (alerts, notifications, UIKit pickers, links opened
+   * from the background) in the background once the app has started, instead of on first use (7–15 s).
+   * A running runner makes each app launch a little slower, so `'auto'` (default) does it only when the
+   * app's tests used the runner within the last week; `true` always, `false` never. Only a runner built
+   * already is started (the first use builds it, once per Xcode version).
+   */
+  warmUpSystemUi?: boolean | 'auto';
 }
 
 /** What to open in the browser: a static export served by Quiesco, or a running dev server. */

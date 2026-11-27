@@ -189,6 +189,11 @@ export interface DeviceProvider {
    */
   openUrlFromOutside?(url: string): Promise<void>;
   /**
+   * After the session's first launch, without waiting: start in the background what later calls would
+   * otherwise start on first use (iOS: the system UI runner).
+   */
+  warmUp?(): void;
+  /**
    * Start what reading the system UI needs (iOS: the XCUITest runner, 7–15 s cold). The system UI waits
    * start their clock after it (issue #64).
    */

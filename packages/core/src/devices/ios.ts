@@ -39,7 +39,7 @@ import type { ChildLike, SpawnProcess } from './streams.js';
 import { plistDict, writeBplist } from './bplist.js';
 import { IOS_NOTIFICATION_SETTINGS_FILE, withNotificationAuthorization } from './ios-notifications.js';
 import type { NotificationAuthorization } from './ios-notifications.js';
-import { IosSystemRunner, PERMISSION_ALLOW, PERMISSION_DENY, backButton, describeAlert, dismissButton, isNotificationPermissionAlert, isPermissionAlert, screenNodes } from './ios-runner.js';
+import { DEFAULT_RUNNER_CACHE, IosSystemRunner, recordSystemUiUse, usedSystemUiRecently, PERMISSION_ALLOW, PERMISSION_DENY, backButton, describeAlert, dismissButton, isNotificationPermissionAlert, isPermissionAlert, screenNodes } from './ios-runner.js';
 import type { RunnerScreen } from './ios-runner.js';
 import type { Permission } from './permissions.js';
 import { SERIAL_WORKER } from './provider.js';
@@ -153,7 +153,7 @@ export interface IosProviderOptions {
 }
 
 /** What IosProvider uses of IosSystemRunner. */
-export type SystemRunnerLike = Pick<IosSystemRunner, 'running' | 'screen' | 'tap' | 'openNotificationCenter' | 'stop'> & Partial<Pick<IosSystemRunner, 'navigationBar' | 'edgeSwipeBack' | 'elements' | 'typeText' | 'appState' | 'start'>>;
+export type SystemRunnerLike = Pick<IosSystemRunner, 'running' | 'screen' | 'tap' | 'openNotificationCenter' | 'stop'> & Partial<Pick<IosSystemRunner, 'navigationBar' | 'edgeSwipeBack' | 'elements' | 'typeText' | 'appState' | 'start' | 'built' | 'open'>>;
 
 /** `27.0` / `iOS 27.0` / `27` → does the runtime identifier match? */
 export function runtimeMatches(runtime: string, version: string): boolean {
@@ -309,6 +309,8 @@ export class IosProvider implements DeviceProvider {
    * pre-grant (the app sees "not determined" until it asks).
    */
   private notificationsNotGranted: string | null = null;
+  /** Whether this session's use of the system UI runner was recorded (recordUse). */
+  private systemUiUseRecorded = false;
   /** A runner start in progress: a warm-up (sendToBackground) and a system UI call share it. */
   private runnerStarting: Promise<void> | null = null;
   /** Phase 6.9 artifacts: the running recorder and log stream. */
@@ -775,8 +777,48 @@ export class IosProvider implements DeviceProvider {
    * a web authentication session or Safari, and the app's own UIKit views (an inline date picker, the
    * keyboard). The app's React views are in that tree too; tapping them is a real touch all the same.
    */
+  /**
+   * Right after the session's first launch: start the system UI runner in the background (7–15 s cold),
+   * so the first `system.*` call, openUrl from the background or openNotification does not wait for it.
+   * Only a runner built already: building one takes minutes of CPU, which the first scenarios would feel.
+   * A running runner also makes each app launch slower (about 0.45 s, measured on iOS 27), so by default
+   * ('auto') only for an app whose sessions used the runner within the last week (recordUse).
+   * Config `devices.ios.warmUpSystemUi`: true always, false never. A failure shows up when the runner is used.
+   */
+  warmUp(): void {
+    const mode = this.options.device?.warmUpSystemUi ?? 'auto';
+    if (mode === false) return;
+    void (async () => {
+      if (mode === 'auto' && !(await usedSystemUiRecently(this.runnerCacheBase, this.bundleId))) {
+        this.logger.debug(`${this.bundleId} did not use the iOS system UI runner lately; it starts when first used`);
+        return;
+      }
+      const runner = this.runner;
+      if (runner.built !== undefined && !(await runner.built())) {
+        this.logger.debug('the iOS system UI runner is not built yet; it starts when first used');
+        return;
+      }
+      await this.startRunner();
+    })().catch((e: unknown) => this.logger.debug(`warming up the iOS system UI runner failed: ${(e as Error).message}`));
+  }
+
+  private get runnerCacheBase(): string {
+    return this.options.runnerCacheDir ?? DEFAULT_RUNNER_CACHE;
+  }
+
+  /**
+   * The test uses the system UI runner (not a check Quiesco makes on the way, such as leftover alerts
+   * between scenarios): the next session starts it early (warmUp, 'auto'). Recorded once per session.
+   */
+  private recordUse(): void {
+    if (this.systemUiUseRecorded) return;
+    this.systemUiUseRecorded = true;
+    recordSystemUiUse(this.runnerCacheBase, this.bundleId).catch((e: unknown) => this.logger.debug(`recording the system UI runner use failed: ${(e as Error).message}`));
+  }
+
   /** Start the system UI runner: system UI waits start their clock after it (a cold start takes 7–15 s, issue #64). */
   async prepareSystemUi(): Promise<void> {
+    this.recordUse();
     await this.startRunner();
   }
 
@@ -790,6 +832,7 @@ export class IosProvider implements DeviceProvider {
   readonly systemUiSettleMs = SYSTEM_UI_SETTLE_MS;
 
   async systemNodes(): Promise<SystemNode[]> {
+    this.recordUse();
     const runner = this.runner;
     const nodes = screenNodes(await runner.screen());
     if (runner.elements === undefined) return nodes;
@@ -806,6 +849,7 @@ export class IosProvider implements DeviceProvider {
    * The Face ID prompt's own app is the exception (issue #92): its tree is small and reads in 15–55 ms.
    */
   systemNodeReread(node: SystemNode): (() => Promise<SystemNode[]>) | null {
+    this.recordUse();
     const app = node.app;
     if (app === undefined) return async () => screenNodes(await this.runner.screen());
     const elements = this.runner.elements?.bind(this.runner);
@@ -817,6 +861,7 @@ export class IosProvider implements DeviceProvider {
   }
 
   async tapSystemNode(node: SystemNode): Promise<void> {
+    this.recordUse();
     await this.runner.tap((node.bounds.x1 + node.bounds.x2) / 2, (node.bounds.y1 + node.bounds.y2) / 2);
   }
 
@@ -825,6 +870,7 @@ export class IosProvider implements DeviceProvider {
    * per request: typed at once, a React Native controlled input loses repeated letters ("ann" → "an").
    */
   async typeSystemNode(node: SystemNode, text: string): Promise<void> {
+    this.recordUse();
     const runner = this.runner;
     if (runner.typeText === undefined) throw new Error('the iOS system UI runner cannot type');
     await this.tapSystemNode(node);
@@ -850,17 +896,25 @@ export class IosProvider implements DeviceProvider {
   }
 
   async tapSystemPoint(x: number, y: number): Promise<void> {
+    this.recordUse();
     await this.runner.tap(x, y);
   }
 
   /**
-   * `simctl openurl` while the app is in the background (issue #48). SpringBoard asks "Open in “<app>”?"
-   * (Cancel, Open, in the device's language): Open, the right-hand button, is tapped through the runner.
-   * No confirmation within OPEN_URL_CONFIRM_MS (a link the system opens directly): nothing to answer.
+   * A link opened from outside while the app is in the background (issue #48), through the runner's
+   * XCUIApplication.open: no confirmation to answer, and it returns once the app is in front. A runner
+   * without it: `simctl openurl`, where SpringBoard asks "Open in “<app>”?" (Cancel, Open, in the device's
+   * language) and Open, the right-hand button, is tapped through the runner. No confirmation within
+   * OPEN_URL_CONFIRM_MS (a link the system opens directly, or the app already in front): nothing to answer.
    */
   async openUrlFromOutside(url: string): Promise<void> {
     await this.prepareSystemUi();
-    await this.simctl(['openurl', this.udid, url]);
+    if (this.runner.open !== undefined) {
+      if ((await this.runner.open(this.bundleId, url)) === RUNNING_FOREGROUND) return;
+      this.logger.debug(`openUrl: ${this.bundleId} is not in front after XCUIApplication.open; looking for a confirmation`);
+    } else {
+      await this.simctl(['openurl', this.udid, url]);
+    }
     const deadline = Date.now() + OPEN_URL_CONFIRM_MS;
     for (;;) {
       const alert = (await this.runner.screen()).alerts.find((a) => a.buttons.length === 2);
@@ -881,6 +935,7 @@ export class IosProvider implements DeviceProvider {
    * the app's native navigation bar (the agent cannot: it is not a React element).
    */
   async goBack(): Promise<void> {
+    this.recordUse();
     const runner = this.runner;
     if (runner.navigationBar === undefined || runner.edgeSwipeBack === undefined) throw new Error('the iOS system UI runner cannot go back');
     const back = backButton(await runner.navigationBar(this.bundleId));
@@ -903,6 +958,7 @@ export class IosProvider implements DeviceProvider {
    * the app's notifications only expands it (issue #65).
    */
   async openNotification(title: string, timeoutMs: number): Promise<void> {
+    this.recordUse();
     const called = Date.now();
     await this.prepareSystemUi();
     const runner = this.runner;
