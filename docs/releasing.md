@@ -16,9 +16,11 @@ together with one version number.
 
 ## Releasing a version
 
-1. **Set the version.** Change `version` in all 12 `packages/*/package.json` and `AGENT_VERSION` in
-   `packages/agent/src/version.ts` (the agent reports it to the host). The packages depend on each other
-   with `workspace:*`; pnpm replaces that with the exact version when it packs.
+1. **Set the version.** Change `version` in all 12 `packages/*/package.json`, `AGENT_VERSION` in
+   `packages/agent/src/version.ts` (the agent reports it to the host), `version` in
+   `plugin/.claude-plugin/plugin.json`, and the `quiesco@x.y.z` label in `site/index.html` (the
+   quiesco.dev homepage). The packages depend on each other with `workspace:*`; pnpm replaces that with
+   the exact version when it packs.
 
 2. **Check.** On a clean, up-to-date `main`:
 
@@ -47,7 +49,9 @@ together with one version number.
    `node <this repository>/packages/cli/dist/bin.js init --packages /tmp/quiesco-packs` and follow the
    README quick start on the platforms the release touches.
 
-4. **Commit** the version change: `chore(release): 0.2.0`.
+4. **Commit** the version change: `chore(release): 0.2.0 [skip actions]`. The same code already passed CI
+   on `main`, so `[skip actions]` keeps GitHub Actions from running it again. Do not write `[skip ci]`:
+   Cloudflare Workers Builds skips on it too, and quiesco.dev would keep showing the old version.
 
 5. **Publish:**
 
@@ -78,6 +82,10 @@ together with one version number.
    ```
 
    Then, in a fresh Expo app, `npx quiesco@0.2.0 init` and the README quick start for web.
+
+   On the release commit, the `Workers Builds: quiesco` check must have run (not "skipped"), and
+   <https://quiesco.dev> must show the new version. If it was skipped, retry the build in the Cloudflare
+   dashboard (Workers & Pages → quiesco → Deployments).
 
 ## When something goes wrong
 
