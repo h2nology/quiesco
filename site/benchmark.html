@@ -41,8 +41,7 @@
   tr.is-q td { background: var(--running-soft); }
   .plat-sep td { background: var(--sunken) !important; font: 500 12px/1 var(--font); color: var(--ink-muted); height: 32px !important; }
 
-  .findings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-  @media (max-width: 1000px) { .findings { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .findings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
   .findings .card { display: grid; gap: 10px; align-content: start; padding: 20px; }
   .findings p { margin: 0; color: var(--ink-muted); }
   @media (max-width: 760px) { .findings { grid-template-columns: 1fr; } }
@@ -54,58 +53,17 @@
   .check input { appearance: none; width: 16px; height: 16px; border: 1px solid var(--bar-other); border-radius: 4px; background: var(--surface); display: grid; place-items: center; margin: 0; cursor: pointer; }
   .check input:checked { background: var(--primary); border-color: var(--primary); }
   .check input:checked::after { content: ""; width: 8px; height: 4px; border: 1.5px solid #fff; border-top: 0; border-right: 0; transform: rotate(-45deg) translate(1px, -1px); }
-  .legend-bar { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--ink-muted); }
-  .legend-bar .lg { display: inline-flex; align-items: center; gap: 8px; }
-  .legend-bar .count { margin-left: auto; font-family: var(--mono); }
-
-  /* markers: Quiesco is the only round one */
-  .mk { position: absolute; top: 50%; width: 10px; height: 10px; transform: translate(-50%, -50%); }
-  .mk.quiesco { width: 12px; height: 12px; border-radius: 9999px; background: var(--primary); box-shadow: 0 0 0 3px var(--surface); z-index: 3; }
-  .mk.appium { background: var(--ink-muted); border-radius: 1px; z-index: 2; }
-  .mk.detox { width: 9px; height: 9px; border: 1.5px solid var(--ink-muted); background: var(--surface); transform: translate(-50%, -50%) rotate(45deg); z-index: 2; }
-  .mk.maestro { width: 11px; height: 10px; background: var(--ink-muted); clip-path: polygon(50% 0, 100% 100%, 0 100%); z-index: 2; }
-  .legend-bar .mk { position: relative; top: auto; transform: none; display: inline-block; box-shadow: none; }
-  .legend-bar .mk.detox { transform: rotate(45deg); }
-
-  .explorer { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); position: relative; }
-  .ex-head, .ex-row { display: grid; grid-template-columns: minmax(240px, 360px) minmax(0, 1fr) 64px 128px; column-gap: 20px; align-items: center; padding: 0 16px; }
-  /* Sticky without smooth scrolling (reduced motion); with ScrollSmoother (.smooth) a ScrollTrigger pin holds it. */
-  .smooth .ex-head { position: relative; top: auto; }
-  .ex-head { position: sticky; top: 61px; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); height: 48px; border-radius: 12px 12px 0 0; }
-  .ex-head .h { font: 500 12px/1.2 var(--font); color: var(--ink-muted); }
-  .ex-head .r, .ex-row .r { text-align: right; }
-  .axis { position: relative; height: 100%; }
-  .axis .tk { position: absolute; bottom: 8px; transform: translateX(-50%); font: 400 11px/1 var(--mono); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
-  .axis .cap { position: absolute; top: 9px; left: 0; font: 500 12px/1 var(--font); color: var(--ink-muted); white-space: nowrap; }
-  .ex-row { min-height: 52px; border-bottom: 1px solid var(--line); cursor: pointer; }
-  .ex-row:hover { background: var(--sunken); }
-  .ex-row[aria-expanded="true"] { background: var(--running-soft); border-bottom-color: transparent; }
-  .ex-row:last-child { border-bottom: 0; }
-  .sc { display: grid; gap: 4px; padding: 9px 0; min-width: 0; }
-  .sc-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  /* tool markers in the detail cards: Quiesco is the only round one */
+  .mk { display: inline-block; width: 10px; height: 10px; flex: none; }
+  .mk.quiesco { width: 12px; height: 12px; border-radius: 9999px; background: var(--primary); }
+  .mk.appium { background: var(--ink-muted); border-radius: 1px; }
+  .mk.detox { width: 9px; height: 9px; border: 1.5px solid var(--ink-muted); background: var(--surface); transform: rotate(45deg); }
+  .mk.maestro { width: 11px; height: 10px; background: var(--ink-muted); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
   .sc-id { font: 400 12px/1 var(--mono); color: var(--ink-muted); width: 34px; flex: none; font-feature-settings: "zero" 1; }
-  .sc-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .chev { width: 14px; height: 14px; color: var(--ink-muted); flex: none; }
-  .ex-row[aria-expanded="true"] .chev { transform: rotate(90deg); }
-  .sc-tags { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 58px; }
+  tr[aria-expanded="true"] .chev { transform: rotate(90deg); }
   .tag { font: 400 11px/1 var(--mono); padding: 3px 6px; border-radius: 4px; white-space: nowrap; }
   .tag.ns { color: var(--ink-muted); border: 1px dashed var(--bar-other); }
-  .tag.skipped { color: var(--skipped); background: var(--skipped-soft); }
-  .plot { position: relative; height: 52px; }
-  .plot .gl { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line); }
-  .ex-row:hover .plot .gl, .ex-row[aria-expanded="true"] .plot .gl { background: var(--bar-other); opacity: .5; }
-  .plot .rng { position: absolute; top: 50%; height: 1px; background: var(--ink-muted); opacity: .6; }
-  .plot .lead { position: absolute; top: 50%; height: 3px; transform: translateY(-50%); background: var(--primary); opacity: .35; }
-  .qv { font: 500 14px/1 var(--mono); font-variant-numeric: tabular-nums; }
-  .qv.best { color: var(--accent-text); }
-  .delta { display: grid; gap: 6px; justify-items: end; }
-  .delta .n { white-space: nowrap; font: 400 12px/1 var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-muted); }
-  .delta .n.win { color: var(--accent-text); font-weight: 500; }
-  .dv { position: relative; width: 100%; height: 4px; background: var(--line); }
-  .dv::before { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--ink-muted); }
-  .dv i { position: absolute; top: 0; bottom: 0; }
-  .dv i.win { right: 50%; background: var(--primary); }
-  .dv i.lose { left: 50%; background: var(--bar-other); }
 
   /* expanded detail */
   .ex-detail { padding: 4px 16px 20px; border-bottom: 1px solid var(--line); background: var(--running-soft); }
@@ -113,9 +71,8 @@
   .tcard { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; display: grid; gap: 10px; align-content: start; }
   .tcard.isq { border-color: var(--primary); }
   .tcard .hd { display: flex; align-items: center; gap: 8px; font-weight: 500; }
-  .tcard .hd .mk { position: relative; top: auto; transform: none; box-shadow: none; }
-  .tcard .hd .mk.detox { transform: rotate(45deg); }
-  .tcard .hd .best { margin-left: auto; font: 400 11px/1 var(--mono); color: var(--accent-text); }
+  .tcard.isbest { border-color: var(--passed); box-shadow: inset 0 0 0 1px var(--passed); }
+  .tcard .hd .best { margin-left: auto; font: 500 11px/1 var(--font); color: var(--passed); background: var(--passed-soft); padding: 4px 7px; border-radius: 9999px; }
   .tcard .big { font: 600 26px/1 var(--font); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
   .tcard .big small { font-size: 13px; font-weight: 500; color: var(--ink-muted); margin-left: 3px; letter-spacing: 0; }
   .tcard dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 12px; }
@@ -124,25 +81,32 @@
   .tcard .note { font-size: 13px; color: var(--ink-muted); }
   @media (max-width: 900px) { .tools4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
-  @media (max-width: 760px) {
-    .ex-head { grid-template-columns: 1fr; height: 40px; }
-    .ex-head .h:not(.axis), .ex-head .hq, .ex-head .hd2 { display: none; }
-    .ex-head .axis { display: block; }
-    .ex-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "sc delta" "plot plot"; row-gap: 0; padding-bottom: 6px; }
-    .ex-row .sc { grid-area: sc; } .ex-row .plot { grid-area: plot; height: 36px; } .ex-row .qv { display: none; } .ex-row .delta { grid-area: delta; width: 96px; }
-    .sc-tags { padding-left: 44px; }
-    .chev { display: none; }
-  }
   @media (max-width: 520px) { .tools4 { grid-template-columns: 1fr; } }
 
-  /* numbers view */
-  table.nums td { height: 40px; }
-  table.nums tr.row { cursor: pointer; }
-  table.nums tr.row:hover td { background: var(--sunken); }
-  table.nums td.best { color: var(--accent-text); font-weight: 500; }
-  table.nums td.qcol, table.nums th.qcol { background: var(--running-soft); }
+  /* scenario table: the fastest tool is named in its own column, its time sits in a green cell */
+  table.nums th, table.nums td { height: 48px; padding: 0 14px; }
+  table.nums td { vertical-align: middle; line-height: 1; }
+  table.nums .sc-cell, table.nums .winner { vertical-align: middle; }
+  table.nums thead th { height: 40px; background: var(--sunken); }
+  table.nums th.q { color: var(--accent-text); font-weight: 600; }
+  table.nums td.num { width: 84px; font: 400 13px/1 var(--mono); font-variant-numeric: tabular-nums; font-feature-settings: "zero" 1; color: var(--ink); }
+  table.nums td.num.other { color: var(--ink-muted); }
+  table.nums td.num.best { background: var(--passed-soft); color: var(--passed); font-weight: 600; }
+  table.nums tr.row { cursor: pointer; transition: background-color .12s; }
+  table.nums tr.row:hover td:not(.best) { background: var(--sunken); }
+  table.nums tr[aria-expanded="true"] td { border-bottom-color: transparent; }
+  table.nums tr[aria-expanded="true"] td:not(.best) { background: var(--running-soft); }
+  table.nums .sc-cell { display: inline-flex; align-items: center; gap: 8px; }
+  table.nums .sc-name { color: var(--ink); }
+  table.nums .winner { display: inline-flex; align-items: center; gap: 6px; font: 600 13px/1 var(--font); color: var(--passed); white-space: nowrap; }
+  table.nums .winner .ok { width: 14px; height: 14px; flex: none; }
+  table.nums .winner .sep { color: var(--ink-muted); font-weight: 400; }
+  table.nums td.delta { width: 128px; font: 400 13px/1 var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-muted); }
+  table.nums td.delta.win { color: var(--accent-text); font-weight: 500; }
+  table.nums td.delta .pc { display: inline-block; min-width: 44px; margin-left: 6px; font-size: 11px; opacity: .75; }
   table.nums .st { font: 500 12px/1 var(--font); }
   table.nums .st.skipped { color: var(--skipped); }
+  table.nums .st.failed { color: var(--failed); }
 
   .env { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
   .env .card { padding: 0; overflow: hidden; }
@@ -183,9 +147,9 @@
   <div class="page-hero dark-scope dotgrid">
     <div class="wrap">
       <a class="crumb" href="./"><svg class="icon" viewBox="0 0 16 16"><path d="M13 8H3M7 4 3 8l4 4"/></svg><span data-i18n="ui.home">Home</span></a><br>
-      <span class="hero-anno eyebrow"><span class="dot running"></span><span data-i18n="bp.anno">session m5-final-none · measured 2026-11-24 → 26 (JST)</span></span>
+      <span class="hero-anno eyebrow"><span class="dot running"></span><span data-i18n="bp.anno">sessions m5-final-none + m5-quiesco-0144 · measured 2026-11-24 → 27 (JST)</span></span>
       <h1 data-i18n="bp.h1">Four e2e tools.<br>One Expo app. 160 runs.</h1>
-      <p class="lead" data-i18n="bp.lead">Quiesco, Appium, Detox and Maestro each ran the same 24-scenario suite against the same Expo SDK 58 release build, 20 times per platform, interleaved, on one Apple M5 Pro. Everything below is the raw outcome: medians, spread and where each tool wins.</p>
+      <p class="lead" data-i18n="bp.lead">Quiesco, Appium, Detox and Maestro each ran the same 24-scenario suite against the same Expo SDK 58 release build, 20 times per platform, on one Apple M5 Pro. Everything below is the raw outcome: medians, spread and where each tool wins.</p>
       <div class="kpis" id="kpis"></div>
       <nav class="toc" aria-label="On this page">
         <a class="btn btn-secondary btn-sm" href="#suite" data-i18n="bp.toc.suite">Full suite</a>
@@ -231,16 +195,12 @@
       <div class="section-head">
         <span class="eyebrow" data-i18n="bp.sc.eyebrow"><b>03</b> / per scenario</span>
         <h2 class="h-lg" data-i18n="bp.sc.h2">Every scenario, every tool</h2>
-        <p class="lead" style="margin:0" data-i18n="bp.sc.lead">Median seconds, reset not included. The axis is logarithmic and shared by every scenario. Click a row for p90, spread and reset time.</p>
+        <p class="lead" style="margin:0" data-i18n="bp.sc.lead">Median seconds from the start of the reset before the scenario to its end. The fastest tool of each scenario is named in its own column and its time is highlighted. Click a row for p90 and spread.</p>
       </div>
       <div class="controls">
         <div class="seg" role="tablist" aria-label="Platform" id="seg-plat">
           <button role="tab" aria-selected="true" data-plat="ios">iOS</button>
           <button role="tab" aria-selected="false" data-plat="android">Android</button>
-        </div>
-        <div class="seg" role="tablist" aria-label="View" id="seg-view">
-          <button role="tab" aria-selected="true" data-view="chart"></button>
-          <button role="tab" aria-selected="false" data-view="table"></button>
         </div>
         <span class="sp"></span>
         <label class="check"><input type="checkbox" id="shared-only"><span id="shared-label"></span></label>
@@ -327,51 +287,53 @@
   }
 
   /* ---------- Findings, computed from the data ---------- */
+  // The fastest tools of a scenario on a platform: every tool at the lowest median (ties at the 0.1 s shown).
+  const fastest = (rs) => {
+    const ok = ORDER.filter((x) => rs[x].status === 'ok');
+    const min = Math.min(...ok.map((x) => rs[x].median));
+    return ok.filter((x) => rs[x].median === min);
+  };
   function renderFindings() {
-    const wins = { ios: {}, android: {} };
+    const wins = { ios: {}, android: {} }, ties = { ios: [], android: [] };
     for (const p of ['ios', 'android']) for (const sc of B.scenarios) {
-      let best = null;
-      for (const x of ORDER) { const r = sc[p][x]; if (r.status === 'ok' && (best == null || r.median < sc[p][best].median)) best = x; }
-      wins[p][best] = (wins[p][best] ?? 0) + 1;
+      const f = fastest(sc[p]);
+      if (f.length === 1) wins[p][f[0]] = (wins[p][f[0]] ?? 0) + 1;
+      else ties[p].push({ id: sc.id, tools: f });
     }
+    const tied = (p) => (ties[p].length > 0 ? t('f.ties', { n: ties[p].length }) : '');
     const s6 = B.scenarios.find((s) => s.id === 'S6');
-    const avg = (p, x) => { const v = B.scenarios.map((s) => s[p][x].reset).filter((n) => n != null); return (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1); };
+    // Scenarios another tool wins on a platform: how much quicker it is than Quiesco.
+    const lost = (p) => B.scenarios.flatMap((sc) => {
+      const rs = sc[p], q = rs.quiesco;
+      const best = OTHERS.filter((x) => rs[x].status === 'ok').reduce((a, x) => (a == null || rs[x].median < rs[a].median ? x : a), null);
+      return best && q.status === 'ok' && rs[best].median < q.median ? [{ id: sc.id, tool: best, d: q.median - rs[best].median }] : [];
+    });
+    const lostA = lost('android'), lostI = lost('ios').map((x) => x.d);
+    const tiedA = ties.android.map((x) => t('f.android.tie', { id: x.id, tool: x.tools.filter((y) => y !== 'quiesco').map((y) => NAME[y]).join(' / ') }));
     const F = [
-      ['passed', 'f.tag.android', 'f.android.t', 'f.android.b', { n: wins.android.quiesco, total: B.scenarios.length, q: B.suite.android.quiesco.median.toFixed(1), a: B.suite.android.appium.median.toFixed(1) }],
-      ['running', 'f.tag.ios', 'f.ios.t', 'f.ios.b', { a: wins.ios.appium, q: wins.ios.quiesco, s6q: s6.ios.quiesco.median, s6a: s6.ios.appium.median }],
-      ['running', 'f.tag.reset', 'f.reset.t', 'f.reset.b', { aq: avg('android', 'quiesco'), ad: avg('android', 'detox'), aa: avg('android', 'appium'), am: avg('android', 'maestro'), iq: avg('ios', 'quiesco'), id: avg('ios', 'detox'), ia: avg('ios', 'appium'), im: avg('ios', 'maestro') }],
+      ['passed', 'f.tag.android', 'f.android.t', 'f.android.b', { n: wins.android.quiesco ?? 0, total: B.scenarios.length, ties: tied('android'), q: B.suite.android.quiesco.median.toFixed(1), a: B.suite.android.appium.median.toFixed(1),
+        rest: [...lostA.map((x) => t('f.android.rest', { tool: NAME[x.tool], id: x.id, d: x.d.toFixed(1) })), ...tiedA].join(' ') }],
+      ['running', 'f.tag.ios', 'f.ios.t', 'f.ios.b', { a: wins.ios.appium ?? 0, q: wins.ios.quiesco ?? 0, ties: tied('ios'), s6q: f1(s6.ios.quiesco.median), s6a: f1(s6.ios.appium.median),
+        lo: Math.min(...lostI).toFixed(1), hi: Math.max(...lostI).toFixed(1) }],
     ];
     document.getElementById('findings-grid').innerHTML = F.map(([pill, tag, tt, bb, v], i) => `
       <div class="card">
-        <span style="display:flex;align-items:center;justify-content:space-between"><span class="pill ${pill}"><span class="dot ${pill === 'running' ? '' : pill}"></span>${t(tag)}</span><span class="anno">N.0${i + 1}</span></span>
+        <span style="display:flex;align-items:center;justify-content:space-between"><span class="pill ${pill}"><span class="dot ${pill === 'running' ? '' : pill}"></span>${t(tag, v)}</span><span class="anno">N.0${i + 1}</span></span>
         <h3 class="h-title">${t(tt, v)}</h3><p>${t(bb, v)}</p></div>`).join('');
   }
 
-  /* ---------- Scenario explorer ---------- */
-  const state = { plat: 'ios', view: 'chart', shared: false, open: new Set() };
-  const LO = 0.8, HI = 200, TICKS = [1, 2, 5, 10, 20, 50, 100, 200];
-  const pos = (v) => ((Math.log10(v) - Math.log10(LO)) / (Math.log10(HI) - Math.log10(LO))) * 100;
+  /* ---------- Scenario table ---------- */
+  const state = { plat: 'ios', shared: false, open: new Set() };
 
   function rowInfo(sc) {
     const rs = sc[state.plat];
-    const ok = ORDER.filter((x) => rs[x].status === 'ok');
-    const best = ok.reduce((a, x) => (a == null || rs[x].median < rs[a].median ? x : a), null);
+    const best = fastest(rs);
     const others = OTHERS.filter((x) => rs[x].status === 'ok');
     const bo = others.reduce((a, x) => (a == null || rs[x].median < rs[a].median ? x : a), null);
     const q = rs.quiesco.median;
     const delta = q - rs[bo].median;               // negative: Quiesco faster
     const pct = (delta / rs[bo].median) * 100;
-    return { rs, ok, best, bo, q, delta, pct, excluded: B.shared[state.plat].includes(sc.id) };
-  }
-
-  function tags(sc, info) {
-    const out = [];
-    if (info.excluded) out.push(`<span class="tag ns">${t('sc.notshared')}</span>`);
-    for (const x of OTHERS) {
-      const r = info.rs[x];
-      if (r.status === 'skipped') out.push(`<span class="tag skipped">${t('sc.skipped', { tool: NAME[x] })}</span>`);
-    }
-    return out.length ? `<div class="sc-tags">${out.join('')}</div>` : '';
+    return { rs, best, bo, q, delta, pct, excluded: B.shared[state.plat].includes(sc.id) };
   }
 
   function detail(sc, info) {
@@ -379,13 +341,12 @@
       const r = info.rs[x];
       const mk = `<span class="mk ${x}"></span>`;
       if (r.status === 'skipped') return `<div class="tcard"><div class="hd">${mk}${NAME[x]}</div><span class="pill skipped" style="justify-self:start">${t('st.skipped')}</span><span class="note">${t('d.skipped')}</span></div>`;
-      return `<div class="tcard${x === 'quiesco' ? ' isq' : ''}">
-        <div class="hd">${mk}${NAME[x]}${info.best === x ? `<span class="best">${t('d.fastest')}</span>` : ''}</div>
+      return `<div class="tcard${x === 'quiesco' ? ' isq' : ''}${info.best.includes(x) ? ' isbest' : ''}">
+        <div class="hd">${mk}${NAME[x]}${info.best.includes(x) ? `<span class="best">${t('d.fastest')}</span>` : ''}</div>
         <div class="big">${r.median == null ? '–' : `${f1(r.median)}<small>${S()}</small>`}</div>
         <dl>
           <dt>${t('d.p90')}</dt><dd>${f1(r.p90)}</dd>
           <dt>${t('d.range')}</dt><dd>${r.min == null ? '–' : `${f1(r.min)} – ${f1(r.max)}`}</dd>
-          <dt>${t('d.reset')}</dt><dd>${f1(r.reset)} ${S()}</dd>
         </dl></div>`;
     }).join('');
     return `<div class="tools4">${cards}</div>`;
@@ -397,67 +358,34 @@
     return arr;
   }
 
-  function renderChart(arr) {
-    const maxAbs = Math.max(...arr.map((r) => Math.abs(Math.log(r.info.q / r.info.rs[r.info.bo].median))));
-    const gl = TICKS.map((v) => `<span class="gl" style="left:${pos(v)}%"></span>`).join('');
-    let html = `<div class="explorer">
-      <div class="legend-bar">
-        <span class="lg"><span class="mk quiesco"></span>Quiesco</span><span class="lg"><span class="mk detox"></span>Detox</span>
-        <span class="lg"><span class="mk appium"></span>Appium</span><span class="lg"><span class="mk maestro"></span>Maestro</span>
-        <span class="count">${t('sc.count', { n: arr.length })} · ${PL[state.plat]}</span>
-      </div>
-      <div class="ex-head">
-        <span class="h">${t('sc.col.sc')}</span>
-        <span class="h axis"><span class="cap">${t('sc.col.plot')}</span>${TICKS.map((v) => `<span class="tk" style="left:${pos(v)}%">${v}</span>`).join('')}</span>
-        <span class="h r hq">${t('sc.col.q')}</span>
-        <span class="h r hd2">${t('sc.col.delta')}</span>
-      </div>`;
-    for (const { sc, info } of arr) {
-      const isOpen = state.open.has(sc.id);
-      const vals = info.ok.map((x) => info.rs[x].median);
-      const mn = Math.min(...vals), mx = Math.max(...vals);
-      const markers = ORDER.filter((x) => info.rs[x].status === 'ok').map((x) => {
-        const r = info.rs[x];
-        return `<span class="mk ${x}" style="left:${pos(r.median)}%" title="${NAME[x]} · ${f1(r.median)} ${S()}"></span>`;
-      }).join('');
-      const bom = info.rs[info.bo].median;
-      const lead = info.q < bom ? `<span class="lead" style="left:${pos(info.q)}%;width:${pos(bom) - pos(info.q)}%"></span>` : '';
-      const win = info.delta < 0;
-      const w = (Math.abs(Math.log(info.q / bom)) / maxAbs) * 50;
-      html += `<div class="ex-row" role="button" tabindex="0" data-id="${sc.id}" aria-expanded="${isOpen}">
-        <div class="sc"><div class="sc-top"><svg class="chev icon" viewBox="0 0 16 16"><path d="m6 4 4 4-4 4"/></svg><span class="sc-id">${sc.id}</span><span class="sc-name" title="${esc(I.scenario(sc.id, sc.name))}">${esc(I.scenario(sc.id, sc.name))}</span></div>${tags(sc, info)}</div>
-        <div class="plot">${gl}<span class="rng" style="left:${pos(mn)}%;width:${pos(mx) - pos(mn)}%"></span>${lead}${markers}</div>
-        <div class="qv r${info.best === 'quiesco' ? ' best' : ''}">${f1(info.q)}</div>
-        <div class="delta"><span class="n${win ? ' win' : ''}" title="${t(win ? 'sc.faster' : 'sc.slower', { p: Math.abs(info.pct).toFixed(0) })} · ${NAME[info.bo]}">${win ? '−' : '+'}${Math.abs(info.delta).toFixed(1)} ${S()} · ${win ? '−' : '+'}${Math.abs(info.pct).toFixed(0)}%</span><span class="dv"><i class="${win ? 'win' : 'lose'}" style="width:${w}%"></i></span></div>
-      </div>`;
-      if (isOpen) html += `<div class="ex-detail">${detail(sc, info)}</div>`;
-    }
-    return html + '</div>';
-  }
-
+  const CHECK = '<svg class="icon ok" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg>';
   function renderTable(arr) {
-    let html = `<div class="table-scroll"><table class="data nums"><thead><tr><th>${t('sc.col.sc')}</th>${ORDER.map((x) => `<th class="r${x === 'quiesco' ? ' qcol' : ''}">${NAME[x]}</th>`).join('')}<th class="r">${t('sc.col.delta')}</th></tr></thead><tbody>`;
+    const cols = 7;
+    let html = `<div class="table-scroll"><table class="data nums"><thead><tr><th>${t('sc.col.sc')}</th><th>${t('sc.col.best')}</th>${ORDER.map((x) => `<th class="r${x === 'quiesco' ? ' q' : ''}">${NAME[x]}</th>`).join('')}<th class="r">${t('sc.col.delta')}</th></tr></thead><tbody>`;
     for (const { sc, info } of arr) {
       const isOpen = state.open.has(sc.id);
       const cells = ORDER.map((x) => {
         const r = info.rs[x];
-        const cls = `r mono${x === 'quiesco' ? ' qcol' : ''}${info.best === x ? ' best' : ''}`;
+        const win = info.best.includes(x);
+        const cls = `r num${win ? ' best' : x === 'quiesco' ? '' : ' other'}`;
         if (r.status === 'skipped') return `<td class="${cls}"><span class="st skipped">${t('st.skipped')}</span></td>`;
-        return `<td class="${cls}">${f1(r.median)}</td>`;
+        if (r.status === 'failed') return `<td class="${cls}"><span class="st failed">${t('st.failed')}</span></td>`;
+        return `<td class="${cls}"${win ? ` title="${t('d.fastest')}"` : ''}>${f1(r.median)}</td>`;
       }).join('');
-      const win = info.delta < 0;
-      html += `<tr class="row" tabindex="0" data-id="${sc.id}" aria-expanded="${isOpen}"><td><span class="sc-id">${sc.id}</span> ${esc(I.scenario(sc.id, sc.name))}${info.excluded ? ` <span class="tag ns">${t('sc.notshared')}</span>` : ''}</td>${cells}<td class="r mono" style="color:${win ? 'var(--accent-text)' : 'var(--ink-muted)'}">${win ? '−' : '+'}${Math.abs(info.delta).toFixed(1)} (${win ? '−' : '+'}${Math.abs(info.pct).toFixed(0)}%)</td></tr>`;
-      if (isOpen) html += `<tr><td colspan="6" style="padding:0;height:auto;white-space:normal"><div class="ex-detail">${detail(sc, info)}</div></td></tr>`;
+      const winner = `<td><span class="winner">${CHECK}${info.best.map((x) => NAME[x]).join('<span class="sep">=</span>')}</span></td>`;
+      const win = info.delta < 0, even = Math.abs(info.delta) < 0.05;
+      const delta = even
+        ? `<td class="r delta">±0.0 ${S()}<span class="pc"></span></td>`
+        : `<td class="r delta${win ? ' win' : ''}">${win ? '−' : '+'}${Math.abs(info.delta).toFixed(1)} ${S()}<span class="pc">${win ? '−' : '+'}${Math.abs(info.pct).toFixed(0)}%</span></td>`;
+      html += `<tr class="row" tabindex="0" data-id="${sc.id}" aria-expanded="${isOpen}"><td><span class="sc-cell"><svg class="chev icon" viewBox="0 0 16 16"><path d="m6 4 4 4-4 4"/></svg><span class="sc-id">${sc.id}</span><span class="sc-name">${esc(I.scenario(sc.id, sc.name))}</span>${info.excluded ? `<span class="tag ns">${t('sc.notshared')}</span>` : ''}</span></td>${winner}${cells}${delta}</tr>`;
+      if (isOpen) html += `<tr class="detail-row"><td colspan="${cols}" style="padding:0;height:auto;white-space:normal"><div class="ex-detail">${detail(sc, info)}</div></td></tr>`;
     }
     return html + '</tbody></table></div>';
   }
 
-  // `how`: 'switch' (platform, view, shared-only) animates the new rows in; a row opened shows its detail.
+  // `how`: 'switch' (platform, shared-only) animates the new rows in; a row opened shows its detail.
   function renderExplorer(how) {
-    const arr = list();
-    document.getElementById('explorer').innerHTML = state.view === 'chart' ? renderChart(arr) : renderTable(arr);
-    document.querySelector('[data-view="chart"]').textContent = t('sc.view.chart');
-    document.querySelector('[data-view="table"]').textContent = t('sc.view.table');
+    document.getElementById('explorer').innerHTML = renderTable(list());
     document.getElementById('shared-label').textContent = t('sc.shared');
     if (how === 'switch') animateExplorer(0.35);
     if (typeof afterExplorerRender === 'function') afterExplorerRender();
@@ -472,7 +400,7 @@
     row?.focus({ preventScroll: true });
     // An opened row: its detail drops in, the four tool cards one after another.
     if (!was && motion) {
-      const detailEl = row?.tagName === 'TR' ? row.nextElementSibling?.querySelector('.ex-detail') : row?.nextElementSibling;
+      const detailEl = row?.nextElementSibling?.querySelector('.ex-detail');
       if (detailEl?.classList.contains('ex-detail')) {
         gsap.from(detailEl, { opacity: 0, y: -6, duration: 0.3, ease: 'power2.out' });
         gsap.from(detailEl.querySelectorAll('.tcard'), { opacity: 0, y: 10, duration: 0.4, ease: 'power3.out', stagger: 0.05 });
@@ -488,7 +416,7 @@
     document.querySelectorAll(`#${id} button`).forEach((x) => x.setAttribute('aria-selected', String(x === b)));
     state[key] = b.dataset[key]; renderExplorer('switch');
   }));
-  bindSeg('seg-plat', 'plat'); bindSeg('seg-view', 'view');
+  bindSeg('seg-plat', 'plat');
   document.getElementById('shared-only').addEventListener('change', (e) => { state.shared = e.target.checked; renderExplorer('switch'); });
 
   /* ---------- Environment & method (three languages inline) ---------- */
@@ -509,7 +437,7 @@
       [{ en: 'Animations', zh: '动画', ja: 'アニメーション' }, { en: 'Duration scale 1.0, no stress conditions', zh: '时长缩放 1.0，无施压条件', ja: '再生速度 1.0、負荷条件なし' }],
     ] },
     { title: { en: 'iOS simulator', zh: 'iOS 模拟器', ja: 'iOS シミュレータ' }, anno: 'E.03', rows: [
-      [{ en: 'Device', zh: '设备', ja: 'デバイス' }, { en: '<code>Shootout iPhone 17</code>, dedicated to this benchmark', zh: '<code>Shootout iPhone 17</code>（专用模拟器，只用于本测量）', ja: '<code>Shootout iPhone 17</code>（この測定専用）' }],
+      [{ en: 'Device', zh: '设备', ja: 'デバイス' }, { en: '<code>Shootout iPhone 17</code>, dedicated to this benchmark. Quiesco 0.14.4 ran on a rebuilt device with the same name and configuration', zh: '<code>Shootout iPhone 17</code>（专用模拟器，只用于本测量）。Quiesco 0.14.4 在重建的同名、同配置设备上运行', ja: '<code>Shootout iPhone 17</code>（この測定専用）。Quiesco 0.14.4 は同名・同構成で作り直したデバイスで実行' }],
       [{ en: 'OS', zh: '系统', ja: 'OS' }, { en: 'iOS 27.0 (runtime 24A434)', zh: 'iOS 27.0（运行时 24A434）', ja: 'iOS 27.0（ランタイム 24A434）' }],
       [{ en: 'CPU / memory', zh: 'CPU / 内存', ja: 'CPU / メモリ' }, { en: 'Shared with the host (simulators can\'t be capped)', zh: '与宿主机共享（模拟器无法单独设置）', ja: 'ホストと共有（シミュレータは個別に制限できない）' }],
       [{ en: 'Locale', zh: '语言 / 地区', ja: '言語 / 地域' }, { en: '<code>en</code> / <code>en_US</code>, written while shut down', zh: '<code>en</code> / <code>en_US</code>，在关机状态下写入', ja: '<code>en</code> / <code>en_US</code>、シャットダウン中に設定' }],
@@ -529,18 +457,21 @@
     ] },
   ];
   const TOOLS_ENV = [
-    ['Quiesco', 'quiesco / @quiesco/core / @quiesco/vitest 0.13.4 · in-app 0.13.3', 'Vitest'],
+    ['Quiesco', `quiesco / @quiesco/core / @quiesco/vitest ${B.quiesco.version} · in-app ${B.quiesco.version}`, 'Vitest'],
     ['Detox', '20.51.4 · expo-detox-config-plugin 13.1.0', 'Jest'],
     ['Appium', '4.0.0 · XCUITest 13.1.1 · UiAutomator2 9.2.1', 'WebdriverIO 10.2.0'],
     ['Maestro', '2.11.0', 'Maestro CLI'],
   ];
   const METHOD = [
-    { en: '<strong>Scale.</strong> 160 valid runs: 4 tools × 2 platforms × 20 runs, interleaved. Scenarios run in a fixed order inside each suite. 24 warm-up runs and 19 invalid runs were excluded; every invalid run was on iOS (a system UI process crashed) and all four tools hit them.',
-      zh: '<strong>规模。</strong>有效运行 160 次：4 个工具 × 2 个平台 × 20 次，交错执行，场景在套件内按固定顺序执行。排除了预热 24 次和无效 19 次；无效运行全部在 iOS 上（系统界面进程崩溃），四个工具都遇到过。',
-      ja: '<strong>規模。</strong>有効な実行は 160 回（4 ツール × 2 プラットフォーム × 20 回）で、交互に実行し、スイート内のシナリオは固定順です。ウォームアップ 24 回と無効な実行 19 回を除外しました。無効な実行はすべて iOS（システム UI プロセスのクラッシュ）で、4 ツールすべてで発生しています。' },
-    { en: '<strong>Times</strong> are in seconds. Per-scenario times leave out the reset before each scenario, which is shown separately as the median reset time.',
-      zh: '<strong>耗时</strong>单位为秒。逐场景耗时不含每个场景开始前的重置，重置耗时单独给出中位数。',
-      ja: '<strong>所要時間</strong>は秒単位です。シナリオ別の時間には各シナリオ前のリセットを含まず、リセット時間は中央値として別に示します。' },
+    { en: '<strong>Scale.</strong> 160 valid runs: 4 tools × 2 platforms × 20 runs. Scenarios run in a fixed order inside each suite. Detox, Appium and Maestro ran interleaved in session m5-final-none (2026-11-24 → 26), excluding 24 warm-up runs and 19 invalid runs (all on iOS, a system UI process crashed; all four tools hit them).',
+      zh: '<strong>规模。</strong>有效运行 160 次：4 个工具 × 2 个平台 × 20 次，场景在套件内按固定顺序执行。Detox、Appium、Maestro 在会话 m5-final-none（2026-11-24 → 26）中交错执行，排除了预热 24 次和无效 19 次（全部在 iOS 上，系统界面进程崩溃，四个工具都遇到过）。',
+      ja: '<strong>規模。</strong>有効な実行は 160 回（4 ツール × 2 プラットフォーム × 20 回）で、スイート内のシナリオは固定順です。Detox、Appium、Maestro はセッション m5-final-none（2026-11-24 → 26）で交互に実行し、ウォームアップ 24 回と無効な実行 19 回を除外しました（すべて iOS でシステム UI プロセスがクラッシュしたもので、4 ツールすべてで発生）。' },
+    { en: '<strong>Quiesco 0.14.4</strong> replaced 0.13.4 and was re-run alone in session m5-quiesco-0144 (2026-11-27): 6 warm-up runs, no invalid runs. The iOS simulator was rebuilt with the same name and configuration. The other tools were not upgraded (newer Appium 4.0.2, XCUITest driver 13.8.0, UiAutomator2 driver 10.4.0 and Maestro 2.12.1 existed). The replaced 0.13.4 data stays in the raw results.',
+      zh: '<strong>Quiesco 0.14.4</strong> 替换了 0.13.4，在会话 m5-quiesco-0144（2026-11-27）中单独重跑：预热 6 次，无效运行 0 次。iOS 模拟器按同名、同配置重建。其他工具没有升级（当时已有 Appium 4.0.2、XCUITest driver 13.8.0、UiAutomator2 driver 10.4.0、Maestro 2.12.1）。被替换的 0.13.4 数据保留在原始数据中。',
+      ja: '<strong>Quiesco 0.14.4</strong> は 0.13.4 を置き換え、セッション m5-quiesco-0144（2026-11-27）で単独で再実行しました。ウォームアップ 6 回、無効な実行 0 回です。iOS シミュレータは同名・同構成で作り直しました。他のツールは更新していません（当時 Appium 4.0.2、XCUITest driver 13.8.0、UiAutomator2 driver 10.4.0、Maestro 2.12.1 が出ていました）。置き換えた 0.13.4 のデータは生データに残しています。' },
+    { en: '<strong>Times</strong> are in seconds. Per-scenario times run from the start of the reset before the scenario to its last assertion. Tools end their reset at different points (some wait for the app to finish launching, some don\'t), so reset and scenario time are not compared separately.',
+      zh: '<strong>耗时</strong>单位为秒。逐场景耗时从场景前的重置开始，到场景最后一个断言结束。各工具的重置在不同的时点结束（有的等 app 启动完成，有的不等），所以不把重置和场景本身分开比较。',
+      ja: '<strong>所要時間</strong>は秒単位です。シナリオ別の時間は、シナリオ前のリセット開始から最後のアサーションまでです。リセットが終わる時点はツールによって異なる（アプリの起動完了を待つものと待たないものがある）ため、リセットとシナリオ本体を分けて比較することはしません。' },
     { en: '<strong>p90</strong> is the 90th percentile. All quantiles use linear interpolation (R type 7).',
       zh: '<strong>p90</strong> 是第 90 百分位数。分位数都用线性插值（R type 7）计算。',
       ja: '<strong>p90</strong> は 90 パーセンタイルです。分位数はすべて線形補間（R type 7）で計算しています。' },
@@ -550,9 +481,9 @@
     { en: '<strong>Full-suite time</strong> compares the shared scenario set so all four tools are timed on the same work.',
       zh: '<strong>整套耗时</strong>比较的是共同场景集，保证四个工具比的是同一组场景。',
       ja: '<strong>スイート全体の時間</strong>は共通シナリオで比較し、4 ツールが同じ作業で計測されるようにしています。' },
-    { en: '<strong>Methodology.</strong> Measurement began under METHODOLOGY v16 and was revised to v19 along the way; statistics follow v19 (N = 20 valid runs per combination, no stress conditions).',
-      zh: '<strong>方法版本。</strong>测量从 METHODOLOGY v16 开始，中途修订到 v19；统计按 v19 的规则（每个组合有效 N = 20，无施压条件）。',
-      ja: '<strong>方法のバージョン。</strong>測定は METHODOLOGY v16 で始まり、途中で v19 に改訂しました。統計は v19 の規則に従います（組み合わせごとに有効 N = 20、負荷条件なし）。' },
+    { en: '<strong>Methodology.</strong> Measurement began under METHODOLOGY v16 and was revised to v21 along the way; statistics follow v21 (N = 20 valid runs per combination, no stress conditions, per-scenario comparison on reset-start-to-end time since v20).',
+      zh: '<strong>方法版本。</strong>测量从 METHODOLOGY v16 开始，中途修订到 v21；统计按 v21 的规则（每个组合有效 N = 20，无施压条件；v20 起逐场景比较用重置开始到场景结束的耗时）。',
+      ja: '<strong>方法のバージョン。</strong>測定は METHODOLOGY v16 で始まり、途中で v21 に改訂しました。統計は v21 の規則に従います（組み合わせごとに有効 N = 20、負荷条件なし。v20 以降、シナリオ別の比較はリセット開始から終了までの時間を使用）。' },
   ];
   function renderEnv() {
     const cards = ENV.map((c) => `<div class="card"><h3 class="h-title">${P(c.title)}<span class="anno">${c.anno}</span></h3><dl>${c.rows.map(([k, v]) => `<dt>${P(k)}</dt><dd>${P(v)}</dd>`).join('')}</dl></div>`).join('');
@@ -564,7 +495,7 @@
   /* ---------- Motion (GSAP + ScrollTrigger; none with reduced motion) ---------- */
   // Registered here, once <body> exists. ScrollSmoother comes first: it has to exist before any ScrollTrigger.
   const motion = !window.QMOTION.reduce() && !!window.gsap && !!window.ScrollTrigger && !!window.ScrollSmoother;
-  let smoother = null, headPin = null, explorerSeen = false;
+  let smoother = null, explorerSeen = false;
   if (motion) {
     gsap.registerPlugin(ScrollTrigger, ScrollSmoother);
     smoother = ScrollSmoother.create({ wrapper: '#smooth-wrapper', content: '#smooth-content', smooth: 1.1, effects: true });
@@ -572,26 +503,15 @@
     window.QSMOOTHER = smoother;
   }
 
-  // position: sticky does nothing inside a smoothed page: pin the explorer's header under the site header
-  // for as long as the explorer is on screen. Made again after every render (the explorer is rebuilt), and
-  // the page measured again (rows open and close).
+  // Rows open and close: the page is measured again.
   function afterExplorerRender() {
-    if (!smoother) return;
-    headPin?.kill();
-    headPin = null;
-    const head = ex.querySelector('.ex-head');
-    if (head) headPin = ScrollTrigger.create({ trigger: head, start: 'top 61px', endTrigger: ex, end: () => `bottom ${61 + head.offsetHeight}px`, pin: true, pinSpacing: false });
-    ScrollTrigger.refresh();
+    if (smoother) ScrollTrigger.refresh();
   }
 
-  // Rows come in, then every marker pops onto its place and the bars grow from their anchor.
+  // Rows come in one after another.
   function animateExplorer(speed = 1) {
     if (!motion || !explorerSeen) return;
-    const q = (sel) => ex.querySelectorAll(sel);
-    gsap.from(q('.ex-row, table.nums tbody tr.row'), { opacity: 0, y: 10 * speed, duration: 0.45 * Math.max(speed, 0.6), ease: 'power3.out', stagger: 0.022 * speed });
-    gsap.from(q('.plot .mk'), { opacity: 0, scale: 0, duration: 0.35, ease: 'back.out(2.5)', stagger: 0.006, delay: 0.15 * speed, clearProps: 'transform,opacity' });
-    gsap.from(q('.plot .rng, .plot .lead, .dv i.lose'), { scaleX: 0, transformOrigin: 'left center', duration: 0.6, ease: 'power3.out', stagger: 0.008, delay: 0.1 * speed, clearProps: 'transform' });
-    gsap.from(q('.dv i.win'), { scaleX: 0, transformOrigin: 'right center', duration: 0.6, ease: 'power3.out', stagger: 0.008, delay: 0.1 * speed, clearProps: 'transform' });
+    gsap.from(ex.querySelectorAll('table.nums tbody tr.row'), { opacity: 0, y: 10 * speed, duration: 0.45 * Math.max(speed, 0.6), ease: 'power3.out', stagger: 0.022 * speed });
   }
 
   function intro() {
