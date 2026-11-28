@@ -795,7 +795,8 @@ export class IosProvider implements DeviceProvider {
    * Right after the session's first launch: start the system UI runner in the background (7–15 s cold),
    * so the first `system.*` call, openUrl from the background or openNotification does not wait for it.
    * Only a runner built already: building one takes minutes of CPU, which the first scenarios would feel.
-   * A running runner also makes each app launch slower (about 0.45 s, measured on iOS 27), so by default
+   * A running runner also makes the app connect ~0.45 s later on each launch, ~0.13 s per test once the quicker
+   * first action is counted (measured on iOS 27, speed-test-results/0.14.4-optimizations.md), so by default
    * ('auto') only for an app whose sessions used the runner within the last week (recordUse).
    * Config `devices.ios.warmUpSystemUi`: true always, false never. A failure shows up when the runner is used.
    */

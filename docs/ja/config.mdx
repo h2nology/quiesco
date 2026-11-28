@@ -165,7 +165,7 @@ export default defineConfig(({ workerIndex, workerCount }) => ({
 </ResponseField>
 
 <ResponseField name="devices.ios.warmUpSystemUi" type="boolean | 'auto'" default="'auto'">
-  システムUI（`app.device.system.*`、通知、バックグラウンドからのリンク）を読むXCUITestランナーを、最初に使うとき（7〜15秒かかります）ではなく、アプリの起動後にバックグラウンドで起動します。ランナーが動いている間はアプリの起動が少し（約0.45秒）遅くなるため、`'auto'`では、そのアプリのテストが過去1週間にランナーを使った場合だけ先に起動します。`true`なら常に、`false`なら起動しません。起動するのはビルド済みのランナーだけです。ランナーは最初に使ったときに、Xcodeのバージョンごとに1回ビルドされます。
+  システムUI（`app.device.system.*`、通知、バックグラウンドからのリンク）を読むXCUITestランナーを、最初に使うとき（7〜15秒かかります）ではなく、アプリの起動後にバックグラウンドで起動します。ランナーが動いている間は、アプリを起動するテストが少し（約0.13秒）遅くなるため、`'auto'`では、そのアプリのテストが過去1週間にランナーを使った場合だけ先に起動します。`true`なら常に、`false`なら起動しません。起動するのはビルド済みのランナーだけです。ランナーは最初に使ったときに、Xcodeのバージョンごとに1回ビルドされます。
 </ResponseField>
 
 ### devices.android {#devices-android}

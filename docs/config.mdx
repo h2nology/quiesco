@@ -188,7 +188,7 @@ viewports always come from here.
 <ResponseField name="devices.ios.warmUpSystemUi" type="boolean | 'auto'" default="'auto'">
   Start the XCUITest runner that reads the system UI (`app.device.system.*`, notifications, links opened from
   the background) in the background once the app has started, instead of on first use, which takes 7–15 s.
-  While it runs, each app launch takes a little longer (about 0.45 s), so `'auto'` starts it early only when
+  While it runs, each test with an app launch takes a little longer (about 0.13 s), so `'auto'` starts it early only when
   the app's tests used it within the last week; `true` always, `false` never. Only a runner built already is
   started: the first use builds it, once per Xcode version.
 </ResponseField>
