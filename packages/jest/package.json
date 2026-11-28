@@ -1,6 +1,6 @@
 {
   "name": "@quiesco/jest",
-  "version": "0.14.4",
+  "version": "0.15.0",
   "description": "Quiesco for Jest: a preset whose test environment runs one session for the run and gives tests `quiesco.app`",
   "license": "MIT",
   "author": "h2nology",
