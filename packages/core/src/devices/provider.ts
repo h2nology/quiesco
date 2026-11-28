@@ -130,8 +130,11 @@ export interface DeviceProvider {
 
   // ---- Phase 6.5 lifecycle; a missing method means ACTION_NOT_SUPPORTED on that platform ----
 
-  /** Delete the app's data (the app is terminated). Android also loses granted runtime permissions. */
-  clearData?(): Promise<void>;
+  /**
+   * Delete the app's data (the app is terminated). Android also loses granted runtime permissions.
+   * `terminated`: the caller has just terminated the app, so the provider need not do it again.
+   */
+  clearData?(opts?: { terminated?: boolean }): Promise<void>;
   /** Remove the app from the device (the app is terminated). */
   uninstall?(): Promise<void>;
   /** Put the app in the background, the process keeps running. */

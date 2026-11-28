@@ -116,8 +116,8 @@ class LifecycleProvider extends FakeProvider {
       await open.closed;
     }
   }
-  async clearData() {
-    this.calls.push('clearData');
+  async clearData(opts: { terminated?: boolean } = {}) {
+    this.calls.push(opts.terminated === true ? 'clearData(terminated)' : 'clearData');
   }
   async uninstall() {
     this.calls.push('uninstall');
@@ -218,7 +218,7 @@ describe('app.device', () => {
     session = await Session.create({ config: config(), platform: 'android', provider, logger: silentLogger });
     provider.calls.length = 0;
     await session.driver.device.relaunch({ clearData: true, permissions: ['camera'] });
-    expect(provider.calls).toEqual(['terminate', 'clearData', 'grant:location,camera', 'launch']);
+    expect(provider.calls).toEqual(['terminate', 'clearData(terminated)', 'grant:location,camera', 'launch']);
     provider.calls.length = 0;
     await session.driver.device.relaunch({ reinstall: true });
     expect(provider.calls).toEqual(['terminate', 'uninstall', 'install', 'grant:location', 'launch']);

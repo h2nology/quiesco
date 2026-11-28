@@ -295,6 +295,8 @@ export class IosProvider implements DeviceProvider {
   readonly gestureSlop = { pinch: 9, rotation: (7 * Math.PI) / 180 };
   private sim: SimDevice | null = null;
   private bootedByUs = false;
+  /** The app's data container (clearData), kept until the app is installed or uninstalled again. */
+  private dataContainer: string | null = null;
   /** Locale the app is launched with (setLocale); null = the simulator's. */
   private locale: string | null = null;
   /** Device settings changed by setX, with the value to restore (resetDeviceState). */
@@ -437,6 +439,7 @@ export class IosProvider implements DeviceProvider {
   }
 
   async install(): Promise<void> {
+    this.dataContainer = null;
     const app = this.options.app.binaryPath;
     if (app !== undefined) {
       await this.simctl(['install', this.udid, path.resolve(app)], 300_000);
@@ -508,15 +511,10 @@ export class IosProvider implements DeviceProvider {
    * `defaults delete` first: cfprefsd caches them, so deleting the plist alone would bring them back.
    * The keychain is kept (simctl cannot clear one app's keychain items).
    */
-  async clearData(): Promise<void> {
-    await this.terminate();
+  async clearData(opts: { terminated?: boolean } = {}): Promise<void> {
+    if (opts.terminated !== true) await this.terminate();
     await this.simctl(['spawn', this.udid, 'defaults', 'delete', this.bundleId]).catch(() => undefined);
-    let data: string;
-    try {
-      data = (await this.simctl(['get_app_container', this.udid, this.bundleId, 'data'])).trim();
-    } catch (e) {
-      throw new QuiescoError('DEVICE_ERROR', `cannot find the data container of ${this.bundleId}: ${(e as Error).message}`);
-    }
+    const data = await this.appDataContainer();
     for (const dir of ['Documents', 'Library', 'tmp']) {
       const full = path.join(data, dir);
       const entries = await fs.readdir(full).catch(() => [] as string[]);
@@ -524,7 +522,23 @@ export class IosProvider implements DeviceProvider {
     }
   }
 
+  /**
+   * `simctl get_app_container … data`, asked once (~0.2 s a call) and kept until install() / uninstall().
+   * Asked again when the folder is gone, e.g. the app was reinstalled outside Quiesco.
+   */
+  private async appDataContainer(): Promise<string> {
+    if (this.dataContainer !== null && (await fs.stat(this.dataContainer).then((st) => st.isDirectory(), () => false))) return this.dataContainer;
+    try {
+      this.dataContainer = (await this.simctl(['get_app_container', this.udid, this.bundleId, 'data'])).trim();
+    } catch (e) {
+      this.dataContainer = null;
+      throw new QuiescoError('DEVICE_ERROR', `cannot find the data container of ${this.bundleId}: ${(e as Error).message}`);
+    }
+    return this.dataContainer;
+  }
+
   async uninstall(): Promise<void> {
+    this.dataContainer = null;
     await this.terminate();
     await this.simctl(['uninstall', this.udid, this.bundleId]);
   }
