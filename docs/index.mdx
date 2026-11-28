@@ -32,8 +32,8 @@ test('a new todo appears at the top of the list', async ({ app }) => {
   and a frame-stability fallback ([how it works](./sync)). A sync timeout names what was still busy.
 - **Real input** — touches and text through `@quiesco/native` (iOS / Android) or Playwright (web); a
   callback mode (`js`) works without native code.
-- **Fast resets** — a soft reset (storage, your reset hooks, remount) before every test, typically
-  ~200 ms; `@hard-reset` relaunches the app.
+- **Fast resets** — a soft reset (storage, your reset hooks, remount) before every test, about
+  0.1 s on Android and 0.5 s on iOS; `@hard-reset` relaunches the app.
 - **Backdoors** — set up state from tests without driving the UI (`app.backdoor('loginAs', …)`).
 - **Nothing in production** — without `EXPO_PUBLIC_QUIESCO=1` the agent is replaced by a no-op stub and
   the native module is excluded from the build (checked in CI).
