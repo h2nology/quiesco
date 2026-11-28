@@ -30,8 +30,8 @@ test('a new todo appears at the top of the list', async ({ app }) => {
   and a frame-stability fallback ([how it works](https://docs.quiesco.dev/sync)). A sync timeout names what was still busy.
 - **Real input** — touches and text through `@quiesco/native` (iOS / Android) or Playwright (web); a
   callback mode (`js`) works without native code.
-- **Fast resets** — a soft reset (storage, your reset hooks, remount) before every test, typically
-  ~200 ms; `@hard-reset` relaunches the app.
+- **Fast resets** — a soft reset (storage, your reset hooks, remount) before every test, about
+  0.1 s on Android and 0.5 s on iOS; `@hard-reset` relaunches the app.
 - **Backdoors** — set up state from tests without driving the UI (`app.backdoor('loginAs', …)`).
 - **Live progress** — `quiesco test` keeps a progress bar on the last line of the terminal; `quiesco ui`
   runs tests from the browser with a click and shows failures with their screenshot and element tree

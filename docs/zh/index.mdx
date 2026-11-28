@@ -26,7 +26,7 @@ test('a new todo appears at the top of the list', async ({ app }) => {
 
 - **自动同步**——网络、定时器、React 调度器、idle 回调、原生转场动画，以及基于帧稳定性的兜底机制（[工作原理](./sync)）。同步超时时会指出仍在忙碌的是什么。
 - **真实输入**——通过 `@quiesco/native`（iOS / Android）或 Playwright（Web）注入触摸和文本；回调模式（`js`）无需原生代码即可工作。
-- **快速重置**——每个测试开始前执行软重置（存储、你的重置钩子、重新挂载），通常约 200 ms；`@hard-reset` 会重新启动 App。
+- **快速重置**——每个测试开始前执行软重置（存储、你的重置钩子、重新挂载），Android 约 0.1 秒，iOS 约 0.5 秒；`@hard-reset` 会重新启动 App。
 - **后门**——在测试中直接设置状态，无需操作 UI（`app.backdoor('loginAs', …)`）。
 - **生产环境零残留**——没有 `EXPO_PUBLIC_QUIESCO=1` 时，agent 会被替换为空实现的桩，原生模块也会从构建中排除（由 CI 检查）。
 
