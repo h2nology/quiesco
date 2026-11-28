@@ -268,8 +268,16 @@ How Quiesco decides that the app is idle before each call ([synchronization](./s
 
 How the app is brought back to its initial state before each scenario.
 
-- **`reset.default`** (`'soft' | 'hard'`, default `'soft'`):
+- **`reset.default`** (`'soft' | 'hard' | 'none'`, default `'soft'`):
   `hard` relaunches the app before every scenario. A single scenario can ask for it with `@hard-reset`.
+  `none` skips the reset, for tests that reset the app themselves, e.g. with
+  `app.device.relaunch({ clearData: true })` in a `beforeEach`: a soft reset there would be undone a moment
+  later. Device changes are still undone and `@hard-reset` still relaunches; `reset.expectVisible` is only
+  checked after a reset.
+
+  ```ts
+  reset: { default: 'none' }, // every test's beforeEach calls app.device.relaunch({ clearData: true })
+  ```
 
 - **`reset.expectVisible`** (`Matcher`):
   An element that must be visible after every reset, e.g. `{ id: 'home' }`. If it is not, the reset fails

@@ -140,7 +140,7 @@ import type {} from '../../src/backdoors';
 
 ## 重置 {#reset}
 
-在每个测试之前，App 会进行一次**软重置**：清空其存储，运行 `onReset` hook，把导航恢复到起点，并重新挂载 `<QuiescoRoot>` 下的一切。带有 [`@hard-reset`](./api-tags) 标签的测试则会重新启动 App。
+在每个测试之前，App 会进行一次**软重置**：清空其存储，运行 `onReset` hook，把导航恢复到起点，并重新挂载 `<QuiescoRoot>` 下的一切。带有 [`@hard-reset`](./api-tags) 标签的测试则会重新启动 App。设置 [`reset.default: 'none'`](./config#reset) 时不做重置，由测试自己重置 App。
 
 ### `quiesco.onReset(hook)` {#onreset}
 

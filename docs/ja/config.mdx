@@ -276,8 +276,15 @@ export default defineConfig(({ workerIndex, workerCount }) => ({
 
 各シナリオの前に、アプリをどう初期状態に戻すか。
 
-<ResponseField name="reset.default" type="'soft' | 'hard'" default="'soft'">
+<ResponseField name="reset.default" type="'soft' | 'hard' | 'none'" default="'soft'">
   `hard`はシナリオのたびにアプリを再起動します。1つのシナリオだけなら`@hard-reset`タグで指定できます。
+  `none`はリセットをしません。`beforeEach`で`app.device.relaunch({ clearData: true })`を呼ぶなど、
+  テスト自身がアプリをリセットする場合に使います（その直前のソフトリセットは無駄になるため）。デバイスの
+  変更は引き続き元に戻し、`@hard-reset`も再起動します。`reset.expectVisible`はリセットしたときだけ確認します。
+
+  ```ts
+  reset: { default: 'none' }, // 各テストの beforeEach で app.device.relaunch({ clearData: true }) を呼ぶ
+  ```
 </ResponseField>
 
 <ResponseField name="reset.expectVisible" type="Matcher">

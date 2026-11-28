@@ -219,7 +219,7 @@ beforeScenario(info?: ScenarioInfo): Promise<void>
 
 型： [`ScenarioInfo`](./api-types#scenarioinfo)
 
-前のテストの[実行時の同期](./api-runtime-sync)と[デバイス](./api-device)の変更を元に戻し、バックグラウンドのアプリを前面に戻すか終了したアプリを起動してから、アプリをソフトリセットします。`@hard-reset`（または`reset.default: 'hard'`）の場合は、アプリを終了して再起動します。アプリがクラッシュしていたり応答しなくなっていたりすれば、起動し直します。
+前のテストの[実行時の同期](./api-runtime-sync)と[デバイス](./api-device)の変更を元に戻し、バックグラウンドのアプリを前面に戻すか終了したアプリを起動してから、アプリをソフトリセットします。`@hard-reset`（または`reset.default: 'hard'`）の場合は、アプリを終了して再起動します。`reset.default: 'none'`のときはリセットしません。アプリがクラッシュしていたり応答しなくなっていたりすれば、起動し直します。
 
 ```ts
 await session.beforeScenario({ tags: [Tag.hardReset], name: 'first launch' });
