@@ -219,7 +219,7 @@ beforeScenario(info?: ScenarioInfo): Promise<void>
 
 类型： [`ScenarioInfo`](./api-types#scenarioinfo)
 
-撤销上一个测试的 [运行时同步](./api-runtime-sync) 和 [设备](./api-device) 更改，把处于后台的 App 切回前台或启动已终止的 App，然后对 App 进行软重置；对于 `@hard-reset`（或 `reset.default: 'hard'`），则终止并重新启动它。如果 App 崩溃或不再响应，会重新启动它。
+撤销上一个测试的 [运行时同步](./api-runtime-sync) 和 [设备](./api-device) 更改，把处于后台的 App 切回前台或启动已终止的 App，然后对 App 进行软重置；对于 `@hard-reset`（或 `reset.default: 'hard'`），则终止并重新启动它；`reset.default: 'none'` 时不做重置。如果 App 崩溃或不再响应，会重新启动它。
 
 ```ts
 await session.beforeScenario({ tags: [Tag.hardReset], name: 'first launch' });

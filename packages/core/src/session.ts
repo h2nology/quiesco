@@ -215,7 +215,7 @@ export class Session {
   /**
    * Before each scenario: undo the previous scenario's `app.sync.*` and device-state changes, bring a backgrounded app
    * back / start a terminated one, then soft reset — or terminate + relaunch for `@hard-reset` (or
-   * `reset.default: 'hard'`).
+   * `reset.default: 'hard'`), or nothing more for `reset.default: 'none'` (the test resets the app itself).
    */
   async beforeScenario(info: ScenarioInfo = {}): Promise<void> {
     if (this.crash !== null) {
@@ -247,7 +247,8 @@ export class Session {
   private async resetForScenario(info: ScenarioInfo): Promise<void> {
     await this.sync.reset();
     await this.device.resetDeviceState(this.config.permissions ?? []);
-    const hard = info.tags?.includes(tagNames(this.config.tags).hardReset) === true || this.config.reset?.default === 'hard';
+    const mode = this.config.reset?.default ?? 'soft';
+    const hard = info.tags?.includes(tagNames(this.config.tags).hardReset) === true || mode === 'hard';
     if (hard || this.appState === 'terminated') {
       await this.provider.terminate();
       this.appState = 'terminated';
@@ -255,6 +256,8 @@ export class Session {
       this.appState = 'running';
     } else {
       if (this.appState === 'background') await this.device.bringToForeground();
+      // 'none': the test's own hooks reset the app (e.g. relaunch({ clearData: true })); a soft reset would be undone.
+      if (mode === 'none') return;
       await this.driver.reset();
     }
     await this.expectInitialState();

@@ -97,6 +97,25 @@ describe('Session', () => {
     expect(agents[1]?.requests.map((r) => r.method)).toEqual(['waitForIdle']);
   });
 
+  it("reset.default 'none': no soft reset before a scenario; @hard-reset and a terminated app still relaunch", async () => {
+    const { provider, agents } = agentOnLaunch((m) => (m === 'reset' ? { durationMs: 5 } : {}));
+    session = await Session.create({ config: config({ reset: { default: 'none' } }), platform: 'android', provider, logger: silentLogger });
+    provider.calls.length = 0;
+    await session.beforeScenario({ tags: ['@smoke'] });
+    expect(agents[0]?.requests.map((r) => r.method)).toEqual([]);
+    expect(provider.calls).not.toContain('launch');
+    await session.beforeScenario({ tags: ['@hard-reset'] });
+    expect(provider.calls.slice(-2)).toEqual(['terminate', 'launch']);
+    expect(agents).toHaveLength(2);
+    // The test terminated the app: the next scenario starts it, still without a soft reset.
+    await session.driver.device.terminate();
+    provider.calls.length = 0;
+    await session.beforeScenario({});
+    expect(provider.calls.slice(-2)).toEqual(['terminate', 'launch']);
+    expect(agents).toHaveLength(3);
+    expect(agents[2]?.requests.map((r) => r.method)).not.toContain('reset');
+  });
+
   it('collects evidence best effort', async () => {
     const { provider } = agentOnLaunch((m) => {
       if (m === 'getTree') return { root: null };

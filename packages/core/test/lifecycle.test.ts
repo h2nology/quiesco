@@ -315,6 +315,22 @@ describe('app.device', () => {
     expect(provider.calls.slice(-2)).toEqual(['terminate', 'launch']);
   });
 
+  it("reset.default 'none': no reset, so no expectVisible check; a backgrounded app is still brought back", async () => {
+    const { provider, agents, state } = setup();
+    session = await Session.create({ config: config({ reset: { default: 'none', expectVisible: 'box' } }), platform: 'android', provider, logger: silentLogger });
+    state.boxVisible = false;
+    const before = methods(agents[0]).length;
+    await session.beforeScenario({});
+    expect(methods(agents[0]).slice(before)).not.toContain('reset');
+    expect(methods(agents[0]).slice(before)).not.toContain('assert');
+    await session.driver.device.sendToBackground();
+    state.appState = 'active';
+    await session.beforeScenario({});
+    expect(provider.calls).toContain('foreground');
+    expect(session.driver.device.appState).toBe('running');
+    expect(methods(agents[0])).not.toContain('reset');
+  });
+
   it('a scenario left in the background is brought back before the next one', async () => {
     const { provider, state } = setup();
     session = await Session.create({ config: config(), platform: 'android', provider, logger: silentLogger });

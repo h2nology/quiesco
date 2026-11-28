@@ -140,7 +140,7 @@ import type {} from '../../src/backdoors';
 
 ## リセット {#reset}
 
-各テストの前に、アプリは**ソフトリセット**されます。ストレージがクリアされ、`onReset`フックが実行され、ナビゲーションが最初に戻り、`<QuiescoRoot>`の下にあるものがすべて再マウントされます。[`@hard-reset`](./api-tags)タグを付けたテストでは、代わりにアプリを再起動します。
+各テストの前に、アプリは**ソフトリセット**されます。ストレージがクリアされ、`onReset`フックが実行され、ナビゲーションが最初に戻り、`<QuiescoRoot>`の下にあるものがすべて再マウントされます。[`@hard-reset`](./api-tags)タグを付けたテストでは、代わりにアプリを再起動します。[`reset.default: 'none'`](./config#reset)のときはリセットせず、テスト自身がアプリをリセットします。
 
 ### `quiesco.onReset(hook)` {#onreset}
 

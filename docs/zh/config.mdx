@@ -276,8 +276,15 @@ Quiesco 在每次调用前如何判断 App 已经空闲（[同步机制](./sync)
 
 每个场景开始前如何让 App 回到初始状态。
 
-<ResponseField name="reset.default" type="'soft' | 'hard'" default="'soft'">
+<ResponseField name="reset.default" type="'soft' | 'hard' | 'none'" default="'soft'">
   `hard` 会在每个场景前重新启动 App。单个场景可以用 `@hard-reset` 标签要求这样做。
+  `none` 不做重置，适用于测试自己重置 App 的情况，例如在 `beforeEach` 里调用
+  `app.device.relaunch({ clearData: true })`：这时先做的软重置马上就会作废。设备状态的更改仍会撤销，
+  `@hard-reset` 仍会重新启动 App；`reset.expectVisible` 只在做了重置后检查。
+
+  ```ts
+  reset: { default: 'none' }, // 每个测试的 beforeEach 都会调用 app.device.relaunch({ clearData: true })
+  ```
 </ResponseField>
 
 <ResponseField name="reset.expectVisible" type="Matcher">

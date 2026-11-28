@@ -160,7 +160,8 @@ and the file holds only types.
 
 Before each test the app gets a **soft reset**: its storage is cleared, the `onReset` hooks run, the
 navigation goes back to the start, and everything under `<QuiescoRoot>` is remounted. A test tagged
-[`@hard-reset`](./api-tags.md) relaunches the app instead.
+[`@hard-reset`](./api-tags.md) relaunches the app instead. With [`reset.default: 'none'`](./config.md#reset) there
+is no reset: the tests reset the app themselves.
 
 ### `quiesco.onReset(hook)` {#onreset}
 

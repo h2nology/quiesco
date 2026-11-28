@@ -240,8 +240,8 @@ Types: [`ScenarioInfo`](./api-types#scenarioinfo)
 
 Undoes the previous test's [runtime sync](./api-runtime-sync) and [device](./api-device) changes, brings a
 backgrounded app back or starts a terminated one, then soft resets the app, or terminates and relaunches it
-for `@hard-reset` (or `reset.default: 'hard'`). If the app crashed or stopped answering, it is started
-again.
+for `@hard-reset` (or `reset.default: 'hard'`); with `reset.default: 'none'` it does not reset. If the app
+crashed or stopped answering, it is started again.
 
 ```ts
 await session.beforeScenario({ tags: [Tag.hardReset], name: 'first launch' });

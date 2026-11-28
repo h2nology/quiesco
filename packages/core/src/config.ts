@@ -189,7 +189,12 @@ export interface QuiescoConfig {
     gestureSlop?: Partial<GestureSlop>;
   };
   reset?: {
-    default?: 'soft' | 'hard';
+    /**
+     * Before each scenario: `soft` (default) clears storage, runs the onReset hooks and remounts the app;
+     * `hard` terminates and relaunches it; `none` does neither, for tests that reset the app themselves
+     * (e.g. `relaunch({ clearData: true })` in a beforeEach). `@hard-reset` still relaunches.
+     */
+    default?: 'soft' | 'hard' | 'none';
     /**
      * An element that must be visible after every reset, e.g. `{ id: 'home' }`: the app is back in its
      * initial state. When it is not, the reset fails with a clear message instead of the scenario's first
