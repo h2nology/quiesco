@@ -257,7 +257,7 @@ export class DeviceApi {
       await p.install();
     } else if (wipe) {
       // Web: the terminate above already dropped the browser context.
-      await p.clearData?.();
+      await p.clearData?.({ terminated: true });
     }
     const perms = [...new Set([...this.host.permissions, ...(opts.permissions ?? [])])];
     if (perms.length > 0 && (wipe || opts.permissions !== undefined)) await p.grantPermissions(perms);

@@ -210,6 +210,33 @@ describe('IosProvider lifecycle (Phase 6.5)', () => {
     fs.rmSync(data, { recursive: true, force: true });
   });
 
+  it('clearData after a terminate skips its own; the data container is asked once until the app is installed again', async () => {
+    const data = fs.mkdtempSync(`${fs.realpathSync('/tmp')}/qs-ios-`);
+    for (const d of ['Documents', 'Library', 'tmp']) fs.mkdirSync(`${data}/${d}`, { recursive: true });
+    const { p, calls } = provider([[/get_app_container NEW-17 com.example.todo data/, `${data}\n`]]);
+    await p.boot();
+    calls.length = 0;
+    await p.clearData({ terminated: true });
+    fs.writeFileSync(`${data}/Documents/b.json`, '{}');
+    await p.clearData({ terminated: true });
+    expect(fs.readdirSync(`${data}/Documents`)).toEqual([]);
+    expect(calls).toEqual([
+      'xcrun simctl spawn NEW-17 defaults delete com.example.todo',
+      'xcrun simctl get_app_container NEW-17 com.example.todo data',
+      'xcrun simctl spawn NEW-17 defaults delete com.example.todo',
+    ]);
+    // A new install may move the container: asked again.
+    await p.install();
+    calls.length = 0;
+    await p.clearData({ terminated: true });
+    expect(calls.filter((c) => c.includes('get_app_container'))).toHaveLength(1);
+    // The folder went away (reinstalled outside Quiesco): asked again rather than clearing nothing.
+    fs.rmSync(data, { recursive: true, force: true });
+    calls.length = 0;
+    await p.clearData({ terminated: true });
+    expect(calls.filter((c) => c.includes('get_app_container'))).toHaveLength(1);
+  });
+
   it('suspends inside the app, or opens Settings when the app cannot; foreground without terminating', async () => {
     // The system UI runner is warmed up on the way (#82): a stand-in here.
     let starts = 0;
