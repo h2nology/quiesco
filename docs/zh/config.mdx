@@ -165,7 +165,7 @@ export default defineConfig(({ workerIndex, workerCount }) => ({
 </ResponseField>
 
 <ResponseField name="devices.ios.warmUpSystemUi" type="boolean | 'auto'" default="'auto'">
-  在 App 启动后就于后台启动读取系统 UI（`app.device.system.*`、通知、从后台打开的链接）的 XCUITest runner，而不是等到第一次使用时才启动（需要 7–15 秒）。runner 运行期间，每次启动 App 会稍慢一些（约 0.45 秒），所以 `'auto'` 只在该 App 的测试过去一周内用过 runner 时才提前启动；`true` 总是提前启动，`false` 从不提前启动。只启动已经构建好的 runner：runner 在第一次使用时构建，每个 Xcode 版本构建一次。
+  在 App 启动后就于后台启动读取系统 UI（`app.device.system.*`、通知、从后台打开的链接）的 XCUITest runner，而不是等到第一次使用时才启动（需要 7–15 秒）。runner 运行期间，每个启动 App 的测试会稍慢一些（约 0.13 秒），所以 `'auto'` 只在该 App 的测试过去一周内用过 runner 时才提前启动；`true` 总是提前启动，`false` 从不提前启动。只启动已经构建好的 runner：runner 在第一次使用时构建，每个 Xcode 版本构建一次。
 </ResponseField>
 
 ### devices.android {#devices-android}
